@@ -61,6 +61,18 @@ h1, h2 {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
 }
 
+/* Every modal panel and inset box uses one of these two flat literal
+   fills - replacing them with a subtle gradient (+ a faint top highlight,
+   like light catching a beveled edge) reads as a designed surface instead
+   of a flat-color placeholder, again with zero per-component changes. */
+[class*="1c1d3a"] {
+  background: linear-gradient(165deg, #262a52 0%, #1c1d3a 55%, #14152c 100%) !important;
+  position: relative;
+}
+[class*="0f1020"] {
+  background: linear-gradient(165deg, #16182e 0%, #0f1020 60%, #0a0b18 100%) !important;
+}
+
 button {
   transition: transform 0.08s ease, filter 0.08s ease, box-shadow 0.08s ease;
 }

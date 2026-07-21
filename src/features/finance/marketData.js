@@ -30,5 +30,7 @@ export const JOB_COOLDOWN_MS = 20000
 
 export function randomWalk(price, volatility) {
   const change = 1 + (Math.random() - 0.5) * volatility
-  return Math.max(0.5, price * change)
+  // Floor scales with the price itself (rather than a fixed 0.5) so a
+  // low-base asset like crypto doesn't get clamped up to 25x its value.
+  return Math.max(price * 0.01, 0.001, price * change)
 }

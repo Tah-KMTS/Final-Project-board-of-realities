@@ -124,6 +124,8 @@ export default function WorldScreen() {
     const state = useGameStore.getState()
     const stillHasBlocks = state.currentBlockId !== null
     setWorldCleared(null)
+    setActiveModal(null)
+    bridgeRef.current.emit('resumeScene')
     if (!stillHasBlocks) {
       setScreen('welcome')
     }

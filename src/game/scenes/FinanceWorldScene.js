@@ -5,7 +5,7 @@ import { generateAmbientNpcs } from '../../utils/npcGenerator'
 import { FINANCE_NPCS } from '../../features/finance/financeNpcs'
 import { SpriteActor } from '../actor'
 import { TileMover, combineDirection } from '../tileMover'
-import { drawGrassTile, drawRoadTile, drawTree, drawFlower, drawRock, drawBuildingFacade } from '../tileGen'
+import { drawGrassTile, drawRoadTile, drawTree, drawFlower, drawRock, drawBuildingFacade, addScreenVignette } from '../tileGen'
 
 const TILE_SIZE = 32
 const MAP_COLS = 26
@@ -58,12 +58,14 @@ export default class FinanceWorldScene extends Phaser.Scene {
       .text(320, 460, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffe066' })
       .setScrollFactor(0)
       .setOrigin(0.5)
+      .setDepth(2000)
 
     this.cursors = this.input.keyboard.createCursorKeys()
     this.wasd = this.input.keyboard.addKeys('W,A,S,D,E,R')
 
     this.cameras.main.setBounds(0, 0, MAP_COLS * TILE_SIZE, MAP_ROWS * TILE_SIZE)
     this.cameras.main.startFollow(this.playerActor.sprite, true)
+    addScreenVignette(this)
 
     this.buildZones()
 
