@@ -1,0 +1,56 @@
+import { useEffect, useRef } from 'react'
+import Phaser from 'phaser'
+import WorldScene from './scenes/WorldScene'
+import HunterWorldScene from './scenes/HunterWorldScene'
+import FinanceWorldScene from './scenes/FinanceWorldScene'
+import YugiohWorldScene from './scenes/YugiohWorldScene'
+import { createEventBridge } from './eventBridge'
+
+const SCENES_BY_BLOCK = {
+  hunter: HunterWorldScene,
+  finance: FinanceWorldScene,
+  yugioh: YugiohWorldScene,
+}
+
+export default function GameCanvas({ blockId, bridge }) {
+  const containerRef = useRef(null)
+  const gameRef = useRef(null)
+  const sceneRef = useRef(null)
+
+  useEffect(() => {
+    const SceneClass = SCENES_BY_BLOCK[blockId] || WorldScene
+    const scene = new SceneClass()
+    scene.bridge = bridge
+    sceneRef.current = scene
+
+    const config = {
+      type: Phaser.AUTO,
+      width: 640,
+      height: 480,
+      parent: containerRef.current,
+      backgroundColor: '#0f1020',
+      pixelArt: true,
+      physics: {
+        default: 'arcade',
+        arcade: { gravity: { y: 0 }, debug: false },
+      },
+      scene: [scene],
+    }
+
+    gameRef.current = new Phaser.Game(config)
+
+    const unsubResume = bridge.on('resumeScene', () => {
+      sceneRef.current?.resumeFromModal?.()
+    })
+
+    return () => {
+      unsubResume()
+      gameRef.current?.destroy(true)
+      gameRef.current = null
+    }
+  }, [blockId, bridge])
+
+  return <div ref={containerRef} className="border-4 border-yellow-300" />
+}
+
+export { createEventBridge }
