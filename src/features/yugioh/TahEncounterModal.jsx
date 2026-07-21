@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import DDMModal from './DDMModal'
+import DDMBoard from './DDMBoard'
 import RockPaperScissors from './RockPaperScissors'
 
 export default function TahEncounterModal({ onClose }) {
@@ -39,7 +39,7 @@ export default function TahEncounterModal({ onClose }) {
 
   if (phase === 'ddm') {
     return (
-      <DDMModal
+      <DDMBoard
         opponentName="Tah"
         deckFlavorName="Chaos Deck"
         opponentPowerBonus={Math.floor(Math.random() * 3)}

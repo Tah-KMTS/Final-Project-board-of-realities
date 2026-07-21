@@ -1,10 +1,15 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { STARTER_DECK } from './cardGenerator'
+import { playHitSound, playTakeDamageSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
+
+const START_LP = 8000
 
 function bestCard(deck) {
   return deck.reduce((best, c) => (c.atk > best.atk ? c : best), deck[0])
 }
+
+let floatingTextSeq = 0
 
 export default function DuelModal({
   opponentName,
@@ -18,13 +23,23 @@ export default function DuelModal({
   const storeDeck = useGameStore((s) => s.world3.deck)
   const playerDeck = storeDeck.length > 0 ? storeDeck : STARTER_DECK
 
-  const [playerLP, setPlayerLP] = useState(8000)
-  const [opponentLP, setOpponentLP] = useState(8000)
+  const [playerLP, setPlayerLP] = useState(START_LP)
+  const [opponentLP, setOpponentLP] = useState(START_LP)
   const [log, setLog] = useState([`A Shadow Game begins against ${opponentName}!`])
   const [outcome, setOutcome] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [playerFloats, setPlayerFloats] = useState([])
+  const [opponentFloats, setOpponentFloats] = useState([])
+  const [playerHitPulse, setPlayerHitPulse] = useState(0)
+  const [opponentHitPulse, setOpponentHitPulse] = useState(0)
 
   const appendLog = (line) => setLog((prev) => [...prev.slice(-5), line])
+
+  const spawnFloat = (setFloats, text) => {
+    const id = ++floatingTextSeq
+    setFloats((prev) => [...prev, { id, text }])
+    setTimeout(() => setFloats((prev) => prev.filter((f) => f.id !== id)), 700)
+  }
 
   const resolveTurn = (playerCard) => {
     if (busy || outcome) return
@@ -41,10 +56,16 @@ export default function DuelModal({
       const dmg = playerCard.atk - effectiveOpponentAtk
       nextOpponentLP = Math.max(0, opponentLP - dmg)
       appendLog(`${opponentCard.name} is destroyed! ${opponentName} takes ${dmg} damage.`)
+      spawnFloat(setOpponentFloats, `-${dmg}`)
+      setOpponentHitPulse((p) => p + 1)
+      playHitSound()
     } else if (effectiveOpponentAtk > playerCard.atk) {
       const dmg = effectiveOpponentAtk - playerCard.atk
       nextPlayerLP = Math.max(0, playerLP - dmg)
       appendLog(`${playerCard.name} is destroyed! You take ${dmg} damage.`)
+      spawnFloat(setPlayerFloats, `-${dmg}`)
+      setPlayerHitPulse((p) => p + 1)
+      playTakeDamageSound()
     } else {
       appendLog('Both monsters are destroyed in the clash. No damage.')
     }
@@ -53,8 +74,8 @@ export default function DuelModal({
     setOpponentLP(nextOpponentLP)
 
     setTimeout(() => {
-      if (nextOpponentLP <= 0) setOutcome('victory')
-      else if (nextPlayerLP <= 0) setOutcome('defeat')
+      if (nextOpponentLP <= 0) { setOutcome('victory'); playVictorySound() }
+      else if (nextPlayerLP <= 0) { setOutcome('defeat'); playDefeatSound() }
       setBusy(false)
     }, 400)
   }
@@ -62,11 +83,12 @@ export default function DuelModal({
   const handleHolographicCheat = () => {
     appendLog('You quietly activate illegal holographic tech. The duel is over before it started.')
     setOutcome('victory')
+    playVictorySound()
   }
 
   const handleContinue = () => {
     // Does not auto-close; caller's onVictory/onDefeat decides what happens
-    // next (see DDMModal for why).
+    // next, since some callers chain into more UI after a match resolves.
     if (outcome === 'victory' && onVictory) onVictory()
     if (outcome === 'defeat' && onDefeat) onDefeat()
   }
@@ -76,9 +98,40 @@ export default function DuelModal({
       <div className="w-[520px] border-4 border-purple-500 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-2 text-xl font-bold text-purple-300">Shadow Game vs. {opponentName}</h2>
 
-        <div className="mb-3 flex justify-between text-sm">
-          <span>You: <span className="text-green-400">{playerLP} LP</span></span>
-          <span>{opponentName}: <span className="text-red-400">{opponentLP} LP</span></span>
+        <div key={`opp-lp-${opponentHitPulse}`} className="relative mb-2 animate-shake">
+          <div className="flex justify-between text-sm">
+            <span>{opponentName}</span>
+            <span className="text-red-400">{opponentLP} LP</span>
+          </div>
+          <div className="mt-1 h-3 w-full bg-gray-800">
+            <div
+              className="h-3 bg-red-500 transition-all"
+              style={{ width: `${Math.max(0, (opponentLP / START_LP) * 100)}%` }}
+            />
+          </div>
+          {opponentFloats.map((f) => (
+            <span key={f.id} className="animate-float-up-fade pointer-events-none absolute right-0 top-0 font-bold text-red-400">
+              {f.text}
+            </span>
+          ))}
+        </div>
+
+        <div key={`player-lp-${playerHitPulse}`} className="relative mb-3 animate-shake">
+          <div className="flex justify-between text-sm">
+            <span>You</span>
+            <span className="text-green-400">{playerLP} LP</span>
+          </div>
+          <div className="mt-1 h-3 w-full bg-gray-800">
+            <div
+              className="h-3 bg-green-500 transition-all"
+              style={{ width: `${Math.max(0, (playerLP / START_LP) * 100)}%` }}
+            />
+          </div>
+          {playerFloats.map((f) => (
+            <span key={f.id} className="animate-float-up-fade pointer-events-none absolute right-0 top-0 font-bold text-red-400">
+              {f.text}
+            </span>
+          ))}
         </div>
 
         <div className="mb-3 h-28 overflow-y-auto border-2 border-gray-700 bg-black p-2 text-xs text-gray-300">

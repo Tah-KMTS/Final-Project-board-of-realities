@@ -4,7 +4,8 @@ import { resolvePalette } from '../characterPalettes'
 import { generateAmbientNpcs } from '../../utils/npcGenerator'
 import { FINANCE_NPCS } from '../../features/finance/financeNpcs'
 import { SpriteActor } from '../actor'
-import { drawGrassTile, drawRoadTile, drawTree, drawBuildingFacade } from '../tileGen'
+import { TileMover, combineDirection } from '../tileMover'
+import { drawGrassTile, drawRoadTile, drawTree, drawFlower, drawRock, drawBuildingFacade } from '../tileGen'
 
 const TILE_SIZE = 32
 const MAP_COLS = 26
@@ -20,11 +21,16 @@ const BUILDINGS = [
   { id: 'cryptoExchange', label: 'Crypto Exchange', color: 0x8a5a1f, tiles: { c0: 20, r0: 15, c1: 23, r1: 17 } },
 ]
 
+// Wall Street reads as a grid of city blocks, not a single crossroad -
+// distinguishes it structurally from Hunter's Rift and Domino City rather
+// than just being the same layout with different building colors.
+const H_STREETS = [7, 12]
+const V_STREETS = [6, 19]
+
 function tileType(r, c) {
   const isBorder = r === 0 || c === 0 || r === MAP_ROWS - 1 || c === MAP_COLS - 1
   if (isBorder) return 'wall'
-  if (r === 7) return 'path'
-  if (c === 13) return 'path'
+  if (H_STREETS.includes(r) || V_STREETS.includes(c)) return 'path'
   return 'grass'
 }
 
@@ -58,7 +64,6 @@ export default class FinanceWorldScene extends Phaser.Scene {
 
     this.cameras.main.setBounds(0, 0, MAP_COLS * TILE_SIZE, MAP_ROWS * TILE_SIZE)
     this.cameras.main.startFollow(this.playerActor.sprite, true)
-    this.physics.world.setBounds(0, 0, MAP_COLS * TILE_SIZE, MAP_ROWS * TILE_SIZE)
 
     this.buildZones()
 
@@ -92,25 +97,27 @@ export default class FinanceWorldScene extends Phaser.Scene {
     return layout
   }
 
+  isBlockedTile(col, row) {
+    if (col < 0 || col >= MAP_COLS || row < 0 || row >= MAP_ROWS) return true
+    if (this.layout[row][col] === 'wall') return true
+    for (const b of BUILDINGS) {
+      if (col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1) return true
+    }
+    return false
+  }
+
   drawTerrain() {
     const graphics = this.add.graphics()
-    this.wallRects = []
     for (let r = 0; r < MAP_ROWS; r++) {
       for (let c = 0; c < MAP_COLS; c++) {
         const tile = this.layout[r][c]
         const x = c * TILE_SIZE
         const y = r * TILE_SIZE
         if (tile === 'grass') drawGrassTile(graphics, x, y, TILE_SIZE)
-        else if (tile === 'path') drawRoadTile(graphics, x, y, TILE_SIZE, r === 7, c)
+        else if (tile === 'path') drawRoadTile(graphics, x, y, TILE_SIZE, H_STREETS.includes(r), c)
         else {
           graphics.fillStyle(0x5b4636, 1)
           graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE)
-        }
-        if (tile === 'wall') {
-          const rect = this.add.rectangle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE)
-          rect.setVisible(false)
-          this.physics.add.existing(rect, true)
-          this.wallRects.push(rect)
         }
       }
     }
@@ -123,11 +130,16 @@ export default class FinanceWorldScene extends Phaser.Scene {
         for (let c = b.tiles.c0 - 1; c <= b.tiles.c1 + 1; c++) forbidden.add(`${r},${c}`)
       }
     }
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; i < 32; i++) {
       const r = 1 + Math.floor(Math.random() * (MAP_ROWS - 2))
       const c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
       if (this.layout[r][c] !== 'grass' || forbidden.has(`${r},${c}`)) continue
-      drawTree(this, c * TILE_SIZE + TILE_SIZE / 2, r * TILE_SIZE + TILE_SIZE / 2)
+      const cx = c * TILE_SIZE + TILE_SIZE / 2
+      const cy = r * TILE_SIZE + TILE_SIZE / 2
+      const roll = Math.random()
+      if (roll < 0.45) drawTree(this, cx, cy)
+      else if (roll < 0.85) drawFlower(this, cx, cy)
+      else drawRock(this, cx, cy)
     }
   }
 
@@ -142,11 +154,6 @@ export default class FinanceWorldScene extends Phaser.Scene {
       this.add
         .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
         .setOrigin(0.5, 1)
-
-      const rect = this.add.rectangle(x + w / 2, y + h / 2, w, h)
-      rect.setVisible(false)
-      this.physics.add.existing(rect, true)
-      this.wallRects.push(rect)
     }
   }
 
@@ -182,15 +189,24 @@ export default class FinanceWorldScene extends Phaser.Scene {
   }
 
   createPlayer() {
-    const startX = 13 * TILE_SIZE + TILE_SIZE / 2
-    const startY = 9 * TILE_SIZE + TILE_SIZE / 2
+    const startCol = 13
+    const startRow = 9
     const player = useGameStore.getState().player
     const palette = resolvePalette(player)
-    this.playerActor = new SpriteActor(this, startX, startY, 'player_texture_finance', palette, { withPhysics: true })
-    this.playerSpeed = 140
-    if (this.wallRects) {
-      this.wallRects.forEach((wall) => this.physics.add.collider(this.playerActor.sprite, wall))
-    }
+    this.playerActor = new SpriteActor(
+      this,
+      startCol * TILE_SIZE + TILE_SIZE / 2,
+      startRow * TILE_SIZE + TILE_SIZE / 2,
+      'player_texture_finance',
+      palette
+    )
+    this.tileMover = new TileMover({
+      actor: this.playerActor,
+      tileSize: TILE_SIZE,
+      isBlocked: (c, r) => this.isBlockedTile(c, r),
+      startCol,
+      startRow,
+    })
   }
 
   buildZones() {
@@ -219,7 +235,7 @@ export default class FinanceWorldScene extends Phaser.Scene {
   }
 
   pauseForModal() {
-    this.playerActor.sprite.body.setVelocity(0, 0)
+    this.tileMover.locked = true
     this.playerActor.setMoving(false)
     this.interactionLocked = true
   }
@@ -267,32 +283,22 @@ export default class FinanceWorldScene extends Phaser.Scene {
   }
 
   update(time, delta) {
-    if (!this.playerActor) return
+    if (!this.playerActor || !this.tileMover) return
 
-    if (this.interactionLocked) {
-      this.playerActor.sprite.body.setVelocity(0, 0)
-      return
-    }
+    this.tileMover.locked = this.interactionLocked
 
-    const speed = this.playerSpeed
-    let vx = 0
-    let vy = 0
+    let horiz = null
+    if (this.cursors.left.isDown || this.wasd.A.isDown) horiz = 'left'
+    else if (this.cursors.right.isDown || this.wasd.D.isDown) horiz = 'right'
+    let vert = null
+    if (this.cursors.up.isDown || this.wasd.W.isDown) vert = 'up'
+    else if (this.cursors.down.isDown || this.wasd.S.isDown) vert = 'down'
+    const inputDir = combineDirection(horiz, vert)
 
-    if (this.cursors.left.isDown || this.wasd.A.isDown) { vx = -speed; this.playerActor.setFacing('left') }
-    else if (this.cursors.right.isDown || this.wasd.D.isDown) { vx = speed; this.playerActor.setFacing('right') }
-
-    if (this.cursors.up.isDown || this.wasd.W.isDown) { vy = -speed; this.playerActor.setFacing('up') }
-    else if (this.cursors.down.isDown || this.wasd.S.isDown) { vy = speed; this.playerActor.setFacing('down') }
-
-    if (vx !== 0 && vy !== 0) {
-      const norm = Math.SQRT1_2
-      vx *= norm
-      vy *= norm
-    }
-    this.playerActor.sprite.body.setVelocity(vx, vy)
-    this.playerActor.setMoving(vx !== 0 || vy !== 0)
-    this.playerActor.update(delta)
+    this.tileMover.update(delta, this.interactionLocked ? null : inputDir)
     this.updateAmbientNpcs(delta)
+
+    if (this.interactionLocked) return
 
     this.updateNearbyZone()
 

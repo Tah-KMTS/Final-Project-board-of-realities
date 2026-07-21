@@ -23,7 +23,7 @@ export default function StockExchangeModal({ onClose, onDeclareVictory }) {
         <p className="mb-3 text-xs text-gray-400">Simulated market. Prices drift every few seconds.</p>
 
         <div className="mb-3 border-2 border-gray-600 bg-[#0f1020] p-3 text-sm">
-          <p>Cash: <span className="text-green-400">${cash.toLocaleString()}</span></p>
+          <p>Cash: <span className="text-green-400">${Math.round(cash).toLocaleString()}</span></p>
           <p>Net Worth: <span className="text-yellow-300">${Math.round(netWorth).toLocaleString()}</span> / ${NET_WORTH_WIN_TARGET.toLocaleString()}</p>
         </div>
 

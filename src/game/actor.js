@@ -7,6 +7,10 @@ export class SpriteActor {
   constructor(scene, x, y, textureKey, palette, { withPhysics = false } = {}) {
     ensurePlayerTexture(scene, textureKey, palette)
     this.scene = scene
+    this.shadowOffsetY = FRAME_H / 2 - 6
+    // Created before the sprite so it renders underneath (same-depth
+    // objects draw in insertion order in Phaser).
+    this.shadow = scene.add.ellipse(x, y + this.shadowOffsetY, 14, 6, 0x000000, 0.35)
     this.sprite = scene.add.sprite(x, y, textureKey, 'down_0')
     this.facing = 'down'
     this.stepFrame = 0
@@ -43,6 +47,8 @@ export class SpriteActor {
   }
 
   update(delta) {
+    this.shadow.setPosition(this.sprite.x, this.sprite.y + this.shadowOffsetY)
+
     if (!this.moving) return
     this.animTimer += delta
     if (this.animTimer > 180) {
@@ -54,5 +60,6 @@ export class SpriteActor {
 
   destroy() {
     this.sprite.destroy()
+    this.shadow.destroy()
   }
 }

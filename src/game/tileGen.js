@@ -64,6 +64,27 @@ export function drawTree(scene, cx, cy) {
   return [trunk, canopy1, canopy2, canopy3]
 }
 
+const FLOWER_COLORS = [0xe6a8d7, 0xf4e04d, 0xff8fa3, 0xffffff]
+
+export function drawFlower(scene, cx, cy) {
+  const color = FLOWER_COLORS[Math.floor(seededRand(cx, cy, 40) * FLOWER_COLORS.length)]
+  const petals = [
+    scene.add.circle(cx - 2, cy, 1.6, color),
+    scene.add.circle(cx + 2, cy, 1.6, color),
+    scene.add.circle(cx, cy - 2, 1.6, color),
+    scene.add.circle(cx, cy + 2, 1.6, color),
+  ]
+  const center = scene.add.circle(cx, cy, 1.4, 0xffd23f)
+  return [...petals, center]
+}
+
+export function drawRock(scene, cx, cy) {
+  const shadow = scene.add.ellipse(cx, cy + 3, 14, 5, 0x000000, 0.2)
+  const base = scene.add.circle(cx, cy, 7, 0x8a8a8a)
+  const highlight = scene.add.circle(cx - 2, cy - 2, 3, 0xa8a8a8)
+  return [shadow, base, highlight]
+}
+
 const ROOF_COLORS = { default: 0x2a2a2a }
 
 export function drawBuildingFacade(graphics, x, y, w, h, baseColor, options = {}) {

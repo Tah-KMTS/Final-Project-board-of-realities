@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/useGameStore'
 import { generateMonster } from './monsters'
 import { getProfession } from './professions'
 import { rollRiftLoot } from './items'
+import { playHitSound, playTakeDamageSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 
 function computePlayerDamage(player) {
   const profession = getProfession(player.professionId)
@@ -17,6 +18,8 @@ const VARIANT_TITLES = {
   finalRaid: 'FINAL RAID',
   police: 'Hunter Police Ambush!',
 }
+
+let floatingTextSeq = 0
 
 export default function RiftCombatModal({
   difficulty,
@@ -44,8 +47,18 @@ export default function RiftCombatModal({
   const [tookDamage, setTookDamage] = useState(false)
   const [outcome, setOutcome] = useState(null) // null | 'victory' | 'defeat'
   const [busy, setBusy] = useState(false)
+  const [monsterFloats, setMonsterFloats] = useState([])
+  const [playerFloats, setPlayerFloats] = useState([])
+  const [monsterHitPulse, setMonsterHitPulse] = useState(0)
+  const [playerHitPulse, setPlayerHitPulse] = useState(0)
 
   const appendLog = (line) => setLog((prev) => [...prev.slice(-4), line])
+
+  const spawnFloat = (setFloats, text) => {
+    const id = ++floatingTextSeq
+    setFloats((prev) => [...prev, { id, text }])
+    setTimeout(() => setFloats((prev) => prev.filter((f) => f.id !== id)), 700)
+  }
 
   const handleAttack = () => {
     if (busy || outcome) return
@@ -55,6 +68,9 @@ export default function RiftCombatModal({
     const newMonsterHp = Math.max(0, monsterHp - dmg)
     setMonsterHp(newMonsterHp)
     appendLog(`You hit ${monster.name} for ${dmg} damage.`)
+    spawnFloat(setMonsterFloats, `-${dmg}`)
+    setMonsterHitPulse((p) => p + 1)
+    playHitSound()
 
     if (newMonsterHp <= 0) {
       appendLog(`${monster.name} is defeated!`)
@@ -73,6 +89,7 @@ export default function RiftCombatModal({
       }
       setOutcome('victory')
       setBusy(false)
+      playVictorySound()
       return
     }
 
@@ -83,10 +100,14 @@ export default function RiftCombatModal({
     setTimeout(() => {
       appendLog(`${monster.name} strikes back for ${monsterDmg} damage.`)
       setTookDamage(true)
+      spawnFloat(setPlayerFloats, `-${monsterDmg}`)
+      setPlayerHitPulse((p) => p + 1)
+      playTakeDamageSound()
       takeDamage(monsterDmg)
       const afterState = useGameStore.getState()
       if (!afterState.player.alive) {
         setOutcome('defeat')
+        playDefeatSound()
       }
       setBusy(false)
     }, 500)
@@ -108,7 +129,7 @@ export default function RiftCombatModal({
           {VARIANT_TITLES[variant]}
         </h2>
 
-        <div className="mb-3 border-2 border-gray-600 bg-[#0f1020] p-3">
+        <div key={`monster-bar-${monsterHitPulse}`} className="relative mb-3 border-2 border-gray-600 bg-[#0f1020] p-3 animate-shake">
           <div className="flex justify-between text-sm">
             <span>{monster.name}</span>
             <span>{monsterHp} / {monster.maxHp} HP</span>
@@ -119,9 +140,17 @@ export default function RiftCombatModal({
               style={{ width: `${(monsterHp / monster.maxHp) * 100}%` }}
             />
           </div>
+          {monsterFloats.map((f) => (
+            <span
+              key={f.id}
+              className="animate-float-up-fade pointer-events-none absolute right-3 top-1 font-bold text-red-400"
+            >
+              {f.text}
+            </span>
+          ))}
         </div>
 
-        <div className="mb-3 border-2 border-gray-600 bg-[#0f1020] p-3">
+        <div key={`player-bar-${playerHitPulse}`} className="relative mb-3 border-2 border-gray-600 bg-[#0f1020] p-3 animate-shake">
           <div className="flex justify-between text-sm">
             <span>{player.name}</span>
             <span>{player.hp} / {player.maxHp} HP</span>
@@ -132,6 +161,14 @@ export default function RiftCombatModal({
               style={{ width: `${Math.max(0, (player.hp / player.maxHp) * 100)}%` }}
             />
           </div>
+          {playerFloats.map((f) => (
+            <span
+              key={f.id}
+              className="animate-float-up-fade pointer-events-none absolute right-3 top-1 font-bold text-red-400"
+            >
+              {f.text}
+            </span>
+          ))}
         </div>
 
         <div className="mb-4 h-24 overflow-y-auto border-2 border-gray-700 bg-black p-2 text-xs text-gray-300">

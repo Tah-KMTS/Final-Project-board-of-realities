@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import DDMModal from './DDMModal'
+import DDMBoard from './DDMBoard'
 import RockPaperScissors from './RockPaperScissors'
 
 export default function CynnEncounterModal({ onClose }) {
@@ -67,7 +67,7 @@ export default function CynnEncounterModal({ onClose }) {
         )}
 
         {phase === 'ddmCynn' && (
-          <DDMModal
+          <DDMBoard
             opponentName="Cynn"
             deckFlavorName="Faux-Disney Deck"
             opponentPowerBonus={1}
@@ -107,7 +107,7 @@ export default function CynnEncounterModal({ onClose }) {
         )}
 
         {phase === 'tahAttack' && (
-          <DDMModal
+          <DDMBoard
             opponentName="Tah (Furious)"
             deckFlavorName="Chaos Deck"
             opponentPowerBonus={2}
@@ -155,7 +155,7 @@ export default function CynnEncounterModal({ onClose }) {
         )}
 
         {phase === 'tahPrehistoricDdm' && (
-          <DDMModal
+          <DDMBoard
             opponentName="Tah"
             deckFlavorName="Prehistoric Deck"
             opponentPowerBonus={2 + Math.floor(Math.random() * 3)}
