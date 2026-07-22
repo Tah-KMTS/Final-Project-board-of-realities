@@ -20,8 +20,15 @@ export default function NamedNpcModal({ npcId, onClose, onAttack }) {
         <h2 className="mb-1 text-xl font-bold text-gray-200">{npc.name}</h2>
         <p className="mb-4 text-xs text-gray-400">"{npc.title}" • Net worth: ${npc.netWorth.toLocaleString()}</p>
 
-        {!isDead && npcLines && !dialogueDone && (
-          <DialogueBox speaker={npc.name} portrait="💼" lines={npcLines} onDone={() => setDialogueDone(true)} />
+        {!isDead && npcLines && (
+          <DialogueBox
+            speaker={npc.name}
+            portrait="💼"
+            lines={npcLines}
+            onDone={() => setDialogueDone(true)}
+            npcId={npcId}
+            relationshipTier={20}
+          />
         )}
 
         {isDead ? (

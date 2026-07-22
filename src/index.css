@@ -3,6 +3,11 @@
 
 @theme {
   --font-mono: 'VT323', ui-monospace, Consolas, monospace;
+  /* Capital Syndicate neon palette - magenta/electric-blue cyberpunk accents
+     layered on top of the existing retro-GBA dark base, not a replacement
+     for it. */
+  --color-neon-magenta: #ff2fd6;
+  --color-neon-blue: #2fe1ff;
 }
 
 html {
@@ -58,15 +63,22 @@ h1, h2 {
 
 [class*="border-4"],
 [class*="border-2"] {
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  /* Base drop shadow plus a faint magenta/electric-blue neon bleed - reads
+     as cyberpunk-lit glass on every bordered panel in the game, regardless
+     of that panel's own border color, with zero per-component changes. */
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.45),
+    0 0 26px rgba(255, 47, 214, 0.14),
+    0 0 14px rgba(47, 225, 255, 0.12);
 }
 
 /* Every modal panel and inset box uses one of these two flat literal
    fills - replacing them with a subtle gradient (+ a faint top highlight,
    like light catching a beveled edge) reads as a designed surface instead
-   of a flat-color placeholder, again with zero per-component changes. */
+   of a flat-color placeholder, again with zero per-component changes. Hue
+   is shifted slightly violet/magenta for the Capital Syndicate rebrand. */
 [class*="1c1d3a"] {
-  background: linear-gradient(165deg, #262a52 0%, #1c1d3a 55%, #14152c 100%) !important;
+  background: linear-gradient(165deg, #2b2158 0%, #1c1d3a 55%, #14152c 100%) !important;
   position: relative;
 }
 [class*="0f1020"] {
@@ -114,16 +126,39 @@ h1, h2 {
 }
 
 .title-glow {
-  background: linear-gradient(180deg, #fff7cc 0%, #ffe066 45%, #f2b90a 100%);
+  background: linear-gradient(90deg, #2fe1ff 0%, #ff2fd6 55%, #ffe066 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 0 10px rgba(255, 224, 102, 0.55));
+  filter: drop-shadow(0 0 12px rgba(255, 47, 214, 0.55));
   animation: title-pulse 3.2s ease-in-out infinite;
 }
 @keyframes title-pulse {
-  0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 224, 102, 0.45)); }
-  50% { filter: drop-shadow(0 0 20px rgba(255, 224, 102, 0.85)); }
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 47, 214, 0.45)); }
+  50% { filter: drop-shadow(0 0 22px rgba(47, 225, 255, 0.75)); }
+}
+
+/* --- Dark neon cyberpunk UI kit (Capital Syndicate rebrand) ---------------
+   Glassmorphism-style panels for the new header/end-day UI work, built to
+   sit alongside the existing modal-wrapper pattern (fixed inset-0 z-50 +
+   bordered box) without replacing it - these are additive utility classes,
+   not overrides of the shared selectors above. */
+.glass-panel {
+  background: rgba(20, 21, 44, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.neon-ring {
+  box-shadow:
+    0 0 0 1px rgba(255, 47, 214, 0.25) inset,
+    0 0 24px rgba(47, 225, 255, 0.15),
+    0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.neon-border-magenta {
+  box-shadow: 0 0 14px rgba(255, 47, 214, 0.45), 0 0 4px rgba(255, 47, 214, 0.6);
 }
 
 /* Sheen sweep across primary CTA buttons on hover - reads as a designed

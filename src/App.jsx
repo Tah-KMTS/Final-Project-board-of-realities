@@ -1,7 +1,5 @@
 import { useGameStore } from './store/useGameStore'
 import WelcomeScreen from './components/Menu/WelcomeScreen'
-import CharacterCreator from './components/CharacterCreator/CharacterCreator'
-import DiceRollScreen from './components/Dice/DiceRollScreen'
 import WorldScreen from './components/WorldScreen'
 
 function GameOverScreen() {
@@ -22,8 +20,6 @@ function GameOverScreen() {
 
 const SCREENS = {
   welcome: WelcomeScreen,
-  characterCreator: CharacterCreator,
-  diceRoll: DiceRollScreen,
   world: WorldScreen,
   gameOver: GameOverScreen,
 }

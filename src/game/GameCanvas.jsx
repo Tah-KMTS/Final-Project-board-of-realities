@@ -1,28 +1,32 @@
 import { useEffect, useRef } from 'react'
 import Phaser from 'phaser'
-import WorldScene from './scenes/WorldScene'
-import HunterWorldScene from './scenes/HunterWorldScene'
-import FinanceWorldScene from './scenes/FinanceWorldScene'
-import YugiohWorldScene from './scenes/YugiohWorldScene'
+import OverworldScene from './scenes/OverworldScene'
 import DominoWorldScene from './scenes/DominoWorldScene'
 import { createEventBridge } from './eventBridge'
 
-const SCENES_BY_BLOCK = {
-  hunter: HunterWorldScene,
-  finance: FinanceWorldScene,
-  yugioh: YugiohWorldScene,
+// Hunter's Rift, Financial Anarchy and King of Games are no longer separate
+// mounted scenes - they're all regions of one continuous OverworldScene.
+// Domino City keeps its own star-topology scene (entered/exited like a big
+// building via a gate on the overworld map), so it's the only other mode.
+const SCENES_BY_MODE = {
+  overworld: OverworldScene,
   domino: DominoWorldScene,
 }
 
-export default function GameCanvas({ blockId, bridge }) {
+export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }) {
   const containerRef = useRef(null)
   const gameRef = useRef(null)
   const sceneRef = useRef(null)
 
   useEffect(() => {
-    const SceneClass = SCENES_BY_BLOCK[blockId] || WorldScene
+    const SceneClass = SCENES_BY_MODE[mode] || OverworldScene
     const scene = new SceneClass()
     scene.bridge = bridge
+    // Lets the overworld scene spawn the player at a specific location
+    // (e.g. the Domino Gate, when returning from Domino City) instead of
+    // its normal currentBlockId-based default. Ignored by scenes that don't
+    // look at it.
+    scene.spawnOverride = spawnOverride
     sceneRef.current = scene
 
     const config = {
@@ -55,7 +59,7 @@ export default function GameCanvas({ blockId, bridge }) {
       gameRef.current?.destroy(true)
       gameRef.current = null
     }
-  }, [blockId, bridge])
+  }, [mode, bridge])
 
   return <div ref={containerRef} className="border-4 border-yellow-300" />
 }

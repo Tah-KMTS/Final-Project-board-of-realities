@@ -23,6 +23,14 @@ export const FINANCE_NPCS = [
     netWorth: 250000000000,
     bodyguardPower: 10,
   },
+  {
+    id: 'howardmarks',
+    name: 'Howard Marks',
+    title: 'The Cycle Watcher',
+    palette: { skin: '#e0ac69', hair: '#8a8a8a', outfit: '#2a4f4a', hairStyle: 'Short' },
+    netWorth: 2200000000,
+    bodyguardPower: 5,
+  },
 ]
 
 export function getFinanceNpc(id) {

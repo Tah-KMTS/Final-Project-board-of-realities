@@ -15,7 +15,7 @@ export default function CryptoModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[440px] border-4 border-orange-400 bg-[#1c1d3a] p-6 font-mono text-white">
-        <h2 className="mb-2 text-xl font-bold text-orange-300">Crypto Exchange</h2>
+        <h2 className="mb-2 text-xl font-bold text-orange-300">Crypto HQ</h2>
         <p className="mb-3 text-xs text-gray-400">
           {CRYPTO_NAME} ({CRYPTO_TICKER}) — pump it, then dump it before it crashes.
         </p>

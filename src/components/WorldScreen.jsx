@@ -9,12 +9,16 @@ import BurgerJointModal from '../features/hunter/BurgerJointModal'
 import FamilyModal from '../features/hunter/FamilyModal'
 import HunterHQModal from '../features/hunter/HunterHQModal'
 import { generateHunterPolice, generateMonster } from '../features/hunter/monsters'
+import { hasRank } from '../features/hunter/skillEffects'
 import StockExchangeModal from '../features/finance/StockExchangeModal'
 import BankModal from '../features/finance/BankModal'
 import CorporateModal from '../features/finance/CorporateModal'
 import CryptoModal from '../features/finance/CryptoModal'
 import NamedNpcModal from '../features/finance/NamedNpcModal'
 import AmbientNpcModal from '../features/finance/AmbientNpcModal'
+import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
+import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
+import FinanceStatusBar from './Header/FinanceStatusBar'
 import { generateBodyguardMonster, generateStreetTargetMonster, generateSwatSquad, getFinanceNpc } from '../features/finance/financeNpcs'
 import YugiEncounterModal from '../features/yugioh/YugiEncounterModal'
 import KaibaCorpModal from '../features/yugioh/KaibaCorpModal'
@@ -35,6 +39,14 @@ import EventBoardModal from '../features/domino/EventBoardModal'
 import DominoNpcModal from '../features/domino/DominoNpcModal'
 import { getNpc } from '../features/domino/npcRoster'
 
+const REGION_LABELS = {
+  hunter: "The Hunter's Rift",
+  finance: 'Capital Syndicate',
+  yugioh: 'King of Games',
+}
+
+const DISTRICT_BUILDING_IDS = Object.keys(DISTRICT_BUILDINGS_CONFIG)
+
 function WorldClearedModal({ blockName, allCleared, onContinue }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
@@ -45,7 +57,7 @@ function WorldClearedModal({ blockName, allCleared, onContinue }) {
         <p className="mb-4 text-sm text-gray-300">
           {allCleared
             ? 'You have conquered every block on the board. Victory!'
-            : 'You are teleported to a new, uncleared block. Everything you own carries over.'}
+            : 'That block is cleared for good. The rest of the board is still open to explore, and everything you own carries over.'}
         </p>
         <button
           onClick={onContinue}
@@ -79,9 +91,29 @@ export default function WorldScreen() {
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
   const [worldCleared, setWorldCleared] = useState(null)
-  const prevBlockIdRef = useRef(currentBlockId)
+  // Snapshot of which block ids were already cleared, used by the global
+  // win-condition watcher below.
+  const prevClearedIdsRef = useRef(new Set(blocks.filter((b) => b.cleared).map((b) => b.id)))
+  // Where the overworld scene should spawn the player next time it mounts.
+  // Only meaningful for the 'dominoGate' value (see the exitDomino handler
+  // below, and task 2/OverworldScene.createPlayer) - null means "use the
+  // normal currentBlockId-based default spawn".
+  const [overworldSpawnHint, setOverworldSpawnHint] = useState(null)
+  // Hunter's Rift / Financial Anarchy / King of Games are all one continuous
+  // OverworldScene now; Domino City is still its own star-topology scene,
+  // entered/exited through a gate on the overworld map (like a big building).
+  // `mode` tracks which of those two is mounted; `activeRegion` tracks which
+  // overworld region the player is physically standing in (kept in sync by
+  // the scene's 'regionChanged' bridge event), independent of currentBlockId
+  // which is meta/save-state (dice-roll assignment, block-clear rotation)
+  // and no longer drives scene mounting.
+  const [mode, setMode] = useState(currentBlockId === 'domino' ? 'domino' : 'overworld')
+  const [activeRegion, setActiveRegion] = useState(
+    currentBlockId && currentBlockId !== 'domino' ? currentBlockId : 'hunter'
+  )
 
   const currentBlock = blocks.find((b) => b.id === currentBlockId)
+  const displayBlockName = mode === 'domino' ? 'Domino City' : REGION_LABELS[activeRegion] || currentBlock?.name
 
   useEffect(() => {
     assignStartingProfession()
@@ -89,31 +121,44 @@ export default function WorldScreen() {
   }, [])
 
   useEffect(() => {
-    if (currentBlockId === 'hunter') {
+    if (mode === 'overworld' && activeRegion === 'hunter') {
       hunterAmbient.play()
     } else {
       hunterAmbient.pause()
     }
     return () => hunterAmbient.pause()
-  }, [currentBlockId])
+  }, [mode, activeRegion])
 
   // Duck the ambient loop during combat so hit/victory SFX read clearly.
   useEffect(() => {
-    if (currentBlockId !== 'hunter') return
+    if (mode !== 'overworld' || activeRegion !== 'hunter') return
     const inCombat = ['rift', 'finalRaid', 'police', 'criminalEncounter', 'policeEncounter'].includes(activeModal?.type)
     hunterAmbient.setVolume(inCombat ? 0.08 : 0.2)
-  }, [activeModal, currentBlockId])
+  }, [activeModal, mode, activeRegion])
 
-  // Detects ANY block-clear transition (explicit victory buttons, or the
-  // store's own autonomous triggers like Sole Survivor) and surfaces it,
-  // instead of every world's win handler needing to remember to show this.
+  // Global win-condition watcher. Each world's win check still lives where
+  // it always has (clearWorld1/clearWorld2/clearWorld3 in useGameStore,
+  // called from whichever modal/flow already ends that world - Final Raid
+  // victory, Stock Exchange's Declare Victory button, the Yugi duel/
+  // challenge win, plus autonomous triggers like Sole Survivor); this is
+  // just the single place that watches for ANY of them firing and surfaces
+  // the same WorldClearedModal that always showed, regardless of which
+  // region/scene (hunter/finance/yugioh/domino) the player currently has
+  // mounted or is standing in.
+  //
+  // This watches `blocks[].cleared` directly rather than diffing
+  // `currentBlockId`: clearBlock() reassigns currentBlockId to a random
+  // *uncleared* block afterward, which can coincidentally re-pick the same
+  // block that was already current - a currentBlockId-only diff would then
+  // see no change and silently swallow a real clear event. Comparing the
+  // cleared-id set catches every clear unconditionally.
   useEffect(() => {
-    if (prevBlockIdRef.current !== currentBlockId) {
-      const clearedBlock = blocks.find((b) => b.id === prevBlockIdRef.current)
-      if (clearedBlock) setWorldCleared({ name: clearedBlock.name })
-      prevBlockIdRef.current = currentBlockId
+    const newlyCleared = blocks.filter((b) => b.cleared && !prevClearedIdsRef.current.has(b.id))
+    if (newlyCleared.length > 0) {
+      setWorldCleared({ name: newlyCleared[0].name })
     }
-  }, [currentBlockId, blocks])
+    prevClearedIdsRef.current = new Set(blocks.filter((b) => b.cleared).map((b) => b.id))
+  }, [blocks])
 
   useEffect(() => {
     const bridge = bridgeRef.current
@@ -139,6 +184,14 @@ export default function WorldScreen() {
         bridge.emit('resumeScene')
         return
       }
+      if (payload.type === 'rift' && payload.id === 'riftB') {
+        const state = useGameStore.getState()
+        if (!hasRank(state.world1.hunterRank, 'C')) {
+          alert('This rift is a Difficulty 7 tear - far too dangerous below C-rank. Clear easier rifts and level up first.')
+          bridge.emit('resumeScene')
+          return
+        }
+      }
       if (payload.type === 'domino' && payload.id === 'elevator') {
         const state = useGameStore.getState()
         if (!state.isDominoWeekend() || !state.world4.tournamentPassOwned) {
@@ -160,11 +213,27 @@ export default function WorldScreen() {
     const offFinancePolice = bridge.on('financePoliceEncounter', (payload) =>
       setActiveModal({ type: 'financePoliceEncounter', ...payload })
     )
+    // Walking into the Domino City gate on the overworld, or into its exit
+    // back out, swaps GameCanvas's mounted scene between OverworldScene and
+    // DominoWorldScene (Domino stays a separate star-topology scene, entered
+    // like a big building rather than folded into the continuous map).
+    const offEnterDomino = bridge.on('enterDomino', () => setMode('domino'))
+    // Re-entering the overworld from Domino should drop the player back at
+    // (or right next to) the Domino Gate, not at their originally-assigned
+    // region's default spawn - see OverworldScene.createPlayer.
+    const offExitDomino = bridge.on('exitDomino', () => {
+      setOverworldSpawnHint('dominoGate')
+      setMode('overworld')
+    })
+    const offRegionChanged = bridge.on('regionChanged', ({ region }) => setActiveRegion(region))
     return () => {
       offInteract()
       offCriminal()
       offPolice()
       offFinancePolice()
+      offEnterDomino()
+      offExitDomino()
+      offRegionChanged()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -218,7 +287,7 @@ export default function WorldScreen() {
         <div>
           Wanted: <span className="text-orange-400">{'★'.repeat(wantedLevel) || 'none'}</span>
         </div>
-        {currentBlockId === 'domino' && (
+        {mode === 'domino' && (
           <div>
             DP: <span className="text-purple-300">{world4.dp}</span>{' '}
             <span className="text-gray-500">
@@ -226,7 +295,7 @@ export default function WorldScreen() {
             </span>
           </div>
         )}
-        <div className="text-gray-400">{currentBlock?.name}</div>
+        <div className="text-gray-400">{displayBlockName}</div>
         <button
           onClick={() => setActiveModal({ type: 'inventory' })}
           className="border border-purple-300 px-2 py-1 text-xs hover:bg-purple-300 hover:text-black"
@@ -247,10 +316,14 @@ export default function WorldScreen() {
         </button>
       </div>
 
-      {!worldCleared && <GameCanvas blockId={currentBlockId} bridge={bridgeRef.current} />}
+      {mode === 'overworld' && <FinanceStatusBar />}
+
+      {!worldCleared && (
+        <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
+      )}
 
       <p className="text-xs text-gray-500">
-        Move with WASD/Arrows • E to interact{currentBlockId === 'hunter' ? ' • R to commit crime' : ''}
+        Move with WASD/Arrows • E to interact{mode === 'overworld' && activeRegion === 'hunter' ? ' • R to commit crime' : ''}
       </p>
 
       {activeModal?.type === 'inventory' && <InventoryModal onClose={closeModal} />}
@@ -306,6 +379,19 @@ export default function WorldScreen() {
       )}
       {activeModal?.type === 'building' && activeModal.id === 'cryptoExchange' && (
         <CryptoModal onClose={closeModal} />
+      )}
+      {/* Real Estate Agency and the VC Hub are new-district front doors onto
+          the same existing Bank/Corporate systems, rather than duplicate
+          mechanics - Commercial District's realty wing and Financial
+          District's startup-investing wing respectively. */}
+      {activeModal?.type === 'building' && activeModal.id === 'realEstateAgency' && (
+        <BankModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'building' && activeModal.id === 'vcHub' && (
+        <CorporateModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'building' && DISTRICT_BUILDING_IDS.includes(activeModal.id) && (
+        <DistrictBuildingModal buildingId={activeModal.id} onClose={closeModal} />
       )}
       {activeModal?.type === 'building' && activeModal.npcId && (
         <NamedNpcModal

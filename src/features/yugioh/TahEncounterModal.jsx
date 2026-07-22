@@ -66,7 +66,14 @@ export default function TahEncounterModal({ onClose }) {
 
         {phase === 'intro' && (
           <>
-            <DialogueBox speaker="Tah" portrait="🎲" lines={TAH_LINES} onDone={() => {}} />
+            <DialogueBox
+              speaker="Tah"
+              portrait="🎲"
+              lines={TAH_LINES}
+              onDone={() => {}}
+              npcId="tah"
+              relationshipTier={20}
+            />
             <p className="mb-4 text-sm text-gray-300">
               ${betAmount.toLocaleString()} says he wins. Tah doesn't wait for you to agree.
             </p>

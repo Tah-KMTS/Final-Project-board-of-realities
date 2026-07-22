@@ -22,7 +22,14 @@ export default function YugiEncounterModal({ onClose, onDirectCombat, onRescueDu
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[480px] border-4 border-yellow-400 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-2 text-xl font-bold text-yellow-300">Muto Yugi</h2>
-        <DialogueBox speaker="Muto Yugi" portrait="🂡" lines={YUGI_LINES} onDone={() => {}} />
+        <DialogueBox
+          speaker="Muto Yugi"
+          portrait="🂡"
+          lines={YUGI_LINES}
+          onDone={() => {}}
+          npcId="yugi"
+          relationshipTier={20}
+        />
 
         {world3.yugiBrokenHeart && (
           <p className="mb-3 text-xs text-pink-400">

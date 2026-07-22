@@ -129,10 +129,15 @@ export function generateMonster(owner, level) {
   // are scaled for 8000-LP Yu-Gi-Oh duels and would one-shot anything on
   // this board's much smaller HP scale (Die Master = 3 HP). DDM stats are
   // generated independently at a scale that keeps Defense crests relevant.
+  //
+  // Ranges are tuned to land in the same power band as ddmMonsterCatalog's
+  // hand-authored monsters of the same level (e.g. level 1: hp 10-20,
+  // atk/def ~5-15 - Shadow Imp is hp10/atk10/def10) so a random summon
+  // roll isn't a coin flip between a real threat and a punching bag.
   const card = generateCard(level)
-  const hp = 8 + level * 6
-  const atk = 2 + level * 2 + Math.floor(Math.random() * 3)
-  const def = 2 + level * 2 + Math.floor(Math.random() * 3)
+  const hp = level * 10 + Math.floor(Math.random() * 11)
+  const atk = level * 5 + Math.floor(Math.random() * 11)
+  const def = level * 5 + Math.floor(Math.random() * 11)
   return {
     id: `${owner}_${Date.now()}_${Math.floor(Math.random() * 99999)}`,
     owner,

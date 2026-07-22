@@ -8,9 +8,10 @@ export default function CardShopModal({ onClose }) {
   const cash = useGameStore((s) => s.cash)
   const deck = useGameStore((s) => s.world3.deck)
   const buyBoosterPack = useGameStore((s) => s.buyBoosterPack)
+  const shopTier = useGameStore((s) => s.getCardShopTier())
 
   const handleBuyPack = () => {
-    const cards = generateDeck(PACK_SIZE, 2)
+    const cards = generateDeck(PACK_SIZE, shopTier)
     buyBoosterPack(PACK_COST, cards)
   }
 
@@ -25,7 +26,7 @@ export default function CardShopModal({ onClose }) {
           disabled={cash < PACK_COST}
           className="mb-4 w-full border-4 border-green-400 bg-green-500 py-2 font-bold text-black hover:bg-green-400 disabled:opacity-40"
         >
-          Buy Booster Pack (${PACK_COST}, {PACK_SIZE} cards)
+          Buy Booster Pack (${PACK_COST}, {PACK_SIZE} cards, Tier {shopTier})
         </button>
 
         <div className="mb-3 max-h-56 overflow-y-auto border-2 border-gray-600 bg-[#0f1020] p-3 text-xs">

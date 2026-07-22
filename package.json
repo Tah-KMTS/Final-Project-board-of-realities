@@ -1,16 +1,19 @@
 {
-  "name": "board-of-realities",
+  "name": "capital-syndicate-financial-reality-engine",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:backend": "python -m uvicorn backend.main:app --reload --port 8000",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.35",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.25.0",
     "phaser": "^4.2.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

@@ -20,15 +20,15 @@ export default function FamilyModal({ onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[420px] border-4 border-pink-400 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-3 text-xl font-bold text-pink-300">A Familiar Face</h2>
-        {!dialogueDone && (
-          <DialogueBox
-            speaker="???"
-            portrait="💗"
-            voiceId="marriageCandidate"
-            lines={wasFirstMeeting.current ? MARRIAGE_CANDIDATE_FIRST_MEET_LINES : MARRIAGE_CANDIDATE_RETURN_LINES}
-            onDone={() => setDialogueDone(true)}
-          />
-        )}
+        <DialogueBox
+          speaker="???"
+          portrait="💗"
+          voiceId="marriageCandidate"
+          lines={wasFirstMeeting.current ? MARRIAGE_CANDIDATE_FIRST_MEET_LINES : MARRIAGE_CANDIDATE_RETURN_LINES}
+          onDone={() => setDialogueDone(true)}
+          npcId="marriageCandidate"
+          relationshipTier={world1.married ? 100 : 20}
+        />
 
         {!world1.married ? (
           <button

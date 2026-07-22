@@ -19,7 +19,14 @@ export default function TeaModal({ onClose }) {
           </p>
         ) : (
           <>
-            <DialogueBox speaker="Téa Gardner" portrait="💗" lines={TEA_LINES} onDone={() => {}} />
+            <DialogueBox
+              speaker="Téa Gardner"
+              portrait="💗"
+              lines={TEA_LINES}
+              onDone={() => {}}
+              npcId="tea"
+              relationshipTier={teaRelationship}
+            />
             <div className="mb-3 border-2 border-gray-600 bg-[#0f1020] p-3">
               <p className="mb-1 text-xs text-gray-400">Relationship</p>
               <div className="h-3 w-full bg-gray-800">

@@ -69,6 +69,13 @@ export default class DominoWorldScene extends Phaser.Scene {
     const spawn = ZONES[zoneId].spawn
     const { x, y } = { x: spawn.col * TILE_SIZE + TILE_SIZE / 2, y: spawn.row * TILE_SIZE + TILE_SIZE / 2 }
     this.playerActor = new SpriteActor(this, x, y, 'player_texture_domino', palette)
+    // createPlayer() runs before loadZone(), so the zone's floor/building
+    // Graphics objects are added to the display list AFTER the player and
+    // (at the same default depth 0) would render on top of it, hiding it
+    // completely. Explicit depth keeps the player visible above terrain
+    // regardless of add-order across zone switches.
+    this.playerActor.sprite.setDepth(10)
+    this.playerActor.shadow.setDepth(9)
     this.tileMover = new TileMover({
       actor: this.playerActor,
       tileSize: TILE_SIZE,
@@ -111,6 +118,7 @@ export default class DominoWorldScene extends Phaser.Scene {
   }
 
   zoneDisplayName(zoneId) {
+    if (zoneId === '__overworld__') return 'the Overworld'
     return {
       playersRoom: "Your Room", streets: 'The Streets', kameShop: 'Kame Game Shop',
       domiPark: 'Domino Park', townSquare: 'Town Square', kcTower: 'KC Tower',
@@ -196,6 +204,10 @@ export default class DominoWorldScene extends Phaser.Scene {
     this.addExitZone('toDomiPark', 'domiPark', 16, 1, 18, 2)
     this.addExitZone('toTownSquare', 'townSquare', 1, 1, 3, 2)
     this.addExitZone('toKcTower', 'kcTower', 16, 8, 18, 9)
+    // The gate back out to the shared overworld (Hunter's Rift / Financial
+    // Anarchy / King of Games) - Domino City itself stays a separate
+    // star-topology scene, entered/exited like a big building.
+    this.addExitZone('toOverworld', '__overworld__', 9, 11, 11, 12)
   }
 
   buildKameShop() {
@@ -272,6 +284,10 @@ export default class DominoWorldScene extends Phaser.Scene {
   triggerInteraction(zone) {
     if (!this.bridge) return
     if (zone.type === 'exit') {
+      if (zone.targetZoneId === '__overworld__') {
+        this.bridge.emit('exitDomino')
+        return
+      }
       this.loadZone(zone.targetZoneId)
       return
     }

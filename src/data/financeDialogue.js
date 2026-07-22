@@ -26,8 +26,17 @@ export const MUSK_LINES = [
   "Everything's a market. Even this conversation.",
 ]
 
+export const HOWARD_MARKS_LINES = [
+  {
+    text: "You can't predict the cycle. You can only prepare for it. Judging by that look on your face, you haven't.",
+    audioSrc: '/audio/voice/finance_howardmarks_intro.mp3',
+  },
+  "Being too far ahead of your time is indistinguishable from being wrong. Try not to find out which one you are.",
+]
+
 export const FINANCE_NPC_LINES = {
   buffett: BUFFETT_LINES,
   vanderbilt: VANDERBILT_LINES,
   musk: MUSK_LINES,
+  howardmarks: HOWARD_MARKS_LINES,
 }

@@ -24,7 +24,7 @@ export const COMPANY_LISTINGS = [
   { id: 'co_conglomerate', name: 'Buy a Conglomerate', price: 1000000, incomePerTick: 14000 },
 ]
 
-export const NET_WORTH_WIN_TARGET = 5000000
+export const NET_WORTH_WIN_TARGET = 1000000000
 export const JOB_WAGE = 200
 export const JOB_COOLDOWN_MS = 20000
 

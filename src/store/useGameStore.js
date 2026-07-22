@@ -15,6 +15,7 @@ import {
   COMPANY_LISTINGS,
 } from '../features/finance/marketData'
 import { FINANCE_NPCS } from '../features/finance/financeNpcs'
+import { rollHeadline } from '../features/finance/newsHeadlines'
 import { STARTER_DP_DECK } from '../features/domino/cardDatabase'
 
 const SAVE_KEY = 'board-of-realities-save'
@@ -23,7 +24,7 @@ const FINANCE_TOTAL_NPCS = FINANCE_NPCS.length + FINANCE_AMBIENT_NPC_COUNT
 
 const BLOCKS = [
   { id: 'hunter', name: "The Hunter's Rift", difficulty: 8, survivalRate: 20 },
-  { id: 'finance', name: 'Financial Anarchy', difficulty: 5, survivalRate: 55 },
+  { id: 'finance', name: 'Capital Syndicate', difficulty: 5, survivalRate: 55 },
   { id: 'yugioh', name: 'King of Games', difficulty: 4, survivalRate: 65 },
   { id: 'domino', name: 'Domino City', difficulty: 6, survivalRate: 45 },
 ]
@@ -31,13 +32,9 @@ const BLOCKS = [
 // world4.calendar: Time Block 1=Morning, 2=Afternoon, 3=Evening, 4=Night.
 // Day 1=Monday..7=Sunday. Display names live in the domino UI components.
 
-function rollD6() {
-  return 1 + Math.floor(Math.random() * 6)
-}
-
 function createDefaultState() {
   return {
-    screen: 'welcome', // welcome | characterCreator | diceRoll | world
+    screen: 'welcome', // welcome | world | gameOver
     player: {
       name: '',
       gender: 'male',
@@ -61,10 +58,18 @@ function createDefaultState() {
     inventory: [],
     cash: 100,
     wantedLevel: 0,
+    // Capital Syndicate core loop: a persistent day counter (advanced by the
+    // "End Day" button), a rolling flavor headline, and Public Reputation/
+    // Social Status (0-100). Police Heat/SEC Suspicion is deliberately NOT a
+    // new field here - it's wantedLevel (already 0-5) read as a percentage,
+    // per the brief's instruction to reuse the existing Wanted Level system
+    // rather than build a parallel one.
+    day: 1,
+    newsHeadline: null,
+    reputation: 50,
     shadowMonarch: { unlocked: false, used: false, conditionId: null },
     blocks: BLOCKS.map((b) => ({ ...b, cleared: false })),
     currentBlockId: null,
-    diceRoll: null,
     world1: {
       hunterRank: 'E',
       married: false,
@@ -106,7 +111,6 @@ function createDefaultState() {
       teaMarried: false,
       yugiBrokenHeart: false,
       kidnappedNpcs: [],
-      tahRpsVetoAvailable: false,
       tahTyrantSummoned: false,
       cynnRelationship: 'neutral',
       cynnDuelsWon: 0,
@@ -138,29 +142,18 @@ export const useGameStore = create((set, get) => ({
       player: { ...state.player, stats: { ...state.player.stats, ...statPatch } },
     })),
 
-  startNewGame: (playerConfig) => {
+  // Character creator and the dice-roll screen are removed - there's only
+  // one world in play (Capital Syndicate/Finance) and one fixed character,
+  // so "New Game" goes straight from the welcome screen into the world.
+  startNewGame: () => {
     const fresh = createDefaultState()
     set({
       ...fresh,
-      player: { ...fresh.player, ...playerConfig },
+      player: { ...fresh.player, name: 'Player', gender: 'male' },
       shadowMonarch: { ...fresh.shadowMonarch, conditionId: rollShadowMonarchCondition() },
-      screen: 'diceRoll',
+      currentBlockId: 'finance',
+      screen: 'world',
     })
-  },
-
-  rollStartingBlock: () => {
-    const die1 = rollD6()
-    const die2 = rollD6()
-    const total = die1 + die2
-    const state = get()
-    const uncleared = state.blocks.filter((b) => !b.cleared)
-    const index = (total - 2) % uncleared.length
-    const chosenBlock = uncleared[index]
-    set({
-      diceRoll: { die1, die2, total },
-      currentBlockId: chosenBlock.id,
-    })
-    return chosenBlock
   },
 
   enterWorld: () => set({ screen: 'world' }),
@@ -205,6 +198,11 @@ export const useGameStore = create((set, get) => ({
   addWantedLevel: (amount) =>
     set((state) => ({
       wantedLevel: Math.max(0, Math.min(5, state.wantedLevel + amount)),
+    })),
+
+  addReputation: (amount) =>
+    set((state) => ({
+      reputation: Math.max(0, Math.min(100, state.reputation + amount)),
     })),
 
   addItem: (item) =>
@@ -635,6 +633,42 @@ export const useGameStore = create((set, get) => ({
     get().clearBlock('finance')
   },
 
+  // Daily passive income (real estate rent + company income) vs. a daily
+  // "burn rate" - a flat cost-of-living plus scaling legal/security overhead
+  // tied directly to Heat (wantedLevel), so a hotter player visibly bleeds
+  // more cash per day. Pure selector, no state change - the header reads
+  // this every render, and endDay() doesn't need to duplicate the math.
+  getDailyFinanceIncome: () => {
+    const state = get()
+    const w2 = state.world2
+    const rentIncome = w2.realEstate.reduce((sum, id) => {
+      const listing = REAL_ESTATE_LISTINGS.find((l) => l.id === id)
+      return sum + (listing?.rentPerTick || 0)
+    }, 0)
+    const companyIncome = w2.companies.reduce((sum, id) => {
+      const listing = COMPANY_LISTINGS.find((l) => l.id === id)
+      return sum + (listing?.incomePerTick || 0)
+    }, 0)
+    const income = rentIncome + companyIncome
+    const burn = 100 + state.wantedLevel * 150
+    return { income, burn, net: income - burn }
+  },
+
+  // The "End Day" button: advances the persistent Day Counter, rolls a
+  // flavor news headline, ticks the market (reusing tickFinanceMarket
+  // rather than duplicating its price-walk/passive-income logic), and lets
+  // Heat cool down a little day-over-day if the player didn't stay hot -
+  // the closest thing to "NPC/police behavior" this pass needs, built
+  // entirely on the existing Wanted Level mechanic.
+  endDay: () => {
+    const state = get()
+    set({ day: state.day + 1, newsHeadline: rollHeadline() })
+    get().tickFinanceMarket()
+    if (state.wantedLevel > 0 && Math.random() < 0.4) {
+      get().addWantedLevel(-1)
+    }
+  },
+
   // --- World 3: King of Games ----------------------------------------------
 
   addCardsToDeck: (cards) =>
@@ -680,9 +714,6 @@ export const useGameStore = create((set, get) => ({
       },
     })),
 
-  setTahRpsVeto: (available) =>
-    set((state) => ({ world3: { ...state.world3, tahRpsVetoAvailable: available } })),
-
   setTahTyrantSummoned: () =>
     set((state) => ({ world3: { ...state.world3, tahTyrantSummoned: true } })),
 
@@ -691,6 +722,24 @@ export const useGameStore = create((set, get) => ({
 
   recordCynnDuelWin: () =>
     set((state) => ({ world3: { ...state.world3, cynnDuelsWon: state.world3.cynnDuelsWon + 1 } })),
+
+  // Mirrors getPackUnlocks' milestone-threshold pattern (world4): the Card
+  // Shop's pack tier climbs with world3 progress instead of being stuck at
+  // tier 2 forever. Card power scales roughly as tier*400, so this needs to
+  // reach tier ~6-7 for the shop to be able to produce cards competitive
+  // with Yugi's 3000-ATK Blue-Eyes by the time the player is ready to duel
+  // him seriously.
+  getCardShopTier: () => {
+    const w3 = get().world3
+    const packsBought = w3.deck.length
+    let tier = 2
+    if (w3.cynnDuelsWon >= 1 || packsBought >= 6) tier = 3
+    if (w3.ownsKaibaCorp || packsBought >= 12) tier = 4
+    if (w3.cynnDuelsWon >= 3 || packsBought >= 18) tier = 5
+    if (w3.teaMarried || packsBought >= 24) tier = 6
+    if (packsBought >= 30) tier = 7
+    return tier
+  },
 
   clearWorld3: () => {
     set((state) => ({ world3: { ...state.world3, yugiDefeated: true } }))
@@ -795,10 +844,10 @@ export const useGameStore = create((set, get) => ({
 
   saveGame: () => {
     const state = get()
-    const { screen, player, inventory, cash, wantedLevel, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 } = state
+    const { screen, player, inventory, cash, wantedLevel, day, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 } = state
     localStorage.setItem(
       SAVE_KEY,
-      JSON.stringify({ screen: screen === 'world' ? 'world' : screen, player, inventory, cash, wantedLevel, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 })
+      JSON.stringify({ screen: screen === 'world' ? 'world' : screen, player, inventory, cash, wantedLevel, day, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 })
     )
   },
 
