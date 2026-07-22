@@ -7,6 +7,7 @@ const DEV_WORLDS = [
   { id: 'hunter', name: "The Hunter's Rift", accent: 'border-red-400 hover:bg-red-400', icon: '⚔️' },
   { id: 'finance', name: 'Financial Anarchy', accent: 'border-green-400 hover:bg-green-400', icon: '💰' },
   { id: 'yugioh', name: 'King of Games', accent: 'border-purple-400 hover:bg-purple-400', icon: '🃏' },
+  { id: 'domino', name: 'Domino City', accent: 'border-cyan-400 hover:bg-cyan-400', icon: '🏙️' },
 ]
 
 export default function WelcomeScreen() {

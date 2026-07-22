@@ -15,6 +15,7 @@ import {
   COMPANY_LISTINGS,
 } from '../features/finance/marketData'
 import { FINANCE_NPCS } from '../features/finance/financeNpcs'
+import { STARTER_DP_DECK } from '../features/domino/cardDatabase'
 
 const SAVE_KEY = 'board-of-realities-save'
 export const FINANCE_AMBIENT_NPC_COUNT = 8
@@ -24,7 +25,11 @@ const BLOCKS = [
   { id: 'hunter', name: "The Hunter's Rift", difficulty: 8, survivalRate: 20 },
   { id: 'finance', name: 'Financial Anarchy', difficulty: 5, survivalRate: 55 },
   { id: 'yugioh', name: 'King of Games', difficulty: 4, survivalRate: 65 },
+  { id: 'domino', name: 'Domino City', difficulty: 6, survivalRate: 45 },
 ]
+
+// world4.calendar: Time Block 1=Morning, 2=Afternoon, 3=Evening, 4=Night.
+// Day 1=Monday..7=Sunday. Display names live in the domino UI components.
 
 function rollD6() {
   return 1 + Math.floor(Math.random() * 6)
@@ -105,6 +110,17 @@ function createDefaultState() {
       tahTyrantSummoned: false,
       cynnRelationship: 'neutral',
       cynnDuelsWon: 0,
+    },
+    world4: {
+      calendar: { day: 1, timeBlock: 1, week: 1 }, // day 1-7 (Mon-Sun), timeBlock 1-4
+      dp: 300,
+      deck: [...STARTER_DP_DECK],
+      trunk: [],
+      totalWins: 0,
+      winsByTier: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      tier4Defeated: [],
+      tournamentPassOwned: false,
+      currentZone: 'playersRoom',
     },
   }
 }
@@ -681,12 +697,108 @@ export const useGameStore = create((set, get) => ({
     get().clearBlock('yugioh')
   },
 
+  // --- World 4: Domino City (day/night calendar + duel economy) ------------
+
+  setDominoZone: (zoneId) => set((state) => ({ world4: { ...state.world4, currentZone: zoneId } })),
+
+  // Advances the calendar by N Time Blocks, rolling Day over at Night->
+  // Morning and Week over at Sunday->Monday, per the GDD's Module 2.
+  advanceTimeBlocks: (count) => {
+    set((state) => {
+      let { day, timeBlock, week } = state.world4.calendar
+      for (let i = 0; i < count; i++) {
+        timeBlock += 1
+        if (timeBlock > 4) {
+          timeBlock = 1
+          day += 1
+          if (day > 7) {
+            day = 1
+            week += 1
+          }
+        }
+      }
+      return { world4: { ...state.world4, calendar: { day, timeBlock, week } } }
+    })
+  },
+
+  // "Sleep until Tomorrow Morning / this Evening / etc." - computes the
+  // number of Time Blocks between now and the target block (always moving
+  // forward, rolling into the next day if the target is at/before now).
+  restUntilTimeBlock: (targetBlock) => {
+    const state = get()
+    const current = state.world4.calendar.timeBlock
+    const blocksNeeded = targetBlock > current ? targetBlock - current : 4 - current + targetBlock
+    get().advanceTimeBlocks(blocksNeeded || 4)
+  },
+
+  isDominoWeekend: () => {
+    const day = get().world4.calendar.day
+    return day === 6 || day === 7
+  },
+
+  // Completing a duel (win or lose) always advances the clock by 1 Time
+  // Block, per Module 2.3.
+  recordDominoDuelResult: ({ won, tier, quickVictory = false, flawless = false }) => {
+    const state = get()
+    const dp = won
+      ? (tier <= 2 ? 100 : tier <= 4 ? 150 : 200) + (quickVictory ? 50 : 0) + (flawless ? 50 : 0)
+      : 10
+    const winsByTier = { ...state.world4.winsByTier }
+    if (won) winsByTier[tier] = (winsByTier[tier] || 0) + 1
+    // DP is a separate currency from cash, deliberately not merged.
+    set({
+      world4: {
+        ...state.world4,
+        dp: state.world4.dp + dp,
+        totalWins: state.world4.totalWins + (won ? 1 : 0),
+        winsByTier,
+      },
+    })
+    get().advanceTimeBlocks(1)
+    return dp
+  },
+
+  recordTier4Defeat: (npcId) =>
+    set((state) => ({
+      world4: {
+        ...state.world4,
+        tier4Defeated: state.world4.tier4Defeated.includes(npcId) ? state.world4.tier4Defeated : [...state.world4.tier4Defeated, npcId],
+      },
+    })),
+
+  getPackUnlocks: () => {
+    const w4 = get().world4
+    return {
+      beginner: true,
+      advanced: w4.totalWins >= 10,
+      expert: w4.tier4Defeated.length >= 3,
+      tournamentPass: w4.totalWins >= 15,
+    }
+  },
+
+  buyDominoPack: (cost, cardIds) => {
+    const state = get()
+    if (state.world4.dp < cost) return false
+    set({ world4: { ...state.world4, dp: state.world4.dp - cost, trunk: [...state.world4.trunk, ...cardIds] } })
+    return true
+  },
+
+  buyTournamentPass: () => {
+    const state = get()
+    const cost = 1000
+    if (state.world4.dp < cost || state.world4.tournamentPassOwned) return false
+    set({ world4: { ...state.world4, dp: state.world4.dp - cost, tournamentPassOwned: true } })
+    return true
+  },
+
+  setDominoDeck: (cardIds) => set((state) => ({ world4: { ...state.world4, deck: cardIds } })),
+
   saveGame: () => {
     const state = get()
-    const { screen, player, inventory, cash, wantedLevel, shadowMonarch, blocks, currentBlockId, world1, world2, world3 } = state
+    const { screen, player, inventory, cash, wantedLevel, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 } = state
     localStorage.setItem(
       SAVE_KEY,
-      JSON.stringify({ screen: screen === 'world' ? 'world' : screen, player, inventory, cash, wantedLevel, shadowMonarch, blocks, currentBlockId, world1, world2, world3 })
+      JSON.stringify({ screen: screen === 'world' ? 'world' : screen, player, inventory, cash, wantedLevel, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 })
     )
   },
 

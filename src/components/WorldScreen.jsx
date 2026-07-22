@@ -28,6 +28,12 @@ import DuelModal from '../features/yugioh/DuelModal'
 import { YUGI_DECK } from '../features/yugioh/cardGenerator'
 import { hunterAmbient } from '../audio/hunterAmbient'
 import InventoryModal from './Inventory/InventoryModal'
+import BedModal from '../features/domino/BedModal'
+import DeckBuilderModal from '../features/domino/DeckBuilderModal'
+import ShopModal from '../features/domino/ShopModal'
+import EventBoardModal from '../features/domino/EventBoardModal'
+import DominoNpcModal from '../features/domino/DominoNpcModal'
+import { getNpc } from '../features/domino/npcRoster'
 
 function WorldClearedModal({ blockName, allCleared, onContinue }) {
   return (
@@ -68,6 +74,7 @@ export default function WorldScreen() {
   const recordAmbientKill = useGameStore((s) => s.recordAmbientKill)
   const clearWorld3 = useGameStore((s) => s.clearWorld3)
   const world3 = useGameStore((s) => s.world3)
+  const world4 = useGameStore((s) => s.world4)
 
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
@@ -110,7 +117,40 @@ export default function WorldScreen() {
 
   useEffect(() => {
     const bridge = bridgeRef.current
-    const offInteract = bridge.on('interact', (payload) => setActiveModal(payload))
+    const offInteract = bridge.on('interact', (payload) => {
+      // Save Point and the KC Tower Security Gate resolve immediately
+      // rather than opening a modal.
+      if (payload.type === 'domino' && payload.id === 'savePoint') {
+        saveGame()
+        alert('Game saved!')
+        bridge.emit('resumeScene')
+        return
+      }
+      if (payload.type === 'domino' && payload.id === 'securityGate') {
+        const state = useGameStore.getState()
+        const canEnter = state.isDominoWeekend() && state.world4.tournamentPassOwned
+        alert(
+          canEnter
+            ? 'The gate recognizes your Tournament Pass. The elevator is unlocked.'
+            : !state.isDominoWeekend()
+            ? 'The Arena only opens on weekends.'
+            : 'You need a Tournament Pass from the Kame Game Shop to enter.'
+        )
+        bridge.emit('resumeScene')
+        return
+      }
+      if (payload.type === 'domino' && payload.id === 'elevator') {
+        const state = useGameStore.getState()
+        if (!state.isDominoWeekend() || !state.world4.tournamentPassOwned) {
+          alert('The elevator is locked. Check the Security Gate.')
+          bridge.emit('resumeScene')
+          return
+        }
+        setActiveModal({ type: 'dominoNpc', npc: getNpc('NPC_Kaiba') })
+        return
+      }
+      setActiveModal(payload)
+    })
     const offCriminal = bridge.on('criminalEncounter', () =>
       setActiveModal({ type: 'criminalEncounter' })
     )
@@ -126,6 +166,7 @@ export default function WorldScreen() {
       offPolice()
       offFinancePolice()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const closeModal = () => {
@@ -177,6 +218,14 @@ export default function WorldScreen() {
         <div>
           Wanted: <span className="text-orange-400">{'★'.repeat(wantedLevel) || 'none'}</span>
         </div>
+        {currentBlockId === 'domino' && (
+          <div>
+            DP: <span className="text-purple-300">{world4.dp}</span>{' '}
+            <span className="text-gray-500">
+              (D{world4.calendar.day} B{world4.calendar.timeBlock}{useGameStore.getState().isDominoWeekend() ? ' • Weekend' : ''})
+            </span>
+          </div>
+        )}
         <div className="text-gray-400">{currentBlock?.name}</div>
         <button
           onClick={() => setActiveModal({ type: 'inventory' })}
@@ -348,6 +397,15 @@ export default function WorldScreen() {
       )}
       {activeModal?.type === 'yugiChallenge' && (
         <ChallengeModal opponentName="Muto Yugi" isYugi onClose={closeModal} onWin={clearWorld3} />
+      )}
+
+      {/* World 4: Domino City */}
+      {activeModal?.type === 'domino' && activeModal.id === 'bed' && <BedModal onClose={closeModal} />}
+      {activeModal?.type === 'domino' && activeModal.id === 'pc' && <DeckBuilderModal onClose={closeModal} />}
+      {activeModal?.type === 'domino' && activeModal.id === 'shopCounter' && <ShopModal onClose={closeModal} />}
+      {activeModal?.type === 'domino' && activeModal.id === 'eventBoard' && <EventBoardModal onClose={closeModal} />}
+      {activeModal?.type === 'dominoNpc' && (
+        <DominoNpcModal npc={activeModal.npc} onClose={closeModal} />
       )}
 
       {worldCleared && (

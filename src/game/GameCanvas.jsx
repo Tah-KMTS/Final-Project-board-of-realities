@@ -4,12 +4,14 @@ import WorldScene from './scenes/WorldScene'
 import HunterWorldScene from './scenes/HunterWorldScene'
 import FinanceWorldScene from './scenes/FinanceWorldScene'
 import YugiohWorldScene from './scenes/YugiohWorldScene'
+import DominoWorldScene from './scenes/DominoWorldScene'
 import { createEventBridge } from './eventBridge'
 
 const SCENES_BY_BLOCK = {
   hunter: HunterWorldScene,
   finance: FinanceWorldScene,
   yugioh: YugiohWorldScene,
+  domino: DominoWorldScene,
 }
 
 export default function GameCanvas({ blockId, bridge }) {
