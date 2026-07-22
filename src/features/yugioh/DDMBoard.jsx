@@ -9,6 +9,8 @@ import {
   canAffordAbility, spendCrests, manhattanDistance, isInLine, computeKnockback, rollParry,
   IMPLEMENTED_MECHANICS, isAbilityImplemented,
 } from './ddmAbilities'
+import { DDM_ITEM_CATALOG, canAffordItem, isItemImplemented } from './ddmItemCatalog'
+import { pickCatalogMonster } from './ddmMonsterCatalog'
 import { playHitSound, playClickSound, playVictorySound, playDefeatSound, playTakeDamageSound } from '../../audio/sfx'
 
 const TILE = 18
@@ -39,6 +41,12 @@ export default function DDMBoard({
   const [monsters, setMonsters] = useState([])
   const [barriers, setBarriers] = useState([])
   const [defSuppressedIds, setDefSuppressedIds] = useState([])
+  const [traps, setTraps] = useState([]) // [{id, itemId, col, row, trigger, mechanic, params}]
+  const [terrainTiles, setTerrainTiles] = useState([]) // [{id, itemId, col, row, owner, mechanic, params}]
+  const [dmImmuneTurns, setDmImmuneTurns] = useState(0)
+  const [soulHarvesterActive, setSoulHarvesterActive] = useState(false)
+  const [pendingItem, setPendingItem] = useState(null) // { item }
+  const [showItems, setShowItems] = useState(false)
   // Each side has its own 15-die pool and 10-Dimension cap (rulebook).
   const [playerDimensionsUsed, setPlayerDimensionsUsed] = useState(0)
   const [opponentDimensionsUsed, setOpponentDimensionsUsed] = useState(0)
@@ -57,7 +65,7 @@ export default function DDMBoard({
   useEffect(() => {
     render()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cells, monsters, mode, selectedMonsterId, barriers])
+  }, [cells, monsters, mode, selectedMonsterId, barriers, traps, terrainTiles, pendingItem])
 
   const selectedMonster = monsters.find((m) => m.id === selectedMonsterId)
 
@@ -340,6 +348,201 @@ export default function DDMBoard({
     }
   }
 
+  // --- Items (traps/spells/equipment/terrain/artifacts) ----------------
+  // Unlike monster abilities, items are played directly from the crest
+  // pool - there's no summoned "caster", so targeting is absolute
+  // (anywhere on the board / any ally / any enemy) rather than adjacency-
+  // relative.
+
+  const handleStartItem = (item) => {
+    if (!isItemImplemented(item) || !canAffordItem(playerBank, item.cost) || turn !== 'player' || outcome) return
+    if (item.target === 'self') {
+      resolveSelfItem(item)
+      return
+    }
+    setPendingItem({ item })
+    setMode('item-target')
+  }
+
+  const placeTrapOrTerrain = (item, col, row) => {
+    setPlayerBank((prev) => spendCrests(prev, item.cost))
+    if (item.type === 'trap') {
+      setTraps((prev) => [...prev, { id: `trap_${Date.now()}`, itemId: item.id, col, row, trigger: item.trigger, mechanic: item.mechanic, params: item.params || {}, name: item.name }])
+      appendLog(`You set ${item.name} face-down.`)
+    } else {
+      setTerrainTiles((prev) => [...prev, { id: `terrain_${Date.now()}`, itemId: item.id, col, row, owner: 'player', mechanic: item.mechanic, params: item.params || {}, name: item.name }])
+      appendLog(`You deploy ${item.name}.`)
+    }
+  }
+
+  const resolveSelfItem = (item) => {
+    const { mechanic, params = {} } = item
+    setPlayerBank((prev) => spendCrests(prev, item.cost))
+
+    if (mechanic === 'gain_random_crests') {
+      setPlayerBank((prev) => {
+        const next = { ...prev }
+        for (let i = 0; i < params.count; i++) {
+          const type = CREST_TYPES[Math.floor(Math.random() * CREST_TYPES.length)]
+          next[type] = Math.min(CREST_CAP, next[type] + 1)
+        }
+        return next
+      })
+      appendLog(`${item.name}: gained ${params.count} random crests.`)
+    } else if (mechanic === 'steal_random_crests') {
+      let stolen = 0
+      setOpponentBank((prevOpp) => {
+        const nextOpp = { ...prevOpp }
+        const available = CREST_TYPES.filter((t) => nextOpp[t] > 0)
+        for (let i = 0; i < params.count && available.length > 0; i++) {
+          const idx = Math.floor(Math.random() * available.length)
+          const type = available[idx]
+          nextOpp[type] -= 1
+          stolen++
+          setPlayerBank((prevPlayer) => ({ ...prevPlayer, [type]: Math.min(CREST_CAP, prevPlayer[type] + 1) }))
+          if (nextOpp[type] === 0) available.splice(idx, 1)
+        }
+        return nextOpp
+      })
+      appendLog(`${item.name}: stole ${stolen} crest(s) from ${opponentName}.`)
+    } else if (mechanic === 'cleanse_board') {
+      setMonsters((prev) =>
+        prev.map((m) => ({
+          ...m,
+          tempAtkBuffApplied: 0,
+          tempAtkDebuffApplied: 0,
+          tempDefBuff: 0,
+          frozen: false,
+          freezeTurnsLeft: 0,
+          silencedTurns: 0,
+          poisonTurnsLeft: 0,
+        }))
+      )
+      setDefSuppressedIds([])
+      appendLog(`${item.name}: cleared all buffs, debuffs, and status effects on the board.`)
+    } else if (mechanic === 'fill_crest_pool') {
+      setPlayerBank({ movement: CREST_CAP, attack: CREST_CAP, defense: CREST_CAP, spell: CREST_CAP, trap: CREST_CAP })
+      appendLog(`${item.name}: crest pool filled to maximum.`)
+    } else if (mechanic === 'clear_board_effects') {
+      setTraps([])
+      setTerrainTiles([])
+      setBarriers([])
+      setMonsters((prev) => prev.map((m) => ({ ...m, equippedItemId: null, equipIgnoresDef: false, equipTrapImmune: false, equipLifestealPct: 0, equipShieldPerTurn: false, equipRecoil: 0 })))
+      appendLog(`${item.name}: destroyed all terrain, traps, and equipped items on the board.`)
+    } else if (mechanic === 'dm_immune') {
+      setDmImmuneTurns(params.duration)
+      appendLog(`${item.name}: your Die Master is immune to direct damage for ${params.duration} turns.`)
+    } else if (mechanic === 'convert_opponent_crests') {
+      setOpponentBank((prev) => {
+        const amt = prev[params.from]
+        return { ...prev, [params.from]: 0, [params.to]: Math.min(CREST_CAP, prev[params.to] + amt) }
+      })
+      appendLog(`${item.name}: converted ${opponentName}'s ${CREST_LABELS[params.from]} crests into ${CREST_LABELS[params.to]}.`)
+    } else if (mechanic === 'silence_all_enemies') {
+      setMonsters((prev) => prev.map((m) => (m.owner === 'opponent' ? { ...m, silencedTurns: params.duration } : m)))
+      appendLog(`${item.name}: silenced all of ${opponentName}'s monsters.`)
+    } else if (mechanic === 'soul_harvester_activate') {
+      setSoulHarvesterActive(true)
+      appendLog(`${item.name}: active for the rest of the match.`)
+    }
+    setMode('idle')
+    setPendingItem(null)
+  }
+
+  const resolveTargetedItem = (item, col, row) => {
+    const { mechanic, params = {}, target: targetKind } = item
+    const targetMonster = monsterAt(col, row)
+
+    const validTarget = () => {
+      if (targetKind === 'any-empty') return !isOccupiedOrBarrier(col, row) && !traps.some((t) => t.col === col && t.row === row) && !terrainTiles.some((t) => t.col === col && t.row === row)
+      if (targetKind === 'ally-any') return targetMonster?.owner === 'player'
+      if (targetKind === 'enemy-any') return targetMonster?.owner === 'opponent'
+      return false
+    }
+    if (!validTarget()) return
+
+    if (item.type === 'trap' || item.type === 'terrain') {
+      placeTrapOrTerrain(item, col, row)
+      setMode('idle')
+      setPendingItem(null)
+      return
+    }
+
+    setPlayerBank((prev) => spendCrests(prev, item.cost))
+
+    if (mechanic === 'heal_target') {
+      setMonsters((prev) => prev.map((m) => (m.id === targetMonster.id ? { ...m, hp: Math.min(m.maxHp, m.hp + params.amount) } : m)))
+      appendLog(`${item.name}: heals ${targetMonster.name} for ${params.amount}.`)
+    } else if (mechanic === 'damage_target_and_nearest') {
+      const others = monsters.filter((m) => m.owner === 'opponent' && m.id !== targetMonster.id)
+      const nearest = others.reduce((best, m) => {
+        const d = manhattanDistance(targetMonster, m)
+        return !best || d < best.dist ? { m, dist: d } : best
+      }, null)
+      appendLog(`${item.name}: ${params.amount} damage to ${targetMonster.name}${nearest ? ` and ${nearest.m.name}` : ''}.`)
+      playHitSound()
+      setMonsters((prev) =>
+        prev
+          .map((m) => {
+            if (m.id === targetMonster.id) return { ...m, hp: m.hp - params.amount }
+            if (nearest && m.id === nearest.m.id) return { ...m, hp: m.hp - params.amount }
+            return m
+          })
+          .filter((m) => m.hp > 0)
+      )
+    } else if (mechanic === 'berserk_buff') {
+      setMonsters((prev) =>
+        prev.map((m) =>
+          m.id === targetMonster.id
+            ? { ...m, atk: m.atk + params.amount, tempAtkBuffApplied: (m.tempAtkBuffApplied || 0) + params.amount, endTurnSelfDamage: (m.endTurnSelfDamage || 0) + params.selfDamage }
+            : m
+        )
+      )
+      appendLog(`${item.name}: ${targetMonster.name} gains +${params.amount} ATK this turn (will take ${params.selfDamage} damage at end of turn).`)
+    } else if (mechanic === 'upgrade_to_level4') {
+      if (targetMonster.level < 2 || targetMonster.level > 3) {
+        appendLog(`${item.name} requires a Level 2 or 3 monster.`)
+      } else {
+        const upgraded = pickCatalogMonster(4)
+        if (upgraded) {
+          setMonsters((prev) =>
+            prev.map((m) =>
+              m.id === targetMonster.id
+                ? { ...m, level: 4, name: upgraded.name, creatureType: upgraded.creatureType, ability: upgraded.ability, atk: upgraded.atk, def: upgraded.def, hp: upgraded.hp, maxHp: upgraded.hp }
+                : m
+            )
+          )
+          appendLog(`${item.name}: ${targetMonster.name} is reforged into ${upgraded.name}!`)
+        }
+      }
+    } else if (item.type === 'equip') {
+      setMonsters((prev) =>
+        prev.map((m) => {
+          if (m.id !== targetMonster.id) return m
+          let next = { ...m, equippedItemId: item.id }
+          if (mechanic === 'equip_stat') next = { ...next, atk: next.atk + (params.atk || 0), def: next.def + (params.def || 0) }
+          else if (mechanic === 'equip_stat_ignore_def') next = { ...next, atk: next.atk + (params.atk || 0), equipIgnoresDef: true }
+          else if (mechanic === 'equip_trap_immune') next = { ...next, equipTrapImmune: true }
+          else if (mechanic === 'equip_lifesteal') next = { ...next, equipLifestealPct: params.pct }
+          else if (mechanic === 'equip_shield_per_turn') next = { ...next, equipShieldPerTurn: true, shielded: true }
+          else if (mechanic === 'equip_stat_recoil') next = { ...next, def: next.def + (params.def || 0), equipRecoil: params.recoil }
+          return next
+        })
+      )
+      appendLog(`You equip ${item.name} to ${targetMonster.name}.`)
+    }
+
+    setMode('idle')
+    setPendingItem(null)
+  }
+
+  // A monster landing on (col,row) sets off any face-down step-trigger trap
+  // there. Only opponent monsters can trigger player-set traps in this
+  // pass (traps are player-only, and the opponent's own summon zone is far
+  // from where a player would place one) - findTrapAt is still checked
+  // generically for both sides in case that changes later.
+  const findTrapAt = (col, row) => traps.find((t) => t.col === col && t.row === row && t.trigger === 'step')
+
   const cellKey = (c, r) => `${c},${r}`
 
   const handleTileClick = (col, row) => {
@@ -364,6 +567,11 @@ export default function DDMBoard({
 
     if (mode === 'ability-target') {
       resolveTargetedAbility(col, row)
+      return
+    }
+
+    if (mode === 'item-target' && pendingItem) {
+      resolveTargetedItem(pendingItem.item, col, row)
       return
     }
 
@@ -419,12 +627,20 @@ export default function DDMBoard({
 
         const defenderSpends = opponentBank.defense > 0 && Math.random() < 0.6
         if (defenderSpends) setOpponentBank((prev) => ({ ...prev, defense: prev.defense - 1 }))
-        const dmg = computeDamage(selectedMonster.atk, effectiveDef(targetMonster), defenderSpends)
+        const dmg = selectedMonster.equipIgnoresDef
+          ? selectedMonster.atk
+          : computeDamage(selectedMonster.atk, effectiveDef(targetMonster), defenderSpends)
         playHitSound()
         const newHp = targetMonster.hp - dmg
         appendLog(
           `${selectedMonster.name} attacks ${targetMonster.name} for ${dmg}${defenderSpends ? ' (defense crest spent)' : ''}.`
         )
+
+        // Vampiric Amulet (equip passive): attacker heals a % of damage dealt.
+        if (selectedMonster.equipLifestealPct) {
+          const healed = Math.round(dmg * selectedMonster.equipLifestealPct)
+          setMonsters((prev) => prev.map((m) => (m.id === selectedMonster.id ? { ...m, hp: Math.min(m.maxHp, m.hp + healed) } : m)))
+        }
 
         // Reflect Damage (passive): defender hits back regardless of outcome.
         if (targetMonster.ability?.mechanic === 'reflect_damage') {
@@ -432,6 +648,14 @@ export default function DDMBoard({
           appendLog(`${targetMonster.name} reflects ${reflectAmount} damage back to ${selectedMonster.name}.`)
           setMonsters((prev) =>
             prev.map((m) => (m.id === selectedMonster.id ? { ...m, hp: m.hp - reflectAmount } : m)).filter((m) => m.hp > 0)
+          )
+        }
+
+        // Spiked Carapace (equip passive): melee attackers take recoil.
+        if (targetMonster.equipRecoil) {
+          appendLog(`${targetMonster.name}'s Spiked Carapace deals ${targetMonster.equipRecoil} recoil damage to ${selectedMonster.name}.`)
+          setMonsters((prev) =>
+            prev.map((m) => (m.id === selectedMonster.id ? { ...m, hp: m.hp - targetMonster.equipRecoil } : m)).filter((m) => m.hp > 0)
           )
         }
 
@@ -444,6 +668,11 @@ export default function DDMBoard({
           if (selectedMonster.ability?.id === 'pressure_blast') {
             setOpponentBank((prev) => ({ ...prev, movement: Math.max(0, prev.movement - 1) }))
             appendLog(`Pressure Blast drains 1 Movement Crest from ${opponentName}.`)
+          }
+          // Soul Harvester Relic (artifact, active for the match).
+          if (soulHarvesterActive) {
+            setPlayerBank((prev) => ({ ...prev, spell: Math.min(CREST_CAP, prev.spell + 1) }))
+            appendLog('Soul Harvester Relic grants +1 Magic Crest.')
           }
         } else {
           setMonsters((prev) => prev.map((m) => (m.id === targetMonster.id ? { ...m, hp: newHp } : m)))
@@ -483,11 +712,25 @@ export default function DDMBoard({
           if (m.poisonTurnsLeft > 0) {
             next = { ...next, hp: next.hp - m.poisonPerTurn, poisonTurnsLeft: m.poisonTurnsLeft - 1 }
           }
+          if (m.endTurnSelfDamage) {
+            next = { ...next, hp: next.hp - m.endTurnSelfDamage, endTurnSelfDamage: 0 }
+          }
+          // Terrain: hazard/heal tiles apply to whoever's standing on them
+          // at end of turn. Hazards only hurt the side that didn't place
+          // them; heal tiles help everyone (matches Rejuvenation Spring's
+          // "any monster" wording).
+          const tile = terrainTiles.find((t) => t.col === next.col && t.row === next.row)
+          if (tile?.mechanic === 'terrain_hazard_tile' && tile.owner !== next.owner) {
+            next = { ...next, hp: next.hp - tile.params.amount }
+          } else if (tile?.mechanic === 'terrain_heal_tile') {
+            next = { ...next, hp: Math.min(next.maxHp, next.hp + tile.params.amount) }
+          }
           return next
         })
         .filter((m) => m.hp > 0)
     )
     setDefSuppressedIds([])
+    if (dmImmuneTurns > 0) setDmImmuneTurns((d) => Math.max(0, d - 1))
     setTurn('opponent')
     setTimeout(() => runOpponentTurn(), 400)
   }
@@ -566,8 +809,12 @@ export default function DDMBoard({
 
       if (distToPlayerDm === 1 && bank.attack > 0) {
         bank = { ...bank, attack: bank.attack - 1 }
-        dmHp = Math.max(0, dmHp - 1)
-        appendLog(`${monster.name} strikes your Die Master directly! -1 HP.`)
+        if (dmImmuneTurns > 0) {
+          appendLog(`${monster.name} strikes your Die Master, but Aegis of the Ancients absorbs it completely!`)
+        } else {
+          dmHp = Math.max(0, dmHp - 1)
+          appendLog(`${monster.name} strikes your Die Master directly! -1 HP.`)
+        }
         playTakeDamageSound()
         continue
       }
@@ -583,12 +830,44 @@ export default function DDMBoard({
         if (cellState[key] === 'path' && !occupied) {
           bank = { ...bank, movement: bank.movement - 1 }
           currentMonsters = currentMonsters.map((m) => (m.id === monster.id ? { ...m, col: nextCol, row: nextRow } : m))
+
+          // Face-down player traps trigger when an opponent monster steps on them.
+          const trap = findTrapAt(nextCol, nextRow)
+          const mover = currentMonsters.find((m) => m.id === monster.id)
+          if (trap && mover && !mover.equipTrapImmune) {
+            appendLog(`${mover.name} triggers ${trap.name}!`)
+            if (trap.mechanic === 'trap_damage') {
+              currentMonsters = currentMonsters.map((m) => (m.id === mover.id ? { ...m, hp: m.hp - trap.params.amount } : m)).filter((m) => m.hp > 0)
+            } else if (trap.mechanic === 'trap_damage_splash') {
+              const splashTargets = currentMonsters.filter((m) => m.id !== mover.id && isAdjacent({ col: nextCol, row: nextRow }, m))
+              currentMonsters = currentMonsters
+                .map((m) => {
+                  if (m.id === mover.id) return { ...m, hp: m.hp - trap.params.amount }
+                  if (splashTargets.some((t) => t.id === m.id)) return { ...m, hp: m.hp - trap.params.splash }
+                  return m
+                })
+                .filter((m) => m.hp > 0)
+            } else if (trap.mechanic === 'trap_poison') {
+              currentMonsters = currentMonsters.map((m) => (m.id === mover.id ? { ...m, poisonPerTurn: trap.params.amountPerTurn, poisonTurnsLeft: trap.params.duration } : m))
+            } else if (trap.mechanic === 'trap_silence') {
+              currentMonsters = currentMonsters.map((m) => (m.id === mover.id ? { ...m, silencedTurns: trap.params.duration } : m))
+            } else if (trap.mechanic === 'trap_crest_drain') {
+              bank = { ...bank, [trap.params.crestType]: Math.max(0, bank[trap.params.crestType] - trap.params.amount) }
+            } else if (trap.mechanic === 'trap_instakill_low_level' && mover.level <= trap.params.maxLevel) {
+              currentMonsters = currentMonsters.filter((m) => m.id !== mover.id)
+            }
+            setTraps((prev) => prev.filter((t) => t.id !== trap.id))
+          }
         }
       }
     }
 
     // Barriers tick down and expire.
     currentBarriers = currentBarriers.map((b) => ({ ...b, turnsLeft: b.turnsLeft - 1 })).filter((b) => b.turnsLeft > 0)
+
+    // Deflector Shield Generator (equip): refreshes at the start of the
+    // player's own turn.
+    currentMonsters = currentMonsters.map((m) => (m.owner === 'player' && m.equipShieldPerTurn ? { ...m, shielded: true } : m))
 
     setCells(cellState)
     setMonsters(currentMonsters)
@@ -646,7 +925,7 @@ export default function DDMBoard({
     ctx.fillStyle = '#e63946'
     ctx.fillRect(OPPONENT_DM.col * TILE + 2, OPPONENT_DM.row * TILE + 2, TILE - 5, TILE - 5)
 
-    // Barriers (Firewall)
+    // Barriers (Firewall / terrain barriers)
     for (const b of barriers) {
       const x = b.col * TILE
       const y = b.row * TILE
@@ -655,6 +934,22 @@ export default function DDMBoard({
       ctx.strokeStyle = '#8ecae6'
       ctx.lineWidth = 1
       ctx.strokeRect(x + 1, y + 1, TILE - 3, TILE - 3)
+    }
+
+    // Terrain tiles (hazard/heal)
+    for (const t of terrainTiles) {
+      const x = t.col * TILE
+      const y = t.row * TILE
+      ctx.fillStyle = t.mechanic === 'terrain_heal_tile' ? 'rgba(74,220,140,0.4)' : 'rgba(230,90,50,0.4)'
+      ctx.fillRect(x + 1, y + 1, TILE - 3, TILE - 3)
+    }
+
+    // Traps (visible to the player who set them - face-down to the opponent)
+    for (const t of traps) {
+      const x = t.col * TILE
+      const y = t.row * TILE
+      ctx.fillStyle = 'rgba(155,93,229,0.5)'
+      ctx.fillRect(x + 3, y + 3, TILE - 7, TILE - 7)
     }
 
     // valid move/attack/ability targets
@@ -691,6 +986,23 @@ export default function DDMBoard({
           if (ability.target === 'adjacent-any') valid = isAdjacent(selectedMonster, { col: c, row: r })
           if (valid) {
             ctx.strokeStyle = '#f4a261'
+            ctx.lineWidth = 2
+            ctx.strokeRect(c * TILE + 1, r * TILE + 1, TILE - 3, TILE - 3)
+          }
+        }
+      }
+    }
+
+    if (mode === 'item-target' && pendingItem) {
+      const item = pendingItem.item
+      for (let r = 0; r < GRID_ROWS; r++) {
+        for (let c = 0; c < GRID_COLS; c++) {
+          let valid = false
+          if (item.target === 'any-empty') valid = !isOccupiedOrBarrier(c, r) && !traps.some((t) => t.col === c && t.row === r) && !terrainTiles.some((t) => t.col === c && t.row === r)
+          if (item.target === 'ally-any') valid = monsterAt(c, r)?.owner === 'player'
+          if (item.target === 'enemy-any') valid = monsterAt(c, r)?.owner === 'opponent'
+          if (valid) {
+            ctx.strokeStyle = '#9b5de5'
             ctx.lineWidth = 2
             ctx.strokeRect(c * TILE + 1, r * TILE + 1, TILE - 3, TILE - 3)
           }
@@ -761,6 +1073,9 @@ export default function DDMBoard({
           {mode === 'ability-target' && (
             <p className="mt-1 text-xs text-orange-300">Select a highlighted target for {pendingAbility?.ability.name}.</p>
           )}
+          {mode === 'item-target' && (
+            <p className="mt-1 text-xs text-purple-300">Select a highlighted target for {pendingItem?.item.name}.</p>
+          )}
         </div>
 
         <div className="w-72">
@@ -773,6 +1088,50 @@ export default function DDMBoard({
               </div>
             ))}
           </div>
+
+          {!outcome && turn === 'player' && (
+            <button
+              onClick={() => setShowItems((s) => !s)}
+              className="mb-3 w-full border-2 border-purple-400 py-1 text-xs text-purple-300 hover:bg-purple-400 hover:text-black"
+            >
+              {showItems ? '▲ Hide Items' : `▼ Items (${DDM_ITEM_CATALOG.filter(isItemImplemented).length} usable / ${DDM_ITEM_CATALOG.length} total)`}
+            </button>
+          )}
+
+          {showItems && !outcome && turn === 'player' && (
+            <div className="mb-3 max-h-64 overflow-y-auto border-2 border-gray-600 bg-[#0f1020] p-2 text-xs">
+              {['trap', 'spell', 'equip', 'terrain', 'artifact'].map((type) => (
+                <div key={type} className="mb-2">
+                  <p className="mb-1 font-bold uppercase text-purple-300">{type === 'equip' ? 'Equipment' : `${type}s`}</p>
+                  {DDM_ITEM_CATALOG.filter((i) => i.type === type).map((item) => {
+                    const implemented = isItemImplemented(item)
+                    const affordable = canAffordItem(playerBank, item.cost)
+                    return (
+                      <div key={item.id} className="mb-1 flex items-center justify-between gap-2">
+                        <span
+                          className={implemented ? 'text-gray-200' : 'text-gray-600'}
+                          title={item.description}
+                        >
+                          {item.name} ({Object.entries(item.cost).map(([t, a]) => `${a} ${CREST_LABELS[t]}`).join(', ')})
+                        </span>
+                        {implemented ? (
+                          <button
+                            onClick={() => handleStartItem(item)}
+                            disabled={!affordable}
+                            className="shrink-0 border border-purple-400 px-1 text-purple-300 hover:bg-purple-400 hover:text-black disabled:opacity-30"
+                          >
+                            Use
+                          </button>
+                        ) : (
+                          <span className="shrink-0 text-[9px] text-gray-600">not yet active</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
 
           {lastRoll && (
             <div className="mb-3 border-2 border-gray-600 bg-[#0f1020] p-2 text-xs">
