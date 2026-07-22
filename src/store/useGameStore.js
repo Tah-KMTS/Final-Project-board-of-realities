@@ -5,6 +5,7 @@ import {
   rollShadowMonarchCondition,
   getShadowMonarchCondition,
 } from '../features/hunter/professions'
+import { shouldGrantFortify } from '../features/hunter/skillEffects'
 import {
   STOCKS,
   CRYPTO_BASE_PRICE,
@@ -67,6 +68,7 @@ function createDefaultState() {
       hasSpringOfNazarick: false,
       finalRaidUnlocked: false,
       professionAssigned: false,
+      fortifyApplied: false,
       poomQuestComplete: false,
       poomRewardItemId: null,
       tanQuestComplete: false,
@@ -147,6 +149,29 @@ export const useGameStore = create((set, get) => ({
 
   enterWorld: () => set({ screen: 'world' }),
 
+  // Dev-only: teleport straight into any world, skipping the dice roll and
+  // every unlock condition. Fills in a placeholder character if none exists
+  // yet so QA can test a world without going through character creation.
+  devJumpToWorld: (blockId) => {
+    const state = get()
+    const needsPlayer = !state.player.name
+    set({
+      player: needsPlayer
+        ? {
+            ...state.player,
+            name: 'QA Tester',
+            gender: 'male',
+            hp: state.player.maxHp,
+            alive: true,
+          }
+        : state.player,
+      currentBlockId: blockId,
+      screen: 'world',
+    })
+    get().assignStartingProfession()
+    if (blockId === 'finance') get().initFinanceMarket()
+  },
+
   clearBlock: (blockId) =>
     set((state) => {
       const blocks = state.blocks.map((b) =>
@@ -168,6 +193,15 @@ export const useGameStore = create((set, get) => ({
 
   addItem: (item) =>
     set((state) => ({ inventory: [...state.inventory, item] })),
+
+  removeItem: (itemId) =>
+    set((state) => {
+      const index = state.inventory.findIndex((i) => i.id === itemId)
+      if (index === -1) return {}
+      const inventory = [...state.inventory]
+      inventory.splice(index, 1)
+      return { inventory }
+    }),
 
   takeDamage: (amount) => {
     const state = get()
@@ -203,6 +237,7 @@ export const useGameStore = create((set, get) => ({
       player: { ...state.player, professionId: rollStartingProfession() },
       world1: { ...state.world1, professionAssigned: true },
     })
+    get().checkFortifyUnlock()
   },
 
   allocateStat: (statKey) => {
@@ -233,6 +268,24 @@ export const useGameStore = create((set, get) => ({
       world1: { ...state.world1, hunterRank: newRank },
     })
     get().checkShadowMonarchUnlock()
+    get().checkFortifyUnlock()
+  },
+
+  // Tank's Fortify skill (C-rank): +25% max HP, granted once, permanently,
+  // the first time a Tank reaches C-rank or above.
+  checkFortifyUnlock: () => {
+    const state = get()
+    if (state.world1.fortifyApplied) return
+    if (!shouldGrantFortify(state.player.professionId, state.world1.hunterRank)) return
+    const bonus = Math.round(state.player.maxHp * 0.25)
+    set({
+      player: {
+        ...state.player,
+        maxHp: state.player.maxHp + bonus,
+        hp: state.player.hp + bonus,
+      },
+      world1: { ...state.world1, fortifyApplied: true },
+    })
   },
 
   recordRiftClear: ({ tookDamage }) => {
@@ -316,11 +369,11 @@ export const useGameStore = create((set, get) => ({
     return true
   },
 
-  completePoomQuest: (itemId) => {
+  completePoomQuest: (item) => {
     const state = get()
     set({
-      inventory: [...state.inventory, { id: itemId }],
-      world1: { ...state.world1, poomQuestComplete: true, poomRewardItemId: itemId },
+      inventory: [...state.inventory, item],
+      world1: { ...state.world1, poomQuestComplete: true, poomRewardItemId: item.id },
     })
   },
 

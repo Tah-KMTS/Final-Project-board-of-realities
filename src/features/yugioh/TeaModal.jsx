@@ -1,4 +1,6 @@
 import { useGameStore } from '../../store/useGameStore'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { TEA_LINES } from '../../data/yugiohDialogue'
 
 export default function TeaModal({ onClose }) {
   const teaRelationship = useGameStore((s) => s.world3.teaRelationship)
@@ -17,7 +19,7 @@ export default function TeaModal({ onClose }) {
           </p>
         ) : (
           <>
-            <p className="mb-3 text-sm text-gray-300">"Oh, hey! Are you friends with Yugi too?"</p>
+            <DialogueBox speaker="Téa Gardner" portrait="💗" lines={TEA_LINES} onDone={() => {}} />
             <div className="mb-3 border-2 border-gray-600 bg-[#0f1020] p-3">
               <p className="mb-1 text-xs text-gray-400">Relationship</p>
               <div className="h-3 w-full bg-gray-800">

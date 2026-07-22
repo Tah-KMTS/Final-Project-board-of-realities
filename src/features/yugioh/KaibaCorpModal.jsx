@@ -1,4 +1,6 @@
 import { useGameStore } from '../../store/useGameStore'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { KAIBA_LINES } from '../../data/yugiohDialogue'
 
 const KAIBACORP_PRICE = 3000000
 
@@ -11,9 +13,7 @@ export default function KaibaCorpModal({ onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[440px] border-4 border-blue-500 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-2 text-xl font-bold text-blue-300">KaibaCorp Tower</h2>
-        <p className="mb-4 text-sm text-gray-300">
-          "You want to buy my company? ...Fine. Everyone has a price, apparently. Even me." — Seto Kaiba
-        </p>
+        <DialogueBox speaker="Seto Kaiba" portrait="🏢" lines={KAIBA_LINES} onDone={() => {}} />
 
         {ownsKaibaCorp ? (
           <p className="mb-4 text-green-400">You already own KaibaCorp. Holographic tech and satellite deck-builders are at your disposal.</p>

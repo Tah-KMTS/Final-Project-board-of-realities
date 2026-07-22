@@ -1,21 +1,29 @@
 // Simplified Dungeon Dice Monsters rules engine. Faithful to the spec's
-// core loop (13x19 grid, Die Masters at 3 HP, a 5-type capped crest bank,
+// core loop (13x19 grid, Die Masters at 3 HP, a capped crest bank,
 // 2+-matching-level summon rolls, die-net unfolding into permanent path
-// tiles, movement/attack/defense crests, flat 1-damage direct Die Master
-// hits) with a few pragmatic house rules disclosed alongside the code:
-// monsters carry their own HP pool (not part of the source excerpt) so
-// monster-vs-monster combat has a real resolution, and the "6-tile net"
+// tiles, movement/attack/defense/spell crests, flat 1-damage direct Die
+// Master hits) with a few pragmatic house rules disclosed alongside the
+// code: monsters carry their own HP pool (not part of the source excerpt)
+// so monster-vs-monster combat has a real resolution, and the "6-tile net"
 // unfolds as a fixed plus-shaped cluster rather than the true hexomino
-// variety, since the exact net shapes aren't specified.
+// variety, since the exact net shapes aren't specified. Named monsters
+// (ddmMonsterCatalog.js) spend the 'spell' crest as their "Magic Crest"
+// cost for special abilities - see ddmAbilities.js for resolution.
 
 import { generateCard } from './cardGenerator'
+import { pickCatalogMonster } from './ddmMonsterCatalog'
 
 export const GRID_COLS = 13
 export const GRID_ROWS = 19
-export const CREST_TYPES = ['movement', 'attack', 'defense', 'spell']
+// The 6th die face type, Summon, is never banked - it's spent immediately
+// to unfold a Dimension, so it isn't part of the pool-able crest types.
+export const CREST_TYPES = ['movement', 'attack', 'defense', 'spell', 'trap']
 export const CREST_CAP = 10
 export const DIE_MASTER_MAX_HP = 3
 export const DICE_POOL_LEVELS = [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4]
+// Rulebook: a 15-die pool, max 10 Dimensions per match (leaving 5 dice that
+// can only ever be rolled for crests, never summoned).
+export const MAX_DIMENSIONS = 10
 
 export const PLAYER_DM = { col: 6, row: 17 }
 export const OPPONENT_DM = { col: 6, row: 1 }
@@ -44,7 +52,19 @@ export function createInitialBoard() {
 }
 
 export function createEmptyCrestBank() {
-  return { movement: 0, attack: 0, defense: 0, spell: 0 }
+  return { movement: 0, attack: 0, defense: 0, spell: 0, trap: 0 }
+}
+
+// Approximates real dice-face selection: lower-level dice carry more Summon
+// faces (easier to bring monsters out), while only level-3+ dice carry the
+// rarer Trap/Spell faces (a simplification of true fixed 6-face dice, which
+// the earlier top-of-file comment already discloses as a house rule).
+const SUMMON_PROB_BY_LEVEL = { 1: 0.5, 2: 0.4, 3: 0.3, 4: 0.18 }
+const NON_SUMMON_FACES_BY_LEVEL = {
+  1: ['movement', 'attack', 'defense'],
+  2: ['movement', 'attack', 'defense', 'spell'],
+  3: ['movement', 'attack', 'defense', 'spell', 'trap'],
+  4: ['attack', 'defense', 'spell', 'trap'],
 }
 
 export function rollDice(difficultyBonus = 0) {
@@ -52,14 +72,13 @@ export function rollDice(difficultyBonus = 0) {
   const results = []
   for (let i = 0; i < 3; i++) {
     const level = DICE_POOL_LEVELS[Math.floor(Math.random() * DICE_POOL_LEVELS.length)]
-    const roll = Math.random()
-    let face
-    if (roll < 0.4 + difficultyBonus * 0.03) face = { type: 'summon', level }
-    else if (roll < 0.55) face = { type: 'movement' }
-    else if (roll < 0.75) face = { type: 'attack' }
-    else if (roll < 0.9) face = { type: 'defense' }
-    else face = { type: 'spell' }
-    results.push(face)
+    const summonProb = Math.min(0.9, SUMMON_PROB_BY_LEVEL[level] + difficultyBonus * 0.03)
+    if (Math.random() < summonProb) {
+      results.push({ type: 'summon', level })
+    } else {
+      const faces = NON_SUMMON_FACES_BY_LEVEL[level]
+      results.push({ type: faces[Math.floor(Math.random() * faces.length)] })
+    }
   }
   return results
 }
@@ -86,6 +105,26 @@ export function resolveRoll(bank, diceResults) {
 }
 
 export function generateMonster(owner, level) {
+  // Half the time (when one exists at this level), summon a named catalog
+  // monster with a real crest-costed ability instead of a flavor-only one.
+  const catalogEntry = Math.random() < 0.5 ? pickCatalogMonster(level) : null
+  if (catalogEntry) {
+    return {
+      id: `${owner}_${Date.now()}_${Math.floor(Math.random() * 99999)}`,
+      owner,
+      level,
+      name: catalogEntry.name,
+      creatureType: catalogEntry.creatureType,
+      ability: catalogEntry.ability,
+      atk: catalogEntry.atk,
+      def: catalogEntry.def,
+      hp: catalogEntry.hp,
+      maxHp: catalogEntry.hp,
+      col: null,
+      row: null,
+    }
+  }
+
   // Reuse the card generator only for its name/lore - its ATK/DEF numbers
   // are scaled for 8000-LP Yu-Gi-Oh duels and would one-shot anything on
   // this board's much smaller HP scale (Die Master = 3 HP). DDM stats are
@@ -99,6 +138,7 @@ export function generateMonster(owner, level) {
     owner,
     level,
     name: card.name,
+    ability: null,
     atk,
     def,
     hp,
@@ -110,9 +150,6 @@ export function generateMonster(owner, level) {
 
 export function findUnfoldCandidates(cells, owner) {
   const key = (c, r) => `${c},${r}`
-  const ownedTiles = Object.entries(cells)
-    .filter(([, v]) => v === owner || v === 'path')
-    .map(([k]) => k)
   // Any path tile can be built from, since path tiles aren't owner-tagged
   // in this simplified model - both sides share the walkable network but
   // can only unfold from tiles within reach of their own Die Master side

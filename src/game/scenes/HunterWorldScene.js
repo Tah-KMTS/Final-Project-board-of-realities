@@ -6,7 +6,7 @@ import { SpriteActor } from '../actor'
 import { TileMover, combineDirection } from '../tileMover'
 import { drawGrassTile, drawRoadTile, drawWaterTile, drawTree, drawFlower, drawRock, drawBuildingFacade, addScreenVignette } from '../tileGen'
 
-const TILE_SIZE = 32
+const TILE_SIZE = 40
 const MAP_COLS = 26
 const MAP_ROWS = 20
 

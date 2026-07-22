@@ -27,6 +27,11 @@ export default function GameCanvas({ blockId, bridge }) {
       type: Phaser.AUTO,
       width: 640,
       height: 480,
+      // Render at the display's real pixel density so sprites/tiles stay
+      // crisp on Retina/high-DPI screens instead of the browser upscaling
+      // a lower-resolution backing canvas (pixelArt keeps nearest-neighbor
+      // scaling, so this sharpens without softening the pixel-art look).
+      resolution: window.devicePixelRatio || 1,
       parent: containerRef.current,
       backgroundColor: '#0f1020',
       pixelArt: true,

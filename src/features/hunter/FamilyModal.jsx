@@ -1,11 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { MARRIAGE_CANDIDATE_FIRST_MEET_LINES, MARRIAGE_CANDIDATE_RETURN_LINES } from '../../data/hunterDialogue'
 
 export default function FamilyModal({ onClose }) {
   const world1 = useGameStore((s) => s.world1)
   const marry = useGameStore((s) => s.marry)
   const haveChild = useGameStore((s) => s.haveChild)
   const meetMarriageCandidate = useGameStore((s) => s.meetMarriageCandidate)
+  const wasFirstMeeting = useRef(!world1.marriageCandidateMet)
+  const [dialogueDone, setDialogueDone] = useState(false)
 
   useEffect(() => {
     if (!world1.marriageCandidateMet) meetMarriageCandidate()
@@ -16,9 +20,15 @@ export default function FamilyModal({ onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[420px] border-4 border-pink-400 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-3 text-xl font-bold text-pink-300">A Familiar Face</h2>
-        <p className="mb-4 text-sm text-gray-300">
-          "Oh, it's you again. You've gotten stronger since we last talked."
-        </p>
+        {!dialogueDone && (
+          <DialogueBox
+            speaker="???"
+            portrait="💗"
+            voiceId="marriageCandidate"
+            lines={wasFirstMeeting.current ? MARRIAGE_CANDIDATE_FIRST_MEET_LINES : MARRIAGE_CANDIDATE_RETURN_LINES}
+            onDone={() => setDialogueDone(true)}
+          />
+        )}
 
         {!world1.married ? (
           <button

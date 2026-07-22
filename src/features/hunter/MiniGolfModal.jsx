@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { COURSES, CANVAS_W, CANVAS_H, BALL_RADIUS, HOLE_RADIUS, simulateTanStroke } from './golfCourses'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { TAN_INTRO_LINES, TAN_WIN_LINES, TAN_LOSE_LINES } from '../../data/hunterDialogue'
+import { playQuestCompleteSound, playClickSound } from '../../audio/sfx'
 
 const FRICTION = 0.985
 const STOP_SPEED = 0.06
@@ -23,6 +26,7 @@ export default function MiniGolfModal({ onClose }) {
   const [currentStrokes, setCurrentStrokes] = useState(0)
   const [holeResult, setHoleResult] = useState(null) // null | 'holed' | 'maxedOut'
   const [matchResult, setMatchResult] = useState(null) // null | 'win' | 'lose'
+  const [introDone, setIntroDone] = useState(false)
 
   const course = COURSES[holeIndex]
 
@@ -141,6 +145,7 @@ export default function MiniGolfModal({ onClose }) {
     ballRef.current.moving = true
     strokesRef.current += 1
     setCurrentStrokes(strokesRef.current)
+    playClickSound()
   }
 
   const handleNextHole = () => {
@@ -151,6 +156,7 @@ export default function MiniGolfModal({ onClose }) {
       const tanTotal = tanStrokes.reduce((a, b) => a + (b || 0), 0)
       if (playerTotal <= tanTotal) {
         completeTanQuest()
+        playQuestCompleteSound()
         setMatchResult('win')
       } else {
         setMatchResult('lose')
@@ -240,6 +246,16 @@ export default function MiniGolfModal({ onClose }) {
               Leave
             </button>
           </div>
+        ) : !introDone ? (
+          <div className="flex flex-col gap-4">
+            <DialogueBox speaker="Tan" portrait="🏌️" voiceId="tan" lines={TAN_INTRO_LINES} onDone={() => setIntroDone(true)} />
+            <button
+              onClick={onClose}
+              className="w-full border-2 border-gray-600 py-1 text-xs text-gray-400 hover:bg-gray-700"
+            >
+              Not Now
+            </button>
+          </div>
         ) : (
           <>
         {!matchResult && (
@@ -285,13 +301,15 @@ export default function MiniGolfModal({ onClose }) {
               Final: You {playerStrokes.reduce((a, b) => a + (b || 0), 0)} - Tan{' '}
               {tanStrokes.reduce((a, b) => a + (b || 0), 0)}
             </p>
-            {matchResult === 'win' ? (
-              <p className="text-green-400">
-                "...Damn it." Tan hands over the Spring of Nazarick.
-              </p>
-            ) : (
-              <p className="text-red-400">"Ha! Come back when you've practiced." Tan keeps the item.</p>
-            )}
+            <div className="w-full text-left">
+              <DialogueBox
+                speaker="Tan"
+                portrait="🏌️"
+                voiceId="tan"
+                lines={matchResult === 'win' ? TAN_WIN_LINES : TAN_LOSE_LINES}
+                onDone={() => {}}
+              />
+            </div>
             <button
               onClick={onClose}
               className="border-4 border-gray-500 px-6 py-2 font-bold hover:bg-gray-500"

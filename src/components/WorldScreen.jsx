@@ -26,6 +26,8 @@ import CynnEncounterModal from '../features/yugioh/CynnEncounterModal'
 import ChallengeModal from '../features/yugioh/ChallengeModal'
 import DuelModal from '../features/yugioh/DuelModal'
 import { YUGI_DECK } from '../features/yugioh/cardGenerator'
+import { hunterAmbient } from '../audio/hunterAmbient'
+import InventoryModal from './Inventory/InventoryModal'
 
 function WorldClearedModal({ blockName, allCleared, onContinue }) {
   return (
@@ -78,6 +80,22 @@ export default function WorldScreen() {
     assignStartingProfession()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (currentBlockId === 'hunter') {
+      hunterAmbient.play()
+    } else {
+      hunterAmbient.pause()
+    }
+    return () => hunterAmbient.pause()
+  }, [currentBlockId])
+
+  // Duck the ambient loop during combat so hit/victory SFX read clearly.
+  useEffect(() => {
+    if (currentBlockId !== 'hunter') return
+    const inCombat = ['rift', 'finalRaid', 'police', 'criminalEncounter', 'policeEncounter'].includes(activeModal?.type)
+    hunterAmbient.setVolume(inCombat ? 0.08 : 0.2)
+  }, [activeModal, currentBlockId])
 
   // Detects ANY block-clear transition (explicit victory buttons, or the
   // store's own autonomous triggers like Sole Survivor) and surfaces it,
@@ -161,6 +179,12 @@ export default function WorldScreen() {
         </div>
         <div className="text-gray-400">{currentBlock?.name}</div>
         <button
+          onClick={() => setActiveModal({ type: 'inventory' })}
+          className="border border-purple-300 px-2 py-1 text-xs hover:bg-purple-300 hover:text-black"
+        >
+          Inventory
+        </button>
+        <button
           onClick={handleSave}
           className="border border-blue-300 px-2 py-1 text-xs hover:bg-blue-300 hover:text-black"
         >
@@ -179,6 +203,8 @@ export default function WorldScreen() {
       <p className="text-xs text-gray-500">
         Move with WASD/Arrows • E to interact{currentBlockId === 'hunter' ? ' • R to commit crime' : ''}
       </p>
+
+      {activeModal?.type === 'inventory' && <InventoryModal onClose={closeModal} />}
 
       {/* World 1 */}
       {activeModal?.type === 'building' && activeModal.id === 'hq' && (

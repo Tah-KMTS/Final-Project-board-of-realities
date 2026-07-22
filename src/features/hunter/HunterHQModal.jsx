@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { getProfession } from './professions'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { HQ_RECEPTIONIST_LINES } from '../../data/hunterDialogue'
 
 const STAT_KEYS = ['STR', 'AGI', 'INT', 'VIT', 'PER']
 
@@ -9,6 +12,7 @@ export default function HunterHQModal({ onClose, onBeginFinalRaid }) {
   const cash = useGameStore((s) => s.cash)
   const allocateStat = useGameStore((s) => s.allocateStat)
   const finalRaidConditionsMet = useGameStore((s) => s.finalRaidConditionsMet)
+  const [dialogueDone, setDialogueDone] = useState(false)
 
   const profession = getProfession(player.professionId)
   const conditionsMet = finalRaidConditionsMet()
@@ -25,6 +29,16 @@ export default function HunterHQModal({ onClose, onBeginFinalRaid }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[460px] border-4 border-blue-400 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-3 text-xl font-bold text-blue-300">Hunter Association HQ</h2>
+
+        {!dialogueDone && (
+          <DialogueBox
+            speaker="Receptionist"
+            portrait="🛡️"
+            voiceId="receptionist"
+            lines={HQ_RECEPTIONIST_LINES}
+            onDone={() => setDialogueDone(true)}
+          />
+        )}
 
         <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3 text-sm">
           <p>

@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import DDMBoard from './DDMBoard'
 import RockPaperScissors from './RockPaperScissors'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { TAH_LINES } from '../../data/yugiohDialogue'
 
 export default function TahEncounterModal({ onClose }) {
   const addCash = useGameStore((s) => s.addCash)
@@ -64,8 +66,9 @@ export default function TahEncounterModal({ onClose }) {
 
         {phase === 'intro' && (
           <>
+            <DialogueBox speaker="Tah" portrait="🎲" lines={TAH_LINES} onDone={() => {}} />
             <p className="mb-4 text-sm text-gray-300">
-              "You're playing me. Not negotiable. ${betAmount.toLocaleString()} says I win." Tah doesn't wait for you to agree.
+              ${betAmount.toLocaleString()} says he wins. Tah doesn't wait for you to agree.
             </p>
             <div className="flex flex-col gap-2">
               {vetoOffered && (

@@ -55,3 +55,45 @@ export function playDefeatSound() {
 export function playClickSound() {
   blip({ freqStart: 600, freqEnd: 500, duration: 0.05, volume: 0.12 })
 }
+
+export function playPurchaseSound() {
+  const audio = getContext()
+  ;[440, 660].forEach((freq, i) => {
+    const start = audio.currentTime + i * 0.06
+    const osc = audio.createOscillator()
+    const gain = audio.createGain()
+    osc.type = 'square'
+    osc.frequency.value = freq
+    gain.gain.setValueAtTime(0.16, start)
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.1)
+    osc.connect(gain)
+    gain.connect(audio.destination)
+    osc.start(start)
+    osc.stop(start + 0.1)
+  })
+}
+
+export function playQuestCompleteSound() {
+  const audio = getContext()
+  ;[392, 523, 659, 784].forEach((freq, i) => {
+    const start = audio.currentTime + i * 0.1
+    const osc = audio.createOscillator()
+    const gain = audio.createGain()
+    osc.type = 'triangle'
+    osc.frequency.value = freq
+    gain.gain.setValueAtTime(0.22, start)
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2)
+    osc.connect(gain)
+    gain.connect(audio.destination)
+    osc.start(start)
+    osc.stop(start + 0.2)
+  })
+}
+
+export function playDoorSound() {
+  blip({ freqStart: 220, freqEnd: 340, duration: 0.15, type: 'triangle', volume: 0.15 })
+}
+
+export function playDiceSound() {
+  blip({ freqStart: 800, freqEnd: 200, duration: 0.06, type: 'square', volume: 0.1 })
+}

@@ -17,31 +17,40 @@ export function drawGrassTile(graphics, x, y, size) {
   graphics.fillStyle(0x2c5f27, 0.5)
   graphics.fillRect(x, y + size - 5, size, 5)
   graphics.fillRect(x + size - 5, y, 5, size)
+  // Blade count scales with tile size so a bigger tile stays as densely
+  // detailed as a smaller one instead of the same handful of blades just
+  // being stretched across more area.
+  const bladeCount = Math.max(3, Math.round(size / 9))
   graphics.fillStyle(0x274f22, 1)
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < bladeCount; i++) {
     const bx = x + seededRand(x, y, i) * (size - 4)
     const by = y + seededRand(x, y, i + 10) * (size - 4)
     graphics.fillRect(bx, by, 2, 4)
   }
-  // occasional lighter blade catching the light
-  if (seededRand(x, y, 99) > 0.6) {
-    graphics.fillStyle(0x4a8f42, 1)
-    graphics.fillRect(x + seededRand(x, y, 5) * (size - 3), y + seededRand(x, y, 6) * (size - 3), 2, 3)
+  // lighter blades catching the light, also scaled with size
+  const litBladeCount = Math.max(1, Math.round(size / 22))
+  graphics.fillStyle(0x4a8f42, 1)
+  for (let i = 0; i < litBladeCount; i++) {
+    if (seededRand(x, y, 99 + i) <= 0.55) continue
+    graphics.fillRect(x + seededRand(x, y, 5 + i) * (size - 3), y + seededRand(x, y, 6 + i) * (size - 3), 2, 3)
   }
 }
 
 export function drawRoadTile(graphics, x, y, size, horizontal, dashPhaseIndex) {
   graphics.fillStyle(0x3d3d3d, 1)
   graphics.fillRect(x, y, size, size)
-  // asphalt speckle for texture instead of a flat fill
+  // asphalt speckle for texture instead of a flat fill - count scales with
+  // tile size so bigger tiles don't read as sparser
+  const darkSpeckleCount = Math.max(4, Math.round(size / 10))
+  const lightSpeckleCount = Math.max(3, Math.round(size / 13))
   graphics.fillStyle(0x333333, 1)
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < darkSpeckleCount; i++) {
     const sx = x + seededRand(x, y, i + 60) * (size - 2)
     const sy = y + seededRand(x, y, i + 70) * (size - 2)
     graphics.fillRect(sx, sy, 2, 2)
   }
   graphics.fillStyle(0x505050, 1)
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < lightSpeckleCount; i++) {
     const sx = x + seededRand(x, y, i + 80) * (size - 2)
     const sy = y + seededRand(x, y, i + 90) * (size - 2)
     graphics.fillRect(sx, sy, 2, 2)

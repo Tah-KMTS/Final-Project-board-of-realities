@@ -8,7 +8,7 @@
 // sparkle-highlight eyes) since the game's tone (permadeath, crime, corp
 // warfare) doesn't match a kids'-app look.
 
-const UNIT = 3 // size of one "pixel" in real canvas pixels (chunky GBA look)
+const UNIT = 4 // size of one "pixel" in real canvas pixels (chunky GBA look)
 const GRID_W = 12
 const GRID_H = 16
 export const FRAME_W = GRID_W * UNIT

@@ -1,0 +1,123 @@
+// The 50-item dataset (Traps, Spells/Relics, Equipment, Terrain, Legendary
+// Artifacts). Cataloged in full as data - these are NOT yet wired into a
+// playable "hand" system in DDMBoard.jsx (that's a genuinely separate UI
+// surface: face-down trap placement + step-triggers, a spell-casting
+// pool, equip-attachment persisting on a monster, and permanent terrain
+// edits - each as big a lift as the monster ability system was). Tracked
+// here so the data is ready when that follow-up lands.
+
+export const DDM_ITEM_CATALOG = [
+  // --- Set 1: Traps & Hidden Hazards ---
+  { id: 'steel_jaw_snare', name: 'Steel-Jaw Snare', type: 'trap', cost: { defense: 1 },
+    description: 'Triggers on step. Target takes 10 damage and loses all MOV for the turn.' },
+  { id: 'proximity_mine', name: 'Proximity Mine', type: 'trap', cost: { defense: 2 },
+    description: 'Triggers on step. Deals 20 damage to the target and 10 to all adjacent tiles.' },
+  { id: 'mirror_force_shield', name: 'Mirror Force Shield', type: 'trap', cost: { defense: 2 },
+    description: 'Triggers when adjacent ally is attacked. Reflects 100% of damage back to attacker.' },
+  { id: 'void_trapdoor', name: 'Void Trapdoor', type: 'trap', cost: { defense: 3 },
+    description: 'Triggers on step. Instantly destroys any Level 1 or 2 monster.' },
+  { id: 'magnetic_pulse_mine', name: 'Magnetic Pulse-Mine', type: 'trap', cost: { defense: 1 },
+    description: "Triggers on step. Target loses 2 ATK crests from their controller's pool." },
+  { id: 'acid_sprinkler', name: 'Acid Sprinkler', type: 'trap', cost: { defense: 2 },
+    description: 'Triggers on step. Target is Poisoned (takes 10 damage at the start of their next 2 turns).' },
+  { id: 'time_stasis_ward', name: 'Time-Stasis Ward', type: 'trap', cost: { defense: 2 },
+    description: 'Triggers on step. Target skips their next attack phase entirely.' },
+  { id: 'illusionary_decoy', name: 'Illusionary Decoy', type: 'trap', cost: { defense: 1 },
+    description: 'Triggers when attacked. The attack misses, and the attacker is pushed back 1 tile.' },
+  { id: 'sky_snare_net', name: 'S.K.Y. Snare-Net', type: 'trap', cost: { defense: 2 },
+    description: 'Triggers on step. Disables all Magic effects of the target for 3 turns.' },
+  { id: 'overload_capacitor', name: 'Overload Capacitor', type: 'trap', cost: { defense: 3 },
+    description: 'Triggers when attacked. Deals 30 damage to the attacker and destroys 1 of their equipped items.' },
+
+  // --- Set 2: Spells & Relics ---
+  { id: 'tome_of_the_triad', name: 'Tome of the Triad', type: 'spell', cost: { spell: 2 },
+    description: 'Draw 3 random crests and add them to your pool.' },
+  { id: 'crimson_vitality_vial', name: 'Crimson Vitality Vial', type: 'spell', cost: { spell: 1 },
+    description: 'Restore 20 HP to any allied monster.' },
+  { id: 'orbital_teleport', name: 'Orbital Teleport', type: 'spell', cost: { spell: 2 },
+    description: 'Move one allied monster to any empty tile on the board.' },
+  { id: 'chain_lightning_scroll', name: 'Chain Lightning Scroll', type: 'spell', cost: { spell: 3 },
+    description: 'Deal 15 damage to a target, and 15 to the nearest enemy to that target.' },
+  { id: 'meteor_strike', name: 'Meteor Strike', type: 'spell', cost: { spell: 4 },
+    description: 'Deal 30 damage to a 2x2 grid anywhere on the board.' },
+  { id: 'crest_syphon', name: 'Crest Syphon', type: 'spell', cost: { spell: 2 },
+    description: "Steal 2 random crests from the opponent's pool." },
+  { id: 'altar_of_resurrection', name: 'Altar of Resurrection', type: 'spell', cost: { spell: 4 },
+    description: 'Revive one destroyed Level 1 or 2 monster at full HP on your summon point.' },
+  { id: 'nullification_field', name: 'Nullification Field', type: 'spell', cost: { spell: 2 },
+    description: 'Remove all buffs, debuffs, and status effects from all monsters on the board.' },
+  { id: 'berserkers_command', name: "Berserker's Command", type: 'spell', cost: { spell: 1 },
+    description: 'Target ally gains +20 ATK but takes 10 damage at the end of the turn.' },
+  { id: 'kinetic_push', name: 'Kinetic Push', type: 'spell', cost: { spell: 1 },
+    description: 'Push any monster (ally or enemy) 2 tiles in a straight line.' },
+
+  // --- Set 3: Equipment & Augments ---
+  { id: 'pro_pneumatic_blast_gun', name: 'Pro-Pneumatic Blast-Gun', type: 'equip', cost: { attack: 2 },
+    description: '+10 ATK. Grants a 3-tile range line-attack. (Machine/Cyberse only).' },
+  { id: 'inners_focus_band', name: "Inner's Focus Band", type: 'equip', cost: { spell: 1 },
+    description: '+10 ATK. Equipped monster ignores movement penalties from hazards.' },
+  { id: 'heavy_tungsten_plates', name: 'Heavy Tungsten Plates', type: 'equip', cost: { defense: 2 },
+    description: '+20 DEF. Equipped monster loses 1 MOV.' },
+  { id: 'hover_thrusters', name: 'Hover Thrusters', type: 'equip', cost: { movement: 1 },
+    description: '+2 MOV. Equipped monster can float over traps without triggering them.' },
+  { id: 'thermal_plasma_blade', name: 'Thermal Plasma Blade', type: 'equip', cost: { attack: 2 },
+    description: '+20 ATK. Damage dealt by this monster cannot be reduced by DEF.' },
+  { id: 'stealth_weave_cloak', name: 'Stealth-Weave Cloak', type: 'equip', cost: { spell: 2 },
+    description: 'Equipped monster cannot be targeted by ranged attacks or spells.' },
+  { id: 'sniper_targeting_visor', name: 'Sniper Targeting Visor', type: 'equip', cost: { spell: 1 },
+    description: '+10 ATK. Increases the range of any ranged attack by 2 tiles.' },
+  { id: 'vampiric_amulet', name: 'Vampiric Amulet', type: 'equip', cost: { spell: 3 },
+    description: 'When the equipped monster deals damage, it heals HP equal to half the damage dealt.' },
+  { id: 'deflector_shield_generator', name: 'Deflector Shield Generator', type: 'equip', cost: { defense: 2 },
+    description: 'The first time this monster would take damage each turn, reduce that damage to 0.' },
+  { id: 'spiked_carapace', name: 'Spiked Carapace', type: 'equip', cost: { attack: 1 },
+    description: '+10 DEF. Attackers taking melee swings at this monster take 10 recoil damage.' },
+
+  // --- Set 4: Terrain & Grid Modifiers ---
+  { id: 'sky_aegis_hologrid', name: 'S.K.Y. Aegis Hologrid', type: 'terrain', cost: { spell: 2 },
+    description: 'Transforms 3 adjacent empty tiles into a zone. Allies on these tiles gain +10 DEF.' },
+  { id: 'furnace_grate', name: 'Furnace Grate', type: 'terrain', cost: { spell: 2 },
+    description: 'Transforms 1 tile into a hazard. Enemies ending their turn here take 15 damage.' },
+  { id: 'high_voltage_fence', name: 'High-Voltage Fence', type: 'terrain', cost: { defense: 2 },
+    description: 'Creates an impassable 2-tile wide barrier. Lasts for 3 turns.' },
+  { id: 'rejuvenation_spring', name: 'Rejuvenation Spring', type: 'terrain', cost: { spell: 2 },
+    description: 'Transforms 1 tile. Any monster (ally or enemy) ending their turn here heals 10 HP.' },
+  { id: 'cryo_ice_slick', name: 'Cryo-Ice Slick', type: 'terrain', cost: { movement: 1 },
+    description: 'Transforms 2 tiles in a line. Monsters moving across these tiles slide to the end instantly, costing 0 MOV.' },
+  { id: 'concrete_barricade', name: 'Concrete Barricade', type: 'terrain', cost: { defense: 1 },
+    description: 'Places a 30 HP physical block on one tile. Must be destroyed to pass.' },
+  { id: 'factory_conveyor_belt', name: 'Factory Conveyor Belt', type: 'terrain', cost: { movement: 2 },
+    description: 'Transforms 3 tiles in a line. At the end of the turn, any unit on the belt is moved 1 space in the designated direction.' },
+  { id: 'toxic_smokescreen', name: 'Toxic Smokescreen', type: 'terrain', cost: { spell: 2 },
+    description: 'Transforms a 2x2 grid area. Ranged attacks cannot pass through this area.' },
+  { id: 'teleportation_pad', name: 'Teleportation Pad', type: 'terrain', cost: { spell: 3 },
+    description: 'Places Pad A and Pad B on two empty tiles. Stepping on one instantly teleports the unit to the other.' },
+  { id: 'quicksand_pit', name: 'Quicksand Pit', type: 'terrain', cost: { spell: 2 },
+    description: 'Transforms 1 tile. Units entering this tile lose all remaining MOV crests for that turn.' },
+
+  // --- Set 5: Legendary Artifacts ---
+  { id: 'the_golden_crest', name: 'The Golden Crest', type: 'artifact', cost: { spell: 5 },
+    description: 'Instantly fill your crest pool to maximum capacity (15 of each crest).' },
+  { id: 'oblivion_engine', name: 'Oblivion Engine', type: 'artifact', cost: { spell: 4 },
+    description: 'Destroy all terrain modifiers, traps, and equipped items on the entire board.' },
+  { id: 'aegis_of_the_ancients', name: 'Aegis of the Ancients', type: 'artifact', cost: { defense: 4 },
+    description: 'Your Summon Point becomes immune to direct damage for 2 full turns.' },
+  { id: 'doomsday_clock', name: 'Doomsday Clock', type: 'artifact', cost: { spell: 3 },
+    description: 'After 3 turns, all monsters on the board take 40 unavoidable damage.' },
+  { id: 'the_philosophers_stone', name: "The Philosopher's Stone", type: 'artifact', cost: { spell: 4 },
+    description: "Convert all ATK crests in your opponent's pool into DEF crests." },
+  { id: 'emp_warhead', name: 'EMP Warhead', type: 'artifact', cost: { attack: 3 },
+    description: 'Disable all Machine, Cyberse, and Magic effects on the board for 2 turns.' },
+  { id: 'chrono_dial', name: 'Chrono-Dial', type: 'artifact', cost: { spell: 5 },
+    description: 'Take an immediate extra turn right after this one ends.' },
+  { id: 'soul_harvester_relic', name: 'Soul Harvester Relic', type: 'artifact', cost: { spell: 3 },
+    description: 'For the rest of the game, whenever any monster dies, gain 1 MAG crest.' },
+  { id: 'orbital_laser_beacon', name: 'Orbital Laser Beacon', type: 'artifact', cost: { attack: 4 },
+    description: 'Target 1 tile. At the start of your next turn, anything on or adjacent to that tile is destroyed instantly.' },
+  { id: 'the_core_forge', name: 'The Core-Forge', type: 'artifact', cost: { spell: 4 },
+    description: 'Upgrade one Level 2 or 3 allied monster into a Level 4 monster from your collection for free.' },
+]
+
+export function getItemsByType(type) {
+  return DDM_ITEM_CATALOG.filter((i) => i.type === type)
+}

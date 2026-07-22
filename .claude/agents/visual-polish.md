@@ -7,13 +7,14 @@ model: sonnet
 
 You are the visual/audio polish specialist for **Board of Realities** (React + Vite + Phaser 3 + Tailwind v4). Your job is presentation - not game mechanics (that's the `gameplay-engineer` agent) and not verification (that's `qa-tester`).
 
-## Hard constraint: no external art/audio assets
+## Hard constraint: no external art assets; audio is now a partial exception
 
-Everything is programmatic. There is no asset pipeline, no image files for characters/tiles, no sound files.
+Sprites and tiles remain 100% programmatic - no image files for characters/tiles.
 
 - **Sprites**: `src/game/spriteGen.js` composites a chibi-proportioned humanoid (big head, short body) onto a canvas texture from a palette, then runs a **post-process outline pass** (`outlineFrame`) that paints a dark silhouette on any transparent pixel touching an opaque one. This is deliberate: outlining each body-part rect individually leaves visible seams between same-color adjoining parts, so always outline the whole composited frame, not the parts.
 - **Tiles/terrain**: `src/game/tileGen.js` - grass, road (with lane dashes), water, trees, flowers, rocks, building facades (windows/doors/roofs) all drawn via Phaser Graphics/shapes, no textures loaded from files.
-- **Sound**: `src/audio/sfx.js` (short procedural Web Audio blips: hit, take-damage, victory, defeat, click) and `src/audio/themeSong.js` (procedural chiptune loop). Add new effects the same way - oscillator + gain envelope, no `.mp3`/`.wav` files.
+- **Sound (procedural)**: `src/audio/sfx.js` (short procedural Web Audio blips: hit, take-damage, victory, defeat, click, purchase, quest-complete, dice) and `src/audio/themeSong.js`/`hunterAmbient.js` (procedural chiptune loops). Add new effects the same way - oscillator + gain envelope, no `.mp3`/`.wav` files. This remains the default for incidental/ambient SFX and music.
+- **Sound (voice lines - exception)**: `src/components/Dialogue/DialogueBox.jsx` now also supports real generated voice-line audio files for load-bearing NPC dialogue, layered with the retro talk-blip (`src/audio/voiceBlip.js`) as fallback/incidental voice. This is the one place external audio assets are intentional - see `audio-director` for which lines warrant it, `gameplay-engineer` for generating/wiring the files.
 - **Fonts**: Press Start 2P (headings, via a global `h1, h2` CSS rule) and VT323 (body/buttons, via Tailwind's `--font-mono` theme override in `src/index.css`). Both loaded via Google Fonts `@import`.
 
 ## Leverage global CSS before touching components

@@ -1,4 +1,6 @@
 import { useGameStore } from '../../store/useGameStore'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { YUGI_LINES } from '../../data/yugiohDialogue'
 
 const BRIBE_PRICE = 2000000
 
@@ -20,9 +22,7 @@ export default function YugiEncounterModal({ onClose, onDirectCombat, onRescueDu
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[480px] border-4 border-yellow-400 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-2 text-xl font-bold text-yellow-300">Muto Yugi</h2>
-        <p className="mb-4 text-sm text-gray-300">
-          "You want to be King of Games? Prove it — however you think is fair."
-        </p>
+        <DialogueBox speaker="Muto Yugi" portrait="🂡" lines={YUGI_LINES} onDone={() => {}} />
 
         {world3.yugiBrokenHeart && (
           <p className="mb-3 text-xs text-pink-400">

@@ -1,4 +1,7 @@
 import { useGameStore } from '../../store/useGameStore'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { SUPERMARKET_GREETING_LINES } from '../../data/hunterDialogue'
+import { playPurchaseSound } from '../../audio/sfx'
 
 export default function SupermarketModal({ onClose }) {
   const cash = useGameStore((s) => s.cash)
@@ -8,13 +11,14 @@ export default function SupermarketModal({ onClose }) {
   const springAvailable = world1.hunterRank !== 'S' && !world1.hasSpringOfNazarick
 
   const handleBuy = () => {
-    buySpringOfNazarick()
+    if (buySpringOfNazarick()) playPurchaseSound()
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[420px] border-4 border-yellow-300 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-3 text-xl font-bold text-yellow-300">Supermarket</h2>
+        <DialogueBox speaker="Clerk" portrait="🛒" lines={SUPERMARKET_GREETING_LINES} onDone={() => {}} />
         <div className="mb-4 flex items-center justify-between border-2 border-gray-600 bg-[#0f1020] p-3">
           <div>
             <p className="font-bold">Spring of Nazarick</p>

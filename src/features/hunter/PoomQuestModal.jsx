@@ -7,6 +7,9 @@ import {
   SQUAT_MIN_DEPTH_ANGLE,
 } from './poseGeometry'
 import { USED_TAMPON, WEIRD_UMBRELLA } from './items'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { POOM_INTRO_LINES, POOM_COMPLETE_LINES } from '../../data/hunterDialogue'
+import { playQuestCompleteSound } from '../../audio/sfx'
 
 const TARGET_REPS = 15
 const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
@@ -131,7 +134,8 @@ export default function PoomQuestModal({ onClose }) {
     cleanup()
     const item = Math.random() < 0.5 ? USED_TAMPON : WEIRD_UMBRELLA
     setRewardItem(item)
-    completePoomQuest(item.id)
+    completePoomQuest(item)
+    playQuestCompleteSound()
     setPhase('complete')
   }
 
@@ -154,10 +158,8 @@ export default function PoomQuestModal({ onClose }) {
 
         {phase === 'intro' && (
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-gray-300">
-              "You want strength? Prove it. {TARGET_REPS} full-depth squats. Camera on. I'm watching your form,
-              not just your count."
-            </p>
+            <DialogueBox speaker="Poom" portrait="💪" voiceId="poom" lines={POOM_INTRO_LINES} onDone={() => {}} />
+            <p className="text-xs text-gray-500">{TARGET_REPS} full-depth squats, form checked live.</p>
             <div className="flex gap-3">
               <button
                 onClick={startQuest}
@@ -212,7 +214,7 @@ export default function PoomQuestModal({ onClose }) {
 
         {phase === 'complete' && rewardItem && (
           <div className="flex flex-col items-center gap-3 text-center">
-            <p className="text-green-400">"...Huh. Not bad." Poom tosses you something.</p>
+            <DialogueBox speaker="Poom" portrait="💪" voiceId="poom" lines={POOM_COMPLETE_LINES} onDone={() => {}} />
             <p className="text-lg font-bold text-yellow-300">{rewardItem.name}</p>
             <p className="text-xs text-gray-400">{rewardItem.description}</p>
             <button

@@ -1,11 +1,16 @@
+import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { getFinanceNpc } from './financeNpcs'
+import DialogueBox from '../../components/Dialogue/DialogueBox'
+import { FINANCE_NPC_LINES } from '../../data/financeDialogue'
 
 export default function NamedNpcModal({ npcId, onClose, onAttack }) {
   const world2 = useGameStore((s) => s.world2)
   const financeNpcAction = useGameStore((s) => s.financeNpcAction)
   const npc = getFinanceNpc(npcId)
   const isDead = world2.npcStatus[npcId] === 'dead'
+  const [dialogueDone, setDialogueDone] = useState(false)
+  const npcLines = FINANCE_NPC_LINES[npcId]
 
   if (!npc) return null
 
@@ -14,6 +19,10 @@ export default function NamedNpcModal({ npcId, onClose, onAttack }) {
       <div className="w-[440px] border-4 border-gray-400 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-1 text-xl font-bold text-gray-200">{npc.name}</h2>
         <p className="mb-4 text-xs text-gray-400">"{npc.title}" • Net worth: ${npc.netWorth.toLocaleString()}</p>
+
+        {!isDead && npcLines && !dialogueDone && (
+          <DialogueBox speaker={npc.name} portrait="💼" lines={npcLines} onDone={() => setDialogueDone(true)} />
+        )}
 
         {isDead ? (
           <p className="mb-4 text-sm text-red-400">This person is no longer among the living.</p>

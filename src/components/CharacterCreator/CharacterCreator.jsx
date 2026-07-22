@@ -81,7 +81,12 @@ export default function CharacterCreator() {
       <div className="flex gap-10 border-4 border-yellow-300 bg-[#1c1d3a] p-8">
         <div className="flex flex-col items-center gap-3">
           <div className="text-sm text-gray-400">PREVIEW</div>
-          <svg width="120" height="160" viewBox="0 0 120 160">
+          <svg
+            width="120"
+            height="160"
+            viewBox="0 0 120 160"
+            style={{ filter: 'drop-shadow(0 0 10px rgba(255,224,102,0.35))' }}
+          >
             <ellipse cx="60" cy="55" rx="30" ry="32" fill={previewSkin} />
             <path
               d={
@@ -122,7 +127,7 @@ export default function CharacterCreator() {
         </div>
 
         <div className="w-96">
-          <h2 className="mb-3 text-xl font-bold text-yellow-300">Character Creator</h2>
+          <h2 className="title-glow mb-3 text-xl font-bold">Character Creator</h2>
           <Selector label="Face" options={FACE_OPTIONS} value={face} onChange={setFace} />
           <Selector
             label="Skin Tone"
@@ -146,9 +151,9 @@ export default function CharacterCreator() {
 
           <button
             onClick={handleConfirm}
-            className="mt-6 w-full border-4 border-green-400 bg-green-500 py-3 text-lg font-bold text-black hover:bg-green-400"
+            className="btn-sheen mt-6 w-full border-4 border-green-400 bg-green-500 py-3 text-lg font-bold text-black hover:bg-green-400"
           >
-            Confirm & Roll Dice
+            Confirm &amp; Roll Dice
           </button>
         </div>
       </div>
