@@ -19,7 +19,6 @@ export const NEWS_HEADLINES = [
   'Hotel bar rumor mill: someone in this city is about to make — or lose — a fortune.',
   'Arcade high-score boards mysteriously dominated by a single set of initials.',
   'Howard Marks memo leaks early: "You cannot predict. You can prepare."',
-  "Plastic surgery clinics report a spike in 'business travelers' this week.",
   'Call center scam ring busted two districts over — locals shrug.',
   'Vanderbilt Rail Co. stock spikes on rumors of a hostile takeover.',
   "Musk Industries teases 'something big.' Markets have heard this before.",

@@ -138,11 +138,10 @@ const FINANCE_BUILDINGS = [
   { id: 'casino', label: 'Neon Dragon Casino', district: 'Commercial District', color: 0x8a1f6a, tiles: { c0: 15, r0: 8, c1: 17, r1: 10 } },
   { id: 'arcade', label: 'Pixel Palace Arcade', district: 'Commercial District', color: 0x1f6a8a, tiles: { c0: 20, r0: 8, c1: 22, r1: 10 } },
 
-  // --- Underground District (Crime Alley, Black Market, Call Center Ops, Plastic Surgery) ---
+  // --- Underground District (Crime Alley, Black Market, Call Center Ops) ---
   { id: 'crimeAlley', label: 'Crime Alley', district: 'Underground District', color: 0x6a1f1f, tiles: { c0: 1, r0: 13, c1: 4, r1: 14 } },
   { id: 'blackMarket', label: 'Black Market', district: 'Underground District', color: 0x4a1f6a, tiles: { c0: 7, r0: 13, c1: 9, r1: 14 } },
   { id: 'callCenterOps', label: 'Call Center Ops', district: 'Underground District', color: 0x6a5a1f, tiles: { c0: 15, r0: 13, c1: 17, r1: 14 } },
-  { id: 'plasticSurgeryClinic', label: 'Plastic Surgery Clinic', district: 'Underground District', color: 0x1f6a5f, tiles: { c0: 20, r0: 13, c1: 22, r1: 14 } },
 
   // --- Government & Cultural District (Parliament, Park, Temple) ---
   { id: 'parliament', label: 'Parliament Hall', district: 'Government & Cultural District', color: 0x3a3a6a, tiles: { c0: 1, r0: 18, c1: 4, r1: 18 } },

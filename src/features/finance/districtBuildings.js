@@ -76,21 +76,6 @@ export const DISTRICT_BUILDINGS_CONFIG = {
       { label: 'Run a Scam Script (+$1,200)', cashDelta: 1200, wantedDelta: 2, reputationDelta: -4 },
     ],
   },
-  plasticSurgeryClinic: {
-    title: 'Plastic Surgery Clinic',
-    district: 'Underground District',
-    borderClass: 'border-teal-400',
-    textClass: 'text-teal-300',
-    flavor: 'A clean, quiet clinic that asks very few questions and keeps excellent secrets.',
-    actions: [
-      {
-        label: 'Get a New Face ($5,000)',
-        cost: 5000,
-        wantedDelta: -2,
-        resultText: 'Nobody recognizes you anymore. The heat drops.',
-      },
-    ],
-  },
 
   // --- Government & Cultural District ---
   parliament: {
