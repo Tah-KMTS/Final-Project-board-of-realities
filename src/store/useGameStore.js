@@ -25,6 +25,8 @@ import { triggerButterflyEffect } from '../features/agents/butterflyEffectEngine
 import { simulateExpandedAgenciesTick } from '../features/government/expandedAgencies'
 import { simulateSubdepartmentsTick } from '../features/government/agencySubdepartments'
 import { initializeTransportationState, purchaseVehicle } from '../features/world/transportationSystem'
+import { initializeRomanceState } from '../features/agents/romanceEngine'
+import { simulateAgentAssetPurchasing } from '../features/agents/agentAssetPurchasing'
 import { STARTER_DP_DECK } from '../features/domino/cardDatabase'
 
 const SAVE_KEY = 'board-of-realities-save'
@@ -117,6 +119,7 @@ function createDefaultState() {
       governmentState: initializeGovernmentState(),
       masterAgents: buildMasterAgentRegistry(),
       transitState: initializeTransportationState(),
+      romanceState: initializeRomanceState(),
     },
     world3: {
       deck: [],
@@ -782,7 +785,11 @@ export const useGameStore = create((set, get) => ({
     if (cashPenalty !== 0) get().addCash(-cashPenalty)
     if (wantedChange !== 0) get().addWantedLevel(wantedChange)
 
+    // Trigger Autonomous Capital Accumulation & Asset Purchasing
+    const { updatedAgents: finalAssetAgents, assetLogs } = simulateAgentAssetPurchasing(finalButterflyAgents, nextDay)
+
     const combinedEventLogs = [
+      ...assetLogs.map((a) => ({ id: a.id, title: '💰 Asset Acquisition', text: a.text })),
       ...butterflyLogs.map((b) => ({ id: b.id, title: '🦋 Butterfly Effect', text: b.text })),
       ...migrationLogs.map((m) => ({ id: m.id, title: '✈️ Town Migration', text: m.text })),
       ...eventFeed,
@@ -799,8 +806,17 @@ export const useGameStore = create((set, get) => ({
         agentsState: updatedAgents,
         agentEventFeed: [...combinedEventLogs, ...(s.world2.agentEventFeed || [])].slice(0, 40),
         governmentState: finalGovState,
-        masterAgents: finalButterflyAgents,
+        masterAgents: finalAssetAgents,
         cryptoHype: Math.max(0, Math.min(100, s.world2.cryptoHype + cryptoHypeDelta)),
+      },
+    }))
+  },
+
+  setRomanceState: (updatedRomance) => {
+    set((s) => ({
+      world2: {
+        ...s.world2,
+        romanceState: updatedRomance,
       },
     }))
   },

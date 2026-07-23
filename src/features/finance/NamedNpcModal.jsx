@@ -1,40 +1,59 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { getFinanceNpc } from './financeNpcs'
-import { FINANCE_NPC_LINES } from '../../data/financeDialogue'
 import { getCharacterPortrait } from '../../data/characterPortraits'
+import { getCharacterBiography } from '../agents/characterBiographies'
+import { generateDynamicSpeech } from '../agents/dynamicDialogueEngine'
+import { courtCharacter } from '../agents/romanceEngine'
 
 export default function NamedNpcModal({ npcId, onClose }) {
-  const npc = getFinanceNpc(npcId)
+  const npc = getFinanceNpc(npcId) || { id: npcId, name: npcId, title: 'Titan', netWorth: 1000000000 }
   const world2 = useGameStore((s) => s.world2)
   const cash = useGameStore((s) => s.cash)
   const recruitFinanceNpc = useGameStore((s) => s.recruitFinanceNpc)
+  const setRomanceState = useGameStore((s) => s.setRomanceState)
+  
   const recruitedAdvisors = world2.recruitedAdvisors || []
   const isRecruited = recruitedAdvisors.includes(npcId)
+  const romanceState = world2.romanceState || { relationships: {}, spouses: [] }
+  const relationshipLevel = (romanceState.relationships || {})[npcId] || 0
 
+  const bio = getCharacterBiography(npcId)
   const agentState = (world2.agentsState || {})[npcId] || {
     currentMood: 'Bullish Expansion',
     primaryRivalName: 'Competitor',
     aggression: 50,
-    memoryLog: [],
   }
 
-  const [recruitMsg, setRecruitMsg] = useState(null)
-  const [dialogueStep, setDialogueStep] = useState(0)
-  const npcLines = FINANCE_NPC_LINES[npcId]
-
+  const [feedbackMsg, setFeedbackMsg] = useState(null)
   if (!npc) return null
+
+  const portraitSrc = getCharacterPortrait(npcId, npc.name, npc.era)
+  const dynamicSpeech = generateDynamicSpeech(
+    { id: npcId, name: npc.name, ...agentState },
+    relationshipLevel,
+    null,
+    'Midday'
+  )
 
   const handleRecruit = () => {
     const res = recruitFinanceNpc(npcId)
     if (res.success) {
-      setRecruitMsg(`Successfully recruited ${npc.name} to your Board of Realities!`)
+      setFeedbackMsg(`Successfully recruited ${npc.name} to your Board of Realities!`)
     } else {
-      setRecruitMsg(res.reason)
+      setFeedbackMsg(res.reason)
     }
   }
 
-  const portraitSrc = getCharacterPortrait(npcId, npc.name, npc.era)
+  const handleCourt = (actionType) => {
+    const res = courtCharacter(romanceState, npcId, npc.name, actionType)
+    if (res.success) {
+      setRomanceState(res.updatedRomance)
+      setFeedbackMsg(`Dating action successful! ${npc.name} relationship level is now ${res.newLevel}/100.`)
+    } else {
+      setFeedbackMsg(res.reason)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
@@ -58,54 +77,79 @@ export default function NamedNpcModal({ npcId, onClose }) {
           )}
         </div>
 
-        {/* Dialogue Box with Character Portrait */}
-        <div className="my-4 rounded border border-yellow-500/40 bg-[#171a38] p-4">
+        {/* Biographical & Fidelity Metadata Badge */}
+        <div className="my-3 grid grid-cols-4 divide-x divide-gray-800 rounded bg-[#161a38] py-2 text-center text-[11px]">
+          <div>
+            <div className="text-gray-400">Age</div>
+            <div className="font-bold text-cyan-300">{bio.age} Yrs</div>
+          </div>
+          <div>
+            <div className="text-gray-400">Gender</div>
+            <div className="font-bold text-yellow-300">{bio.gender}</div>
+          </div>
+          <div>
+            <div className="text-gray-400">Marital Status</div>
+            <div className="font-bold text-emerald-300">{bio.maritalStatus}</div>
+          </div>
+          <div>
+            <div className="text-gray-400">Fidelity</div>
+            <div className="font-bold text-fuchsia-300">{bio.fidelity}</div>
+          </div>
+        </div>
+
+        {/* Dynamic Context-Aware AI Dialogue Box with Character Portrait */}
+        <div className="my-3 rounded border border-yellow-500/40 bg-[#171a38] p-4">
           <div className="flex items-start gap-4">
             <img src={portraitSrc} alt={npc.name} className="h-16 w-16 shrink-0 rounded border border-yellow-400 bg-slate-900" />
             <div>
-              <div className="text-xs font-bold text-yellow-300 mb-1">{npc.name} Says:</div>
+              <div className="text-xs font-bold text-yellow-300 mb-1">{npc.name} (Dynamic AI Voice):</div>
               <p className="text-xs text-gray-200 italic leading-relaxed">
-                "{npcLines ? npcLines[dialogueStep % npcLines.length] : npc.description}"
+                "{dynamicSpeech}"
               </p>
             </div>
           </div>
         </div>
 
-        {/* Dynamic Procedural Agent Intelligence */}
-        {agentState.currentMood && (
-          <div className="my-3 grid grid-cols-2 gap-2 rounded border border-indigo-500/40 bg-[#1a1d3d] p-2.5 text-xs">
-            <div>
-              <span className="text-gray-400">Current Strategy Mood:</span>{' '}
-              <b className="text-cyan-300">{agentState.currentMood}</b>
-            </div>
-            <div>
-              <span className="text-gray-400">Primary Rival:</span>{' '}
-              <b className="text-red-400">{agentState.primaryRivalName}</b>
-            </div>
-            <div>
-              <span className="text-gray-400">Aggression Index:</span>{' '}
-              <b className="text-yellow-300">{agentState.aggression}%</b>
-            </div>
-            <div>
-              <span className="text-gray-400">Advisor Perk:</span>{' '}
-              <b className="text-emerald-300">{npc.advisorPerk || 'Yield Bonus'}</b>
-            </div>
+        {/* Relationship Tier Level Meter */}
+        <div className="my-3 rounded border border-fuchsia-500/40 bg-[#1e1530] p-3 text-xs">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-fuchsia-300 font-bold">🌹 Relationship Level:</span>
+            <b className="text-yellow-300">{relationshipLevel}/100</b>
           </div>
-        )}
+          <div className="h-2 w-full overflow-hidden rounded-full bg-black/50">
+            <div className="h-full bg-fuchsia-500 transition-all duration-300" style={{ width: `${relationshipLevel}%` }} />
+          </div>
+        </div>
 
-        {/* Recruitment Status */}
-        {recruitMsg && (
+        {/* Feedback Alert */}
+        {feedbackMsg && (
           <div className="my-2 rounded border border-yellow-500 bg-yellow-950/60 p-2 text-center text-xs text-yellow-300">
-            {recruitMsg}
+            {feedbackMsg}
           </div>
         )}
 
         {/* Action Buttons */}
         <div className="mt-4 flex flex-col gap-2">
+          {/* Dating & Romance Action Buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => handleCourt('date_diner')}
+              className="border border-fuchsia-400 bg-fuchsia-950/50 py-2 text-xs font-bold text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black transition-all"
+            >
+              🍔 Invite to Diner Date
+            </button>
+            <button
+              onClick={() => handleCourt('proposal')}
+              className="border border-yellow-400 bg-yellow-950/50 py-2 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
+            >
+              💍 Propose Syndicate Marriage
+            </button>
+          </div>
+
           {!isRecruited ? (
             <button
               onClick={handleRecruit}
-              className="w-full border-2 border-yellow-400 bg-yellow-600/30 py-2.5 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
+              className="w-full border-2 border-yellow-400 bg-yellow-600/30 py-2 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
             >
               Recruit to Cabinet (Cost: ${(npc.recruitCost || 50000).toLocaleString()})
             </button>
@@ -117,7 +161,7 @@ export default function NamedNpcModal({ npcId, onClose }) {
 
           <button
             onClick={onClose}
-            className="w-full border border-gray-600 bg-gray-800 py-2 text-xs text-gray-300 hover:bg-gray-700 hover:text-white"
+            className="w-full border border-gray-600 bg-gray-800 py-1.5 text-xs text-gray-300 hover:bg-gray-700 hover:text-white"
           >
             Close Dialogue
           </button>
