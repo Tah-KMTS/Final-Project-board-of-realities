@@ -31,15 +31,15 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
 
     const config = {
       type: Phaser.AUTO,
-      width: 640,
-      height: 480,
-      // Render at the display's real pixel density so sprites/tiles stay
-      // crisp on Retina/high-DPI screens instead of the browser upscaling
-      // a lower-resolution backing canvas (pixelArt keeps nearest-neighbor
-      // scaling, so this sharpens without softening the pixel-art look).
+      width: 800,
+      height: 500,
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+      },
       resolution: window.devicePixelRatio || 1,
       parent: containerRef.current,
-      backgroundColor: '#0f1020',
+      backgroundColor: '#0a0d18',
       pixelArt: true,
       physics: {
         default: 'arcade',
@@ -62,8 +62,8 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
   }, [mode, bridge])
 
   return (
-    <div className="flex items-center justify-center p-2 bg-[#090b1a]">
-      <div ref={containerRef} className="w-[640px] h-[480px] border-4 border-yellow-400 rounded-lg shadow-2xl overflow-hidden" />
+    <div className="w-full h-full flex items-center justify-center bg-[#070a14]">
+      <div ref={containerRef} className="w-full h-[500px] md:h-[560px] max-w-5xl border-4 border-yellow-400/90 rounded-xl shadow-2xl overflow-hidden relative" />
     </div>
   )
 }

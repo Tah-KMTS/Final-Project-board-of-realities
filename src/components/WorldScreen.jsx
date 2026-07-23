@@ -430,12 +430,12 @@ export default function WorldScreen() {
       )}
 
       {!worldCleared && (
-        <div className="relative flex items-center justify-center min-h-[496px] w-full my-1">
+        <div className="relative w-full max-w-5xl mx-auto my-2 rounded-xl overflow-hidden flex items-center justify-center">
           <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
 
           {/* Option 3: Sleek Luxury Architectural Pilot Overlay for Tokyo */}
           {mode === 'overworld' && currentCityId === 'tokyo' && (
-            <div className="pointer-events-none absolute inset-0 z-20 border-4 border-amber-400/80 bg-[#060a12]/30 shadow-[inset_0_0_60px_rgba(245,158,11,0.25)]">
+            <div className="pointer-events-none absolute inset-0 z-20 border-4 border-amber-400/80 bg-[#060a12]/20 shadow-[inset_0_0_60px_rgba(245,158,11,0.2)]">
               {/* Financial Executive Header Arch */}
               <div className="absolute top-4 left-6 flex items-center gap-2 bg-[#0d1526]/95 border-2 border-amber-400 px-4 py-1.5 rounded-lg shadow-2xl backdrop-blur-md">
                 <span className="text-lg">🏛️</span>

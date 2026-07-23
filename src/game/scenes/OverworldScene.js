@@ -7,6 +7,8 @@ import { SpriteActor } from '../actor'
 import { TileMover, combineDirection } from '../tileMover'
 import {
   drawGrassTile,
+  drawSlateMarbleTile,
+  drawCobblestoneTile,
   drawRoadTile,
   drawWaterTile,
   drawTree,
@@ -202,8 +204,12 @@ function buildLayout(tileTypeFn, cols, rows) {
   return layout
 }
 
-function drawTileAt(graphics, tile, x, y, size, horizontal, dashIndex) {
-  if (tile === 'grass') drawGrassTile(graphics, x, y, size)
+function drawTileAt(graphics, tile, x, y, size, horizontal, dashIndex, cityId = 'tokyo') {
+  if (tile === 'grass') {
+    if (cityId === 'tokyo') drawSlateMarbleTile(graphics, x, y, size)
+    else if (cityId === 'kyoto') drawCobblestoneTile(graphics, x, y, size)
+    else drawGrassTile(graphics, x, y, size)
+  }
   else if (tile === 'path') drawRoadTile(graphics, x, y, size, horizontal, dashIndex)
   else if (tile === 'water') drawWaterTile(graphics, x, y, size, 0)
   else {
@@ -397,13 +403,14 @@ export default class OverworldScene extends Phaser.Scene {
   buildOverworldZone() {
     this.financeLayout = buildLayout(financeTileType, MAP_COLS, MAP_ROWS)
 
+    const currentCityId = useGameStore.getState().currentCityId || 'tokyo'
     const terrainGraphics = this.add.graphics()
     this.zoneObjects.push(terrainGraphics)
     for (let row = 0; row < MAP_ROWS; row++) {
       for (let col = 0; col < MAP_COLS; col++) {
         const x = col * TILE_SIZE
         const y = row * TILE_SIZE
-        drawTileAt(terrainGraphics, this.financeLayout[row][col], x, y, TILE_SIZE, FINANCE_H_STREETS.includes(row), col)
+        drawTileAt(terrainGraphics, this.financeLayout[row][col], x, y, TILE_SIZE, FINANCE_H_STREETS.includes(row), col, currentCityId)
       }
     }
     scatterTrees(this, this.financeLayout, FINANCE_BUILDINGS, 80, this.zoneObjects)

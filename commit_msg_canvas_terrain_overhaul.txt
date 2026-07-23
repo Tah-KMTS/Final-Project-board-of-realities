@@ -1,0 +1,25 @@
+Canvas Layout Overhaul & City-Specific Terrain Tiles
+
+- GameCanvas.jsx: upgraded to 800×500 Phaser resolution with Scale.FIT
+  mode so the canvas fills its container and auto-centers; container now
+  uses w-full / max-w-5xl / h-[500px] responsive classes instead of a
+  fixed 640×480 box; border changed to yellow-400/90 rounded-xl
+
+- WorldScreen.jsx: rewrapped the GameCanvas + overlay block inside a
+  relative w-full max-w-5xl mx-auto container so Tokyo and Kyoto overlay
+  badges (header arch, NPC dots) are now correctly bounded to the canvas
+  area instead of floating in the page margins; overlay bg tint reduced
+  from /30 to /20 for better map visibility
+
+- tileGen.js: added drawSlateMarbleTile() — dark obsidian (0x0a101f) base
+  with a deep-navy (0x131d36) inner fill and amber (0xf59e0b) grid lines
+  for the Tokyo Luxury Architectural tile set; added drawCobblestoneTile()
+  — warm dark-brown (0x2c2621) base with a slightly lighter (0x423831)
+  inner block and an ochre highlight band for the Kyoto HD-2D JRPG tile
+
+- OverworldScene.js: imported drawSlateMarbleTile and drawCobblestoneTile;
+  updated drawTileAt() to accept a cityId parameter and dispatch the
+  correct tile function (slate-marble for tokyo, cobblestone for kyoto,
+  drawGrassTile fallback for all other cities); buildOverworldZone() now
+  reads currentCityId from useGameStore before drawing the terrain loop
+  so every rebuild reflects the active city's visual style

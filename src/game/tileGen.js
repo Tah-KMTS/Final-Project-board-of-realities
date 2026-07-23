@@ -36,6 +36,25 @@ export function drawGrassTile(graphics, x, y, size) {
   }
 }
 
+export function drawSlateMarbleTile(graphics, x, y, size) {
+  graphics.fillStyle(0x0a101f, 1)
+  graphics.fillRect(x, y, size, size)
+  graphics.fillStyle(0x131d36, 1)
+  graphics.fillRect(x + 1, y + 1, size - 2, size - 2)
+  graphics.fillStyle(0xf59e0b, 0.4)
+  graphics.fillRect(x, y, size, 1)
+  graphics.fillRect(x, y, 1, size)
+}
+
+export function drawCobblestoneTile(graphics, x, y, size) {
+  graphics.fillStyle(0x2c2621, 1)
+  graphics.fillRect(x, y, size, size)
+  graphics.fillStyle(0x423831, 1)
+  graphics.fillRect(x + 2, y + 2, size - 4, size - 4)
+  graphics.fillStyle(0x854d0e, 0.5)
+  graphics.fillRect(x + 4, y + 4, size - 8, 2)
+}
+
 export function drawRoadTile(graphics, x, y, size, horizontal, dashPhaseIndex) {
   graphics.fillStyle(0x3d3d3d, 1)
   graphics.fillRect(x, y, size, size)
