@@ -1,6 +1,0 @@
-Add Essential Town Buildings (Hospital, Fire Station, Police HQ, University, Bank) & Real-World Architectural Heights
-
-- Build Architectural Heights & Visual Profiles Catalog (buildingArchitectureCatalog.js) defining High-Rise Skyscrapers (8-15 stories), Mid-Rise Institutional Buildings (4-6 stories), and Low-Rise Depots (1-3 stories).
-- Build Essential Town Buildings Catalog (essentialBuildingsCatalog.js) mapping Central General Hospital (Tokyo - Dr. Hiroshi), Municipal Fire Station (Osaka - Chief Tanaka), Central Police HQ (Tokyo - Captain Sato), National University (Kyoto - Dean Sato), and Commercial Bank (Osaka - Banker Takahashi).
-- Build Essential Building Modal (EssentialBuildingModal.jsx) supporting Hospital emergency treatment (100% HP heal), Fire Station arson extinguishment, Police HQ warrant clearance, University R&D funding (+10% stock hype), and Commercial Bank deposits & loans.
-- Render EssentialBuildingModal seamlessly in WorldScreen.jsx upon visiting essential town facilities.
