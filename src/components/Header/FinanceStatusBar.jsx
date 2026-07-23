@@ -1,14 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { CalendarClock, Wallet, TrendingUp, Siren, Award, Newspaper } from 'lucide-react'
+import { CalendarClock, Wallet, TrendingUp, Siren, Award, Newspaper, Users, Zap, Landmark } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
 import { NET_WORTH_WIN_TARGET } from '../../features/finance/marketData'
 
-// Always-visible Capital Syndicate header: Day Counter + End Day button
-// (the core game loop trigger), Portfolio Cash, Net Worth, Daily Income/
-// Burn Rate, the Police Heat/SEC Suspicion meter (reusing wantedLevel - no
-// parallel heat system), and Public Reputation/Social Status. First use of
-// lucide-react + framer-motion in the codebase, per the dark-neon UI pass.
-export default function FinanceStatusBar() {
+export default function FinanceStatusBar({ onOpenBoard, onOpenAgentFeed, onOpenGov }) {
   const cash = useGameStore((s) => s.cash)
   const computeNetWorth = useGameStore((s) => s.computeNetWorth)
   const wantedLevel = useGameStore((s) => s.wantedLevel)
@@ -17,15 +12,18 @@ export default function FinanceStatusBar() {
   const newsHeadline = useGameStore((s) => s.newsHeadline)
   const endDay = useGameStore((s) => s.endDay)
   const getDailyFinanceIncome = useGameStore((s) => s.getDailyFinanceIncome)
+  const world2 = useGameStore((s) => s.world2)
 
   const netWorth = computeNetWorth()
   const heatPct = Math.round((wantedLevel / 5) * 100)
   const heatDanger = heatPct >= 60
   const { income, burn, net } = getDailyFinanceIncome()
+  const recruitedCount = (world2.recruitedAdvisors || []).length
+  const eventFeedCount = (world2.agentEventFeed || []).length
 
   return (
-    <div className="glass-panel neon-ring w-full max-w-[900px] rounded-lg px-4 py-3 text-xs text-white">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <div className="glass-panel neon-ring w-full max-w-[1080px] rounded-lg px-4 py-3 text-xs text-white">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex items-center gap-1.5">
           <CalendarClock size={14} className="text-cyan-300" />
           <span className="font-bold text-cyan-300">Day {day}</span>
@@ -58,7 +56,7 @@ export default function FinanceStatusBar() {
 
         <div className="flex items-center gap-1.5" title="Police Heat / SEC Suspicion">
           <Siren size={14} className={heatDanger ? 'animate-pulse text-red-500' : 'text-orange-300'} />
-          <div className="h-2 w-16 overflow-hidden rounded-full bg-black/40">
+          <div className="h-2 w-12 overflow-hidden rounded-full bg-black/40">
             <motion.div
               className={`h-full ${heatDanger ? 'bg-red-500' : 'bg-orange-400'}`}
               animate={{ width: `${heatPct}%` }}
@@ -70,7 +68,7 @@ export default function FinanceStatusBar() {
 
         <div className="flex items-center gap-1.5" title="Public Reputation / Social Status">
           <Award size={14} className="text-blue-300" />
-          <div className="h-2 w-16 overflow-hidden rounded-full bg-black/40">
+          <div className="h-2 w-12 overflow-hidden rounded-full bg-black/40">
             <motion.div
               className="h-full bg-blue-400"
               animate={{ width: `${reputation}%` }}
@@ -79,6 +77,39 @@ export default function FinanceStatusBar() {
           </div>
           <span className="text-blue-300">{reputation}</span>
         </div>
+
+        {/* Government, Fed & FTC Modal Trigger */}
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.04 }}
+          onClick={onOpenGov}
+          className="flex items-center gap-1 rounded border border-amber-400/80 bg-amber-500/20 px-2.5 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/40 transition-colors"
+        >
+          <Landmark size={13} className="text-amber-400" />
+          <span>Gov & Fed</span>
+        </motion.button>
+
+        {/* Titan Intelligence Feed Modal Trigger */}
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.04 }}
+          onClick={onOpenAgentFeed}
+          className="flex items-center gap-1 rounded border border-cyan-400/80 bg-cyan-500/20 px-2.5 py-1 text-xs font-bold text-cyan-300 hover:bg-cyan-500/40 transition-colors"
+        >
+          <Zap size={13} className="text-cyan-400" />
+          <span>Titan Feed ({eventFeedCount})</span>
+        </motion.button>
+
+        {/* Board of Realities Modal Trigger */}
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.04 }}
+          onClick={onOpenBoard}
+          className="flex items-center gap-1 rounded border border-yellow-400/80 bg-yellow-500/20 px-2.5 py-1 text-xs font-bold text-yellow-300 hover:bg-yellow-500/40 transition-colors"
+        >
+          <Users size={13} className="text-yellow-400" />
+          <span>Board ({recruitedCount})</span>
+        </motion.button>
 
         <motion.button
           whileTap={{ scale: 0.92 }}

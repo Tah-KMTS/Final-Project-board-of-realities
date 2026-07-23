@@ -17,6 +17,9 @@ import CryptoModal from '../features/finance/CryptoModal'
 import NamedNpcModal from '../features/finance/NamedNpcModal'
 import AmbientNpcModal from '../features/finance/AmbientNpcModal'
 import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
+import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
+import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
+import GovernmentModal from '../features/government/GovernmentModal'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
 import { generateBodyguardMonster, generateStreetTargetMonster, generateSwatSquad, getFinanceNpc } from '../features/finance/financeNpcs'
@@ -316,7 +319,13 @@ export default function WorldScreen() {
         </button>
       </div>
 
-      {mode === 'overworld' && <FinanceStatusBar />}
+      {mode === 'overworld' && (
+        <FinanceStatusBar
+          onOpenBoard={() => setActiveModal({ type: 'syndicateBoard' })}
+          onOpenAgentFeed={() => setActiveModal({ type: 'agentFeed' })}
+          onOpenGov={() => setActiveModal({ type: 'government' })}
+        />
+      )}
 
       {!worldCleared && (
         <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
@@ -327,6 +336,9 @@ export default function WorldScreen() {
       </p>
 
       {activeModal?.type === 'inventory' && <InventoryModal onClose={closeModal} />}
+      {activeModal?.type === 'syndicateBoard' && <SyndicateBoardModal onClose={closeModal} />}
+      {activeModal?.type === 'agentFeed' && <AgentInteractionsModal onClose={closeModal} />}
+      {activeModal?.type === 'government' && <GovernmentModal onClose={closeModal} />}
 
       {/* World 1 */}
       {activeModal?.type === 'building' && activeModal.id === 'hq' && (

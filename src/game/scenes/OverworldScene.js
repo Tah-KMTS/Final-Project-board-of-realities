@@ -498,8 +498,9 @@ export default class OverworldScene extends Phaser.Scene {
       if (!b.npcId) continue
       if (npcStatus[b.npcId] === 'dead') continue
       const npc = FINANCE_NPCS.find((n) => n.id === b.npcId)
-      const cx = b.tiles.c0 * TILE_SIZE + ((b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE) / 2
-      const cy = (b.tiles.r1 + 1) * TILE_SIZE + TILE_SIZE / 2
+      if (!npc) continue
+      const cx = (b.tiles.c0 + (typeof FINANCE_COL_OFF !== 'undefined' ? FINANCE_COL_OFF : 0)) * TILE_SIZE + ((b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE) / 2
+      const cy = (b.tiles.r1 + 1 + (typeof FINANCE_ROW_OFF !== 'undefined' ? FINANCE_ROW_OFF : 0)) * TILE_SIZE + TILE_SIZE / 2
       const actor = new SpriteActor(this, cx, cy, `npc_${npc.id}`, npc.palette)
       this.financeNamedNpcActors[npc.id] = actor
     }

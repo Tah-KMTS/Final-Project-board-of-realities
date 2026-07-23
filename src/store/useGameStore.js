@@ -16,6 +16,8 @@ import {
 } from '../features/finance/marketData'
 import { FINANCE_NPCS } from '../features/finance/financeNpcs'
 import { rollHeadline } from '../features/finance/newsHeadlines'
+import { initializeAgentsState, simulateDailyAgentInteractions } from '../features/finance/agentEngine'
+import { initializeGovernmentState, simulateGovernmentDailyTick, resolvePresidentialElection } from '../features/government/governmentEngine'
 import { STARTER_DP_DECK } from '../features/domino/cardDatabase'
 
 const SAVE_KEY = 'board-of-realities-save'
@@ -102,6 +104,10 @@ function createDefaultState() {
       npcStatus: {},
       ambientKillCount: 0,
       jobCooldownUntil: 0,
+      recruitedAdvisors: [],
+      agentsState: initializeAgentsState(),
+      agentEventFeed: [],
+      governmentState: initializeGovernmentState(),
     },
     world3: {
       deck: [],
@@ -644,35 +650,125 @@ export const useGameStore = create((set, get) => ({
   // tied directly to Heat (wantedLevel), so a hotter player visibly bleeds
   // more cash per day. Pure selector, no state change - the header reads
   // this every render, and endDay() doesn't need to duplicate the math.
+  recruitFinanceNpc: (npcId) => {
+    const state = get()
+    const npc = FINANCE_NPCS.find((n) => n.id === npcId)
+    if (!npc) return { success: false, reason: 'NPC not found' }
+    const recruited = state.world2.recruitedAdvisors || []
+    if (recruited.includes(npcId)) return { success: false, reason: 'Already recruited to Syndicate Board' }
+    if (state.cash < npc.recruitCost) return { success: false, reason: `Need $${npc.recruitCost.toLocaleString()} cash` }
+
+    const newRecruited = [...recruited, npcId]
+    set({
+      cash: state.cash - npc.recruitCost,
+      world2: { ...state.world2, recruitedAdvisors: newRecruited },
+    })
+
+    // Instant recruitment perks
+    if (npcId === 'carnegie') {
+      get().addCash(5000)
+    } else if (npcId === 'son') {
+      get().addCash(15000)
+    } else if (npcId === 'walker') {
+      set((s) => ({ reputation: Math.min(100, s.reputation + 20) }))
+    } else if (npcId === 'musk') {
+      set((s) => ({ world2: { ...s.world2, cryptoHype: Math.min(100, s.world2.cryptoHype + 25) } }))
+    }
+
+    return { success: true }
+  },
+
   getDailyFinanceIncome: () => {
     const state = get()
     const w2 = state.world2
-    const rentIncome = w2.realEstate.reduce((sum, id) => {
+    const recruited = w2.recruitedAdvisors || []
+
+    let rentIncome = w2.realEstate.reduce((sum, id) => {
       const listing = REAL_ESTATE_LISTINGS.find((l) => l.id === id)
       return sum + (listing?.rentPerTick || 0)
     }, 0)
-    const companyIncome = w2.companies.reduce((sum, id) => {
+    let companyIncome = w2.companies.reduce((sum, id) => {
       const listing = COMPANY_LISTINGS.find((l) => l.id === id)
       return sum + (listing?.incomePerTick || 0)
     }, 0)
-    const income = rentIncome + companyIncome
+
+    if (recruited.includes('rockefeller')) {
+      rentIncome = Math.round(rentIncome * 1.35)
+      companyIncome = Math.round(companyIncome * 1.35)
+    }
+
+    let advisorPassive = 0
+    if (recruited.includes('ford')) advisorPassive += 500
+    if (recruited.includes('fugger')) advisorPassive += 800
+    if (recruited.includes('vanderbilt')) advisorPassive += 600
+    if (recruited.includes('simons')) advisorPassive += 1000
+    if (recruited.includes('gates')) advisorPassive += 850
+    if (recruited.includes('bezos')) advisorPassive += 1200
+    if (recruited.includes('walker')) advisorPassive += 300
+    if (recruited.includes('mansamusa')) advisorPassive += Math.round((rentIncome + companyIncome) * 0.25)
+    if (recruited.includes('buffett')) advisorPassive += Math.round(state.cash * 0.05)
+
+    const income = rentIncome + companyIncome + advisorPassive
     const burn = 100 + state.wantedLevel * 150
-    return { income, burn, net: income - burn }
+    return { income, burn, net: income - burn, advisorPassive }
   },
 
-  // The "End Day" button: advances the persistent Day Counter, rolls a
-  // flavor news headline, ticks the market (reusing tickFinanceMarket
-  // rather than duplicating its price-walk/passive-income logic), and lets
-  // Heat cool down a little day-over-day if the player didn't stay hot -
-  // the closest thing to "NPC/police behavior" this pass needs, built
-  // entirely on the existing Wanted Level mechanic.
   endDay: () => {
     const state = get()
-    set({ day: state.day + 1, newsHeadline: rollHeadline() })
+    const recruited = state.world2.recruitedAdvisors || []
+    const nextDay = state.day + 1
+    set({ day: nextDay, newsHeadline: rollHeadline() })
     get().tickFinanceMarket()
+
     if (state.wantedLevel > 0 && Math.random() < 0.4) {
       get().addWantedLevel(-1)
     }
+
+    if (recruited.includes('hamilton') && nextDay % 2 === 0 && state.wantedLevel > 0) {
+      get().addWantedLevel(-1)
+    }
+    if (recruited.includes('jpmorgan') && state.cash < 500) {
+      get().addCash(10000)
+    }
+
+    // Simulate multi-agent titan interactions
+    const { updatedAgents, eventFeed } = simulateDailyAgentInteractions(state.world2.agentsState || {}, nextDay)
+    
+    // Simulate Government, Fed, FTC, and Crime Syndicates
+    const currentGov = state.world2.governmentState || initializeGovernmentState()
+    const { updatedGovState, cashDelta, wantedDelta, cryptoHypeDelta } = simulateGovernmentDailyTick(
+      currentGov,
+      nextDay,
+      state.cash,
+      state.wantedLevel,
+      state.world2.portfolio,
+      state.world2.stocks
+    )
+
+    if (cashDelta !== 0) get().addCash(cashDelta)
+    if (wantedDelta !== 0) get().addWantedLevel(wantedDelta)
+
+    set((s) => ({
+      world2: {
+        ...s.world2,
+        agentsState: updatedAgents,
+        agentEventFeed: [...eventFeed, ...(s.world2.agentEventFeed || [])].slice(0, 40),
+        governmentState: updatedGovState,
+        cryptoHype: Math.max(0, Math.min(100, s.world2.cryptoHype + cryptoHypeDelta)),
+      },
+    }))
+  },
+
+  castPresidentialVote: (candidateId) => {
+    const state = get()
+    const currentGov = state.world2.governmentState || initializeGovernmentState()
+    const updatedGov = resolvePresidentialElection(currentGov, candidateId)
+    set((s) => ({
+      world2: {
+        ...s.world2,
+        governmentState: updatedGov,
+      },
+    }))
   },
 
   // --- World 3: King of Games ----------------------------------------------
