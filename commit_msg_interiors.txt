@@ -1,6 +1,0 @@
-Add Enter/Exit Building Interior Engine, Dedicated Rooms, Interactive Equipment & Stationed Vehicles
-
-- Build Building Interior Engine (buildingInteriorEngine.js) managing building entry/exit state transitions and room switching.
-- Build Interior Objects Catalog (interiorObjectsCatalog.js) detailing dedicated room layouts, interactive equipment (Defibrillators, SWAT Armor Racks, Safe Vault Doors, Laser Welding Arms), stationed vehicles (Ambulances, Fire Trucks, SWAT Cruisers, Teslas), and stationed NPCs.
-- Build Building Interior Modal (BuildingInteriorModal.jsx) supporting room navigation tabs, NPC dialogue, operating equipment, vehicle inspections/driving, and exiting back to the overworld map.
-- Render BuildingInteriorModal seamlessly in WorldScreen.jsx upon entering any building.

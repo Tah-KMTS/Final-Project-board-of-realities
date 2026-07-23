@@ -27,6 +27,7 @@ import FbiInterrogationModal from '../features/government/FbiInterrogationModal'
 import AmenityStoreModal from '../features/world/AmenityStoreModal'
 import EssentialBuildingModal from '../features/world/EssentialBuildingModal'
 import BuildingInteriorModal from '../features/world/BuildingInteriorModal'
+import NpcLootModal from '../features/world/NpcLootModal'
 import Minimap from './Header/Minimap'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
@@ -362,6 +363,9 @@ export default function WorldScreen() {
       )}
       {activeModal?.type === 'buildingInterior' && (
         <BuildingInteriorModal buildingId={activeModal.buildingId || 'general_hospital'} onClose={closeModal} />
+      )}
+      {activeModal?.type === 'npcLoot' && (
+        <NpcLootModal victimNpc={activeModal.victimNpc || { name: 'Defeated Target', role: 'mobster' }} onClose={closeModal} />
       )}
       {activeModal?.type === 'interactiveLocation' && (
         <InteractiveLocationModal locationId={activeModal.locationId || 'mcdonalds_diner'} onClose={closeModal} />
