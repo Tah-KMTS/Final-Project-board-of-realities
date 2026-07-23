@@ -1,7 +1,0 @@
-Add Famous Historical Hitmen Autonomous Agents, Framing Mechanics, and Detective Counterparts
-
-- Build Famous Hitmen Catalog (famousHitmenCatalog.js) detailing 5 real-world historical hitmen: Richard "The Iceman" Kuklinski ($75,000 - Cyanide Spray & Frozen Bodies), Charles "The Mad Hatter" Harrelson ($250,000 - Rooftop Sniper), Charles "The Enforcer" Nicoletti ($60,000 - Suppressed 9mm Drive-by), Bugsy Siegel ($100,000 - Tommy Gun), and Abe "Kid Twist" Reles ($40,000 - Ice Pick & Garrote).
-- Map Historical Detective Counterparts: Detective Pat Kane (New Jersey Homicide), FBI Special Agent Danny Defenbaugh, FBI Agent William F. Roemer Jr., LAPD Detective Harry Hansen, and Brooklyn DA William O'Dwyer.
-- Build Hitman Agent Engine (hitmanAgentEngine.js) supporting autonomous hitman execution, signature trace generation, and framing mechanics (Framing Innocent Citizens vs Framing Rival Cartels to spark turf wars).
-- Build Hitman Contract Modal (HitmanContractModal.jsx) allowing players to inspect hitman profiles, select framing strategies, and issue contract hits.
-- Render HitmanContractModal seamlessly in WorldScreen.jsx.

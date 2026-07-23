@@ -1,15 +1,19 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Map, Minimize2, Maximize2, Compass } from 'lucide-react'
+import { Minimize2, Maximize2, Compass } from 'lucide-react'
 import { JAPAN_CITIES } from '../../features/world/japanCities'
+import { useGameStore } from '../../store/useGameStore'
 
-export default function Minimap({ currentCityId = 'tokyo' }) {
+export default function Minimap({ currentCityId: propCityId }) {
   const [minimized, setMinimized] = useState(false)
+  const currentCityId = useGameStore((s) => s.currentCityId || propCityId || 'tokyo')
+  const switchCity = useGameStore((s) => s.switchCity || (() => {}))
+
   const city = JAPAN_CITIES.find((c) => c.id === currentCityId) || JAPAN_CITIES[0]
 
   return (
     <div className="fixed top-4 right-4 z-40 font-mono">
-      <div className="rounded-lg border-2 border-cyan-500/80 bg-[#0d1127]/90 p-2.5 shadow-2xl backdrop-blur-md">
+      <div className="rounded-lg border-2 border-cyan-500/80 bg-[#0d1127]/95 p-2.5 shadow-2xl backdrop-blur-md w-64">
         {/* Minimap Header Bar */}
         <div className="flex items-center justify-between gap-2 border-b border-cyan-500/30 pb-1.5 text-xs text-cyan-300">
           <div className="flex items-center gap-1.5 font-bold">
@@ -25,6 +29,44 @@ export default function Minimap({ currentCityId = 'tokyo' }) {
           </button>
         </div>
 
+        {/* 4 Japanese Cities Fast-Travel Nav Bar */}
+        {!minimized && (
+          <div className="my-1.5 grid grid-cols-4 gap-1 text-[9px] font-bold">
+            <button
+              onClick={() => switchCity('tokyo')}
+              className={`py-1 rounded text-center transition-all ${
+                currentCityId === 'tokyo' ? 'bg-cyan-500 text-black font-extrabold shadow' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              🗼 Tokyo
+            </button>
+            <button
+              onClick={() => switchCity('kyoto')}
+              className={`py-1 rounded text-center transition-all ${
+                currentCityId === 'kyoto' ? 'bg-yellow-500 text-black font-extrabold shadow' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              ⛩️ Kyoto
+            </button>
+            <button
+              onClick={() => switchCity('osaka')}
+              className={`py-1 rounded text-center transition-all ${
+                currentCityId === 'osaka' ? 'bg-red-500 text-white font-extrabold shadow' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              🐙 Osaka
+            </button>
+            <button
+              onClick={() => switchCity('sapporo')}
+              className={`py-1 rounded text-center transition-all ${
+                currentCityId === 'sapporo' ? 'bg-indigo-500 text-white font-extrabold shadow' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              ❄️ Sapporo
+            </button>
+          </div>
+        )}
+
         {/* Minimap Canvas Body */}
         <AnimatePresence>
           {!minimized && (
@@ -32,11 +74,11 @@ export default function Minimap({ currentCityId = 'tokyo' }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="mt-2"
+              className="mt-1"
             >
-              <div className="relative h-36 w-48 overflow-hidden rounded border border-cyan-500/40 bg-[#090b1a]">
+              <div className="relative h-32 w-full overflow-hidden rounded border border-cyan-500/40 bg-[#090b1a]">
                 {/* Water Body / River Representation */}
-                <div className="absolute inset-x-0 bottom-0 h-10 bg-cyan-950/60 border-t border-cyan-700/40" />
+                <div className="absolute inset-x-0 bottom-0 h-8 bg-cyan-950/60 border-t border-cyan-700/40" />
                 <div className="absolute top-2 right-2 text-[9px] text-cyan-400/80 italic">{city.region}</div>
 
                 {/* Mountains Representation */}
@@ -46,9 +88,9 @@ export default function Minimap({ currentCityId = 'tokyo' }) {
                 </div>
 
                 {/* Character Landmarks Dots */}
-                <div className="absolute top-10 left-8 h-3 w-3 rounded-full bg-yellow-400/80 animate-ping" title="Stock Exchange / Landmark" />
-                <div className="absolute top-16 right-10 h-2.5 w-2.5 rounded-full bg-indigo-400/80" title="Government HQ" />
-                <div className="absolute bottom-6 left-14 h-2.5 w-2.5 rounded-full bg-red-400/80" title="Syndicate Hotel" />
+                <div className="absolute top-8 left-8 h-3 w-3 rounded-full bg-yellow-400/80 animate-ping" title="Stock Exchange / Landmark" />
+                <div className="absolute top-14 right-10 h-2.5 w-2.5 rounded-full bg-indigo-400/80" title="Government HQ" />
+                <div className="absolute bottom-5 left-14 h-2.5 w-2.5 rounded-full bg-red-400/80" title="Syndicate Hotel" />
 
                 {/* Player Indicator Marker */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">

@@ -60,3 +60,8 @@ export const JAPAN_CITIES = [
     primaryResidents: ['Henry Ford', 'Andrew Carnegie', 'John D. Rockefeller', 'Robert McNamara', 'William Ruckelshaus'],
   },
 ]
+
+export function getCityById(cityId = 'tokyo') {
+  return JAPAN_CITIES.find((c) => c.id === cityId) || JAPAN_CITIES[0]
+}
+

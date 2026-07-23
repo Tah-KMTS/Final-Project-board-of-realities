@@ -32,6 +32,8 @@ import GunStoreModal from '../features/world/GunStoreModal'
 import NarcoticsTradeModal from '../features/world/NarcoticsTradeModal'
 import SyndicateOperationsModal from '../features/world/SyndicateOperationsModal'
 import HitmanContractModal from '../features/world/HitmanContractModal'
+import { updateAgentPositions } from '../features/agents/agentMovementEngine'
+import { JAPAN_CITIES } from '../features/world/japanCities'
 import Minimap from './Header/Minimap'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
@@ -123,13 +125,20 @@ export default function WorldScreen() {
   // the scene's 'regionChanged' bridge event), independent of currentBlockId
   // which is meta/save-state (dice-roll assignment, block-clear rotation)
   // and no longer drives scene mounting.
-  const [mode, setMode] = useState(currentBlockId === 'domino' ? 'domino' : 'overworld')
-  const [activeRegion, setActiveRegion] = useState(
-    currentBlockId && currentBlockId !== 'domino' ? currentBlockId : 'hunter'
-  )
+  const currentCityId = useGameStore((s) => s.currentCityId || 'tokyo')
+  const switchCity = useGameStore((s) => s.switchCity || (() => {}))
+  const masterAgents = useGameStore((s) => s.world2?.masterAgents || [])
+  const [timeTick, setTimeTick] = useState(0)
 
-  const currentBlock = blocks.find((b) => b.id === currentBlockId)
-  const displayBlockName = mode === 'domino' ? 'Domino City' : REGION_LABELS[activeRegion] || currentBlock?.name
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeTick((t) => t + 1)
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const movingAgents = updateAgentPositions(masterAgents, timeTick)
+  const currentCity = JAPAN_CITIES.find((c) => c.id === currentCityId) || JAPAN_CITIES[0]
 
   useEffect(() => {
     assignStartingProfession()
@@ -340,12 +349,50 @@ export default function WorldScreen() {
             onOpenGov={() => setActiveModal({ type: 'government' })}
             onOpenLocations={() => setActiveModal({ type: 'interactiveLocation', locationId: 'mcdonalds_diner' })}
           />
-          <Minimap currentCityId="tokyo" />
+          <Minimap currentCityId={currentCityId} />
+
+          {/* 4 Japanese Cities Fast-Travel Navigation Bar */}
+          <div className="flex items-center justify-center gap-2 bg-[#090d1f]/90 border-y border-cyan-500/40 p-2 font-mono text-xs z-30">
+            <span className="text-gray-400 font-bold">🗺️ Japanese City Fast-Travel:</span>
+            {JAPAN_CITIES.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => switchCity(c.id)}
+                className={`px-3 py-1.5 rounded font-bold transition-all ${
+                  currentCityId === c.id
+                    ? 'bg-cyan-500 text-black shadow-lg font-extrabold scale-105'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                {c.name.split(' ')[0]}
+              </button>
+            ))}
+          </div>
         </>
       )}
 
       {!worldCleared && (
-        <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
+        <div className="relative">
+          <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
+
+          {/* Autonomous AI Walking Agents Overlay (Warren Buffett, Elon Musk, Pablo Escobar, Al Capone) */}
+          {mode === 'overworld' && (
+            <div className="pointer-events-none absolute inset-0 z-20">
+              {movingAgents.slice(0, 6).map((agent, i) => (
+                <div
+                  key={agent.id || i}
+                  className="absolute flex flex-col items-center transition-all duration-1000 ease-in-out"
+                  style={{ left: `${(agent.currentX || 300) % 700}px`, top: `${(agent.currentY || 200) % 400}px` }}
+                >
+                  <div className="rounded bg-cyan-950/90 border border-cyan-400 px-2 py-0.5 text-[10px] font-bold text-cyan-200 shadow-md">
+                    {agent.name}: <span className="text-yellow-300">{agent.currentAction || 'Walking'}</span>
+                  </div>
+                  <div className="h-4 w-4 rounded-full bg-cyan-400 border-2 border-white shadow-lg animate-bounce mt-1" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       <p className="text-xs text-gray-500">

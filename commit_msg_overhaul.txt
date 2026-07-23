@@ -1,0 +1,6 @@
+Add 4 Japanese City Fast-Travel, Autonomous AI Agent Movement, and Architectural Graphics Overhaul
+
+- Build Agent Movement Engine (agentMovementEngine.js) calculating dynamic position interpolation and daily routine schedules for Warren Buffett, Elon Musk, Pablo Escobar, Al Capone, Donald Trump, etc., allowing AI titans to walk around the map executing live routines instead of standing still.
+- Build 4 Japanese Cities Inter-City Fast Travel System (japanCities.js & Minimap.jsx) adding interactive navigation bars across Tokyo, Kyoto, Osaka, and Sapporo on both the main screen header and Minimap.
+- Upgrade WorldScreen.jsx rendering with distinct high-quality architectural facades (Glowing High-Rise Glass Towers, Kyoto Red Shinto Pagodas, Osaka Neon Arcades, Giga Factory Spires) and animated walking AI agent overlays displaying live activity badges.
+- Add currentCityId state & switchCity action in useGameStore.js.

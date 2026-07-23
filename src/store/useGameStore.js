@@ -445,6 +445,8 @@ export const useGameStore = create((set, get) => ({
     get().clearBlock('hunter')
   },
 
+  switchCity: (cityId) => set({ currentCityId: cityId }),
+
   // --- World 2: Financial Anarchy ------------------------------------------
 
   initFinanceMarket: () => {
