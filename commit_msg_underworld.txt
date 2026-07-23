@@ -1,6 +1,0 @@
-Add Fleshed-Out Crime Syndicate Rackets, Cartel Operations, Money Laundering, and Murder Inc. Hitmen
-
-- Build Syndicate Activities Engine (syndicateActivitiesEngine.js) fully fleshing out all 7 crime syndicates (Medellin Cartel, Chicago Outfit, National Syndicate, Murder Inc., Five Families, Rothstein Syndicate, Golden Triangle Cartel), tying narcotics wholesale discounts, extortion tolls, and hitman contracts.
-- Build Money Laundering Engine (moneyLaunderingEngine.js) allowing players to launder dirty narcotics and extortion cash through legitimate businesses (McDonald's Diner, Speakeasy Hotel, Flamingo Casino, Apple Store) to clean funds and prevent IRS CID audits.
-- Build Syndicate Operations Modal (SyndicateOperationsModal.jsx) with Cartel Rackets, Protection Toll collection, Money Laundering, and Murder, Inc. Hitman Contract issuing.
-- Render SyndicateOperationsModal seamlessly in WorldScreen.jsx.

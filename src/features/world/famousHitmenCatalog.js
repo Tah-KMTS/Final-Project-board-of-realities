@@ -1,0 +1,86 @@
+/**
+ * Famous Historical Hitmen & Historical Detective Counterparts Catalog.
+ */
+
+export const FAMOUS_HITMEN_CATALOG = [
+  {
+    id: 'kuklinski',
+    name: 'Richard "The Iceman" Kuklinski',
+    syndicate: 'Gambino Family / Murder, Inc.',
+    price: 75000,
+    signatureWeapon: 'Cyanide Spray & Scoped .38 Revolver',
+    ethics: 'Completely remorseless for targets, but strictly spares women and children. Freezes bodies to confuse time of death.',
+    framingTendency: 'Plants stolen weapons on innocent citizens to divert police investigations.',
+    signatureTrace: '❄️ Frozen Body & Cyanide Residue',
+    detectiveCounterpart: {
+      name: 'Detective Pat Kane',
+      agency: 'New Jersey Homicide Bureau',
+      skill: 92,
+      log: 'Detective Pat Kane is auditing frozen victim tissues & cyanide spray traces!',
+    },
+  },
+  {
+    id: 'harrelson',
+    name: 'Charles "The Mad Hatter" Harrelson',
+    syndicate: 'Independent High-Profile Assassin',
+    price: 250000,
+    signatureWeapon: 'High-Caliber Bolt-Action Sniper (.308 Winchester)',
+    ethics: 'Rooftop long-range execution; takes high-dollar political, judicial & corporate contracts.',
+    framingTendency: 'Drops shell casings from rival cartels to incite syndicate turf wars.',
+    signatureTrace: '🎯 Rooftop High-Caliber Brass Casing',
+    detectiveCounterpart: {
+      name: 'Agent Danny Defenbaugh',
+      agency: 'FBI Special Operations',
+      skill: 95,
+      log: 'FBI Agent Defenbaugh is analyzing rooftop sniper trajectory angles!',
+    },
+  },
+  {
+    id: 'nicoletti',
+    name: 'Charles "The Enforcer" Nicoletti',
+    syndicate: 'Chicago Outfit (Al Capone)',
+    price: 60000,
+    signatureWeapon: 'Dual Suppressed 9mm Pistols',
+    ethics: 'Point-blank drive-by execution; absolute syndicate silence, never snitches to police.',
+    framingTendency: 'Plants stolen cocaine to frame Medellin cartel dealers.',
+    signatureTrace: '🚗 Suppressed Shell Casings & Sedan Tire Marks',
+    detectiveCounterpart: {
+      name: 'Agent William F. Roemer Jr.',
+      agency: 'FBI Organized Crime Division',
+      skill: 90,
+      log: 'FBI Agent Roemer is tracking Chicago Outfit drive-by ballistics!',
+    },
+  },
+  {
+    id: 'siegel',
+    name: 'Benjamin "Bugsy" Siegel',
+    syndicate: 'Murder, Inc. / Flamingo Casino Architect',
+    price: 100000,
+    signatureWeapon: 'Thompson Submachine Gun (Tommy Gun 45 ACP)',
+    ethics: 'High-stakes mob enforcement & casino turf control.',
+    framingTendency: 'Drops corporate insider trading documents to frame Wall Street titans.',
+    signatureTrace: '🍸 45 ACP Drum Magazine Shells & Silk Handkerchief',
+    detectiveCounterpart: {
+      name: 'Detective Harry Hansen',
+      agency: 'LAPD Homicide Squad',
+      skill: 88,
+      log: 'LAPD Detective Hansen is investigating Flamingo Casino mob connections!',
+    },
+  },
+  {
+    id: 'reles',
+    name: 'Abe "Kid Twist" Reles',
+    syndicate: 'Murder, Inc. Executioner',
+    price: 40000,
+    signatureWeapon: 'Heavy Ice Pick & Steel Garrote Wire',
+    ethics: 'Brutal silent execution; prone to ratting/snitching if arrested by DA!',
+    framingTendency: 'Slips murder weapons into innocent street vendors pockets.',
+    signatureTrace: '🪢 Ice Pick Puncture Marks & Garrote Fiber',
+    detectiveCounterpart: {
+      name: 'District Attorney William O\'Dwyer',
+      agency: 'Brooklyn District Attorney',
+      skill: 94,
+      log: 'DA William O\'Dwyer is squeezing informants to turn state witness!',
+    },
+  },
+]

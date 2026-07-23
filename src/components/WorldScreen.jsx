@@ -31,6 +31,7 @@ import NpcLootModal from '../features/world/NpcLootModal'
 import GunStoreModal from '../features/world/GunStoreModal'
 import NarcoticsTradeModal from '../features/world/NarcoticsTradeModal'
 import SyndicateOperationsModal from '../features/world/SyndicateOperationsModal'
+import HitmanContractModal from '../features/world/HitmanContractModal'
 import Minimap from './Header/Minimap'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
@@ -373,6 +374,7 @@ export default function WorldScreen() {
       {activeModal?.type === 'gunStore' && <GunStoreModal onClose={closeModal} />}
       {activeModal?.type === 'narcoticsTrade' && <NarcoticsTradeModal onClose={closeModal} />}
       {activeModal?.type === 'syndicateOperations' && <SyndicateOperationsModal onClose={closeModal} />}
+      {activeModal?.type === 'hitmanContract' && <HitmanContractModal onClose={closeModal} />}
       {activeModal?.type === 'interactiveLocation' && (
         <InteractiveLocationModal locationId={activeModal.locationId || 'mcdonalds_diner'} onClose={closeModal} />
       )}
