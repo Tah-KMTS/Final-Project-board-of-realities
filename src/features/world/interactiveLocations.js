@@ -1,0 +1,61 @@
+export const INTERACTIVE_LOCATIONS = [
+  {
+    id: 'mcdonalds_diner',
+    name: "McDonald's & Cherry Coke Diner",
+    district: 'Financial District',
+    icon: '🍔',
+    description: "Warren Buffett's favorite breakfast spot. Order $3.17 Bacon McMuffins and cold Cherry Coke.",
+    residentNpc: 'Warren Buffett',
+    items: [
+      { id: 'mcmuffin', name: '$3.17 Bacon McMuffin', cost: 3, energyRestore: 25, bonusText: '+25 Energy & Compound Interest Luck' },
+      { id: 'cherry_coke', name: 'Cold Cherry Coke', cost: 2, energyRestore: 15, bonusText: '+15 Energy & Strategic Clarity' },
+      { id: 'buffett_combo', name: "The Oracle's Combo", cost: 5, energyRestore: 50, bonusText: '+50 Energy & +$500 Passive Yield' },
+    ],
+  },
+  {
+    id: 'ford_factory',
+    name: 'Ford Mass Assembly Plant',
+    district: 'Commercial District - Docks',
+    icon: '🏭',
+    description: "Henry Ford's automated assembly line. Inspect production efficiency to boost company yield.",
+    residentNpc: 'Henry Ford',
+    actions: [
+      { id: 'inspect_line', name: 'Inspect Assembly Line Efficiency', cost: 100, rewardText: '+15% Daily Company Dividend Yield' },
+    ],
+  },
+  {
+    id: 'apple_lab',
+    name: 'Apple Glass Design Studio',
+    district: 'Commercial District',
+    icon: '💻',
+    description: "Steve Jobs' unibody glass design studio. Test prototype hardware to boost tech stock valuation.",
+    residentNpc: 'Steve Jobs',
+    actions: [
+      { id: 'test_prototype', name: 'Test Prototype Curved Glass Hardware', cost: 200, rewardText: '+5% Tech Stock Price Hype' },
+    ],
+  },
+  {
+    id: 'speakeasy_club',
+    name: 'Underground Speakeasy Club',
+    district: 'Underground District',
+    icon: '🍷',
+    description: 'Prohibition-era subterranean club frequented by Al Capone, Lucky Luciano, and Arnold Rothstein.',
+    residentNpc: 'Al Capone & Lucky Luciano',
+    items: [
+      { id: 'bootleg_whiskey', name: 'Prohibition Bootleg Whiskey', cost: 50, energyRestore: 30, bonusText: '-1 Wanted Level (Bribe Cop)' },
+    ],
+  },
+  {
+    id: 'transit_hub',
+    name: 'Grand Central City Transit Hub',
+    district: 'Government & Cultural District',
+    icon: '🚆',
+    description: 'Central hub for express trains, electric bicycles, and luxury car rentals.',
+    options: [
+      { id: 'train_ticket', name: 'Express Train Pass to All Districts', cost: 20, type: 'transit' },
+      { id: 'rent_bike', name: 'Rent City Bicycle (+50% Move Speed)', cost: 15, type: 'vehicle', speedMultiplier: 1.5 },
+      { id: 'rent_sedan', name: 'Rent Executive Sedan (+100% Move Speed)', cost: 100, type: 'vehicle', speedMultiplier: 2.0 },
+      { id: 'buy_tesla', name: 'Purchase Cyber Roadster (+150% Move Speed)', cost: 5000, type: 'vehicle', speedMultiplier: 2.5 },
+    ],
+  },
+]

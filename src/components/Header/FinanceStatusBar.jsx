@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { CalendarClock, Wallet, TrendingUp, Siren, Award, Newspaper, Users, Zap, Landmark } from 'lucide-react'
+import { CalendarClock, Wallet, TrendingUp, Siren, Award, Newspaper, Users, Zap, Landmark, Utensils } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
 import { NET_WORTH_WIN_TARGET } from '../../features/finance/marketData'
 
-export default function FinanceStatusBar({ onOpenBoard, onOpenAgentFeed, onOpenGov }) {
+export default function FinanceStatusBar({ onOpenBoard, onOpenAgentFeed, onOpenGov, onOpenLocations }) {
   const cash = useGameStore((s) => s.cash)
   const computeNetWorth = useGameStore((s) => s.computeNetWorth)
   const wantedLevel = useGameStore((s) => s.wantedLevel)
@@ -20,9 +20,10 @@ export default function FinanceStatusBar({ onOpenBoard, onOpenAgentFeed, onOpenG
   const { income, burn, net } = getDailyFinanceIncome()
   const recruitedCount = (world2.recruitedAdvisors || []).length
   const eventFeedCount = (world2.agentEventFeed || []).length
+  const currentVehicle = (world2.transitState || {}).currentVehicle || 'On Foot'
 
   return (
-    <div className="glass-panel neon-ring w-full max-w-[1080px] rounded-lg px-4 py-3 text-xs text-white">
+    <div className="glass-panel neon-ring w-full max-w-[1120px] rounded-lg px-4 py-3 text-xs text-white">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex items-center gap-1.5">
           <CalendarClock size={14} className="text-cyan-300" />
@@ -49,34 +50,23 @@ export default function FinanceStatusBar({ onOpenBoard, onOpenAgentFeed, onOpenG
             {net >= 0 ? '+' : ''}
             ${Math.round(net).toLocaleString()}/day
           </span>
-          <span className="text-gray-500">
-            (+${Math.round(income).toLocaleString()} / -${Math.round(burn).toLocaleString()})
-          </span>
         </div>
 
         <div className="flex items-center gap-1.5" title="Police Heat / SEC Suspicion">
           <Siren size={14} className={heatDanger ? 'animate-pulse text-red-500' : 'text-orange-300'} />
-          <div className="h-2 w-12 overflow-hidden rounded-full bg-black/40">
-            <motion.div
-              className={`h-full ${heatDanger ? 'bg-red-500' : 'bg-orange-400'}`}
-              animate={{ width: `${heatPct}%` }}
-              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-            />
-          </div>
           <span className={heatDanger ? 'font-bold text-red-400' : 'text-orange-300'}>{heatPct}%</span>
         </div>
 
-        <div className="flex items-center gap-1.5" title="Public Reputation / Social Status">
-          <Award size={14} className="text-blue-300" />
-          <div className="h-2 w-12 overflow-hidden rounded-full bg-black/40">
-            <motion.div
-              className="h-full bg-blue-400"
-              animate={{ width: `${reputation}%` }}
-              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-            />
-          </div>
-          <span className="text-blue-300">{reputation}</span>
-        </div>
+        {/* Places & Transit Modal Trigger */}
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.04 }}
+          onClick={onOpenLocations}
+          className="flex items-center gap-1 rounded border border-emerald-400/80 bg-emerald-500/20 px-2.5 py-1 text-xs font-bold text-emerald-300 hover:bg-emerald-500/40 transition-colors"
+        >
+          <Utensils size={13} className="text-emerald-400" />
+          <span>Places & Transit ({currentVehicle})</span>
+        </motion.button>
 
         {/* Government, Fed & FTC Modal Trigger */}
         <motion.button
@@ -86,7 +76,7 @@ export default function FinanceStatusBar({ onOpenBoard, onOpenAgentFeed, onOpenG
           className="flex items-center gap-1 rounded border border-amber-400/80 bg-amber-500/20 px-2.5 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/40 transition-colors"
         >
           <Landmark size={13} className="text-amber-400" />
-          <span>Gov & Fed</span>
+          <span>Gov & Agencies</span>
         </motion.button>
 
         {/* Titan Intelligence Feed Modal Trigger */}

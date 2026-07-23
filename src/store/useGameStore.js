@@ -18,6 +18,10 @@ import { FINANCE_NPCS } from '../features/finance/financeNpcs'
 import { rollHeadline } from '../features/finance/newsHeadlines'
 import { initializeAgentsState, simulateDailyAgentInteractions } from '../features/finance/agentEngine'
 import { initializeGovernmentState, simulateGovernmentDailyTick, resolvePresidentialElection } from '../features/government/governmentEngine'
+import { buildMasterAgentRegistry } from '../features/agents/agentRegistry'
+import { simulateDynamicSchedules } from '../features/agents/dynamicScheduleEngine'
+import { simulateExpandedAgenciesTick } from '../features/government/expandedAgencies'
+import { initializeTransportationState, purchaseVehicle } from '../features/world/transportationSystem'
 import { STARTER_DP_DECK } from '../features/domino/cardDatabase'
 
 const SAVE_KEY = 'board-of-realities-save'
@@ -108,6 +112,8 @@ function createDefaultState() {
       agentsState: initializeAgentsState(),
       agentEventFeed: [],
       governmentState: initializeGovernmentState(),
+      masterAgents: buildMasterAgentRegistry(),
+      transitState: initializeTransportationState(),
     },
     world3: {
       deck: [],
@@ -748,13 +754,40 @@ export const useGameStore = create((set, get) => ({
     if (cashDelta !== 0) get().addCash(cashDelta)
     if (wantedDelta !== 0) get().addWantedLevel(wantedDelta)
 
+    // Simulate 76-Agent Dynamic AI Routines & Locations
+    const masterAgents = state.world2.masterAgents || buildMasterAgentRegistry()
+    const { updatedAgents: updatedMasterAgents } = simulateDynamicSchedules(masterAgents, nextDay, updatedGovState)
+
+    // Simulate 5 Expanded Government Agencies (IRS, SEC, FBI, DOD, EPA)
+    const { agencyLogs, cashPenalty, wantedChange } = simulateExpandedAgenciesTick(nextDay, state.cash, state.wantedLevel)
+    if (cashPenalty !== 0) get().addCash(-cashPenalty)
+    if (wantedChange !== 0) get().addWantedLevel(wantedChange)
+
+    const finalGovState = {
+      ...updatedGovState,
+      agencyLogs: [...agencyLogs, ...(updatedGovState.agencyLogs || [])].slice(0, 30),
+    }
+
     set((s) => ({
       world2: {
         ...s.world2,
         agentsState: updatedAgents,
         agentEventFeed: [...eventFeed, ...(s.world2.agentEventFeed || [])].slice(0, 40),
-        governmentState: updatedGovState,
+        governmentState: finalGovState,
+        masterAgents: updatedMasterAgents,
         cryptoHype: Math.max(0, Math.min(100, s.world2.cryptoHype + cryptoHypeDelta)),
+      },
+    }))
+  },
+
+  setVehicle: (vehicleName, speedMultiplier) => {
+    const state = get()
+    const currentTransit = state.world2.transitState || initializeTransportationState()
+    const updatedTransit = purchaseVehicle(currentTransit, vehicleName, 0, speedMultiplier)
+    set((s) => ({
+      world2: {
+        ...s.world2,
+        transitState: updatedTransit,
       },
     }))
   },

@@ -20,6 +20,7 @@ import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
 import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
 import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
 import GovernmentModal from '../features/government/GovernmentModal'
+import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
 import { generateBodyguardMonster, generateStreetTargetMonster, generateSwatSquad, getFinanceNpc } from '../features/finance/financeNpcs'
@@ -324,6 +325,7 @@ export default function WorldScreen() {
           onOpenBoard={() => setActiveModal({ type: 'syndicateBoard' })}
           onOpenAgentFeed={() => setActiveModal({ type: 'agentFeed' })}
           onOpenGov={() => setActiveModal({ type: 'government' })}
+          onOpenLocations={() => setActiveModal({ type: 'interactiveLocation', locationId: 'mcdonalds_diner' })}
         />
       )}
 
@@ -339,6 +341,9 @@ export default function WorldScreen() {
       {activeModal?.type === 'syndicateBoard' && <SyndicateBoardModal onClose={closeModal} />}
       {activeModal?.type === 'agentFeed' && <AgentInteractionsModal onClose={closeModal} />}
       {activeModal?.type === 'government' && <GovernmentModal onClose={closeModal} />}
+      {activeModal?.type === 'interactiveLocation' && (
+        <InteractiveLocationModal locationId={activeModal.locationId || 'mcdonalds_diner'} onClose={closeModal} />
+      )}
 
       {/* World 1 */}
       {activeModal?.type === 'building' && activeModal.id === 'hq' && (
