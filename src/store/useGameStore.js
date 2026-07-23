@@ -467,11 +467,14 @@ export const useGameStore = create((set, get) => ({
     if (passiveIncome > 0) get().addCash(passiveIncome)
   },
 
-  buyStock: (ticker, shares) => {
+  // priceMultiplier lets the Stock Exchange's timed-meter mini-game apply a
+  // discount (<1) when the player executes inside the "sweet zone" - plain
+  // callers omit it and pay exactly stock.price*shares as before.
+  buyStock: (ticker, shares, priceMultiplier = 1) => {
     const state = get()
     const stock = state.world2.stocks.find((s) => s.ticker === ticker)
     if (!stock) return false
-    const cost = stock.price * shares
+    const cost = stock.price * shares * priceMultiplier
     if (state.cash < cost) return false
     const existing = state.world2.portfolio[ticker] || { shares: 0, avgCost: 0 }
     const totalShares = existing.shares + shares
@@ -486,12 +489,15 @@ export const useGameStore = create((set, get) => ({
     return true
   },
 
-  sellStock: (ticker, shares) => {
+  // priceMultiplier lets the Stock Exchange's timed-meter mini-game apply a
+  // bonus (>1) when the player executes inside the "sweet zone" - plain
+  // callers omit it and receive exactly stock.price*shares as before.
+  sellStock: (ticker, shares, priceMultiplier = 1) => {
     const state = get()
     const stock = state.world2.stocks.find((s) => s.ticker === ticker)
     const holding = state.world2.portfolio[ticker]
     if (!stock || !holding || holding.shares < shares) return false
-    const proceeds = stock.price * shares
+    const proceeds = stock.price * shares * priceMultiplier
     const remaining = holding.shares - shares
     const portfolio = { ...state.world2.portfolio }
     if (remaining <= 0) delete portfolio[ticker]
