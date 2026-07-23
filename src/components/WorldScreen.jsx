@@ -322,6 +322,19 @@ export default function WorldScreen() {
         )}
         <div className="text-gray-400">{displayBlockName}</div>
         <button
+          onClick={() => {
+            if (!document.fullscreenElement) {
+              document.documentElement.requestFullscreen()
+            } else {
+              document.exitFullscreen()
+            }
+          }}
+          className="border border-cyan-300 px-2 py-1 text-xs hover:bg-cyan-300 hover:text-black font-bold"
+          title="Toggle Fullscreen Mode"
+        >
+          📺 Fullscreen
+        </button>
+        <button
           onClick={() => setActiveModal({ type: 'inventory' })}
           className="border border-purple-300 px-2 py-1 text-xs hover:bg-purple-300 hover:text-black"
         >

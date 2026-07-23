@@ -73,14 +73,18 @@ export default function AmenityStoreModal({ amenityId = 'tokyo_supermarket', onC
         {/* Header */}
         <div className="flex items-start justify-between border-b border-cyan-500/40 pb-3">
           <div>
-            <span className="rounded bg-cyan-900/60 px-2 py-0.5 text-xs font-bold text-cyan-300 uppercase tracking-wider">{amenity.city} • {amenity.district}</span>
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-cyan-950 px-2 py-0.5 text-xs font-bold text-cyan-300 uppercase tracking-wider">{amenity.category}</span>
+              <span className="rounded bg-emerald-950 px-2 py-0.5 text-xs font-bold text-emerald-300 uppercase tracking-wider border border-emerald-500/40">
+                📍 Physical Location Visited
+              </span>
+            </div>
             <h2 className="text-2xl font-bold text-cyan-300 mt-1">{amenity.name}</h2>
-            <p className="text-xs text-gray-300 mt-1">{amenity.description}</p>
+            <p className="text-xs text-gray-300 mt-1">{amenity.city}: Run by {amenity.npc.name} ({amenity.npc.title})</p>
           </div>
           <div className="text-right">
-            <div className="text-xs text-gray-400">Running NPC Operator</div>
-            <div className="text-sm font-bold text-yellow-300">{amenity.npc.name} ({amenity.npc.title})</div>
-            <div className="text-[10px] text-gray-400">NPC Stealth Awareness: {amenity.npc.awareness}%</div>
+            <div className="text-xs text-gray-400">Your Cash</div>
+            <div className="text-lg font-bold text-emerald-400">${cash.toFixed(2)}</div>
           </div>
         </div>
 

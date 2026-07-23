@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Minimize2, Maximize2, Compass } from 'lucide-react'
+import { Minimize2, Maximize2, Compass, Radar } from 'lucide-react'
 import { JAPAN_CITIES } from '../../features/world/japanCities'
 import { useGameStore } from '../../store/useGameStore'
 
@@ -13,53 +13,61 @@ export default function Minimap({ currentCityId: propCityId }) {
 
   return (
     <div className="fixed top-4 right-4 z-40 font-mono">
-      <div className="rounded-lg border-2 border-cyan-500/80 bg-[#0d1127]/95 p-2.5 shadow-2xl backdrop-blur-md w-64">
+      <div className="rounded-xl border-2 border-cyan-400/80 bg-[#080d1a]/95 p-3 shadow-[0_0_25px_rgba(6,182,212,0.3)] backdrop-blur-xl w-72">
         {/* Minimap Header Bar */}
-        <div className="flex items-center justify-between gap-2 border-b border-cyan-500/30 pb-1.5 text-xs text-cyan-300">
-          <div className="flex items-center gap-1.5 font-bold">
-            <Compass size={14} className="text-cyan-400 animate-spin-slow" />
-            <span>{city.name.split(' ')[0]}</span>
+        <div className="flex items-center justify-between gap-2 border-b border-cyan-500/30 pb-2 text-xs text-cyan-300">
+          <div className="flex items-center gap-1.5 font-extrabold tracking-wider uppercase">
+            <Radar size={15} className="text-cyan-400 animate-spin" />
+            <span>RADAR MINIMAP • {city.name.split(' ')[0]}</span>
           </div>
           <button
             onClick={() => setMinimized(!minimized)}
-            className="rounded p-0.5 text-gray-400 hover:bg-cyan-900/50 hover:text-white transition-colors"
-            title={minimized ? 'Expand Minimap' : 'Minimize Minimap'}
+            className="rounded p-1 text-gray-400 hover:bg-cyan-900/50 hover:text-white transition-colors"
+            title={minimized ? 'Expand Radar Minimap' : 'Minimize Radar Minimap'}
           >
-            {minimized ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
+            {minimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
           </button>
         </div>
 
         {/* 4 Japanese Cities Fast-Travel Nav Bar */}
         {!minimized && (
-          <div className="my-1.5 grid grid-cols-4 gap-1 text-[9px] font-bold">
+          <div className="my-2 grid grid-cols-4 gap-1 text-[9px] font-extrabold">
             <button
               onClick={() => switchCity('tokyo')}
-              className={`py-1 rounded text-center transition-all ${
-                currentCityId === 'tokyo' ? 'bg-cyan-500 text-black font-extrabold shadow' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              className={`py-1 rounded text-center transition-all border ${
+                currentCityId === 'tokyo'
+                  ? 'border-cyan-400 bg-cyan-500 text-black font-extrabold shadow-[0_0_10px_rgba(6,182,212,0.5)] scale-105'
+                  : 'border-gray-800 bg-gray-900 text-gray-400 hover:text-white'
               }`}
             >
               🗼 Tokyo
             </button>
             <button
               onClick={() => switchCity('kyoto')}
-              className={`py-1 rounded text-center transition-all ${
-                currentCityId === 'kyoto' ? 'bg-yellow-500 text-black font-extrabold shadow' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              className={`py-1 rounded text-center transition-all border ${
+                currentCityId === 'kyoto'
+                  ? 'border-yellow-400 bg-yellow-500 text-black font-extrabold shadow-[0_0_10px_rgba(234,179,8,0.5)] scale-105'
+                  : 'border-gray-800 bg-gray-900 text-gray-400 hover:text-white'
               }`}
             >
               ⛩️ Kyoto
             </button>
             <button
               onClick={() => switchCity('osaka')}
-              className={`py-1 rounded text-center transition-all ${
-                currentCityId === 'osaka' ? 'bg-red-500 text-white font-extrabold shadow' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              className={`py-1 rounded text-center transition-all border ${
+                currentCityId === 'osaka'
+                  ? 'border-red-400 bg-red-600 text-white font-extrabold shadow-[0_0_10px_rgba(239,68,68,0.5)] scale-105'
+                  : 'border-gray-800 bg-gray-900 text-gray-400 hover:text-white'
               }`}
             >
               🐙 Osaka
             </button>
             <button
               onClick={() => switchCity('sapporo')}
-              className={`py-1 rounded text-center transition-all ${
-                currentCityId === 'sapporo' ? 'bg-indigo-500 text-white font-extrabold shadow' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              className={`py-1 rounded text-center transition-all border ${
+                currentCityId === 'sapporo'
+                  ? 'border-indigo-400 bg-indigo-600 text-white font-extrabold shadow-[0_0_10px_rgba(99,102,241,0.5)] scale-105'
+                  : 'border-gray-800 bg-gray-900 text-gray-400 hover:text-white'
               }`}
             >
               ❄️ Sapporo
@@ -67,7 +75,7 @@ export default function Minimap({ currentCityId: propCityId }) {
           </div>
         )}
 
-        {/* Minimap Canvas Body */}
+        {/* Radar Minimap Canvas Display */}
         <AnimatePresence>
           {!minimized && (
             <motion.div
@@ -76,34 +84,63 @@ export default function Minimap({ currentCityId: propCityId }) {
               exit={{ height: 0, opacity: 0 }}
               className="mt-1"
             >
-              <div className="relative h-32 w-full overflow-hidden rounded border border-cyan-500/40 bg-[#090b1a]">
-                {/* Water Body / River Representation */}
-                <div className="absolute inset-x-0 bottom-0 h-8 bg-cyan-950/60 border-t border-cyan-700/40" />
-                <div className="absolute top-2 right-2 text-[9px] text-cyan-400/80 italic">{city.region}</div>
-
-                {/* Mountains Representation */}
-                <div className="absolute top-1 left-2 flex gap-1">
-                  <div className="h-0 w-0 border-x-8 border-b-12 border-x-transparent border-b-gray-700/60" />
-                  <div className="h-0 w-0 border-x-6 border-b-10 border-x-transparent border-b-gray-600/60" />
+              <div className="relative h-36 w-full overflow-hidden rounded-lg border border-cyan-500/50 bg-[#040714] shadow-inner">
+                {/* High-Tech Radar Grid Circles */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="h-28 w-28 rounded-full border border-cyan-500/20" />
+                  <div className="absolute h-18 w-18 rounded-full border border-cyan-500/30" />
+                  <div className="absolute h-8 w-8 rounded-full border border-cyan-500/40" />
+                  <div className="absolute inset-x-0 top-1/2 h-[1px] bg-cyan-500/20" />
+                  <div className="absolute inset-y-0 left-1/2 w-[1px] bg-cyan-500/20" />
                 </div>
 
-                {/* Character Landmarks Dots */}
-                <div className="absolute top-8 left-8 h-3 w-3 rounded-full bg-yellow-400/80 animate-ping" title="Stock Exchange / Landmark" />
-                <div className="absolute top-14 right-10 h-2.5 w-2.5 rounded-full bg-indigo-400/80" title="Government HQ" />
-                <div className="absolute bottom-5 left-14 h-2.5 w-2.5 rounded-full bg-red-400/80" title="Syndicate Hotel" />
+                {/* Rotating Radar Sweep Beam Line */}
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div className="h-28 w-28 rounded-full animate-spin-slow origin-center bg-gradient-to-tr from-transparent via-cyan-500/10 to-cyan-400/40" />
+                </div>
 
-                {/* Player Indicator Marker */}
+                {/* Regional Topography Title */}
+                <div className="absolute top-2 right-2 text-[9px] text-cyan-400 font-bold tracking-wider uppercase bg-black/60 px-1.5 py-0.5 rounded border border-cyan-500/30">
+                  {city.region}
+                </div>
+
+                {/* Physical Food & Supermarket Icon Marker */}
+                <div className="absolute top-7 left-10 flex items-center gap-1 bg-emerald-950/80 border border-emerald-500/60 px-1 py-0.5 rounded" title="Physical Food & Supermarket">
+                  <span className="text-[10px]">🍔</span>
+                  <span className="text-[8px] font-bold text-emerald-300">FOOD</span>
+                </div>
+
+                {/* Government HQ Marker */}
+                <div className="absolute top-16 right-8 flex items-center gap-1 bg-blue-950/80 border border-blue-500/60 px-1 py-0.5 rounded" title="Government HQ">
+                  <span className="text-[10px]">🏛️</span>
+                  <span className="text-[8px] font-bold text-blue-300">GOV</span>
+                </div>
+
+                {/* Syndicate Crime Vault Marker */}
+                <div className="absolute bottom-5 left-12 flex items-center gap-1 bg-red-950/80 border border-red-500/60 px-1 py-0.5 rounded" title="Syndicate Vault">
+                  <span className="text-[10px]">🩸</span>
+                  <span className="text-[8px] font-bold text-red-300">SYNDICATE</span>
+                </div>
+
+                {/* Corporate Skyscraper Landmark Marker */}
+                <div className="absolute top-20 left-28 flex items-center gap-1 bg-yellow-950/80 border border-yellow-500/60 px-1 py-0.5 rounded" title="Corporate Skyscraper">
+                  <span className="text-[10px]">🏢</span>
+                  <span className="text-[8px] font-bold text-yellow-300">TOWER</span>
+                </div>
+
+                {/* Player Radar Blip Indicator */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-                  <div className="h-3 w-3 rounded-full bg-cyan-300 border-2 border-white shadow-lg animate-pulse" />
-                  <span className="text-[8px] font-extrabold text-cyan-200 uppercase tracking-tighter">YOU</span>
+                  <div className="h-3.5 w-3.5 rounded-full bg-cyan-300 border-2 border-white shadow-[0_0_12px_#22d3ee] animate-pulse" />
+                  <span className="text-[8px] font-extrabold text-cyan-200 uppercase tracking-tighter mt-0.5">YOU</span>
                 </div>
               </div>
 
-              {/* Minimap Legend */}
-              <div className="mt-1.5 flex justify-between text-[10px] text-gray-400">
-                <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-yellow-400" /> Landmark</span>
-                <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-indigo-400" /> Agency HQ</span>
-                <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-red-400" /> Crime</span>
+              {/* Minimap Legend Bar */}
+              <div className="mt-2 grid grid-cols-4 gap-1 text-[9px] text-gray-300 border-t border-gray-800 pt-1.5">
+                <span className="flex items-center gap-1"><span className="text-[10px]">🍔</span> Food</span>
+                <span className="flex items-center gap-1"><span className="text-[10px]">🏛️</span> Agency</span>
+                <span className="flex items-center gap-1"><span className="text-[10px]">🩸</span> Cartel</span>
+                <span className="flex items-center gap-1"><span className="text-[10px]">🏢</span> Tower</span>
               </div>
             </motion.div>
           )}
