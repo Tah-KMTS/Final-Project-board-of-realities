@@ -578,9 +578,13 @@ export default class OverworldScene extends Phaser.Scene {
       if (npcStatus[b.npcId] === 'dead') continue
       const npc = FINANCE_NPCS.find((n) => n.id === b.npcId)
       if (!npc) continue
-      const cx = (b.tiles.c0 + (typeof FINANCE_COL_OFF !== 'undefined' ? FINANCE_COL_OFF : 0)) * TILE_SIZE + ((b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE) / 2
-      const cy = (b.tiles.r1 + 1 + (typeof FINANCE_ROW_OFF !== 'undefined' ? FINANCE_ROW_OFF : 0)) * TILE_SIZE + TILE_SIZE / 2
+      // Place NPC one tile south of the building's bottom edge, horizontally
+      // centered on the building footprint.
+      const cx = (b.tiles.c0 * TILE_SIZE + (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE / 2)
+      const cy = (b.tiles.r1 + 1) * TILE_SIZE + TILE_SIZE / 2
       const actor = new SpriteActor(this, cx, cy, `npc_${npc.id}`, npc.palette)
+      actor.sprite.setDepth(8)
+      actor.shadow.setDepth(7)
       this.financeNamedNpcActors[npc.id] = actor
     }
   }
@@ -589,10 +593,13 @@ export default class OverworldScene extends Phaser.Scene {
     const npcs = generateAmbientNpcs('finance_ambient', 8)
     this.financeAmbientActors = npcs.map((npc, i) => {
       let r, c
+      let tries = 0
       do {
-        r = 1 + Math.floor(Math.random() * (MAP_ROWS - 2))
+        // Start from row 4 to skip the coastal water channel (rows 1-3)
+        r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6))
         c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
-      } while (this.financeLayout[r][c] !== 'grass' && this.financeLayout[r][c] !== 'path')
+        tries++
+      } while (tries < 50 && this.financeLayout[r][c] !== 'grass' && this.financeLayout[r][c] !== 'path')
 
       const actor = new SpriteActor(this, c * TILE_SIZE + TILE_SIZE / 2, r * TILE_SIZE + TILE_SIZE / 2, `npc_fin_ambient_${i}`, npc.palette)
       actor.npcId = npc.id
@@ -600,6 +607,8 @@ export default class OverworldScene extends Phaser.Scene {
       actor.wanderTimer = 0
       actor.wanderDir = { x: 0, y: 0 }
       actor.dead = false
+      actor.sprite.setDepth(8)
+      actor.shadow.setDepth(7)
       return actor
     })
   }
