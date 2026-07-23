@@ -1,5 +1,5 @@
 /**
- * Real-World Building Architectural Heights & Visual Profiles Catalog.
+ * Real-World Building Architectural Heights & Option 2 (HD-2D JRPG) Visual Profiles Catalog.
  */
 
 export const BUILDING_HEIGHT_CATEGORIES = {
@@ -20,6 +20,12 @@ export const BUILDING_HEIGHT_CATEGORIES = {
     floors: '1–3 Stories',
     style: 'Brick Depot or Glass Storefront',
     icon: '🏘️',
+  },
+  SHINTO_PAGODA: {
+    name: 'Kyoto Shinto Pagoda',
+    floors: '3–5 Eaves',
+    style: 'HD-2D Traditional Japanese Red Timber Pagoda with Paper Lanterns',
+    icon: '⛩️',
   },
 }
 
@@ -45,7 +51,7 @@ export const BUILDING_VISUAL_PROFILES = {
   university: {
     heightCategory: 'MID_RISE',
     floors: 4,
-    facade: 'Gothic Red Brick Library with Clock Tower & Solar Research Observatory Dome',
+    facade: 'HD-2D Gothic Red Brick Institute with Telescope Dome & Shinto Torii Gate',
     colorHex: '#7c3aed',
   },
   commercial_bank: {
@@ -59,5 +65,24 @@ export const BUILDING_VISUAL_PROFILES = {
     floors: 10,
     facade: 'Neoclassical Granite Banking Citadel with Gold Depository Vaults',
     colorHex: '#d97706',
+  },
+  // KYOTO HD-2D JRPG PILOT BUILDINGS
+  nintendo_hq: {
+    heightCategory: 'MID_RISE',
+    floors: 5,
+    facade: 'HD-2D Cel-Shaded Red & White Corporate Gaming Pavilion with Pixel Signs',
+    colorHex: '#e11d48',
+  },
+  berkshire_pavilion: {
+    heightCategory: 'SHINTO_PAGODA',
+    floors: 4,
+    facade: 'HD-2D Cel-Shaded Dark Wood & Gold Leaf Financial Pavilion (Warren Buffett HQ)',
+    colorHex: '#eab308',
+  },
+  cherry_tea_house: {
+    heightCategory: 'LOW_RISE',
+    floors: 2,
+    facade: 'HD-2D Traditional Japanese Timber Tea House with Red Paper Lanterns & Cherry Blossom Garden',
+    colorHex: '#f43f5e',
   },
 }

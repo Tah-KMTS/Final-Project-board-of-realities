@@ -373,11 +373,13 @@ export default function WorldScreen() {
                 onClick={() => switchCity(c.id)}
                 className={`px-3 py-1.5 rounded font-bold transition-all ${
                   currentCityId === c.id
-                    ? 'bg-cyan-500 text-black shadow-lg font-extrabold scale-105'
+                    ? c.id === 'kyoto'
+                      ? 'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.6)] font-extrabold scale-105 border-2 border-yellow-300'
+                      : 'bg-cyan-500 text-black shadow-lg font-extrabold scale-105'
                     : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                 }`}
               >
-                {c.name.split(' ')[0]}
+                {c.name.split(' ')[0]} {c.id === 'kyoto' ? '⛩️ (HD-2D JRPG)' : ''}
               </button>
             ))}
           </div>
@@ -388,8 +390,41 @@ export default function WorldScreen() {
         <div className="relative">
           <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
 
-          {/* Autonomous AI Walking Agents Overlay (Warren Buffett, Elon Musk, Pablo Escobar, Al Capone) */}
-          {mode === 'overworld' && (
+          {/* Option 2: Neo-Retro HD-2D JRPG Pilot Environment Overlay for Kyoto */}
+          {mode === 'overworld' && currentCityId === 'kyoto' && (
+            <div className="pointer-events-none absolute inset-0 z-20 border-4 border-yellow-500/60 shadow-[inset_0_0_50px_rgba(234,179,8,0.2)]">
+              {/* Shinto Torii Gate Entrance */}
+              <div className="absolute top-4 left-6 flex items-center gap-2 bg-red-950/90 border-2 border-red-500 px-3 py-1 rounded shadow-xl">
+                <span className="text-lg">⛩️</span>
+                <span className="text-xs font-extrabold text-yellow-300 tracking-wider uppercase">KYOTO SHINTO PAGODA DISTRICT (HD-2D JRPG PILOT)</span>
+              </div>
+
+              {/* Animated Paper Lantern Sconces */}
+              <div className="absolute top-16 left-8 text-xl animate-pulse">🏮</div>
+              <div className="absolute top-16 right-8 text-xl animate-pulse">🏮</div>
+
+              {/* Cel-Shaded AI Titan Badges (Warren Buffett HD-2D JRPG Persona Badge) */}
+              {movingAgents.slice(0, 5).map((agent, i) => (
+                <div
+                  key={agent.id || i}
+                  className="absolute flex flex-col items-center transition-all duration-1000 ease-in-out"
+                  style={{ left: `${(agent.currentX || 300) % 700}px`, top: `${(agent.currentY || 200) % 400}px` }}
+                >
+                  <div className="rounded-lg bg-red-950/95 border-2 border-yellow-400 px-3 py-1 text-[11px] font-black text-yellow-200 shadow-[0_0_15px_rgba(239,68,68,0.5)] flex items-center gap-1.5">
+                    <span className="text-sm">⛩️</span>
+                    <span>{agent.name}:</span>
+                    <span className="text-cyan-300 font-bold">{agent.currentAction || 'Walking'}</span>
+                  </div>
+                  <div className="h-5 w-5 rounded-full bg-yellow-400 border-2 border-black shadow-xl animate-bounce mt-1 flex items-center justify-center text-[10px]">
+                    👤
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Standard Overworld Overlay for other cities */}
+          {mode === 'overworld' && currentCityId !== 'kyoto' && (
             <div className="pointer-events-none absolute inset-0 z-20">
               {movingAgents.slice(0, 6).map((agent, i) => (
                 <div

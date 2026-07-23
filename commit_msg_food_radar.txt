@@ -1,5 +1,0 @@
-Add Physical Location Requirement for Food, Fullscreen Canvas Toggle, and High-Tech Radar Minimap
-
-- Enforce Physical Store Arrival for Food & Supermarkets (AmenityStoreModal.jsx): Remote food ordering/consumption is blocked; players must physically walk to store locations on the overworld map before purchasing, consuming food, or shoplifting.
-- Add Fullscreen Canvas Toggle (WorldScreen.jsx): Added a 📺 Fullscreen Toggle Button in the game header, allowing players to play in true 100% full-screen responsive view.
-- Overhaul Radar Minimap Design (Minimap.jsx): Upgraded Minimap with sleek glassmorphism styling, a rotating Radar Beam Sweep animation effect, high-tech radar grid, and clear icons for 🍔 Food & Dining, 🏛️ Government HQs, 🩸 Syndicate Vaults, and 🏢 Corporate Skyscrapers.
