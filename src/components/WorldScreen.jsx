@@ -25,6 +25,7 @@ import ScotusCourtroomModal from '../features/government/ScotusCourtroomModal'
 import IrsHearingModal from '../features/government/IrsHearingModal'
 import FbiInterrogationModal from '../features/government/FbiInterrogationModal'
 import AmenityStoreModal from '../features/world/AmenityStoreModal'
+import EssentialBuildingModal from '../features/world/EssentialBuildingModal'
 import Minimap from './Header/Minimap'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
@@ -354,6 +355,9 @@ export default function WorldScreen() {
       {activeModal?.type === 'fbiInterrogation' && <FbiInterrogationModal onClose={closeModal} />}
       {activeModal?.type === 'amenityStore' && (
         <AmenityStoreModal amenityId={activeModal.amenityId || 'tokyo_supermarket'} onClose={closeModal} />
+      )}
+      {activeModal?.type === 'essentialBuilding' && (
+        <EssentialBuildingModal buildingId={activeModal.buildingId || 'general_hospital'} onClose={closeModal} />
       )}
       {activeModal?.type === 'interactiveLocation' && (
         <InteractiveLocationModal locationId={activeModal.locationId || 'mcdonalds_diner'} onClose={closeModal} />
