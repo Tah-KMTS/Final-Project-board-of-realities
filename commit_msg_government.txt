@@ -1,0 +1,8 @@
+Add Same-Gender Romance Orientation Rules, Supreme Court SCOTUS, US Congress Legislative Branch, and US Treasury Department
+
+- Enforce real-world sexual orientation rules (Heterosexual, Homosexual, Bisexual) in romanceEngine.js blocking same-gender romance unless historically homosexual/bisexual (e.g. J. Edgar Hoover, John Maynard Keynes).
+- Implement Judicial Branch - Supreme Court of the United States (scotusEngine.js) featuring 9 famous Justices (John Marshall, Earl Warren, Louis Brandeis, Oliver Wendell Holmes Jr., Felix Frankfurter, Thurgood Marshall, Ruth Bader Ginsburg, Sandra Day O'Connor, Antonin Scalia) and Judicial Review.
+- Implement Legislative Branch - US Congress (congressEngine.js) featuring famous House and Senate Leaders (Henry Clay, Daniel Webster, Sam Rayburn, LBJ, Robert A. Taft), tax bill votes, and nominee confirmation hearings.
+- Implement US Treasury Department & Bond Market (treasuryEngine.js) featuring Alexander Hamilton, Albert Gallatin, Andrew Mellon, Henry Morgenthau Jr., Robert Rubin, and 10-Year Treasury Bond investments.
+- Add SCOTUS Judicial Review, US Congress Legislation, and US Treasury Bonds tabs to GovernmentModal.jsx.
+- Hook SCOTUS judicial reviews, Congressional hearings, Treasury bond investments, and orientation romance checks into daily store loop in useGameStore.js.

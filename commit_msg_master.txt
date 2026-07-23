@@ -1,9 +1,0 @@
-Add Master Architecture: Dynamic AI Dialogue, 76-Character Biographies, High-Stakes Romance Engine, Building Specs & Asset Purchasing
-
-- Implement Dynamic Non-Predetermined AI Voice & Speech Engine (dynamicDialogueEngine.js) calculating context-aware dialogue based on personality, recent actions, relationship tier, world state, and time of day.
-- Register Biographical Metadata & Fidelity Dispositions (characterBiographies.js) for all 76+ characters: real-world Age, Gender, Marital Status, and Fidelity Rules (Strictly Faithful vs Ambitious/Open).
-- Build High-Stakes Romance & Dating Simulator Engine (romanceEngine.js) enabling courting, dating venues (McDonald's Diner, Apple Glass Campus, Speakeasy Club, Alpine Chalet), relationship tiers (0-100), and Spousal Power Couple Perks.
-- Add Fleshed-Out Character Buildings Catalog (characterBuildingsCatalog.js) detailing construction costs, Japanese city locations, architectural designs, and daily yields for all characters.
-- Implement Autonomous Capital Accumulation & Asset Purchasing System (agentAssetPurchasing.js) where agents accumulate wealth and buy real estate, stocks, land, factories, and penthouses.
-- Update NamedNpcModal.jsx to render dynamic AI speech, character SVG portrait, age/marital status badges, relationship meters, and courtship action buttons.
-- Hook romance progression, asset purchasing, and dynamic dialogue into daily store game loop in useGameStore.js.

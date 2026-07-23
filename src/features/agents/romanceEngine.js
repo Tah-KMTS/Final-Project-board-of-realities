@@ -1,31 +1,39 @@
 import { getCharacterBiography } from './characterBiographies'
 
-export const ROMANCE_TIERS = {
-  STRANGER: { min: 0, max: 24, name: 'Stranger / Neutral' },
-  ACQUAINTANCE: { min: 25, max: 49, name: 'Professional Acquaintance' },
-  PARTNER: { min: 50, max: 74, name: 'Trusted Business Partner' },
-  SUITOR: { min: 75, max: 99, name: 'Romantic Suitor / Courtship' },
-  SPOUSE: { min: 100, max: 100, name: 'Spouse / Power Couple' },
-}
-
 export function initializeRomanceState() {
   return {
-    relationships: {}, // npcId -> level (0-100)
+    relationships: {},
     spouses: [],
     datingHistory: [],
   }
 }
 
-export function courtCharacter(currentRomance, npcId, npcName, actionType) {
+export function courtCharacter(currentRomance, npcId, npcName, actionType, playerGender = 'Male') {
   const rels = { ...(currentRomance.relationships || {}) }
   const currentLevel = rels[npcId] || 0
   const bio = getCharacterBiography(npcId)
 
-  // Fidelity Check: Strictly Faithful characters refuse cheating if married to someone else
+  // 1. Sexual Orientation Rule Check
+  if (playerGender === bio.gender && bio.orientation === 'Heterosexual') {
+    return {
+      success: false,
+      reason: `${npcName} is historically heterosexual and politely declines same-gender romantic courtship.`,
+      updatedRomance: currentRomance,
+    }
+  }
+  if (playerGender !== bio.gender && bio.orientation === 'Homosexual') {
+    return {
+      success: false,
+      reason: `${npcName} is historically homosexual and politely declines opposite-gender romantic courtship.`,
+      updatedRomance: currentRomance,
+    }
+  }
+
+  // 2. Fidelity Check: Strictly Faithful characters refuse cheating if married to someone else
   if (bio.maritalStatus === 'Married' && bio.fidelity === 'Strictly Faithful' && currentLevel < 50) {
     return {
       success: false,
-      reason: `${npcName} is devotedly married (${bio.maritalStatus}) and politely declines romantic flirtation due to their strictly faithful principles.`,
+      reason: `${npcName} is devotedly married (${bio.maritalStatus}) and politely declines romantic flirtation due to strictly faithful principles.`,
       updatedRomance: currentRomance,
     }
   }
@@ -47,7 +55,7 @@ export function courtCharacter(currentRomance, npcId, npcName, actionType) {
   const newLog = {
     id: `date_${Date.now()}`,
     npcId,
-    text: `Went on a ${actionType.replace('_', ' ')} with ${npcName}. Relationship level is now ${newLevel}/100!`,
+    text: `Courtship with ${npcName} successful! Relationship level is now ${newLevel}/100.`,
   }
 
   return {

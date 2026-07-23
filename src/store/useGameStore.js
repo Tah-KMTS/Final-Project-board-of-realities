@@ -24,6 +24,9 @@ import { simulateTownMigration } from '../features/agents/townMigrationEngine'
 import { triggerButterflyEffect } from '../features/agents/butterflyEffectEngine'
 import { simulateExpandedAgenciesTick } from '../features/government/expandedAgencies'
 import { simulateSubdepartmentsTick } from '../features/government/agencySubdepartments'
+import { simulateScotusJudicialReview } from '../features/government/scotusEngine'
+import { simulateCongressTick } from '../features/government/congressEngine'
+import { initializeTreasuryState, buyTreasuryBonds } from '../features/government/treasuryEngine'
 import { initializeTransportationState, purchaseVehicle } from '../features/world/transportationSystem'
 import { initializeRomanceState } from '../features/agents/romanceEngine'
 import { simulateAgentAssetPurchasing } from '../features/agents/agentAssetPurchasing'
@@ -120,6 +123,7 @@ function createDefaultState() {
       masterAgents: buildMasterAgentRegistry(),
       transitState: initializeTransportationState(),
       romanceState: initializeRomanceState(),
+      treasuryState: initializeTreasuryState(),
     },
     world3: {
       deck: [],
@@ -782,6 +786,9 @@ export const useGameStore = create((set, get) => ({
     // Simulate 5 Expanded Government Agencies (IRS, SEC, FBI, DOD, EPA) & Subdepartments
     const { agencyLogs, cashPenalty, wantedChange } = simulateExpandedAgenciesTick(nextDay, state.cash, state.wantedLevel)
     const subLogs = simulateSubdepartmentsTick(nextDay)
+    const scotusLogs = simulateScotusJudicialReview(nextDay)
+    const congressLogs = simulateCongressTick(nextDay)
+
     if (cashPenalty !== 0) get().addCash(-cashPenalty)
     if (wantedChange !== 0) get().addWantedLevel(wantedChange)
 
@@ -789,6 +796,8 @@ export const useGameStore = create((set, get) => ({
     const { updatedAgents: finalAssetAgents, assetLogs } = simulateAgentAssetPurchasing(finalButterflyAgents, nextDay)
 
     const combinedEventLogs = [
+      ...scotusLogs.map((s) => ({ id: s.id, title: s.title, text: s.text })),
+      ...congressLogs.map((c) => ({ id: c.id, title: c.title, text: c.text })),
       ...assetLogs.map((a) => ({ id: a.id, title: '💰 Asset Acquisition', text: a.text })),
       ...butterflyLogs.map((b) => ({ id: b.id, title: '🦋 Butterfly Effect', text: b.text })),
       ...migrationLogs.map((m) => ({ id: m.id, title: '✈️ Town Migration', text: m.text })),
@@ -797,7 +806,7 @@ export const useGameStore = create((set, get) => ({
 
     const finalGovState = {
       ...updatedGovState,
-      agencyLogs: [...subLogs, ...agencyLogs, ...(updatedGovState.agencyLogs || [])].slice(0, 30),
+      agencyLogs: [...scotusLogs, ...congressLogs, ...subLogs, ...agencyLogs, ...(updatedGovState.agencyLogs || [])].slice(0, 30),
     }
 
     set((s) => ({
@@ -810,6 +819,22 @@ export const useGameStore = create((set, get) => ({
         cryptoHype: Math.max(0, Math.min(100, s.world2.cryptoHype + cryptoHypeDelta)),
       },
     }))
+  },
+
+  buyBondsAction: (amount) => {
+    const state = get()
+    const currentTreasury = state.world2.treasuryState || initializeTreasuryState()
+    const res = buyTreasuryBonds(currentTreasury, amount, state.cash)
+    if (res.success) {
+      get().addCash(-amount)
+      set((s) => ({
+        world2: {
+          ...s.world2,
+          treasuryState: res.updatedTreasuryState,
+        },
+      }))
+    }
+    return res
   },
 
   setRomanceState: (updatedRomance) => {
