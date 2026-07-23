@@ -34,6 +34,8 @@ import SyndicateOperationsModal from '../features/world/SyndicateOperationsModal
 import HitmanContractModal from '../features/world/HitmanContractModal'
 import { updateAgentPositions } from '../features/agents/agentMovementEngine'
 import { JAPAN_CITIES } from '../features/world/japanCities'
+import SwimmingStatusOverlay from '../features/world/SwimmingStatusOverlay'
+import { calculateSwimmingTick } from '../features/world/swimmingFatigueEngine'
 import Minimap from './Header/Minimap'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
@@ -130,12 +132,26 @@ export default function WorldScreen() {
   const masterAgents = useGameStore((s) => s.world2?.masterAgents || [])
   const [timeTick, setTimeTick] = useState(0)
 
+  const [isSwimming, setIsSwimming] = useState(false)
+  const [swimmingFatigue, setSwimmingFatigue] = useState(0)
+  const [swimmingStatusMsg, setSwimmingStatusMsg] = useState('')
+
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeTick((t) => t + 1)
     }, 2000)
     return () => clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    if (!isSwimming) return
+    const swimTimer = setInterval(() => {
+      const res = calculateSwimmingTick(swimmingFatigue, 2, true)
+      setSwimmingFatigue(res.nextFatigue)
+      setSwimmingStatusMsg(res.statusMessage)
+    }, 1500)
+    return () => clearInterval(swimTimer)
+  }, [isSwimming, swimmingFatigue])
 
   const movingAgents = updateAgentPositions(masterAgents, timeTick)
   const currentCity = JAPAN_CITIES.find((c) => c.id === currentCityId) || JAPAN_CITIES[0]
@@ -382,8 +398,30 @@ export default function WorldScreen() {
                 {c.name.split(' ')[0]} {c.id === 'kyoto' ? '⛩️ (HD-2D JRPG)' : c.id === 'tokyo' ? '🏛️ (LUXURY ARCH)' : ''}
               </button>
             ))}
+
+            <button
+              onClick={() => {
+                setIsSwimming(true)
+                setSwimmingFatigue(15)
+                setSwimmingStatusMsg('🏊 SWIMMING IN WATER BODY: Swimming across coastal sea channel!')
+              }}
+              className="px-3 py-1.5 rounded font-bold transition-all bg-blue-600 hover:bg-blue-500 text-white border border-blue-400"
+            >
+              🏊 Swim Water Channel
+            </button>
           </div>
         </>
+      )}
+
+      {isSwimming && (
+        <SwimmingStatusOverlay
+          fatigue={swimmingFatigue}
+          statusMsg={swimmingStatusMsg}
+          onExitWater={() => {
+            setIsSwimming(false)
+            setSwimmingFatigue(0)
+          }}
+        />
       )}
 
       {!worldCleared && (
