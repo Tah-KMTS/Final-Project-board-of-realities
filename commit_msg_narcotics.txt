@@ -1,0 +1,6 @@
+Add Presidential Gun Policies, Legal vs Black Market Gun Stores, and Narcotics Trade System
+
+- Build Firearm Legislation Engine (firearmLegislationEngine.js) implementing presidential gun control policies (Pro-2nd Amendment vs Moderate vs Strict Control), FFL licensing, background checks, and black market pricing.
+- Build Gun Store Modal (GunStoreModal.jsx) featuring Legal Retail Store and Underground Black Market Arms Dealer tabs. Black market option allows purchasing untraceable firearms (Glocks, Tommy Guns, Shotguns) with 50% markup and no background checks.
+- Build Cartel Narcotics Trade Engine & Modal (narcoticsEngine.js & NarcoticsTradeModal.jsx) featuring Pablo Escobar & Griselda Blanco (Medellin Cartel). Supports buying/reselling Pure Cocaine, Blue Meth, Opium, and Painkillers, cartel wholesale profits, substance consumption buffs (+25% damage, +30% speed, 100% energy), and DEA interdiction raids.
+- Render GunStoreModal and NarcoticsTradeModal seamlessly in WorldScreen.jsx.

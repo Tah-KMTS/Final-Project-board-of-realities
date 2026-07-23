@@ -1,4 +1,0 @@
-Add Snitch & Rat-Out Informant Mechanics to Stealth Investigation Engine
-
-- Update stealthInvestigationEngine.js to explicitly calculate Citizen Snitch / Rat Out reports, informant leak probability, and FBI Director J. Edgar Hoover rat-out intelligence alerts.
-- Ensure unwitnessed discreet homicides (where no snitches or witnesses are present) leave zero initial wanted level, while public crimes trigger immediate citizen rat-out reports to police patrols.
