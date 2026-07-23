@@ -1,0 +1,9 @@
+Add Town Amenities & Running NPCs, Shoplifting / Theft System, Property Destruction, and Item Consumption
+
+- Build Town Amenities Catalog (townAmenitiesCatalog.js) mapping Tokyo Bay Supermarket (Manager Kenji), Kyoto 7-Eleven (Clerk Yumi), Tokyo Ginza Luxury Vault (Jeweler Pierre), Sapporo Heavy Tool Workshop (Blacksmith Daiki), and Osaka Underground Pawn Shop (Broker Sal).
+- Build Amenity Store Modal (AmenityStoreModal.jsx) supporting 4 real-life interactive object verbs:
+  1. Buy Legally: Pay item price to NPC shopkeeper.
+  2. Shoplift / Steal: Shoplift directly from shelves (Stealth roll vs NPC awareness; failure triggers wanted level +1 and NPC attack).
+  3. Break / Destroy / Vandalize: Smash store shelf displays & destroy inventory (Lowers stock, wanted +1, NPC flees).
+  4. Consume / Eat / Use: Eat food to restore HP & Energy, use lockpicks/crowbars to open vaults, wear luxury watches for charisma.
+- Render AmenityStoreModal seamlessly in WorldScreen.jsx upon visiting town amenities.
