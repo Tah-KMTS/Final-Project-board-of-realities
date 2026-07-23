@@ -19,7 +19,8 @@ export default function NamedNpcModal({ npcId, onClose }) {
   const relationshipLevel = (romanceState.relationships || {})[npcId] || 0
 
   const bio = getCharacterBiography(npcId)
-  const agentState = (world2.agentsState || {})[npcId] || {
+  const masterAgent = (world2.masterAgents || []).find((a) => a.id === npcId)
+  const agentState = masterAgent || (world2.agentsState || {})[npcId] || {
     currentMood: 'Bullish Expansion',
     primaryRivalName: 'Competitor',
     aggression: 50,

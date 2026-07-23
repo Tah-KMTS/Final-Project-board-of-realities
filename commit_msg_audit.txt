@@ -1,0 +1,5 @@
+Refine 76-Agent Live Feed, System Interaction Audit, and Master Agent State Binding
+
+- Update AgentInteractionsModal.jsx to display all 76 active characters and add event filters for Butterfly Effects, Town Migrations, and Asset Acquisitions.
+- Update NamedNpcModal.jsx to retrieve live master agent state from world2.masterAgents array, ensuring city relocation and active thoughts update dynamically in dialogue modals.
+- Verify complete inter-system interaction across Elections, Fed Interest Rates, FTC Antitrust, 5 Agencies, SCOTUS Judicial Review, US Congress Legislation, US Treasury Bonds, 4 Japanese Cities, Butterfly Effects, and Romance Rules.

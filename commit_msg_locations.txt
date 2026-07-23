@@ -1,7 +1,0 @@
-Add Physical Government Facilities, SCOTUS Courtroom Trials, IRS Hearing Chambers, and FBI Interrogation Vaults
-
-- Build Physical Government Locations Catalog (governmentLocations.js) mapping SCOTUS Trial Courtroom (Tokyo Judicial District), US Congress Capitol Chamber (Tokyo Capitol District), Fed Reserve Vault HQ, FTC Commission, US Treasury Depository (Kyoto Financial District), IRS Internal Revenue Building (Kyoto Historic District), FBI Bureau Interrogation Vault (Osaka Commercial District), Pentagon DOD Arsenal (Sapporo Industrial Region), and EPA Regulation Facility (Sapporo Alpine Region).
-- Build Supreme Court Trial Courtroom Modal (ScotusCourtroomModal.jsx) presided over by John Marshall, Earl Warren, Louis Brandeis, Ruth Bader Ginsburg, and Antonin Scalia for evidence presentation, legal defense counsel, and constitutional appeals.
-- Build IRS Tax Hearing Chamber Modal (IrsHearingModal.jsx) presided over by Mortimer Caplin for high-wealth audits, back-tax settlements, and offshore asset shielding.
-- Build FBI Bureau Interrogation Vault Modal (FbiInterrogationModal.jsx) presided over by J. Edgar Hoover for RICO indictments, federal bail bonds, and bureau official bribes.
-- Render court, hearing, and interrogation modals seamlessly in WorldScreen.jsx upon agency investigations or arrests.
