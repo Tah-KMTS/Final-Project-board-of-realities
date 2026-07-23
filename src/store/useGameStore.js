@@ -21,6 +21,7 @@ import { initializeGovernmentState, simulateGovernmentDailyTick, resolvePresiden
 import { buildMasterAgentRegistry } from '../features/agents/agentRegistry'
 import { simulateDynamicSchedules } from '../features/agents/dynamicScheduleEngine'
 import { simulateExpandedAgenciesTick } from '../features/government/expandedAgencies'
+import { simulateSubdepartmentsTick } from '../features/government/agencySubdepartments'
 import { initializeTransportationState, purchaseVehicle } from '../features/world/transportationSystem'
 import { STARTER_DP_DECK } from '../features/domino/cardDatabase'
 
@@ -758,14 +759,15 @@ export const useGameStore = create((set, get) => ({
     const masterAgents = state.world2.masterAgents || buildMasterAgentRegistry()
     const { updatedAgents: updatedMasterAgents } = simulateDynamicSchedules(masterAgents, nextDay, updatedGovState)
 
-    // Simulate 5 Expanded Government Agencies (IRS, SEC, FBI, DOD, EPA)
+    // Simulate 5 Expanded Government Agencies (IRS, SEC, FBI, DOD, EPA) & Subdepartments
     const { agencyLogs, cashPenalty, wantedChange } = simulateExpandedAgenciesTick(nextDay, state.cash, state.wantedLevel)
+    const subLogs = simulateSubdepartmentsTick(nextDay)
     if (cashPenalty !== 0) get().addCash(-cashPenalty)
     if (wantedChange !== 0) get().addWantedLevel(wantedChange)
 
     const finalGovState = {
       ...updatedGovState,
-      agencyLogs: [...agencyLogs, ...(updatedGovState.agencyLogs || [])].slice(0, 30),
+      agencyLogs: [...subLogs, ...agencyLogs, ...(updatedGovState.agencyLogs || [])].slice(0, 30),
     }
 
     set((s) => ({

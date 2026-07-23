@@ -1,23 +1,26 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { getFinanceNpc } from './financeNpcs'
-import DialogueBox from '../../components/Dialogue/DialogueBox'
 import { FINANCE_NPC_LINES } from '../../data/financeDialogue'
+import { getCharacterPortrait } from '../../data/characterPortraits'
 
-export default function NamedNpcModal({ npcId, onClose, onAttack }) {
+export default function NamedNpcModal({ npcId, onClose }) {
+  const npc = getFinanceNpc(npcId)
   const world2 = useGameStore((s) => s.world2)
   const cash = useGameStore((s) => s.cash)
-  const financeNpcAction = useGameStore((s) => s.financeNpcAction)
   const recruitFinanceNpc = useGameStore((s) => s.recruitFinanceNpc)
+  const recruitedAdvisors = world2.recruitedAdvisors || []
+  const isRecruited = recruitedAdvisors.includes(npcId)
+
+  const agentState = (world2.agentsState || {})[npcId] || {
+    currentMood: 'Bullish Expansion',
+    primaryRivalName: 'Competitor',
+    aggression: 50,
+    memoryLog: [],
+  }
+
   const [recruitMsg, setRecruitMsg] = useState(null)
-
-  const npc = getFinanceNpc(npcId)
-  const isDead = world2.npcStatus[npcId] === 'dead'
-  const isRecruited = (world2.recruitedAdvisors || []).includes(npcId)
-  const agentState = (world2.agentsState || {})[npcId] || {}
-  const rivalNpc = getFinanceNpc(agentState.rivalId)
-
-  const [dialogueDone, setDialogueDone] = useState(false)
+  const [dialogueStep, setDialogueStep] = useState(0)
   const npcLines = FINANCE_NPC_LINES[npcId]
 
   if (!npc) return null
@@ -31,23 +34,41 @@ export default function NamedNpcModal({ npcId, onClose, onAttack }) {
     }
   }
 
+  const portraitSrc = getCharacterPortrait(npcId, npc.name, npc.era)
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-      <div className="w-full max-w-lg border-4 border-yellow-500/70 bg-[#121429] p-6 font-mono text-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
+      <div className="w-full max-w-xl border-4 border-yellow-500/70 bg-[#121429] p-6 text-white shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-gray-700 pb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded bg-yellow-900/60 px-2 py-0.5 text-xs text-yellow-300 font-semibold">{npc.era || 'Titan'}</span>
-              <h2 className="text-xl font-bold text-yellow-400">{npc.name}</h2>
+          <div className="flex items-center gap-3">
+            <img src={portraitSrc} alt={npc.name} className="h-14 w-14 rounded-lg border-2 border-yellow-400 object-cover shadow-md" />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-yellow-900/60 px-2 py-0.5 text-xs text-yellow-300 font-semibold">{npc.era || 'Titan'}</span>
+                <h2 className="text-xl font-bold text-yellow-400">{npc.name}</h2>
+              </div>
+              <p className="mt-1 text-xs text-gray-300">"{npc.title}" • Net worth: ${npc.netWorth.toLocaleString()}</p>
             </div>
-            <p className="mt-1 text-xs text-gray-300">"{npc.title}" • Net worth: ${npc.netWorth.toLocaleString()}</p>
           </div>
           {isRecruited && (
             <span className="rounded bg-emerald-900/80 px-2 py-1 text-xs font-bold text-emerald-300 border border-emerald-500">
               ✓ BOARD MEMBER
             </span>
           )}
+        </div>
+
+        {/* Dialogue Box with Character Portrait */}
+        <div className="my-4 rounded border border-yellow-500/40 bg-[#171a38] p-4">
+          <div className="flex items-start gap-4">
+            <img src={portraitSrc} alt={npc.name} className="h-16 w-16 shrink-0 rounded border border-yellow-400 bg-slate-900" />
+            <div>
+              <div className="text-xs font-bold text-yellow-300 mb-1">{npc.name} Says:</div>
+              <p className="text-xs text-gray-200 italic leading-relaxed">
+                "{npcLines ? npcLines[dialogueStep % npcLines.length] : npc.description}"
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Dynamic Procedural Agent Intelligence */}
@@ -59,110 +80,48 @@ export default function NamedNpcModal({ npcId, onClose, onAttack }) {
             </div>
             <div>
               <span className="text-gray-400">Primary Rival:</span>{' '}
-              <b className="text-red-400">{rivalNpc ? rivalNpc.name : 'None'}</b>
+              <b className="text-red-400">{agentState.primaryRivalName}</b>
             </div>
             <div>
-              <span className="text-gray-400">Aggression Score:</span>{' '}
-              <b className="text-orange-400">{Math.round((agentState.aggression || 0.5) * 100)}%</b>
+              <span className="text-gray-400">Aggression Index:</span>{' '}
+              <b className="text-yellow-300">{agentState.aggression}%</b>
             </div>
             <div>
-              <span className="text-gray-400">Risk Tolerance:</span>{' '}
-              <b className="text-purple-300">{Math.round((agentState.riskTolerance || 0.5) * 100)}%</b>
+              <span className="text-gray-400">Advisor Perk:</span>{' '}
+              <b className="text-emerald-300">{npc.advisorPerk || 'Yield Bonus'}</b>
             </div>
           </div>
         )}
 
-        {/* Unique Advisor Perk Box */}
-        <div className="mb-3 rounded border border-emerald-500/40 bg-emerald-950/30 p-2.5 text-xs">
-          <div className="font-bold text-emerald-400">⚡ Advisor Perk: {npc.perkTitle}</div>
-          <div className="text-gray-300 mt-0.5">{npc.perkDescription}</div>
-        </div>
-
-        {/* Agent Memory Log */}
-        {agentState.memories && agentState.memories.length > 0 && (
-          <div className="mb-3 rounded border border-gray-700 bg-gray-900/60 p-2 text-[11px] text-gray-300">
-            <div className="font-bold text-gray-400 text-[10px] uppercase tracking-wider mb-1">📜 Recent Titan Memory Log:</div>
-            <div className="italic text-cyan-200">{agentState.memories[0]}</div>
-          </div>
-        )}
-
-        {!isDead && npcLines && (
-          <DialogueBox
-            speaker={npc.name}
-            portrait="💼"
-            lines={npcLines}
-            onDone={() => setDialogueDone(true)}
-            npcId={npcId}
-            relationshipTier={20}
-          />
-        )}
-
+        {/* Recruitment Status */}
         {recruitMsg && (
-          <div className={`mb-3 rounded p-2 text-xs font-bold text-center border ${recruitMsg.includes('Successfully') ? 'bg-emerald-900/50 border-emerald-500 text-emerald-300' : 'bg-red-900/50 border-red-500 text-red-300'}`}>
+          <div className="my-2 rounded border border-yellow-500 bg-yellow-950/60 p-2 text-center text-xs text-yellow-300">
             {recruitMsg}
           </div>
         )}
 
-        {isDead ? (
-          <p className="mb-4 text-sm text-red-400">This titan has been eliminated.</p>
-        ) : (
-          <div className="mb-4 flex flex-col gap-2">
-            {!isRecruited ? (
-              <button
-                onClick={handleRecruit}
-                disabled={cash < npc.recruitCost}
-                className={`border-2 py-2 text-xs font-bold transition-all ${cash >= npc.recruitCost ? 'border-yellow-400 bg-yellow-600/30 text-yellow-300 hover:bg-yellow-500 hover:text-black' : 'border-gray-600 bg-gray-800 text-gray-500 cursor-not-allowed'}`}
-              >
-                👔 Recruit to Syndicate Board (${npc.recruitCost.toLocaleString()})
-              </button>
-            ) : (
-              <div className="text-center py-1 text-xs text-emerald-400 font-bold bg-emerald-950/40 border border-emerald-600/40 rounded">
-                Active Board Advisor — Passive Perk Enabled
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <button
-                onClick={() => financeNpcAction(npcId, 'workFor')}
-                className="border border-blue-400/80 py-1.5 text-xs hover:bg-blue-500 hover:text-black transition-colors"
-              >
-                Work For ($300)
-              </button>
-              <button
-                onClick={() => financeNpcAction(npcId, 'collude')}
-                className="border border-amber-400/80 py-1.5 text-xs hover:bg-amber-500 hover:text-black transition-colors"
-              >
-                Collude ($2,000, Heat +1)
-              </button>
-              <button
-                onClick={() => financeNpcAction(npcId, 'mug')}
-                className="border border-orange-500/80 py-1.5 text-xs hover:bg-orange-500 hover:text-black transition-colors"
-              >
-                Mug ($1,500, Heat +2)
-              </button>
-              <button
-                onClick={() => financeNpcAction(npcId, 'extort')}
-                className="border border-red-500/80 py-1.5 text-xs hover:bg-red-500 hover:text-black transition-colors"
-              >
-                Extort ($5,000, Heat +3)
-              </button>
-            </div>
-
+        {/* Action Buttons */}
+        <div className="mt-4 flex flex-col gap-2">
+          {!isRecruited ? (
             <button
-              onClick={onAttack}
-              className="mt-1 border-2 border-red-600 bg-red-900/60 py-2 text-xs font-bold text-red-200 hover:bg-red-600 hover:text-white transition-colors"
+              onClick={handleRecruit}
+              className="w-full border-2 border-yellow-400 bg-yellow-600/30 py-2.5 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
             >
-              ⚔️ Battle Retainer Bodyguards (Power Level: {npc.bodyguardPower})
+              Recruit to Cabinet (Cost: ${(npc.recruitCost || 50000).toLocaleString()})
             </button>
-          </div>
-        )}
+          ) : (
+            <div className="rounded bg-emerald-950/60 p-2 text-center text-xs font-bold text-emerald-400 border border-emerald-500">
+              Active Member of your Board of Realities Cabinet
+            </div>
+          )}
 
-        <button
-          onClick={onClose}
-          className="w-full border-2 border-gray-600 py-2 font-bold hover:bg-gray-700 transition-colors"
-        >
-          Leave
-        </button>
+          <button
+            onClick={onClose}
+            className="w-full border border-gray-600 bg-gray-800 py-2 text-xs text-gray-300 hover:bg-gray-700 hover:text-white"
+          >
+            Close Dialogue
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -1,8 +1,0 @@
-Add 76 Autonomous Agents, Dynamic AI Schedules, 5 Government Agencies, Interactive Places, and Transit System
-
-- Register all 76 individual agents across 5 factions (25 Titans, 21 Crime Members, 10 Presidents, 10 Fed Chairmen, 10 FTC Chairmen) into a master AI registry (agentRegistry.js) with personalized housing, vehicle preferences, and favorite hangouts.
-- Build dynamic AI schedule engine (dynamicScheduleEngine.js) computing location rotations, active actions, and event reactions for all 76 agents across 5 daily time blocks.
-- Implement 5 expanded government agencies (expandedAgencies.js): IRS (Tax Audits & Penalties), SEC (Insider Trading Raids), FBI (RICO Crime Strike Force), DOD (Defense Grants), and EPA (Environmental Fines).
-- Add interactive places & dining system (interactiveLocations.js & InteractiveLocationModal.jsx) featuring McDonald's & Cherry Coke Diner ($3.17 Bacon McMuffin & Cherry Coke), Ford Assembly Plant, Apple Glass Design Studio, Underground Speakeasy, and Grand Central Hub.
-- Implement transportation system (transportationSystem.js) managing City Bicycles (+50% move speed), Executive Sedans (+100% move speed), Cyber Roadsters (+150% move speed), and Express Train Line district passes.
-- Wire Places & Transit and Government Agencies panels into FinanceStatusBar and WorldScreen.
