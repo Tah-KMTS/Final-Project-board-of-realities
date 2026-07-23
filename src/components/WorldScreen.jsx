@@ -21,6 +21,7 @@ import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
 import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
 import GovernmentModal from '../features/government/GovernmentModal'
 import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
+import Minimap from './Header/Minimap'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
 import { generateBodyguardMonster, generateStreetTargetMonster, generateSwatSquad, getFinanceNpc } from '../features/finance/financeNpcs'
@@ -321,12 +322,15 @@ export default function WorldScreen() {
       </div>
 
       {mode === 'overworld' && (
-        <FinanceStatusBar
-          onOpenBoard={() => setActiveModal({ type: 'syndicateBoard' })}
-          onOpenAgentFeed={() => setActiveModal({ type: 'agentFeed' })}
-          onOpenGov={() => setActiveModal({ type: 'government' })}
-          onOpenLocations={() => setActiveModal({ type: 'interactiveLocation', locationId: 'mcdonalds_diner' })}
-        />
+        <>
+          <FinanceStatusBar
+            onOpenBoard={() => setActiveModal({ type: 'syndicateBoard' })}
+            onOpenAgentFeed={() => setActiveModal({ type: 'agentFeed' })}
+            onOpenGov={() => setActiveModal({ type: 'government' })}
+            onOpenLocations={() => setActiveModal({ type: 'interactiveLocation', locationId: 'mcdonalds_diner' })}
+          />
+          <Minimap currentCityId="tokyo" />
+        </>
       )}
 
       {!worldCleared && (

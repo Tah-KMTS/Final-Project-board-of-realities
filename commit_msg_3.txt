@@ -1,7 +1,0 @@
-Add Famous Agency Leaders, Real-World Statutory Terms, Subdepartments, and Real-Life Character Dialogue Portraits
-
-- Integrate famous historical agency leaders (famousAgencyRoster.js) including Joseph P. Kennedy Sr. (1st SEC Chair, 5-Year Term), J. Edgar Hoover (1st FBI Director, 10-Year Statutory Term), Robert McNamara (Defense Secretary), Mortimer Caplin (IRS Commissioner), William Ruckelshaus (1st EPA Administrator), plus key departmental staff.
-- Define real-world appointment rules and statutory terms (FBI 10-year statutory term, SEC 5-year staggered terms, Fed 14-year terms, IRS 5-year term, Defense Sec presidential pleasure).
-- Build agency subdepartments & autonomous staff task engine (agencySubdepartments.js) for IRS CID, SEC Division of Enforcement, FBI Organized Crime Section, DARPA, and EPA OECA.
-- Create historical character portrait generator (characterPortraits.js) rendering high-resolution real-life character portrait SVG avatars alongside dialogue text in NamedNpcModal and GovernmentModal.
-- Hook statutory terms and subdepartment operation logs into the daily store game loop in useGameStore.js.

@@ -20,6 +20,8 @@ import { initializeAgentsState, simulateDailyAgentInteractions } from '../featur
 import { initializeGovernmentState, simulateGovernmentDailyTick, resolvePresidentialElection } from '../features/government/governmentEngine'
 import { buildMasterAgentRegistry } from '../features/agents/agentRegistry'
 import { simulateDynamicSchedules } from '../features/agents/dynamicScheduleEngine'
+import { simulateTownMigration } from '../features/agents/townMigrationEngine'
+import { triggerButterflyEffect } from '../features/agents/butterflyEffectEngine'
 import { simulateExpandedAgenciesTick } from '../features/government/expandedAgencies'
 import { simulateSubdepartmentsTick } from '../features/government/agencySubdepartments'
 import { initializeTransportationState, purchaseVehicle } from '../features/world/transportationSystem'
@@ -758,12 +760,33 @@ export const useGameStore = create((set, get) => ({
     // Simulate 76-Agent Dynamic AI Routines & Locations
     const masterAgents = state.world2.masterAgents || buildMasterAgentRegistry()
     const { updatedAgents: updatedMasterAgents } = simulateDynamicSchedules(masterAgents, nextDay, updatedGovState)
+    
+    // Simulate Town Migration across 4 Japanese Cities
+    const { updatedAgents: finalMigratedAgents, migrationLogs } = simulateTownMigration(
+      updatedMasterAgents,
+      nextDay,
+      updatedGovState,
+      state.wantedLevel
+    )
+
+    // Trigger Butterfly Effect Chain Reactions
+    const { updatedAgents: finalButterflyAgents, butterflyLogs } = triggerButterflyEffect(
+      { type: 'FED_RATE_TICK' },
+      finalMigratedAgents,
+      nextDay
+    )
 
     // Simulate 5 Expanded Government Agencies (IRS, SEC, FBI, DOD, EPA) & Subdepartments
     const { agencyLogs, cashPenalty, wantedChange } = simulateExpandedAgenciesTick(nextDay, state.cash, state.wantedLevel)
     const subLogs = simulateSubdepartmentsTick(nextDay)
     if (cashPenalty !== 0) get().addCash(-cashPenalty)
     if (wantedChange !== 0) get().addWantedLevel(wantedChange)
+
+    const combinedEventLogs = [
+      ...butterflyLogs.map((b) => ({ id: b.id, title: '🦋 Butterfly Effect', text: b.text })),
+      ...migrationLogs.map((m) => ({ id: m.id, title: '✈️ Town Migration', text: m.text })),
+      ...eventFeed,
+    ]
 
     const finalGovState = {
       ...updatedGovState,
@@ -774,9 +797,9 @@ export const useGameStore = create((set, get) => ({
       world2: {
         ...s.world2,
         agentsState: updatedAgents,
-        agentEventFeed: [...eventFeed, ...(s.world2.agentEventFeed || [])].slice(0, 40),
+        agentEventFeed: [...combinedEventLogs, ...(s.world2.agentEventFeed || [])].slice(0, 40),
         governmentState: finalGovState,
-        masterAgents: updatedMasterAgents,
+        masterAgents: finalButterflyAgents,
         cryptoHype: Math.max(0, Math.min(100, s.world2.cryptoHype + cryptoHypeDelta)),
       },
     }))

@@ -1,0 +1,8 @@
+Add Butterfly Effect Chain Reaction Engine, Top-Right Collapsible Minimap, 4 Japanese Cities, Character-Built Landmarks, and Government HQs
+
+- Implement Butterfly Effect Chain Reaction Engine (butterflyEffectEngine.js) triggering inter-agent ripple reactions (Fed rate cuts, SEC subpoenas, syndicate short attacks) across all 76+ agents.
+- Build Top-Right Collapsible Minimap HUD widget (Minimap.jsx) with minimize/expand toggle buttons, player location, water bodies, mountains, and landmark indicators.
+- Define 4 authentic Japanese cities with real topography (japanCities.js): Tokyo (Metro Financial Plain along Tokyo Bay), Kyoto (Higashiyama Mountain Valley & Kamo River), Osaka (Dotonbori Yodo River Delta), and Sapporo (Hokkaido Alpine Snow Peaks & Ishikari River).
+- Add character-built custom landmarks (Apple Glass HQ, Giga Factory, Standard Oil Refinery, Homestead Steel Mill, River Rouge Complex, Speakeasy Hotel & Casino, Berkshire Tower).
+- Add physical Government Agency Headquarters (Fed Reserve HQ, FTC Commission, FBI Bureau HQ, IRS Building, Pentagon DOD HQ, EPA Agency).
+- Build dynamic town migration engine (townMigrationEngine.js) allowing characters and government agents to choose, relocate, and work between the 4 Japanese cities.
