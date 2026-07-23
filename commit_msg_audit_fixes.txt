@@ -1,0 +1,42 @@
+Audit Fix: Water Tiles, City Terrain, Landmark Overlays & Route-Aware Swimming
+
+Comprehensive audit of all requested features revealed five gaps. This
+commit closes them all:
+
+WATER TILES ON MAP
+- Added WATER_ROWS = [1, 2, 3] to OverworldScene.js so the top edge of
+  every city map is now a real 3-row coastal sea channel drawn with
+  drawWaterTile() — the body of water the player must swim across to reach
+  the inter-city highway
+- Added a second vertical expressway at column 33 (FINANCE_V_STREETS),
+  matching the real Tokaido Highway alignment
+
+CITY-SPECIFIC ENVIRONMENT SCATTER (replaces old scatterTrees)
+- New scatterEnvironment() function dispatches biome-appropriate props:
+  - Tokyo / Osaka (urban marble): sparse rocks only (25% density), no
+    nature — matches Sleek Luxury Architectural aesthetic
+  - Kyoto (HD-2D JRPG cobblestone): cherry-blossom flowers dominant (65%)
+    + rocks — matches Neo-Retro JRPG aesthetic
+  - Default / Sapporo (grass biome): full mix of trees, flowers, rocks
+- Scatter loop now starts at row 4, skipping the water channel rows
+
+CITY LANDMARK BUILDING OVERLAYS (Phaser-rendered)
+- New drawCityLandmarkOverlay() method renders directly in the Phaser scene:
+  - Tokyo: amber-gold (#f59e0b) border stroke + translucent gold roof cap
+    on the first 3 buildings — matches Option 3 Luxury Architectural style
+  - Kyoto: red (#dc2626) pagoda eave header + gold finial spire on the
+    first 3 buildings — matches Option 2 HD-2D JRPG style
+- Region label now shows city-specific names: "Tokyo — Luxury Financial
+  District", "Kyoto — Shinto Pagoda District", etc.
+
+INTER-CITY HIGHWAY ROUTE WIRED TO SWIM BUTTON
+- WorldScreen.jsx now imports getRouteByCities() from interCityHighways.js
+- The "Swim Water Channel" button derives the next city destination and
+  looks up the real route from INTER_CITY_ROUTES; statusMsg now shows
+  route name, water bodies, and landmark waypoints (e.g. "Tokaido Highway
+  & Hakone Pass | Crossing: Lake Biwa Channel | Heading to: Hakone
+  Mountain Pass → Fuji Summit Viewpoint")
+
+COASTAL SEA CHANNEL IN-WORLD LABEL
+- Phaser text label "〰 COASTAL SEA CHANNEL — SWIM TO CROSS 〰" placed at
+  the centre of the water zone so players understand what the water body is

@@ -36,6 +36,7 @@ import { updateAgentPositions } from '../features/agents/agentMovementEngine'
 import { JAPAN_CITIES } from '../features/world/japanCities'
 import SwimmingStatusOverlay from '../features/world/SwimmingStatusOverlay'
 import { calculateSwimmingTick } from '../features/world/swimmingFatigueEngine'
+import { getRouteByCities } from '../features/world/interCityHighways'
 import Minimap from './Header/Minimap'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
@@ -406,9 +407,17 @@ export default function WorldScreen() {
 
             <button
               onClick={() => {
+                // Look up the real inter-city route from the data catalog
+                const nextCityId = currentCityId === 'tokyo' ? 'kyoto'
+                  : currentCityId === 'kyoto' ? 'osaka'
+                  : currentCityId === 'osaka' ? 'sapporo'
+                  : 'tokyo'
+                const route = getRouteByCities(currentCityId, nextCityId)
+                const waterBodies = route?.waterBodies?.join(', ') || 'Coastal Sea Channel'
+                const landmarks = route?.landmarks?.join(' → ') || 'Inter-City Gateway'
                 setIsSwimming(true)
                 setSwimmingFatigue(15)
-                setSwimmingStatusMsg('🏊 SWIMMING IN WATER BODY: Swimming across coastal sea channel!')
+                setSwimmingStatusMsg(`🏊 SWIMMING: ${route?.name || 'Water Channel'} | Crossing: ${waterBodies} | Heading to: ${landmarks}`)
               }}
               className="px-3 py-1.5 rounded font-bold transition-all bg-blue-600 hover:bg-blue-500 text-white border border-blue-400"
             >

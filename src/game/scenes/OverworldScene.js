@@ -126,16 +126,17 @@ function layoutFinanceMap(mapCols) {
 
 const MAP_COLS = 40
 const { buildings: FINANCE_BUILDINGS, mapRows: MAP_ROWS, hStreets: FINANCE_H_STREETS } = layoutFinanceMap(MAP_COLS)
-// A single vertical corridor through every band's first inter-building gap
-// (see layoutFinanceMap: the gap right after the first building in a row is
-// always >= BAND_GAP wide starting at BAND_COL_START + max building width,
-// which column 7 sits inside of for every band regardless of that first
-// building's width) - kept as a cosmetic road, doubles as the spawn column.
-const FINANCE_V_STREETS = [7]
+// Two vertical corridors: col 7 is the spawn column, col 33 is the far-side
+// expressway running from the coastal water channel to the city south gate.
+const FINANCE_V_STREETS = [7, 33]
+// Rows 1-3 along the top edge represent the coastal sea channel that the
+// player must swim across to reach the inter-city highway.
+const WATER_ROWS = [1, 2, 3]
 
 function financeTileType(r, c) {
   const isBorder = r === 0 || c === 0 || r === MAP_ROWS - 1 || c === MAP_COLS - 1
   if (isBorder) return 'wall'
+  if (WATER_ROWS.includes(r)) return 'water'
   if (FINANCE_H_STREETS.includes(r) || FINANCE_V_STREETS.includes(c)) return 'path'
   return 'grass'
 }
@@ -218,23 +219,44 @@ function drawTileAt(graphics, tile, x, y, size, horizontal, dashIndex, cityId = 
   }
 }
 
-function scatterTrees(scene, layout, buildings, count, zoneObjects) {
+function scatterEnvironment(scene, layout, buildings, count, cityId, zoneObjects) {
   const forbidden = new Set()
   for (const b of buildings) {
     for (let r = b.tiles.r0 - 1; r <= b.tiles.r1 + 1; r++) {
       for (let c = b.tiles.c0 - 1; c <= b.tiles.c1 + 1; c++) forbidden.add(`${r},${c}`)
     }
   }
+  // Urban cities (Tokyo slate, Osaka) get rocks/props only, no nature.
+  // Kyoto (cobblestone JRPG) gets cherry blossom flowers + rocks.
+  // Default (grass biome) gets full mix: trees, flowers, rocks.
+  const isUrban = cityId === 'tokyo' || cityId === 'osaka'
+  const isJRPG = cityId === 'kyoto'
   for (let i = 0; i < count; i++) {
-    const r = 1 + Math.floor(Math.random() * (MAP_ROWS - 2))
+    const r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6)) // skip water rows at top
     const c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
     if (layout[r][c] !== 'grass' || forbidden.has(`${r},${c}`)) continue
     const cx = c * TILE_SIZE + TILE_SIZE / 2
     const cy = r * TILE_SIZE + TILE_SIZE / 2
-    const roll = Math.random()
-    const objs = roll < 0.45 ? drawTree(scene, cx, cy) : roll < 0.85 ? drawFlower(scene, cx, cy) : drawRock(scene, cx, cy)
+    let objs
+    if (isUrban) {
+      // Only sparse rocks for urban marble districts
+      if (Math.random() > 0.25) continue
+      objs = drawRock(scene, cx, cy)
+    } else if (isJRPG) {
+      // Kyoto: flowers (cherry blossom) dominant + rocks
+      const roll = Math.random()
+      objs = roll < 0.65 ? drawFlower(scene, cx, cy) : drawRock(scene, cx, cy)
+    } else {
+      const roll = Math.random()
+      objs = roll < 0.45 ? drawTree(scene, cx, cy) : roll < 0.85 ? drawFlower(scene, cx, cy) : drawRock(scene, cx, cy)
+    }
     if (objs) zoneObjects.push(...objs)
   }
+}
+
+// Keep the old name as an alias so nothing else breaks
+function scatterTrees(scene, layout, buildings, count, zoneObjects) {
+  scatterEnvironment(scene, layout, buildings, count, 'default', zoneObjects)
 }
 
 function drawBuildings(scene, graphics, buildings, zoneObjects) {
@@ -413,17 +435,67 @@ export default class OverworldScene extends Phaser.Scene {
         drawTileAt(terrainGraphics, this.financeLayout[row][col], x, y, TILE_SIZE, FINANCE_H_STREETS.includes(row), col, currentCityId)
       }
     }
-    scatterTrees(this, this.financeLayout, FINANCE_BUILDINGS, 80, this.zoneObjects)
+
+    // Coastal water channel label — visible above the swim zone
+    const waterLabel = this.add
+      .text(MAP_COLS * TILE_SIZE / 2, 2 * TILE_SIZE, '〰 COASTAL SEA CHANNEL — SWIM TO CROSS 〰', {
+        fontFamily: 'monospace', fontSize: '9px', color: '#67e8f9', align: 'center',
+      })
+      .setOrigin(0.5, 0.5)
+    this.zoneObjects.push(waterLabel)
+
+    // City-specific environment scatter
+    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, 80, currentCityId, this.zoneObjects)
 
     const buildingGraphics = this.add.graphics()
     this.zoneObjects.push(buildingGraphics)
     drawBuildings(this, buildingGraphics, FINANCE_BUILDINGS, this.zoneObjects)
 
+    // City-specific landmark buildings overlay
+    this.drawCityLandmarkOverlay(currentCityId, buildingGraphics)
+
     this.drawFinanceNamedNpcs()
     this.spawnFinanceAmbientNpcs()
 
-    this.regionLabel.setText('Capital Syndicate')
+    const cityLabel = currentCityId === 'kyoto' ? '⛩️ Kyoto — Shinto Pagoda District'
+      : currentCityId === 'tokyo' ? '🏛️ Tokyo — Luxury Financial District'
+      : currentCityId === 'osaka' ? '🐙 Osaka — Commerce Quarter'
+      : '❄️ Sapporo — Alpine Frontier'
+    this.regionLabel.setText(cityLabel)
     this.buildOverworldZones()
+  }
+
+  drawCityLandmarkOverlay(cityId, graphics) {
+    // Tokyo Option 3: amber-gold border accent on the first 3 buildings
+    if (cityId === 'tokyo') {
+      for (let i = 0; i < Math.min(3, FINANCE_BUILDINGS.length); i++) {
+        const b = FINANCE_BUILDINGS[i]
+        const x = b.tiles.c0 * TILE_SIZE
+        const y = b.tiles.r0 * TILE_SIZE
+        const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
+        const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
+        graphics.lineStyle(3, 0xf59e0b, 0.9)
+        graphics.strokeRect(x, y, w, h)
+        // Gold roof cap
+        graphics.fillStyle(0xf59e0b, 0.3)
+        graphics.fillRect(x, y - 4, w, 4)
+      }
+    }
+    // Kyoto Option 2: red torii-gate accent on the first 3 buildings
+    if (cityId === 'kyoto') {
+      for (let i = 0; i < Math.min(3, FINANCE_BUILDINGS.length); i++) {
+        const b = FINANCE_BUILDINGS[i]
+        const x = b.tiles.c0 * TILE_SIZE
+        const y = b.tiles.r0 * TILE_SIZE
+        const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
+        const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
+        // Pagoda curved red roof accent
+        graphics.fillStyle(0xdc2626, 0.85)
+        graphics.fillRect(x - 4, y - 10, w + 8, 6)
+        graphics.fillStyle(0xfbbf24, 1)
+        graphics.fillRect(x + w / 2 - 2, y - 14, 4, 4)
+      }
+    }
   }
 
   buildStockExchangeInteriorZone() {
