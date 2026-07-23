@@ -425,7 +425,7 @@ export default function WorldScreen() {
       )}
 
       {!worldCleared && (
-        <div className="relative">
+        <div className="relative flex items-center justify-center min-h-[496px] w-full my-1">
           <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
 
           {/* Option 3: Sleek Luxury Architectural Pilot Overlay for Tokyo */}

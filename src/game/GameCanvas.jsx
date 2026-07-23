@@ -61,7 +61,11 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
     }
   }, [mode, bridge])
 
-  return <div ref={containerRef} className="border-4 border-yellow-300" />
+  return (
+    <div className="flex items-center justify-center p-2 bg-[#090b1a]">
+      <div ref={containerRef} className="w-[640px] h-[480px] border-4 border-yellow-400 rounded-lg shadow-2xl overflow-hidden" />
+    </div>
+  )
 }
 
 export { createEventBridge }

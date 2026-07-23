@@ -1,6 +1,0 @@
-Add Physical Inter-City Highway Routes, Environmental Topography, Water Swimming Engine, and Stat-Based Fatigue
-
-- Build Inter-City Highways Directory (interCityHighways.js) detailing physical routes between Japanese cities: Tokaido Asphalt Highway & Hakone Mountain Pass (Tokyo ➔ Kyoto), Yodo River Expressway & Arashiyama Bamboo Forest Trails (Kyoto ➔ Osaka), and Tsugaru Coastal Expressway & Mount Yotei Alpine Snow Cliffs (Osaka ➔ Sapporo).
-- Build Water Body Swimming & Fatigue Engine (swimmingFatigueEngine.js) supporting swimming mode across water bodies (Tokyo Bay, Yodo River, Tsugaru Strait) with stat-based stamina drain scaled by player Endurance, hypothermia warnings, and drowning fatigue (-15 HP/sec).
-- Build Swimming Status Overlay (SwimmingStatusOverlay.jsx) displaying live Fatigue progress gauge, stamina drain, hypothermia alerts, and swim to shore rest controls.
-- Render SwimmingStatusOverlay and Swim Water Channel controls seamlessly in WorldScreen.jsx.
