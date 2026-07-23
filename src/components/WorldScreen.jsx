@@ -21,6 +21,9 @@ import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
 import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
 import GovernmentModal from '../features/government/GovernmentModal'
 import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
+import ScotusCourtroomModal from '../features/government/ScotusCourtroomModal'
+import IrsHearingModal from '../features/government/IrsHearingModal'
+import FbiInterrogationModal from '../features/government/FbiInterrogationModal'
 import Minimap from './Header/Minimap'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
@@ -345,6 +348,9 @@ export default function WorldScreen() {
       {activeModal?.type === 'syndicateBoard' && <SyndicateBoardModal onClose={closeModal} />}
       {activeModal?.type === 'agentFeed' && <AgentInteractionsModal onClose={closeModal} />}
       {activeModal?.type === 'government' && <GovernmentModal onClose={closeModal} />}
+      {activeModal?.type === 'scotusTrial' && <ScotusCourtroomModal onClose={closeModal} />}
+      {activeModal?.type === 'irsAudit' && <IrsHearingModal onClose={closeModal} />}
+      {activeModal?.type === 'fbiInterrogation' && <FbiInterrogationModal onClose={closeModal} />}
       {activeModal?.type === 'interactiveLocation' && (
         <InteractiveLocationModal locationId={activeModal.locationId || 'mcdonalds_diner'} onClose={closeModal} />
       )}
