@@ -379,7 +379,7 @@ export default function WorldScreen() {
                     : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                 }`}
               >
-                {c.name.split(' ')[0]} {c.id === 'kyoto' ? '⛩️ (HD-2D JRPG)' : ''}
+                {c.name.split(' ')[0]} {c.id === 'kyoto' ? '⛩️ (HD-2D JRPG)' : c.id === 'tokyo' ? '🏛️ (LUXURY ARCH)' : ''}
               </button>
             ))}
           </div>
@@ -389,6 +389,35 @@ export default function WorldScreen() {
       {!worldCleared && (
         <div className="relative">
           <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
+
+          {/* Option 3: Sleek Luxury Architectural Pilot Overlay for Tokyo */}
+          {mode === 'overworld' && currentCityId === 'tokyo' && (
+            <div className="pointer-events-none absolute inset-0 z-20 border-4 border-amber-400/80 bg-[#060a12]/30 shadow-[inset_0_0_60px_rgba(245,158,11,0.25)]">
+              {/* Financial Executive Header Arch */}
+              <div className="absolute top-4 left-6 flex items-center gap-2 bg-[#0d1526]/95 border-2 border-amber-400 px-4 py-1.5 rounded-lg shadow-2xl backdrop-blur-md">
+                <span className="text-lg">🏛️</span>
+                <span className="text-xs font-black text-amber-300 tracking-wider uppercase">TOKYO FINANCIAL DISTRICT (OPTION 3 LUXURY ARCHITECTURAL PILOT)</span>
+              </div>
+
+              {/* Polished Executive Corporate Titan Badges (Steve Jobs, Elon Musk, Jerome Powell) */}
+              {movingAgents.slice(0, 5).map((agent, i) => (
+                <div
+                  key={agent.id || i}
+                  className="absolute flex flex-col items-center transition-all duration-1000 ease-in-out"
+                  style={{ left: `${(agent.currentX || 300) % 700}px`, top: `${(agent.currentY || 200) % 400}px` }}
+                >
+                  <div className="rounded-md bg-[#0a1120]/95 border border-amber-400/90 px-3 py-1 text-[11px] font-extrabold text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.4)] flex items-center gap-2 backdrop-blur-md">
+                    <span className="text-xs">💼</span>
+                    <span>{agent.name}:</span>
+                    <span className="text-emerald-400 font-extrabold">{agent.currentAction || 'Executive Strategy'}</span>
+                  </div>
+                  <div className="h-5 w-5 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 border-2 border-white shadow-2xl animate-pulse mt-1 flex items-center justify-center text-[10px]">
+                    👔
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Option 2: Neo-Retro HD-2D JRPG Pilot Environment Overlay for Kyoto */}
           {mode === 'overworld' && currentCityId === 'kyoto' && (

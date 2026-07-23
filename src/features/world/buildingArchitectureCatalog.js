@@ -1,5 +1,5 @@
 /**
- * Real-World Building Architectural Heights & Option 2 (HD-2D JRPG) Visual Profiles Catalog.
+ * Real-World Building Architectural Heights & Option 2 (HD-2D JRPG) / Option 3 (Luxury Architectural) Visual Profiles Catalog.
  */
 
 export const BUILDING_HEIGHT_CATEGORIES = {
@@ -26,6 +26,12 @@ export const BUILDING_HEIGHT_CATEGORIES = {
     floors: '3–5 Eaves',
     style: 'HD-2D Traditional Japanese Red Timber Pagoda with Paper Lanterns',
     icon: '⛩️',
+  },
+  LUXURY_TOWER: {
+    name: 'Luxury Slate & Gold Tower',
+    floors: '15–20 Stories',
+    style: 'Brushed Slate Marble & Gold Leaf Curtain-Wall Skyscraper',
+    icon: '🏢',
   },
 }
 
@@ -84,5 +90,24 @@ export const BUILDING_VISUAL_PROFILES = {
     floors: 2,
     facade: 'HD-2D Traditional Japanese Timber Tea House with Red Paper Lanterns & Cherry Blossom Garden',
     colorHex: '#f43f5e',
+  },
+  // TOKYO OPTION 3 LUXURY ARCHITECTURAL PILOT BUILDINGS
+  apple_glass_campus: {
+    heightCategory: 'LUXURY_TOWER',
+    floors: 16,
+    facade: 'Sleek Curved Glass Curtain-Wall Skyscraper with Solar Panels (Steve Jobs HQ)',
+    colorHex: '#94a3b8',
+  },
+  giga_factory_spire: {
+    heightCategory: 'LUXURY_TOWER',
+    floors: 18,
+    facade: 'Brushed Titanium Assembly Complex & Rocket Gantry Spire (Elon Musk HQ)',
+    colorHex: '#38bdf8',
+  },
+  tokyo_stock_citadel: {
+    heightCategory: 'LUXURY_TOWER',
+    floors: 15,
+    facade: 'Dark Slate Marble Financial Citadel with Gold Ledgers & Market Ticker Marquees',
+    colorHex: '#f59e0b',
   },
 }

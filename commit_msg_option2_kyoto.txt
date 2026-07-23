@@ -1,4 +1,0 @@
-Pilot Option 2 (Neo-Retro HD-2D JRPG Persona 5 Style) Visual Design in Kyoto
-
-- Update buildingArchitectureCatalog.js adding Option 2 HD-2D JRPG building profiles (Shinto Red Timber Pagodas, Cel-Shaded Nintendo HQ, Berkshire Gold Leaf Financial Pavilion, Cherry Coke Tea House).
-- Update WorldScreen.jsx rendering Option 2 HD-2D JRPG environment overlays when visiting Kyoto (Shinto Torii Gate entrance, paper lantern sconces, cel-shaded anime AI titan badges with pop-art speech bubbles for Warren Buffett, Elon Musk, and Pablo Escobar).
