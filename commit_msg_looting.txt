@@ -1,6 +1,0 @@
-Add Realistic Tools & Weapons Catalog, Dead NPC Belongings Looting, Discreet Stealth Eliminations, and Forensic Investigations
-
-- Build Tools & Weapons Database (toolsWeaponsCatalog.js) allocating Glock pistols, tactical shotguns, Kevlar armor (+50 Def), and batons to police/SWAT, Tommy guns to mobsters, and crowbars/lockpicks to blacksmith tool shops.
-- Build NPC Looting Engine (npcLootingEngine.js & NpcLootModal.jsx) allowing players to loot carried weapons, Kevlar armor, cash wallets ($50 to $25,000), luxury watches, and keys from defeated NPCs.
-- Build Stealth & Forensic Investigation Engine (stealthInvestigationEngine.js) implementing unwitnessed discreet homicides (0 initial wanted level), citizen rat reporting, police crime scene discovery, and body/evidence cleaning.
-- Render NpcLootModal seamlessly in WorldScreen.jsx upon looting defeated NPC body markers.
