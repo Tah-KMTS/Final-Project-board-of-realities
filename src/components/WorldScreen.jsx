@@ -159,6 +159,7 @@ export default function WorldScreen() {
 
   const movingAgents = updateAgentPositions(masterAgents, timeTick)
   const currentCity = JAPAN_CITIES.find((c) => c.id === currentCityId) || JAPAN_CITIES[0]
+  const displayBlockName = currentCity?.name || 'Capital Syndicate'
 
   useEffect(() => {
     assignStartingProfession()

@@ -1,4 +1,0 @@
-Fix ReferenceError: mode is not defined on New Game Start
-
-- Restore missing `mode` and `activeRegion` state hooks in WorldScreen.jsx (`const [mode, setMode] = useState(...)`, `const [activeRegion, setActiveRegion] = useState(...)`).
-- Resolve runtime unhandled ReferenceError preventing the game from entering the Overworld scene when clicking New Game from the Welcome Title Screen.

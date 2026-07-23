@@ -1,0 +1,4 @@
+Fix ReferenceError: displayBlockName is not defined in WorldScreen.jsx Header Bar
+
+- Define `displayBlockName` in WorldScreen.jsx (`const displayBlockName = currentCity?.name || 'Capital Syndicate'`).
+- Resolve the exact Vite runtime unhandled ReferenceError that caused a black screen upon starting a new game.
