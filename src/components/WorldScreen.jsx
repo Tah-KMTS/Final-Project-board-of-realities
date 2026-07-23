@@ -127,6 +127,10 @@ export default function WorldScreen() {
   // the scene's 'regionChanged' bridge event), independent of currentBlockId
   // which is meta/save-state (dice-roll assignment, block-clear rotation)
   // and no longer drives scene mounting.
+  const [mode, setMode] = useState(currentBlockId === 'domino' ? 'domino' : 'overworld')
+  const [activeRegion, setActiveRegion] = useState(
+    currentBlockId && currentBlockId !== 'domino' ? currentBlockId : 'finance'
+  )
   const currentCityId = useGameStore((s) => s.currentCityId || 'tokyo')
   const switchCity = useGameStore((s) => s.switchCity || (() => {}))
   const masterAgents = useGameStore((s) => s.world2?.masterAgents || [])

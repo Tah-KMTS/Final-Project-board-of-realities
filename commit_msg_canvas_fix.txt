@@ -1,4 +1,0 @@
-Fix Game Canvas Dimensions & Prevent Blank Screen Rendering on Game Start
-
-- Fix GameCanvas container dimensions (GameCanvas.jsx) giving containerRef explicit width, height (640x480), and flexbox centering container.
-- Fix WorldScreen.jsx canvas wrapper giving relative container flex centering and min-height (496px) to ensure Phaser overworld map renders cleanly upon pressing New Game without blank screen issues.
