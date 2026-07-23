@@ -10,11 +10,11 @@ export const JAPAN_CITIES = [
     landmarks: [
       { id: 'tokyo_se', name: 'Tokyo Stock Exchange', type: 'financial' },
       { id: 'apple_glass_hq', name: 'Apple Unibody Glass Headquarters', type: 'character_built', owner: 'Steve Jobs' },
-      { id: 'giga_factory_tokyo', name: 'Giga Factory & SpaceX Launchpad', type: 'character_built', owner: 'Elon Musk' },
-      { id: 'fed_hq', name: 'Federal Reserve Central Bank HQ', type: 'government_agency', head: 'Jerome Powell' },
-      { id: 'ftc_hq', name: 'FTC Antitrust Hearing Commission', type: 'government_agency', head: 'Lina Khan' },
+      { id: 'giga_factory_tokyo', name: 'Giga Factory & SpaceX Launchpad', type: 'character_built', owner: 'Elan Rusk' },
+      { id: 'fed_hq', name: 'Federal Reserve Central Bank HQ', type: 'government_agency', head: 'Jerome Powers' },
+      { id: 'ftc_hq', name: 'FTC Antitrust Hearing Commission', type: 'government_agency', head: 'Lena Cannon' },
     ],
-    primaryResidents: ['Steve Jobs', 'Elon Musk', 'Jensen Huang', 'Jerome Powell', 'Lina Khan', 'Gary Gensler'],
+    primaryResidents: ['Steve Jobs', 'Elan Rusk', 'Jensen Fang', 'Jerome Powers', 'Lena Cannon', 'Gary Gensler'],
   },
   {
     id: 'kyoto',
@@ -23,12 +23,12 @@ export const JAPAN_CITIES = [
     topography: 'Valley Surrounded by Higashiyama & Arashiyama Mountain Ranges',
     naturalFeatures: ['Kamo River', 'Lake Biwa Channel', 'Bamboo Forests'],
     landmarks: [
-      { id: 'berkshire_tower', name: 'Berkshire Hathaway Financial Tower', type: 'character_built', owner: 'Warren Buffett' },
+      { id: 'berkshire_tower', name: 'Berkshire Hathaway Financial Tower', type: 'character_built', owner: 'Warren Biffle' },
       { id: 'cherry_tea_house', name: "Cherry Coke Tea House & Diner", type: 'cultural' },
       { id: 'irs_hq', name: 'IRS Internal Revenue Building', type: 'government_agency', head: 'Mortimer Caplin' },
       { id: 'machiya_estate', name: 'Traditional Machiya Executive Estate', type: 'residence' },
     ],
-    primaryResidents: ['Warren Buffett', 'Mortimer Caplin', 'Thomas Jefferson', 'George Washington'],
+    primaryResidents: ['Warren Biffle', 'Mortimer Caplin', 'Thomas Jefferson', 'George Washington'],
   },
   {
     id: 'osaka',
@@ -42,7 +42,7 @@ export const JAPAN_CITIES = [
       { id: 'dotonbori_arcade', name: 'Dotonbori Commercial Merchant Arcade', type: 'commercial' },
       { id: 'dock_vaults', name: 'Osaka Dock Underground Vaults', type: 'syndicate' },
     ],
-    primaryResidents: ['Al Capone', 'Lucky Luciano', 'J. Edgar Hoover', 'Jesse Livermore', 'George Soros'],
+    primaryResidents: ['Al Capone', 'Lucky Luciano', 'J. Edgar Hoover', 'Jesse Livermore', 'George Zoros'],
   },
   {
     id: 'sapporo',

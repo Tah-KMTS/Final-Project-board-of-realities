@@ -15,7 +15,7 @@ export const AGENCY_SUBDEPARTMENTS = [
     name: 'Global High Wealth Industry Group',
     lead: 'High Net-Worth Audit Examiner',
     task: 'Billionaire Tax Return & Dividend Audits',
-    description: 'Audits personal dividend payouts of financial titans (Rockefeller, Carnegie, Musk).',
+    description: 'Audits personal dividend payouts of financial titans (Rockefeller, Carnegie, Rusk).',
   },
   {
     agencyId: 'sec',
@@ -50,7 +50,7 @@ export const AGENCY_SUBDEPARTMENTS = [
     name: 'DARPA (Defense Advanced Research Projects Agency)',
     lead: 'DARPA Program Director',
     task: 'Cutting-Edge Military Technology Grants',
-    description: 'Grants R&D capital to innovation pioneers (Steve Jobs, Elon Musk, Jensen Huang).',
+    description: 'Grants R&D capital to innovation pioneers (Steve Jobs, Elan Rusk, Jensen Fang).',
   },
   {
     agencyId: 'dod',

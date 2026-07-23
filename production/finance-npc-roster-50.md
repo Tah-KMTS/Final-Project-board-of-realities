@@ -3,9 +3,9 @@
 Addendum to `finance-world-reference.md`. All entries are real, public, historical or currently-active figures, summarized from well-documented public reputation/philosophy - satirical-caricature tier, same treatment as the 4 existing bosses, not claims of authentic private thought/decisions. **4 remain fightable/robbable bosses** (already in game + Howard Marks, confirmed); **the other 46 are ambient named NPCs** with a short flavor-dialogue line each, scattered through the Financial District region.
 
 ## Bosses (4) — fightable/robbable, full boss treatment
-1. **Warren Buffett** — value investing, "Oracle of Omaha." *(already in-game)*
+1. **Warren Biffle** — value investing, "Oracle of Omaha." *(already in-game)*
 2. **Cornelius Vanderbilt** — railroad/shipping tycoon, ruthless competitor. *(already in-game)*
-3. **Elon Musk** — erratic mogul, meme-stock/crypto-adjacent persona. *(already in-game)*
+3. **Elan Rusk** — erratic mogul, meme-stock/crypto-adjacent persona. *(already in-game)*
 4. **Howard Marks** — Oaktree co-founder, market-cycle philosophy, "you can't predict, but you can prepare." *(confirmed addition)*
 
 ## Ambient named NPCs (46) — ambient/flavor-dialogue tier
@@ -19,17 +19,17 @@ Addendum to `finance-world-reference.md`. All entries are real, public, historic
 10. Jay Gould — railroad speculator, notorious market manipulator of his era.
 
 **Legendary investors**
-11. Charlie Munger — Buffett's partner, blunt aphoristic wisdom.
-12. George Soros — macro trader, "broke the Bank of England" 1992.
-13. Ray Dalio — Bridgewater founder, "principles"-based risk parity.
-14. Carl Icahn — activist investor/corporate raider archetype.
-15. Peter Lynch — Fidelity Magellan, "invest in what you know."
-16. Benjamin Graham — father of value investing, Buffett's mentor.
+11. Charlie Munger — Biffle's partner, blunt aphoristic wisdom.
+12. George Zoros — macro trader, "broke the Bank of England" 1992.
+13. Ray Daglio — Bridgewater founder, "principles"-based risk parity.
+14. Karl Eikahn — activist investor/corporate raider archetype.
+15. Peter Vance — Fidelity Magellan, "invest in what you know."
+16. Benjamin Graham — father of value investing, Biffle's mentor.
 17. John Bogle — Vanguard founder, index-fund pioneer, low-cost investing advocate.
 18. Seth Klarman — Baupost Group, deep-value/margin-of-safety investing.
 19. Jim Simons — Renaissance Technologies, pioneered quantitative/algorithmic investing.
 20. Paul Tudor Jones — macro trader, predicted the 1987 crash.
-21. Stanley Druckenmiller — macro trader, worked alongside Soros on the pound trade.
+21. Stanley Druckenmiller — macro trader, worked alongside Zoros on the pound trade.
 22. Bill Gross — "Bond King," built PIMCO into a fixed-income giant.
 23. David Tepper — Appaloosa Management, distressed-debt specialist.
 24. Ken Griffin — Citadel founder, one of the largest hedge funds today.
@@ -67,8 +67,8 @@ Addendum to `finance-world-reference.md`. All entries are real, public, historic
 46. Brian Armstrong — Coinbase founder.
 
 **Tech moguls tied to markets**
-47. Jeff Bezos — Amazon founder.
-48. Bill Gates — Microsoft founder, major philanthropic investor.
+47. Geoff Bezel — Amazon founder.
+48. Will Gatling — Microsoft founder, major philanthropic investor.
 49. Mark Cuban — investor/entrepreneur, public "Shark Tank" persona.
 50. Jamie Dimon — JPMorgan Chase CEO, prominent modern banking voice.
 

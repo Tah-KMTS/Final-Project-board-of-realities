@@ -138,7 +138,7 @@ export const FED_CHAIRMEN_ROSTER = [
   },
   {
     id: 'powell',
-    name: 'Jerome Powell',
+    name: 'Jerome Powers',
     title: 'High-Frequency Tightening',
     policyBias: 'Data-Dependent',
     targetRate: 5.5,
@@ -189,7 +189,7 @@ export const FED_CHAIRMEN_ROSTER = [
 export const FTC_CHAIRMEN_ROSTER = [
   {
     id: 'khan',
-    name: 'Lina Khan',
+    name: 'Lena Cannon',
     title: 'Neo-Brandeisian Trust-Buster',
     bias: 'Aggressive Tech Monopoly Lawsuits',
     description: 'Launches antitrust lawsuits against dominant tech platforms and breaks monopolies.',

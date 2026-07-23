@@ -12,8 +12,22 @@ function StatLine({ stats }) {
   return parts.length > 0 ? parts.join(' • ') : null
 }
 
+const RARITY_COLOR = {
+  common: 'text-gray-300',
+  uncommon: 'text-green-300',
+  rare: 'text-cyan-300',
+  legendary: 'text-yellow-300',
+}
+
 export default function InventoryModal({ onClose }) {
   const inventory = useGameStore((s) => s.inventory)
+  const removeItem = useGameStore((s) => s.removeItem)
+  const addCash = useGameStore((s) => s.addCash)
+
+  const sellItem = (item) => {
+    removeItem(item.id)
+    addCash(item.sellValue)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -28,7 +42,19 @@ export default function InventoryModal({ onClose }) {
               const statLine = item.stats ? StatLine({ stats: item.stats }) : null
               return (
                 <div key={`${item.id}-${i}`} className="border-2 border-gray-600 bg-[#0f1020] p-2">
-                  <p className="text-sm font-bold text-yellow-300">{item.name}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`text-sm font-bold ${item.rarity ? RARITY_COLOR[item.rarity] || 'text-yellow-300' : 'text-yellow-300'}`}>
+                      {item.name} {item.rarity && <span className="text-[10px] uppercase text-gray-500">({item.rarity})</span>}
+                    </p>
+                    {typeof item.sellValue === 'number' && (
+                      <button
+                        onClick={() => sellItem(item)}
+                        className="shrink-0 border border-green-400 px-2 py-0.5 text-[10px] font-bold text-green-300 hover:bg-green-400 hover:text-black"
+                      >
+                        Sell (${item.sellValue.toLocaleString()})
+                      </button>
+                    )}
+                  </div>
                   {item.description && <p className="text-xs text-gray-400">{item.description}</p>}
                   {statLine && <p className="mt-1 text-xs text-green-400">{statLine}</p>}
                   {item.ability && (

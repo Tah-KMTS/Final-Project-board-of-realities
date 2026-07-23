@@ -21,7 +21,7 @@ export const NEWS_HEADLINES = [
   'Howard Marks memo leaks early: "You cannot predict. You can prepare."',
   'Call center scam ring busted two districts over — locals shrug.',
   'Vanderbilt Rail Co. stock spikes on rumors of a hostile takeover.',
-  "Musk Industries teases 'something big.' Markets have heard this before.",
+  "Rusk Industries teases 'something big.' Markets have heard this before.",
 ]
 
 export function rollHeadline() {

@@ -36,14 +36,14 @@ export function triggerButterflyEffect(triggerEvent, agents, day) {
       }
     }
 
-    // 3. Warren Buffett Stock Buy Butterfly Effect
+    // 3. Warren Biffle Stock Buy Butterfly Effect
     if (triggerEvent.type === 'BUFFETT_BUY') {
       if (copy.id === 'soros' || copy.id === 'livermore') {
-        copy.thoughtProcess = 'Buffett acquired value stake; initiating short-squeeze position.'
+        copy.thoughtProcess = 'Biffle acquired value stake; initiating short-squeeze position.'
         butterflyLogs.push({
           id: `butterfly_${day}_${copy.id}`,
           day,
-          text: `🦋 Buffett Acquisition Butterfly Effect: ${copy.name} initiated short-squeeze options trading.`,
+          text: `🦋 Biffle Acquisition Butterfly Effect: ${copy.name} initiated short-squeeze options trading.`,
         })
       }
     }

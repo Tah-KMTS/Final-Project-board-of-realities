@@ -6,29 +6,11 @@
 
 export const DISTRICT_BUILDINGS_CONFIG = {
   // --- Commercial District ---
-  casino: {
-    title: 'Neon Dragon Casino',
-    district: 'Commercial District',
-    borderClass: 'border-pink-400',
-    textClass: 'text-pink-300',
-    flavor: 'Chips clatter under buzzing neon dragons. The house always has an edge — but so do you, tonight.',
-    actions: [{ label: 'Place a $100 Bet', cost: 100, gamble: true, cashDelta: 200 }],
-  },
-  arcade: {
-    title: 'Pixel Palace Arcade',
-    district: 'Commercial District',
-    borderClass: 'border-cyan-400',
-    textClass: 'text-cyan-300',
-    flavor: 'Retro cabinets hum next to VR pods. Locals come here to be seen as much as to play.',
-    actions: [
-      {
-        label: 'Play a Round & Mingle ($10)',
-        cost: 10,
-        reputationDelta: 2,
-        resultText: 'You rack up a high score. People notice.',
-      },
-    ],
-  },
+  // Casino and Arcade used to be flat one-action stubs routed through this
+  // shared config + DistrictBuildingModal. They've since grown real
+  // minigames (see src/features/casino and src/features/arcade) and now get
+  // their own dedicated modals wired directly in WorldScreen.jsx, so their
+  // entries were removed from here rather than left as dead duplicates.
   hotel: {
     title: 'Capital Suites Hotel',
     district: 'Commercial District',

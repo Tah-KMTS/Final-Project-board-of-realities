@@ -17,6 +17,8 @@ import CryptoModal from '../features/finance/CryptoModal'
 import NamedNpcModal from '../features/finance/NamedNpcModal'
 import AmbientNpcModal from '../features/finance/AmbientNpcModal'
 import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
+import CasinoModal from '../features/casino/CasinoModal'
+import ArcadeModal from '../features/arcade/ArcadeModal'
 import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
 import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
 import GovernmentModal from '../features/government/GovernmentModal'
@@ -32,12 +34,7 @@ import GunStoreModal from '../features/world/GunStoreModal'
 import NarcoticsTradeModal from '../features/world/NarcoticsTradeModal'
 import SyndicateOperationsModal from '../features/world/SyndicateOperationsModal'
 import HitmanContractModal from '../features/world/HitmanContractModal'
-import { updateAgentPositions } from '../features/agents/agentMovementEngine'
 import { JAPAN_CITIES } from '../features/world/japanCities'
-import SwimmingStatusOverlay from '../features/world/SwimmingStatusOverlay'
-import { calculateSwimmingTick } from '../features/world/swimmingFatigueEngine'
-import { getRouteByCities } from '../features/world/interCityHighways'
-import Minimap from './Header/Minimap'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
 import { generateBodyguardMonster, generateStreetTargetMonster, generateSwatSquad, getFinanceNpc } from '../features/finance/financeNpcs'
@@ -133,32 +130,6 @@ export default function WorldScreen() {
     currentBlockId && currentBlockId !== 'domino' ? currentBlockId : 'finance'
   )
   const currentCityId = useGameStore((s) => s.currentCityId || 'tokyo')
-  const switchCity = useGameStore((s) => s.switchCity || (() => {}))
-  const masterAgents = useGameStore((s) => s.world2?.masterAgents || [])
-  const [timeTick, setTimeTick] = useState(0)
-
-  const [isSwimming, setIsSwimming] = useState(false)
-  const [swimmingFatigue, setSwimmingFatigue] = useState(0)
-  const [swimmingStatusMsg, setSwimmingStatusMsg] = useState('')
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeTick((t) => t + 1)
-    }, 2000)
-    return () => clearInterval(timer)
-  }, [])
-
-  useEffect(() => {
-    if (!isSwimming) return
-    const swimTimer = setInterval(() => {
-      const res = calculateSwimmingTick(swimmingFatigue, 2, true)
-      setSwimmingFatigue(res.nextFatigue)
-      setSwimmingStatusMsg(res.statusMessage)
-    }, 1500)
-    return () => clearInterval(swimTimer)
-  }, [isSwimming, swimmingFatigue])
-
-  const movingAgents = updateAgentPositions(masterAgents, timeTick)
   const currentCity = JAPAN_CITIES.find((c) => c.id === currentCityId) || JAPAN_CITIES[0]
   const displayBlockName = currentCity?.name || 'Capital Syndicate'
 
@@ -377,64 +348,11 @@ export default function WorldScreen() {
       </div>
 
       {mode === 'overworld' && (
-        <>
-          <FinanceStatusBar
-            onOpenBoard={() => setActiveModal({ type: 'syndicateBoard' })}
-            onOpenAgentFeed={() => setActiveModal({ type: 'agentFeed' })}
-            onOpenGov={() => setActiveModal({ type: 'government' })}
-            onOpenLocations={() => setActiveModal({ type: 'interactiveLocation', locationId: 'mcdonalds_diner' })}
-          />
-          <Minimap currentCityId={currentCityId} />
-
-          {/* 4 Japanese Cities Fast-Travel Navigation Bar */}
-          <div className="flex items-center justify-center gap-2 bg-[#090d1f]/90 border-y border-cyan-500/40 p-2 font-mono text-xs z-30">
-            <span className="text-gray-400 font-bold">🗺️ Japanese City Fast-Travel:</span>
-            {JAPAN_CITIES.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => switchCity(c.id)}
-                className={`px-3 py-1.5 rounded font-bold transition-all ${
-                  currentCityId === c.id
-                    ? c.id === 'kyoto'
-                      ? 'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.6)] font-extrabold scale-105 border-2 border-yellow-300'
-                      : 'bg-cyan-500 text-black shadow-lg font-extrabold scale-105'
-                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                {c.name.split(' ')[0]} {c.id === 'kyoto' ? '⛩️ (HD-2D JRPG)' : c.id === 'tokyo' ? '🏛️ (LUXURY ARCH)' : ''}
-              </button>
-            ))}
-
-            <button
-              onClick={() => {
-                // Look up the real inter-city route from the data catalog
-                const nextCityId = currentCityId === 'tokyo' ? 'kyoto'
-                  : currentCityId === 'kyoto' ? 'osaka'
-                  : currentCityId === 'osaka' ? 'sapporo'
-                  : 'tokyo'
-                const route = getRouteByCities(currentCityId, nextCityId)
-                const waterBodies = route?.waterBodies?.join(', ') || 'Coastal Sea Channel'
-                const landmarks = route?.landmarks?.join(' → ') || 'Inter-City Gateway'
-                setIsSwimming(true)
-                setSwimmingFatigue(15)
-                setSwimmingStatusMsg(`🏊 SWIMMING: ${route?.name || 'Water Channel'} | Crossing: ${waterBodies} | Heading to: ${landmarks}`)
-              }}
-              className="px-3 py-1.5 rounded font-bold transition-all bg-blue-600 hover:bg-blue-500 text-white border border-blue-400"
-            >
-              🏊 Swim Water Channel
-            </button>
-          </div>
-        </>
-      )}
-
-      {isSwimming && (
-        <SwimmingStatusOverlay
-          fatigue={swimmingFatigue}
-          statusMsg={swimmingStatusMsg}
-          onExitWater={() => {
-            setIsSwimming(false)
-            setSwimmingFatigue(0)
-          }}
+        <FinanceStatusBar
+          onOpenBoard={() => setActiveModal({ type: 'syndicateBoard' })}
+          onOpenAgentFeed={() => setActiveModal({ type: 'agentFeed' })}
+          onOpenGov={() => setActiveModal({ type: 'government' })}
+          onOpenLocations={() => setActiveModal({ type: 'interactiveLocation', locationId: 'mcdonalds_diner' })}
         />
       )}
 
@@ -442,85 +360,6 @@ export default function WorldScreen() {
         <div className="relative w-full max-w-5xl mx-auto my-2 rounded-xl overflow-hidden flex items-center justify-center">
           <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
 
-          {/* Option 3: Sleek Luxury Architectural Pilot Overlay for Tokyo */}
-          {mode === 'overworld' && currentCityId === 'tokyo' && (
-            <div className="pointer-events-none absolute inset-0 z-20 border-4 border-amber-400/80 bg-[#060a12]/20 shadow-[inset_0_0_60px_rgba(245,158,11,0.2)]">
-              {/* Financial Executive Header Arch */}
-              <div className="absolute top-4 left-6 flex items-center gap-2 bg-[#0d1526]/95 border-2 border-amber-400 px-4 py-1.5 rounded-lg shadow-2xl backdrop-blur-md">
-                <span className="text-lg">🏛️</span>
-                <span className="text-xs font-black text-amber-300 tracking-wider uppercase">TOKYO FINANCIAL DISTRICT (OPTION 3 LUXURY ARCHITECTURAL PILOT)</span>
-              </div>
-
-              {/* Polished Executive Corporate Titan Badges (Steve Jobs, Elon Musk, Jerome Powell) */}
-              {movingAgents.slice(0, 5).map((agent, i) => (
-                <div
-                  key={agent.id || i}
-                  className="absolute flex flex-col items-center transition-all duration-1000 ease-in-out"
-                  style={{ left: `${(agent.currentX || 300) % 700}px`, top: `${(agent.currentY || 200) % 400}px` }}
-                >
-                  <div className="rounded-md bg-[#0a1120]/95 border border-amber-400/90 px-3 py-1 text-[11px] font-extrabold text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.4)] flex items-center gap-2 backdrop-blur-md">
-                    <span className="text-xs">💼</span>
-                    <span>{agent.name}:</span>
-                    <span className="text-emerald-400 font-extrabold">{agent.currentAction || 'Executive Strategy'}</span>
-                  </div>
-                  <div className="h-5 w-5 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 border-2 border-white shadow-2xl animate-pulse mt-1 flex items-center justify-center text-[10px]">
-                    👔
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Option 2: Neo-Retro HD-2D JRPG Pilot Environment Overlay for Kyoto */}
-          {mode === 'overworld' && currentCityId === 'kyoto' && (
-            <div className="pointer-events-none absolute inset-0 z-20 border-4 border-yellow-500/60 shadow-[inset_0_0_50px_rgba(234,179,8,0.2)]">
-              {/* Shinto Torii Gate Entrance */}
-              <div className="absolute top-4 left-6 flex items-center gap-2 bg-red-950/90 border-2 border-red-500 px-3 py-1 rounded shadow-xl">
-                <span className="text-lg">⛩️</span>
-                <span className="text-xs font-extrabold text-yellow-300 tracking-wider uppercase">KYOTO SHINTO PAGODA DISTRICT (HD-2D JRPG PILOT)</span>
-              </div>
-
-              {/* Animated Paper Lantern Sconces */}
-              <div className="absolute top-16 left-8 text-xl animate-pulse">🏮</div>
-              <div className="absolute top-16 right-8 text-xl animate-pulse">🏮</div>
-
-              {/* Cel-Shaded AI Titan Badges (Warren Buffett HD-2D JRPG Persona Badge) */}
-              {movingAgents.slice(0, 5).map((agent, i) => (
-                <div
-                  key={agent.id || i}
-                  className="absolute flex flex-col items-center transition-all duration-1000 ease-in-out"
-                  style={{ left: `${(agent.currentX || 300) % 700}px`, top: `${(agent.currentY || 200) % 400}px` }}
-                >
-                  <div className="rounded-lg bg-red-950/95 border-2 border-yellow-400 px-3 py-1 text-[11px] font-black text-yellow-200 shadow-[0_0_15px_rgba(239,68,68,0.5)] flex items-center gap-1.5">
-                    <span className="text-sm">⛩️</span>
-                    <span>{agent.name}:</span>
-                    <span className="text-cyan-300 font-bold">{agent.currentAction || 'Walking'}</span>
-                  </div>
-                  <div className="h-5 w-5 rounded-full bg-yellow-400 border-2 border-black shadow-xl animate-bounce mt-1 flex items-center justify-center text-[10px]">
-                    👤
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Standard Overworld Overlay for other cities */}
-          {mode === 'overworld' && currentCityId !== 'kyoto' && (
-            <div className="pointer-events-none absolute inset-0 z-20">
-              {movingAgents.slice(0, 6).map((agent, i) => (
-                <div
-                  key={agent.id || i}
-                  className="absolute flex flex-col items-center transition-all duration-1000 ease-in-out"
-                  style={{ left: `${(agent.currentX || 300) % 700}px`, top: `${(agent.currentY || 200) % 400}px` }}
-                >
-                  <div className="rounded bg-cyan-950/90 border border-cyan-400 px-2 py-0.5 text-[10px] font-bold text-cyan-200 shadow-md">
-                    {agent.name}: <span className="text-yellow-300">{agent.currentAction || 'Walking'}</span>
-                  </div>
-                  <div className="h-4 w-4 rounded-full bg-cyan-400 border-2 border-white shadow-lg animate-bounce mt-1" />
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
@@ -616,6 +455,17 @@ export default function WorldScreen() {
       )}
       {activeModal?.type === 'building' && activeModal.id === 'vcHub' && (
         <CorporateModal onClose={closeModal} />
+      )}
+      {/* Casino got its own bespoke Phaser interior + a tabbed modal (real
+          blackjack/poker/slots/NPC-challenge minigames); Arcade kept the
+          shared amenity interior but also got its own modal for the claw
+          machine - neither routes through the generic DistrictBuildingModal
+          any more. */}
+      {activeModal?.type === 'building' && activeModal.id === 'casino' && (
+        <CasinoModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'building' && activeModal.id === 'arcade' && (
+        <ArcadeModal onClose={closeModal} />
       )}
       {activeModal?.type === 'building' && DISTRICT_BUILDING_IDS.includes(activeModal.id) && (
         <DistrictBuildingModal buildingId={activeModal.id} onClose={closeModal} />

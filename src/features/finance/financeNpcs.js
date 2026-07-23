@@ -175,7 +175,7 @@ export const FINANCE_NPCS = [
   },
   {
     id: 'buffett',
-    name: 'Warren Buffett',
+    name: 'Warren Biffle',
     title: 'The Oracle of Omaha',
     era: 'Modern',
     archetype: 'value_investor',
@@ -201,7 +201,7 @@ export const FINANCE_NPCS = [
   },
   {
     id: 'lynch',
-    name: 'Peter Lynch',
+    name: 'Peter Vance',
     title: 'The 10-Bagger Hunter',
     era: 'Modern',
     archetype: 'value_investor',
@@ -216,7 +216,7 @@ export const FINANCE_NPCS = [
   // --- Macro & Quant Masters ---
   {
     id: 'soros',
-    name: 'George Soros',
+    name: 'George Zoros',
     title: 'The Reflexive Sorcerer',
     era: 'Modern',
     archetype: 'macro_speculator',
@@ -229,7 +229,7 @@ export const FINANCE_NPCS = [
   },
   {
     id: 'dalio',
-    name: 'Ray Dalio',
+    name: 'Ray Daglio',
     title: 'The Macro Architect',
     era: 'Modern',
     archetype: 'macro_speculator',
@@ -255,7 +255,7 @@ export const FINANCE_NPCS = [
   },
   {
     id: 'icahn',
-    name: 'Carl Icahn',
+    name: 'Karl Eikahn',
     title: 'The Corporate Raider',
     era: 'Modern',
     archetype: 'corporate_raider',
@@ -283,7 +283,7 @@ export const FINANCE_NPCS = [
   },
   {
     id: 'gates',
-    name: 'Bill Gates',
+    name: 'Will Gatling',
     title: 'The Software Standard',
     era: 'Modern',
     archetype: 'tech_disruptor',
@@ -296,7 +296,7 @@ export const FINANCE_NPCS = [
   },
   {
     id: 'bezos',
-    name: 'Jeff Bezos',
+    name: 'Geoff Bezel',
     title: 'The Scale Engine',
     era: 'Modern',
     archetype: 'tech_disruptor',
@@ -309,7 +309,7 @@ export const FINANCE_NPCS = [
   },
   {
     id: 'musk',
-    name: 'Elon Musk',
+    name: 'Elan Rusk',
     title: 'The Technoking Disrupter',
     era: 'Modern',
     archetype: 'tech_disruptor',
@@ -322,7 +322,7 @@ export const FINANCE_NPCS = [
   },
   {
     id: 'huang',
-    name: 'Jensen Huang',
+    name: 'Jensen Fang',
     title: 'The AI Compute Architect',
     era: 'Modern',
     archetype: 'tech_disruptor',
@@ -335,7 +335,7 @@ export const FINANCE_NPCS = [
   },
   {
     id: 'son',
-    name: 'Masayoshi Son',
+    name: 'Masatoshi Ren',
     title: 'The Visionary Risk Taker',
     era: 'Modern',
     archetype: 'tech_disruptor',

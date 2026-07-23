@@ -83,7 +83,7 @@ const LINES = [
   {
     id: 'yugioh_pegasus_intro',
     voice: 'fable',
-    instructions: 'Theatrical, eccentric, faintly unsettling charm - drawn-out and delighted, unlike Buffett\'s folksy delivery on this same voice.',
+    instructions: 'Theatrical, eccentric, faintly unsettling charm - drawn-out and delighted, unlike Biffle\'s folksy delivery on this same voice.',
     text: 'Oh, how marvelous — a new challenger. Do sit, won\'t you? The game is ever so much more fun with company.',
   },
   {

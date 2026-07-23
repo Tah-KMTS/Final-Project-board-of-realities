@@ -2,8 +2,17 @@ import Phaser from 'phaser'
 import { useGameStore } from '../../store/useGameStore'
 import { resolvePalette } from '../characterPalettes'
 import { SpriteActor } from '../actor'
+import { preloadPlayerSheet } from '../spriteGen'
 import { TileMover, combineDirection } from '../tileMover'
-import { drawGrassTile, drawRoadTile, drawTree, drawFlower, drawBuildingFacade, addScreenVignette } from '../tileGen'
+import {
+  preloadTerrainAssets,
+  buildTerrainLayer,
+  TERRAIN_TILE_INDEX,
+  placeTree,
+  placeFlower,
+  placeBuildingFacade,
+  addScreenVignette,
+} from '../tileGen'
 import { getActiveNpcsAt } from '../../features/domino/npcRoster'
 
 const TILE_SIZE = 40
@@ -31,6 +40,11 @@ export default class DominoWorldScene extends Phaser.Scene {
     this.zoneObjects = []
     this.npcActors = []
     this.currentZoneId = 'playersRoom'
+  }
+
+  preload() {
+    preloadPlayerSheet(this)
+    preloadTerrainAssets(this)
   }
 
   create() {
@@ -139,8 +153,21 @@ export default class DominoWorldScene extends Phaser.Scene {
     return layout
   }
 
+  // Outdoor zones ('grass'/'path' cells) get the real Cute Fantasy terrain
+  // layer; indoor zones keep their procedural checkerboard floor (no pack
+  // asset for that), and border 'wall' cells stay a flat Graphics fill in
+  // both cases (same reasoning as OverworldScene's fallback pass).
   drawGround(zoneId) {
     const { cols, rows, indoor } = ZONES[zoneId]
+    if (!indoor) {
+      const terrainLayer = buildTerrainLayer(this, cols, rows, TILE_SIZE, (r, c) => {
+        const t = this.layout[r][c]
+        if (t === 'grass') return TERRAIN_TILE_INDEX.grass
+        if (t === 'path') return TERRAIN_TILE_INDEX.path
+        return null
+      })
+      this.zoneObjects.push(terrainLayer)
+    }
     const graphics = this.add.graphics()
     this.zoneObjects.push(graphics)
     for (let r = 0; r < rows; r++) {
@@ -153,8 +180,6 @@ export default class DominoWorldScene extends Phaser.Scene {
         } else if (indoor) {
           graphics.fillStyle((r + c) % 2 === 0 ? 0x2a2b45 : 0x252638, 1)
           graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE)
-        } else {
-          drawGrassTile(graphics, x, y, TILE_SIZE)
         }
       }
     }
@@ -166,9 +191,7 @@ export default class DominoWorldScene extends Phaser.Scene {
     const y = r0 * TILE_SIZE
     const w = (c1 - c0 + 1) * TILE_SIZE
     const h = (r1 - r0 + 1) * TILE_SIZE
-    const graphics = this.add.graphics()
-    this.zoneObjects.push(graphics)
-    drawBuildingFacade(graphics, x, y, w, h, 0x3a2f5f)
+    this.zoneObjects.push(...placeBuildingFacade(this, x, y, w, h, 0x3a2f5f))
     const text = this.add.text(x + w / 2, y - 12, label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5, 1)
     this.zoneObjects.push(text)
     this.zones.push({
@@ -193,11 +216,12 @@ export default class DominoWorldScene extends Phaser.Scene {
   }
 
   buildStreets() {
+    // Mark the road cells as 'path' in the layout before drawGround()
+    // builds the terrain layer, so the crossing street renders as real
+    // path tiles instead of grass.
+    for (let c = 1; c < 19; c++) this.layout[6][c] = 'path'
+    for (let r = 1; r < 13; r++) this.layout[r][10] = 'path'
     this.drawGround('streets')
-    const graphics = this.add.graphics()
-    this.zoneObjects.push(graphics)
-    for (let c = 1; c < 19; c++) drawRoadTile(graphics, c * TILE_SIZE, 6 * TILE_SIZE, TILE_SIZE, true, c)
-    for (let r = 1; r < 13; r++) drawRoadTile(graphics, 10 * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, false, r)
 
     this.addExitZone('toPlayersRoom', 'playersRoom', 9, 1, 11, 2)
     this.addExitZone('toKameShop', 'kameShop', 1, 8, 3, 9)
@@ -224,7 +248,7 @@ export default class DominoWorldScene extends Phaser.Scene {
       if (this.layout[r]?.[c] !== 'grass') continue
       const cx = c * TILE_SIZE + TILE_SIZE / 2
       const cy = r * TILE_SIZE + TILE_SIZE / 2
-      const objs = Math.random() < 0.5 ? drawTree(this, cx, cy) : drawFlower(this, cx, cy)
+      const objs = Math.random() < 0.5 ? placeTree(this, cx, cy) : placeFlower(this, cx, cy)
       this.zoneObjects.push(...objs)
     }
     const fountain = this.add.circle(7 * TILE_SIZE, 4 * TILE_SIZE, 30, 0x2f6fb5)

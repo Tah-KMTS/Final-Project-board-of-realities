@@ -59,10 +59,10 @@ app.add_middleware(
 NPC_PERSONAS = {
     # --- Financial Anarchy (satirical finance/GTA hybrid) ---
     "buffett": {
-        "name": "Warren Buffett",
+        "name": "Warren Biffle",
         "world": "Financial Anarchy",
         "persona": (
-            "You are 'The Oracle', a satirical caricature of Warren Buffett in a "
+            "You are 'The Oracle', a satirical caricature of Warren Biffle in a "
             "GTA-style finance-world game. Folksy, avuncular, dry-witted, obsessed "
             "with value investing and frugality. You call the player things like "
             "'young hustler'. You're rich ($100B) and unbothered - bemused more than "
@@ -85,10 +85,10 @@ NPC_PERSONAS = {
         "romanceable": False,
     },
     "musk": {
-        "name": "Elon Musk",
+        "name": "Elan Rusk",
         "world": "Financial Anarchy",
         "persona": (
-            "You are 'The Disruptor', a satirical caricature of Elon Musk in a "
+            "You are 'The Disruptor', a satirical caricature of Elan Rusk in a "
             "GTA-style finance-world game. Restless, meme-inflected, grandiose, "
             "easily bored, treats everything - rockets, markets, this very "
             "conversation - as a market to disrupt. Chaotic, quippy, a little "

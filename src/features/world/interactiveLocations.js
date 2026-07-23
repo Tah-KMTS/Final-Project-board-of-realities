@@ -4,8 +4,8 @@ export const INTERACTIVE_LOCATIONS = [
     name: "McDonald's & Cherry Coke Diner",
     district: 'Financial District',
     icon: '🍔',
-    description: "Warren Buffett's favorite breakfast spot. Order $3.17 Bacon McMuffins and cold Cherry Coke.",
-    residentNpc: 'Warren Buffett',
+    description: "Warren Biffle's favorite breakfast spot. Order $3.17 Bacon McMuffins and cold Cherry Coke.",
+    residentNpc: 'Warren Biffle',
     items: [
       { id: 'mcmuffin', name: '$3.17 Bacon McMuffin', cost: 3, energyRestore: 25, bonusText: '+25 Energy & Compound Interest Luck' },
       { id: 'cherry_coke', name: 'Cold Cherry Coke', cost: 2, energyRestore: 15, bonusText: '+15 Energy & Strategic Clarity' },

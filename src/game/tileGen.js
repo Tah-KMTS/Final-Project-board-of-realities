@@ -1,40 +1,17 @@
-// Shared drawing helpers so every world's tilemap reads as a textured,
-// populated place (grass with blades, roads with lane lines, water with
-// waves, buildings with windows/doors/roofs) instead of flat color squares.
-// Shading follows the same upper-left light source used for character
-// sprites (spriteGen.js), so the whole game reads as one consistently-lit
-// scene instead of flat, toy-like color fills.
-
-function seededRand(seedX, seedY, salt = 0) {
-  const s = Math.sin(seedX * 127.1 + seedY * 311.7 + salt * 74.3) * 43758.5453
-  return s - Math.floor(s)
-}
-
-export function drawGrassTile(graphics, x, y, size) {
-  graphics.fillStyle(0x35722f, 1)
-  graphics.fillRect(x, y, size, size)
-  // subtle AO band along the bottom/right edge (upper-left light source)
-  graphics.fillStyle(0x2c5f27, 0.5)
-  graphics.fillRect(x, y + size - 5, size, 5)
-  graphics.fillRect(x + size - 5, y, 5, size)
-  // Blade count scales with tile size so a bigger tile stays as densely
-  // detailed as a smaller one instead of the same handful of blades just
-  // being stretched across more area.
-  const bladeCount = Math.max(3, Math.round(size / 9))
-  graphics.fillStyle(0x274f22, 1)
-  for (let i = 0; i < bladeCount; i++) {
-    const bx = x + seededRand(x, y, i) * (size - 4)
-    const by = y + seededRand(x, y, i + 10) * (size - 4)
-    graphics.fillRect(bx, by, 2, 4)
-  }
-  // lighter blades catching the light, also scaled with size
-  const litBladeCount = Math.max(1, Math.round(size / 22))
-  graphics.fillStyle(0x4a8f42, 1)
-  for (let i = 0; i < litBladeCount; i++) {
-    if (seededRand(x, y, 99 + i) <= 0.55) continue
-    graphics.fillRect(x + seededRand(x, y, 5 + i) * (size - 3), y + seededRand(x, y, 6 + i) * (size - 3), 2, 3)
-  }
-}
+// Terrain, decoration and building rendering. Base grass/road/water tiles,
+// trees/flowers/rocks and building facades all now come from the real
+// "Cute Fantasy Free" asset pack (public/assets/cute_fantasy/...) instead of
+// being drawn procedurally - a deliberate, user-confirmed exception to this
+// project's usual "no external art assets" rule (see read_me.txt in that
+// folder for the pack's license, and spriteGen.js for the same exception
+// applied to the player/NPC sprite).
+//
+// Two procedural pieces are kept exactly as before because the pack simply
+// has no equivalent asset for them: the Tokyo "slate marble" and Kyoto
+// "cobblestone" district ground reskins (drawSlateMarbleTile /
+// drawCobblestoneTile, used only for those two cities' otherwise-grass
+// tiles), and the screen-space vignette overlay (addScreenVignette, a
+// camera-space lighting effect, not a tile/sprite).
 
 export function drawSlateMarbleTile(graphics, x, y, size) {
   graphics.fillStyle(0x0a101f, 1)
@@ -53,62 +30,6 @@ export function drawCobblestoneTile(graphics, x, y, size) {
   graphics.fillRect(x + 2, y + 2, size - 4, size - 4)
   graphics.fillStyle(0x854d0e, 0.5)
   graphics.fillRect(x + 4, y + 4, size - 8, 2)
-}
-
-export function drawRoadTile(graphics, x, y, size, horizontal, dashPhaseIndex) {
-  graphics.fillStyle(0x3d3d3d, 1)
-  graphics.fillRect(x, y, size, size)
-  // asphalt speckle for texture instead of a flat fill - count scales with
-  // tile size so bigger tiles don't read as sparser
-  const darkSpeckleCount = Math.max(4, Math.round(size / 10))
-  const lightSpeckleCount = Math.max(3, Math.round(size / 13))
-  graphics.fillStyle(0x333333, 1)
-  for (let i = 0; i < darkSpeckleCount; i++) {
-    const sx = x + seededRand(x, y, i + 60) * (size - 2)
-    const sy = y + seededRand(x, y, i + 70) * (size - 2)
-    graphics.fillRect(sx, sy, 2, 2)
-  }
-  graphics.fillStyle(0x505050, 1)
-  for (let i = 0; i < lightSpeckleCount; i++) {
-    const sx = x + seededRand(x, y, i + 80) * (size - 2)
-    const sy = y + seededRand(x, y, i + 90) * (size - 2)
-    graphics.fillRect(sx, sy, 2, 2)
-  }
-  graphics.fillStyle(0x5a5a5a, 1)
-  if (horizontal) {
-    graphics.fillRect(x, y + size / 2 - 1, size, 2)
-    if (dashPhaseIndex % 2 === 0) {
-      graphics.fillStyle(0xd4b83f, 1)
-      graphics.fillRect(x + size / 2 - 4, y + size / 2 - 1, 8, 2)
-    }
-  } else {
-    graphics.fillRect(x + size / 2 - 1, y, 2, size)
-    if (dashPhaseIndex % 2 === 0) {
-      graphics.fillStyle(0xd4b83f, 1)
-      graphics.fillRect(x + size / 2 - 1, y + size / 2 - 4, 2, 8)
-    }
-  }
-}
-
-export function drawWaterTile(graphics, x, y, size, phase) {
-  graphics.fillStyle(0x27587f, 1)
-  graphics.fillRect(x, y, size, size)
-  graphics.fillStyle(0x35729e, 1)
-  const waveY = y + size / 2 + Math.sin(phase + x * 0.05) * 3
-  graphics.fillRect(x, waveY, size, 2)
-  graphics.fillStyle(0x4a8bc2, 0.6)
-  graphics.fillRect(x, waveY - 6, size, 1)
-}
-
-export function drawSandTile(graphics, x, y, size) {
-  graphics.fillStyle(0xb08f4f, 1)
-  graphics.fillRect(x, y, size, size)
-  graphics.fillStyle(0x9c7c40, 1)
-  for (let i = 0; i < 2; i++) {
-    const bx = x + seededRand(x, y, i + 20) * (size - 2)
-    const by = y + seededRand(x, y, i + 30) * (size - 2)
-    graphics.fillRect(bx, by, 2, 2)
-  }
 }
 
 // A screen-space radial vignette (dark, transparent-centered canvas texture
@@ -137,103 +58,160 @@ export function addScreenVignette(scene, width = 640, height = 480) {
     .setDepth(1000)
 }
 
-export function drawTree(scene, cx, cy) {
-  const shadow = scene.add.ellipse(cx, cy + 11, 16, 5, 0x000000, 0.25)
-  const trunk = scene.add.rectangle(cx, cy + 6, 4, 10, 0x4a2f18)
-  const trunkLit = scene.add.rectangle(cx - 1, cy + 6, 1.5, 10, 0x5b3a1f)
-  const canopy1 = scene.add.circle(cx, cy - 4, 10, 0x244f20)
-  const canopy2 = scene.add.circle(cx - 5, cy, 7, 0x2a5c25)
-  const canopy3 = scene.add.circle(cx + 5, cy, 7, 0x2a5c25)
-  const canopyLit = scene.add.circle(cx - 4, cy - 8, 5, 0x3d7a35)
-  return [shadow, trunk, trunkLit, canopy1, canopy2, canopy3, canopyLit]
+// ---------------------------------------------------------------------------
+// Real asset loading (Cute Fantasy Free pack)
+// ---------------------------------------------------------------------------
+
+const ASSET_BASE = '/assets/cute_fantasy/Cute_Fantasy_Free'
+// "Outdoor decoration" has a literal space in its folder name - %20 keeps
+// the URL well-formed instead of relying on the browser to paper over it.
+const DECOR_DIR = `${ASSET_BASE}/Outdoor%20decoration`
+
+export const ASSET_KEYS = {
+  tileGrass: 'cf_tile_grass',
+  tilePath: 'cf_tile_path',
+  tileWater: 'cf_tile_water',
+  treeBig: 'cf_tree_big',
+  treeSmall: 'cf_tree_small',
+  decor: 'cf_decor',
+  house: 'cf_house',
 }
 
-const FLOWER_COLORS = [0xd68fc4, 0xd9c23f, 0xe07a8c, 0xe8e8e8]
-
-export function drawFlower(scene, cx, cy) {
-  const color = FLOWER_COLORS[Math.floor(seededRand(cx, cy, 40) * FLOWER_COLORS.length)]
-  const petals = [
-    scene.add.circle(cx - 2, cy, 1.6, color),
-    scene.add.circle(cx + 2, cy, 1.6, color),
-    scene.add.circle(cx, cy - 2, 1.6, color),
-    scene.add.circle(cx, cy + 2, 1.6, color),
-  ]
-  const center = scene.add.circle(cx, cy, 1.4, 0xd9a730)
-  return [...petals, center]
+// Call from every scene's preload() - queues the tile/decoration/building
+// images (the player sheet is preloaded separately by spriteGen.js since
+// SpriteActor needs it regardless of which scene owns the map). Guards on
+// scene.textures.exists so re-entering a zone/scene doesn't re-queue loads
+// for textures that already made it into the Texture Manager.
+export function preloadTerrainAssets(scene) {
+  const L = scene.load
+  if (!scene.textures.exists(ASSET_KEYS.tileGrass)) L.image(ASSET_KEYS.tileGrass, `${ASSET_BASE}/Tiles/Grass_Middle.png`)
+  if (!scene.textures.exists(ASSET_KEYS.tilePath)) L.image(ASSET_KEYS.tilePath, `${ASSET_BASE}/Tiles/Path_Middle.png`)
+  if (!scene.textures.exists(ASSET_KEYS.tileWater)) L.image(ASSET_KEYS.tileWater, `${ASSET_BASE}/Tiles/Water_Middle.png`)
+  if (!scene.textures.exists(ASSET_KEYS.treeBig)) L.image(ASSET_KEYS.treeBig, `${DECOR_DIR}/Oak_Tree.png`)
+  if (!scene.textures.exists(ASSET_KEYS.treeSmall)) {
+    L.spritesheet(ASSET_KEYS.treeSmall, `${DECOR_DIR}/Oak_Tree_Small.png`, { frameWidth: 32, frameHeight: 48 })
+  }
+  if (!scene.textures.exists(ASSET_KEYS.decor)) {
+    L.spritesheet(ASSET_KEYS.decor, `${DECOR_DIR}/Outdoor_Decor_Free.png`, { frameWidth: 16, frameHeight: 16 })
+  }
+  if (!scene.textures.exists(ASSET_KEYS.house)) L.image(ASSET_KEYS.house, `${DECOR_DIR}/House_1_Wood_Base_Blue.png`)
 }
 
-export function drawRock(scene, cx, cy) {
-  const shadow = scene.add.ellipse(cx, cy + 3, 14, 5, 0x000000, 0.25)
-  const base = scene.add.circle(cx, cy, 7, 0x6f6f6f)
-  const shade = scene.add.circle(cx + 2, cy + 2, 5, 0x5a5a5a)
-  const highlight = scene.add.circle(cx - 2, cy - 2, 3, 0x8f8f8f)
-  return [shadow, base, shade, highlight]
+// ---------------------------------------------------------------------------
+// Terrain tile layer (grass/path/water)
+// ---------------------------------------------------------------------------
+// Grass_Middle/Path_Middle/Water_Middle are each a single flat 16x16 tile
+// (the pack's simplest option - no autotile edges, which this game's grid
+// doesn't do anyway). Rather than one Phaser GameObject per tile (thousands
+// of them on the finance map), they're combined once into a small 3-cell
+// canvas atlas and rendered through a real Phaser Tilemap layer - one draw
+// call for the whole terrain instead of one Image per cell.
+
+export const TERRAIN_TILE_INDEX = { grass: 0, path: 1, water: 2 }
+const TERRAIN_ATLAS_KEY = 'cf_terrain_atlas'
+
+function ensureTerrainAtlas(scene) {
+  if (scene.textures.exists(TERRAIN_ATLAS_KEY)) return TERRAIN_ATLAS_KEY
+  const grass = scene.textures.get(ASSET_KEYS.tileGrass).getSourceImage()
+  const path = scene.textures.get(ASSET_KEYS.tilePath).getSourceImage()
+  const water = scene.textures.get(ASSET_KEYS.tileWater).getSourceImage()
+  const canvas = document.createElement('canvas')
+  canvas.width = 16 * 3
+  canvas.height = 16
+  const ctx = canvas.getContext('2d')
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(grass, 0, 0)
+  ctx.drawImage(path, 16, 0)
+  ctx.drawImage(water, 32, 0)
+  scene.textures.addCanvas(TERRAIN_ATLAS_KEY, canvas)
+  return TERRAIN_ATLAS_KEY
 }
 
-const ROOF_COLORS = { default: 0x1e1e1e }
-
-function shadeHex(color, amount) {
-  const r = Math.max(0, Math.min(255, ((color >> 16) & 0xff) + amount))
-  const g = Math.max(0, Math.min(255, ((color >> 8) & 0xff) + amount))
-  const b = Math.max(0, Math.min(255, (color & 0xff) + amount))
-  return (r << 16) | (g << 8) | b
-}
-
-export function drawBuildingFacade(graphics, x, y, w, h, baseColor, options = {}) {
-  const roofHeight = 10
-
-  // ground shadow so the building reads as sitting on the ground, not
-  // pasted on top of it
-  graphics.fillStyle(0x000000, 0.25)
-  graphics.fillRect(x + 4, y + h, w, 5)
-
-  graphics.fillStyle(options.roofColor ?? ROOF_COLORS.default, 1)
-  graphics.fillRect(x - 2, y - roofHeight, w + 4, roofHeight)
-  graphics.fillStyle(shadeHex(options.roofColor ?? ROOF_COLORS.default, 30), 1)
-  graphics.fillRect(x - 2, y - roofHeight, w + 4, 2)
-
-  graphics.fillStyle(baseColor, 1)
-  graphics.fillRect(x, y, w, h)
-  // right-edge AO strip, consistent upper-left light source
-  graphics.fillStyle(shadeHex(baseColor, -30), 1)
-  graphics.fillRect(x + w - 10, y, 10, h)
-  // left-edge highlight catching the light
-  graphics.fillStyle(shadeHex(baseColor, 18), 1)
-  graphics.fillRect(x, y, 5, h)
-
-  // window grid, each with a frame so it reads as glass in a wall rather
-  // than a flat colored square
-  const winW = 10
-  const winH = 12
-  const gapX = 8
-  const gapY = 10
-  const cols = Math.max(1, Math.floor((w - gapX) / (winW + gapX)))
-  const rows = Math.max(1, Math.floor((h - gapY - 18) / (winH + gapY)))
-  const startX = x + (w - cols * winW - (cols - 1) * gapX) / 2
-  const startY = y + 12
-
+// Builds (and scales up to `tileSize`) one Tilemap layer covering `cols` x
+// `rows` cells. `tileIndexAt(row, col)` should return a TERRAIN_TILE_INDEX
+// value, or null/undefined to leave that cell blank (e.g. tiles this game
+// still wants rendered as procedural marble/cobblestone/wall - see
+// OverworldScene's fallback Graphics pass for those).
+//
+// Tile-size note: the pack's native tile size is 16x16 but this game's grid
+// uses TILE_SIZE=40 (40/16 = 2.5x, a non-integer scale). Kept TILE_SIZE=40
+// rather than switching to a clean multiple of 16 because it's the least
+// invasive option - every map/building/spawn/camera coordinate in
+// OverworldScene and DominoWorldScene is already parameterized by
+// TILE_SIZE, so nothing else needed to change. A 2.5x nearest-neighbor
+// scale reads slightly softer at tile seams than an integer scale would,
+// but is not noticeable at normal play zoom.
+export function buildTerrainLayer(scene, cols, rows, tileSize, tileIndexAt) {
+  const atlasKey = ensureTerrainAtlas(scene)
+  const map = scene.make.tilemap({ tileWidth: 16, tileHeight: 16, width: cols, height: rows })
+  const tileset = map.addTilesetImage('cf_terrain', atlasKey, 16, 16, 0, 0)
+  const layer = map.createBlankLayer('ground', tileset, 0, 0)
+  layer.setScale(tileSize / 16)
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const wx = startX + c * (winW + gapX)
-      const wy = startY + r * (winH + gapY)
-      const lit = seededRand(x + wx, y + wy, 5) > 0.4
-      graphics.fillStyle(0x14141c, 1)
-      graphics.fillRect(wx - 1, wy - 1, winW + 2, winH + 2)
-      graphics.fillStyle(lit ? 0xf2c14e : 0x232f45, 1)
-      graphics.fillRect(wx, wy, winW, winH)
-      if (lit) {
-        graphics.fillStyle(0xfbe08a, 1)
-        graphics.fillRect(wx, wy, winW, 3)
-      }
+      const idx = tileIndexAt(r, c)
+      if (idx !== null && idx !== undefined) layer.putTileAt(idx, c, r)
     }
   }
+  return layer
+}
 
-  // door with frame and a subtle shadow inside the doorway
-  const doorW = 16
-  graphics.fillStyle(0x14141c, 1)
-  graphics.fillRect(x + w / 2 - doorW / 2 - 1, y + h - 21, doorW + 2, 21)
-  graphics.fillStyle(0x2c1d10, 1)
-  graphics.fillRect(x + w / 2 - doorW / 2, y + h - 20, doorW, 20)
-  graphics.fillStyle(0xc99b3c, 1)
-  graphics.fillRect(x + w / 2 - doorW / 2 + doorW - 4, y + h - 12, 2, 4)
+// ---------------------------------------------------------------------------
+// Decoration (trees / flowers / rocks)
+// ---------------------------------------------------------------------------
+// Frame indices below were picked by visually inspecting the sheets - see
+// the cells identified during asset inspection: Oak_Tree_Small.png frame 0
+// is a small stump (unused here), frames 1-2 are two small round trees;
+// Outdoor_Decor_Free.png (7 cols x 12 rows of 16x16, frame = row*7+col)
+// frames 7-9 are flower clusters (row 1), frames 15-16 are rocks (row 2).
+
+const SMALL_TREE_FRAMES = [1, 2]
+const FLOWER_FRAMES = [7, 8, 9]
+const ROCK_FRAMES = [15, 16]
+
+export function placeTree(scene, cx, cy) {
+  if (Math.random() < 0.22) {
+    // Oak_Tree.png (64x80) - occasional bigger tree for variety.
+    const img = scene.add.image(cx, cy, ASSET_KEYS.treeBig).setOrigin(0.5, 0.82)
+    return [img]
+  }
+  const frame = SMALL_TREE_FRAMES[Math.floor(Math.random() * SMALL_TREE_FRAMES.length)]
+  const img = scene.add.image(cx, cy, ASSET_KEYS.treeSmall, frame).setOrigin(0.5, 0.88)
+  return [img]
+}
+
+export function placeFlower(scene, cx, cy) {
+  const frame = FLOWER_FRAMES[Math.floor(Math.random() * FLOWER_FRAMES.length)]
+  const img = scene.add.image(cx, cy, ASSET_KEYS.decor, frame).setScale(1.4)
+  return [img]
+}
+
+export function placeRock(scene, cx, cy) {
+  const frame = ROCK_FRAMES[Math.floor(Math.random() * ROCK_FRAMES.length)]
+  const img = scene.add.image(cx, cy, ASSET_KEYS.decor, frame).setScale(1.4)
+  return [img]
+}
+
+// ---------------------------------------------------------------------------
+// Buildings
+// ---------------------------------------------------------------------------
+// The pack ships exactly one building texture (House_1_Wood_Base_Blue.png,
+// 96x128). Every building/desk in the game reuses it, tinted per-building
+// with the same color FINANCE_BUILDING_DEFS already carried (so the roster
+// stays visually distinguishable by color exactly like before) instead of
+// each getting a unique hand-drawn facade.
+//
+// Rather than stretching the one texture to each building's exact
+// (w, h) tile footprint (which ranges from 3x2 to 4x3 tiles and would
+// squash/stretch the art unevenly), it's scaled uniformly so its width
+// matches the footprint width and anchored bottom-center on the footprint's
+// bottom edge - so every building looks like a proportional house of about
+// the right footprint width, with its own natural height, the same way the
+// old procedural facade's roof always extended above the footprint rect.
+export function placeBuildingFacade(scene, x, y, w, h, tintColor) {
+  const shadow = scene.add.ellipse(x + w / 2, y + h + 3, w * 0.7, 10, 0x000000, 0.28)
+  const scale = w / 96
+  const img = scene.add.image(x + w / 2, y + h, ASSET_KEYS.house).setOrigin(0.5, 1).setScale(scale)
+  img.setTint(tintColor)
+  return [shadow, img]
 }

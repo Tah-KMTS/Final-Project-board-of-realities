@@ -56,8 +56,8 @@ intentionally hidden per-playthrough — not a bug, a design feature.
 
 **Tone/rules:** Satirical high-stakes finance/GTA hybrid. Real historical
 and modern tycoons appear as essentially killable/robbable boss NPCs:
-**Warren Buffett** ("The Oracle," $100B net worth, bodyguard power 6),
-**Cornelius Vanderbilt** ("The Commodore," $200B, power 8), **Elon Musk**
+**Warren Biffle** ("The Oracle," $100B net worth, bodyguard power 6),
+**Cornelius Vanderbilt** ("The Commodore," $200B, power 8), **Elan Rusk**
 ("The Disruptor," $250B, power 10). Each has scaled bodyguard-squad combat
 stats generated from `netWorth`/`bodyguardPower`. Player options against
 them: work for them (safe +$300), collude on insider trading (+$2,000,

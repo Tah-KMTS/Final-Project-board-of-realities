@@ -82,7 +82,7 @@ export const BUILDING_VISUAL_PROFILES = {
   berkshire_pavilion: {
     heightCategory: 'SHINTO_PAGODA',
     floors: 4,
-    facade: 'HD-2D Cel-Shaded Dark Wood & Gold Leaf Financial Pavilion (Warren Buffett HQ)',
+    facade: 'HD-2D Cel-Shaded Dark Wood & Gold Leaf Financial Pavilion (Warren Biffle HQ)',
     colorHex: '#eab308',
   },
   cherry_tea_house: {
@@ -101,7 +101,7 @@ export const BUILDING_VISUAL_PROFILES = {
   giga_factory_spire: {
     heightCategory: 'LUXURY_TOWER',
     floors: 18,
-    facade: 'Brushed Titanium Assembly Complex & Rocket Gantry Spire (Elon Musk HQ)',
+    facade: 'Brushed Titanium Assembly Complex & Rocket Gantry Spire (Elan Rusk HQ)',
     colorHex: '#38bdf8',
   },
   tokyo_stock_citadel: {

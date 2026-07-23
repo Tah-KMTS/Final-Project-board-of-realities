@@ -13,11 +13,11 @@ export const TITAN_ROUTINES = {
     schedule: [
       { location: 'Apple Glass Campus', action: '🍎 Perfecting the Next Design Language', x: 160, y: 180 },
       { location: 'Tokyo Stock Exchange', action: '📈 Reviewing Apple Share Buyback Program', x: 420, y: 290 },
-      { location: 'Giga Factory', action: '🤝 Meeting Musk on AI Chip Supply Chain', x: 620, y: 200 },
+      { location: 'Giga Factory', action: '🤝 Meeting Rusk on AI Chip Supply Chain', x: 620, y: 200 },
     ],
   },
   musk: {
-    name: 'Elon Musk',
+    name: 'Elan Rusk',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Giga Factory Spire', action: '🤖 Inspecting Robotic Assembly Lines', x: 580, y: 200 },
@@ -26,7 +26,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   huang: {
-    name: 'Jensen Huang',
+    name: 'Jensen Fang',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '📊 Pitching H100 GPU Cluster Order', x: 400, y: 280 },
@@ -37,7 +37,7 @@ export const TITAN_ROUTINES = {
 
   // Kyoto — HD-2D JRPG Shinto Pagoda District
   buffett: {
-    name: 'Warren Buffett',
+    name: 'Warren Biffle',
     homeCity: 'kyoto',
     schedule: [
       { location: 'Berkshire Tower', action: '📈 Auditing Value Stock Balance Sheets', x: 220, y: 250 },
@@ -51,7 +51,7 @@ export const TITAN_ROUTINES = {
     schedule: [
       { location: 'Berkshire Tower', action: '📚 Reading Multi-Disciplinary Research', x: 260, y: 230 },
       { location: 'Kyoto Machiya Library', action: '🧠 Applying Mental Model Inversion', x: 500, y: 350 },
-      { location: 'Cherry Coke Tea House', action: '☕ Discussing Philosophy with Buffett', x: 390, y: 400 },
+      { location: 'Cherry Coke Tea House', action: '☕ Discussing Philosophy with Biffle', x: 390, y: 400 },
     ],
   },
   graham: {
@@ -60,7 +60,7 @@ export const TITAN_ROUTINES = {
     schedule: [
       { location: 'Berkshire Tower', action: '📖 Writing Security Analysis Appendix', x: 230, y: 240 },
       { location: 'Kyoto Commercial Bank', action: '💰 Scanning for Net-Net Opportunities', x: 580, y: 310 },
-      { location: 'Cherry Coke Tea House', action: '📊 Tutoring Young Buffett on Margins', x: 410, y: 390 },
+      { location: 'Cherry Coke Tea House', action: '📊 Tutoring Young Biffle on Margins', x: 410, y: 390 },
     ],
   },
   templeton: {
@@ -93,7 +93,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   soros: {
-    name: 'George Soros',
+    name: 'George Zoros',
     homeCity: 'osaka',
     schedule: [
       { location: 'Osaka Currency Exchange', action: '💴 Shorting the Japanese Yen', x: 480, y: 260 },
@@ -150,7 +150,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   gates: {
-    name: 'Bill Gates',
+    name: 'Will Gatling',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '💻 Pitching MS Office Enterprise Deals', x: 410, y: 290 },
@@ -159,7 +159,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   bezos: {
-    name: 'Jeff Bezos',
+    name: 'Geoff Bezel',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '📦 Announcing AWS Cloud Expansion', x: 420, y: 285 },
@@ -168,7 +168,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   son: {
-    name: 'Masayoshi Son',
+    name: 'Masatoshi Ren',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '📱 Pitching SoftBank Vision Fund II', x: 415, y: 288 },
@@ -177,7 +177,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   icahn: {
-    name: 'Carl Icahn',
+    name: 'Karl Eikahn',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '⚔️ Filing Hostile Takeover Prospectus', x: 422, y: 292 },
@@ -186,7 +186,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   dalio: {
-    name: 'Ray Dalio',
+    name: 'Ray Daglio',
     homeCity: 'kyoto',
     schedule: [
       { location: 'Berkshire Tower', action: '🌦️ Calibrating All-Weather Portfolio', x: 228, y: 248 },
@@ -204,7 +204,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   lynch: {
-    name: 'Peter Lynch',
+    name: 'Peter Vance',
     homeCity: 'kyoto',
     schedule: [
       { location: 'Cherry Coke Tea House', action: '☕ Spotting Consumer Trend Opportunities', x: 405, y: 385 },

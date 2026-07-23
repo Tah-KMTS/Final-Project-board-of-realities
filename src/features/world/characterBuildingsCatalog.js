@@ -5,7 +5,7 @@
 export const CHARACTER_BUILDINGS_CATALOG = [
   {
     ownerId: 'buffett',
-    ownerName: 'Warren Buffett',
+    ownerName: 'Warren Biffle',
     buildingName: 'Berkshire Hathaway Financial Tower & Cherry Coke Diner',
     city: 'Kyoto',
     constructionCost: 50000000,
@@ -25,7 +25,7 @@ export const CHARACTER_BUILDINGS_CATALOG = [
   },
   {
     ownerId: 'musk',
-    ownerName: 'Elon Musk',
+    ownerName: 'Elan Rusk',
     buildingName: 'Giga Factory & SpaceX Starbase Launchpad',
     city: 'Tokyo',
     constructionCost: 300000000,
@@ -85,7 +85,7 @@ export const CHARACTER_BUILDINGS_CATALOG = [
   },
   {
     ownerId: 'powell',
-    ownerName: 'Jerome Powell',
+    ownerName: 'Jerome Powers',
     buildingName: 'Federal Reserve Gold & Reserve Depository HQ',
     city: 'Tokyo',
     constructionCost: 250000000,

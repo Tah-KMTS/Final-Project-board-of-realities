@@ -4,27 +4,30 @@ import { resolvePalette } from '../characterPalettes'
 import { generateAmbientNpcs } from '../../utils/npcGenerator'
 import { FINANCE_NPCS } from '../../features/finance/financeNpcs'
 import { SpriteActor } from '../actor'
+import { preloadPlayerSheet } from '../spriteGen'
 import { TileMover, combineDirection } from '../tileMover'
 import {
-  drawGrassTile,
   drawSlateMarbleTile,
   drawCobblestoneTile,
-  drawRoadTile,
-  drawWaterTile,
-  drawTree,
-  drawFlower,
-  drawRock,
-  drawBuildingFacade,
-  addScreenVignette,
+  preloadTerrainAssets,
+  buildTerrainLayer,
+  TERRAIN_TILE_INDEX,
+  placeTree,
+  placeFlower,
+  placeRock,
+  placeBuildingFacade,
 } from '../tileGen'
 
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
 // Finance world). Zones: the outdoor `overworld` map, the Stock Exchange's
-// own bespoke `stockExchangeInterior` trading floor, and a generic
-// `buildingInterior` room (see INTERIOR_TEMPLATES) reused by every other
-// building - which template a given building gets is looked up from
-// BUILDING_INTERIOR_TEMPLATE. Walking up to any of the 19 buildings and
+// own bespoke `stockExchangeInterior` trading floor, the Casino's own
+// bespoke `casinoInterior` gaming floor (blackjack/poker/slots/NPC
+// challenges - too much going on for the generic template, same reasoning
+// as the Stock Exchange), and a generic `buildingInterior` room (see
+// INTERIOR_TEMPLATES) reused by every other building - which template a
+// given building gets is looked up from BUILDING_INTERIOR_TEMPLATE.
+// Walking up to any of the 19 buildings and
 // pressing E swaps into its interior in place (same scene, same Phaser.Game
 // instance, same technique DominoWorldScene uses for its own rooms); the
 // desk inside emits the exact same `{type:'building', id, npcId}` interact
@@ -49,9 +52,9 @@ const DISTRICT_ORDER = ['Financial District', 'Commercial District', 'Undergroun
 const FINANCE_BUILDING_DEFS = [
   // --- Financial District (Stock Exchange, tycoon HQs, Crypto HQ, VC Hub) ---
   { id: 'stockExchange', label: 'Stock Exchange', district: 'Financial District', color: 0x1f5f3a, width: 3, height: 3 },
-  { id: 'buffettHQ', label: 'Buffett Tower', district: 'Financial District', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
+  { id: 'buffettHQ', label: 'Biffle Tower', district: 'Financial District', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
   { id: 'vanderbiltHQ', label: 'Vanderbilt Rail Co.', district: 'Financial District', color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
-  { id: 'muskHQ', label: 'Musk Industries', district: 'Financial District', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
+  { id: 'muskHQ', label: 'Rusk Industries', district: 'Financial District', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
   { id: 'howardMarksHQ', label: 'Oaktree Cycle Capital', district: 'Financial District', color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
   { id: 'vcHub', label: 'Venture Capital Hub', district: 'Financial District', color: 0x2a3a6b, width: 3, height: 3 },
   { id: 'corporateOffice', label: 'Corporate Holdings', district: 'Financial District', color: 0x4a3a5f, width: 4, height: 3 },
@@ -129,8 +132,7 @@ const { buildings: FINANCE_BUILDINGS, mapRows: MAP_ROWS, hStreets: FINANCE_H_STR
 // Two vertical corridors: col 7 is the spawn column, col 33 is the far-side
 // expressway running from the coastal water channel to the city south gate.
 const FINANCE_V_STREETS = [7, 33]
-// Rows 1-3 along the top edge represent the coastal sea channel that the
-// player must swim across to reach the inter-city highway.
+// Rows 1-3 along the top edge render as water tiles for terrain variety.
 const WATER_ROWS = [1, 2, 3]
 
 function financeTileType(r, c) {
@@ -148,8 +150,8 @@ function financeTileType(r, c) {
 // a template all to itself; the 4 tycoon HQs share "tycoonOffice"; Bank +
 // Real Estate Agency share "officeA"; Corporate Holdings + VC Hub share
 // "officeB"; the remaining 9 district-amenity buildings share "amenity".
-// Stock Exchange is the one exception - it keeps its bespoke trading-floor
-// room (buildStockExchangeInteriorZone) from before this system existed.
+// Stock Exchange and Casino are the two exceptions - they keep bespoke rooms
+// (buildStockExchangeInteriorZone / buildCasinoInteriorZone) instead of one.
 const INTERIOR_COLS = 12
 const INTERIOR_ROWS = 9
 const INTERIOR_SPAWN = { col: 6, row: 5 }
@@ -177,7 +179,6 @@ const BUILDING_INTERIOR_TEMPLATE = {
   realEstateAgency: 'officeA',
   corporateOffice: 'officeB',
   vcHub: 'officeB',
-  casino: 'amenity',
   arcade: 'amenity',
   hotel: 'amenity',
   crimeAlley: 'amenity',
@@ -191,6 +192,7 @@ const BUILDING_INTERIOR_TEMPLATE = {
 const ZONES = {
   overworld: { cols: MAP_COLS, rows: MAP_ROWS },
   stockExchangeInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  casinoInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   buildingInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
 }
 
@@ -205,15 +207,23 @@ function buildLayout(tileTypeFn, cols, rows) {
   return layout
 }
 
-function drawTileAt(graphics, tile, x, y, size, horizontal, dashIndex, cityId = 'tokyo') {
+// Real Cute Fantasy tile art (see tileGen.js's buildTerrainLayer) covers
+// 'path' and 'water' everywhere, plus 'grass' for every city except Tokyo
+// (slate marble) and Kyoto (cobblestone) - those two still don't have a
+// pack equivalent, so their "grass" cells and every city's border 'wall'
+// cells fall back to the old per-cell Graphics fill.
+function terrainTileIndexAt(tile, cityId) {
+  if (tile === 'water') return TERRAIN_TILE_INDEX.water
+  if (tile === 'path') return TERRAIN_TILE_INDEX.path
+  if (tile === 'grass' && cityId !== 'tokyo' && cityId !== 'kyoto') return TERRAIN_TILE_INDEX.grass
+  return null
+}
+
+function drawFallbackTileAt(graphics, tile, x, y, size, cityId) {
   if (tile === 'grass') {
     if (cityId === 'tokyo') drawSlateMarbleTile(graphics, x, y, size)
     else if (cityId === 'kyoto') drawCobblestoneTile(graphics, x, y, size)
-    else drawGrassTile(graphics, x, y, size)
-  }
-  else if (tile === 'path') drawRoadTile(graphics, x, y, size, horizontal, dashIndex)
-  else if (tile === 'water') drawWaterTile(graphics, x, y, size, 0)
-  else {
+  } else if (tile === 'wall') {
     graphics.fillStyle(0x5b4636, 1)
     graphics.fillRect(x, y, size, size)
   }
@@ -241,14 +251,14 @@ function scatterEnvironment(scene, layout, buildings, count, cityId, zoneObjects
     if (isUrban) {
       // Only sparse rocks for urban marble districts
       if (Math.random() > 0.25) continue
-      objs = drawRock(scene, cx, cy)
+      objs = placeRock(scene, cx, cy)
     } else if (isJRPG) {
       // Kyoto: flowers (cherry blossom) dominant + rocks
       const roll = Math.random()
-      objs = roll < 0.65 ? drawFlower(scene, cx, cy) : drawRock(scene, cx, cy)
+      objs = roll < 0.65 ? placeFlower(scene, cx, cy) : placeRock(scene, cx, cy)
     } else {
       const roll = Math.random()
-      objs = roll < 0.45 ? drawTree(scene, cx, cy) : roll < 0.85 ? drawFlower(scene, cx, cy) : drawRock(scene, cx, cy)
+      objs = roll < 0.45 ? placeTree(scene, cx, cy) : roll < 0.85 ? placeFlower(scene, cx, cy) : placeRock(scene, cx, cy)
     }
     if (objs) zoneObjects.push(...objs)
   }
@@ -259,13 +269,13 @@ function scatterTrees(scene, layout, buildings, count, zoneObjects) {
   scatterEnvironment(scene, layout, buildings, count, 'default', zoneObjects)
 }
 
-function drawBuildings(scene, graphics, buildings, zoneObjects) {
+function drawBuildings(scene, buildings, zoneObjects) {
   for (const b of buildings) {
     const x = b.tiles.c0 * TILE_SIZE
     const y = b.tiles.r0 * TILE_SIZE
     const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-    drawBuildingFacade(graphics, x, y, w, h, b.color)
+    zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color))
     const label = scene.add
       .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
       .setOrigin(0.5, 1)
@@ -308,14 +318,12 @@ function drawInteriorRoom(scene, zoneObjects, { floorA, floorB, deskColor, deskL
     }
   }
 
-  const deskGraphics = scene.add.graphics()
-  zoneObjects.push(deskGraphics)
   const d = INTERIOR_DESK
   const dx = d.c0 * TILE_SIZE
   const dy = d.r0 * TILE_SIZE
   const dw = (d.c1 - d.c0 + 1) * TILE_SIZE
   const dh = (d.r1 - d.r0 + 1) * TILE_SIZE
-  drawBuildingFacade(deskGraphics, dx, dy, dw, dh, deskColor)
+  zoneObjects.push(...placeBuildingFacade(scene, dx, dy, dw, dh, deskColor))
   const deskLabelText = scene.add
     .text(dx + dw / 2, dy - 12, deskLabel, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
     .setOrigin(0.5, 1)
@@ -352,6 +360,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.financeAmbientActors = []
   }
 
+  preload() {
+    preloadPlayerSheet(this)
+    preloadTerrainAssets(this)
+  }
+
   create() {
     useGameStore.getState().initFinanceMarket()
 
@@ -369,7 +382,6 @@ export default class OverworldScene extends Phaser.Scene {
     this.wasd = this.input.keyboard.addKeys('W,A,S,D,E,R')
 
     this.createPlayer()
-    addScreenVignette(this)
 
     this.loadZone('overworld', false)
 
@@ -402,6 +414,7 @@ export default class OverworldScene extends Phaser.Scene {
 
     if (zoneId === 'overworld') this.buildOverworldZone()
     else if (zoneId === 'stockExchangeInterior') this.buildStockExchangeInteriorZone()
+    else if (zoneId === 'casinoInterior') this.buildCasinoInteriorZone()
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
     const zone = ZONES[zoneId]
@@ -426,33 +439,33 @@ export default class OverworldScene extends Phaser.Scene {
     this.financeLayout = buildLayout(financeTileType, MAP_COLS, MAP_ROWS)
 
     const currentCityId = useGameStore.getState().currentCityId || 'tokyo'
-    const terrainGraphics = this.add.graphics()
-    this.zoneObjects.push(terrainGraphics)
+
+    // Real terrain art (grass/path/water) for every cell the pack covers -
+    // one Tilemap layer instead of one Graphics fill per cell.
+    const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) =>
+      terrainTileIndexAt(this.financeLayout[row][col], currentCityId)
+    )
+    this.zoneObjects.push(terrainLayer)
+
+    // Fallback Graphics pass for the handful of cell types the pack has no
+    // asset for (Tokyo marble / Kyoto cobblestone grass, and border walls).
+    const fallbackGraphics = this.add.graphics()
+    this.zoneObjects.push(fallbackGraphics)
     for (let row = 0; row < MAP_ROWS; row++) {
       for (let col = 0; col < MAP_COLS; col++) {
-        const x = col * TILE_SIZE
-        const y = row * TILE_SIZE
-        drawTileAt(terrainGraphics, this.financeLayout[row][col], x, y, TILE_SIZE, FINANCE_H_STREETS.includes(row), col, currentCityId)
+        drawFallbackTileAt(fallbackGraphics, this.financeLayout[row][col], col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, currentCityId)
       }
     }
-
-    // Coastal water channel label — visible above the swim zone
-    const waterLabel = this.add
-      .text(MAP_COLS * TILE_SIZE / 2, 2 * TILE_SIZE, '〰 COASTAL SEA CHANNEL — SWIM TO CROSS 〰', {
-        fontFamily: 'monospace', fontSize: '9px', color: '#67e8f9', align: 'center',
-      })
-      .setOrigin(0.5, 0.5)
-    this.zoneObjects.push(waterLabel)
 
     // City-specific environment scatter
     scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, 80, currentCityId, this.zoneObjects)
 
-    const buildingGraphics = this.add.graphics()
-    this.zoneObjects.push(buildingGraphics)
-    drawBuildings(this, buildingGraphics, FINANCE_BUILDINGS, this.zoneObjects)
+    drawBuildings(this, FINANCE_BUILDINGS, this.zoneObjects)
 
     // City-specific landmark buildings overlay
-    this.drawCityLandmarkOverlay(currentCityId, buildingGraphics)
+    const overlayGraphics = this.add.graphics()
+    this.zoneObjects.push(overlayGraphics)
+    this.drawCityLandmarkOverlay(currentCityId, overlayGraphics)
 
     this.drawFinanceNamedNpcs()
     this.spawnFinanceAmbientNpcs()
@@ -524,6 +537,32 @@ export default class OverworldScene extends Phaser.Scene {
     ]
   }
 
+  buildCasinoInteriorZone() {
+    drawInteriorRoom(this, this.zoneObjects, {
+      floorA: 0x2a1030,
+      floorB: 0x230d28,
+      deskColor: 0x8a1f6a,
+      deskLabel: 'Casino Floor',
+    })
+
+    this.regionLabel.setText('Neon Dragon Casino')
+
+    this.zones = [
+      {
+        type: 'interiorDesk',
+        id: 'casino',
+        label: 'Casino Floor',
+        rect: new Phaser.Geom.Rectangle(
+          INTERIOR_DESK.c0 * TILE_SIZE - TILE_SIZE / 2,
+          INTERIOR_DESK.r0 * TILE_SIZE - TILE_SIZE / 2,
+          (INTERIOR_DESK.c1 - INTERIOR_DESK.c0 + 1) * TILE_SIZE + TILE_SIZE,
+          (INTERIOR_DESK.r1 - INTERIOR_DESK.r0 + 1) * TILE_SIZE + TILE_SIZE
+        ),
+      },
+      interiorExitZone(),
+    ]
+  }
+
   buildGenericInteriorZone(buildingId) {
     const building = FINANCE_BUILDINGS.find((b) => b.id === buildingId)
     const template = INTERIOR_TEMPLATES[BUILDING_INTERIOR_TEMPLATE[buildingId]]
@@ -552,7 +591,11 @@ export default class OverworldScene extends Phaser.Scene {
   // ---------------- collision ----------------
 
   isBlockedTile(col, row) {
-    if (this.currentZoneId === 'stockExchangeInterior' || this.currentZoneId === 'buildingInterior') {
+    if (
+      this.currentZoneId === 'stockExchangeInterior' ||
+      this.currentZoneId === 'casinoInterior' ||
+      this.currentZoneId === 'buildingInterior'
+    ) {
       if (col < 0 || col >= INTERIOR_COLS || row < 0 || row >= INTERIOR_ROWS) return true
       const isBorder = row === 0 || col === 0 || row === INTERIOR_ROWS - 1 || col === INTERIOR_COLS - 1
       if (isBorder) return true
@@ -727,6 +770,15 @@ export default class OverworldScene extends Phaser.Scene {
       if (zone.id === 'stockExchange') {
         this.overworldReturnSpawn = STOCK_EXCHANGE_DOOR
         this.loadZone('stockExchangeInterior')
+        return
+      }
+      if (zone.id === 'casino') {
+        const casinoBuilding = FINANCE_BUILDINGS.find((b) => b.id === 'casino')
+        this.overworldReturnSpawn = {
+          col: Math.round((casinoBuilding.tiles.c0 + casinoBuilding.tiles.c1) / 2),
+          row: casinoBuilding.tiles.r1 + 1,
+        }
+        this.loadZone('casinoInterior')
         return
       }
       const building = FINANCE_BUILDINGS.find((b) => b.id === zone.id)

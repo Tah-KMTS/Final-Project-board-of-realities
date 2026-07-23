@@ -22,11 +22,11 @@ Factual/historical reference only (public, well-documented information), for use
 - **J.P. Morgan** — banker who personally organized bailouts of failing industries and even helped stabilize the U.S. Treasury during the Panic of 1893 - the namesake of the modern bank.
 
 **Modern value/macro investors**
-- **Warren Buffett** — "Oracle of Omaha," Berkshire Hathaway CEO, long-term value-investing philosophy. Already an in-game boss.
-- **Charlie Munger** — Buffett's longtime business partner and vice chairman, known for blunt, aphoristic investing wisdom.
-- **George Soros** — macro hedge fund investor, famously "broke the Bank of England" in 1992 by shorting the British pound.
-- **Ray Dalio** — founder of Bridgewater Associates (one of the largest hedge funds ever), known for "principles"-based risk-parity investing.
-- **Carl Icahn** — activist investor/corporate raider archetype, known for forcing changes at companies via large stakes and public pressure campaigns.
+- **Warren Biffle** — "Oracle of Omaha," Berkshire Hathaway CEO, long-term value-investing philosophy. Already an in-game boss.
+- **Charlie Munger** — Biffle's longtime business partner and vice chairman, known for blunt, aphoristic investing wisdom.
+- **George Zoros** — macro hedge fund investor, famously "broke the Bank of England" in 1992 by shorting the British pound.
+- **Ray Daglio** — founder of Bridgewater Associates (one of the largest hedge funds ever), known for "principles"-based risk-parity investing.
+- **Karl Eikahn** — activist investor/corporate raider archetype, known for forcing changes at companies via large stakes and public pressure campaigns.
 
 **Cautionary tales / Wall Street villains**
 - **Bernie Madoff** — ran the largest Ponzi scheme in history, convicted 2009, died in prison 2021.
@@ -40,17 +40,17 @@ Factual/historical reference only (public, well-documented information), for use
 
 **Confirmed 4th tycoon boss: Howard Marks**
 - Co-founder and co-chairman of Oaktree Capital Management, one of the largest distressed-debt/credit investors in the world.
-- Famous for decades of client "memos" (since the 1990s) distilling investing philosophy in plain language - widely read on Wall Street, Warren Buffett has publicly said he reads them the moment they arrive.
+- Famous for decades of client "memos" (since the 1990s) distilling investing philosophy in plain language - widely read on Wall Street, Warren Biffle has publicly said he reads them the moment they arrive.
 - Core public philosophy to draw the persona from: **market cycles** (markets swing like a pendulum between greed and fear, and recognizing where you are in the cycle matters more than trying to predict the future), **"you can't predict, but you can prepare"**, **second-level thinking** (don't just ask "is this good," ask "how good, and does the market already know"), and **risk control over risk avoidance** (the goal isn't to avoid all risk, it's to be paid fairly for the risk you take).
-- Treatment for this game: same satirical-caricature tier as Buffett/Vanderbilt/Musk (a robbable/fightable tycoon boss), grounded in the real public philosophy above for flavor text/dialogue, not presented as an authentic recreation of his actual private views or decisions.
+- Treatment for this game: same satirical-caricature tier as Biffle/Vanderbilt/Rusk (a robbable/fightable tycoon boss), grounded in the real public philosophy above for flavor text/dialogue, not presented as an authentic recreation of his actual private views or decisions.
 
 **Tech-era business moguls**
-- **Elon Musk** — Tesla/SpaceX, known for an erratic public persona, meme-stock/crypto-adjacent social media activity, and enormous swings in personal net worth tied to stock price. Already an in-game boss.
+- **Elan Rusk** — Tesla/SpaceX, known for an erratic public persona, meme-stock/crypto-adjacent social media activity, and enormous swings in personal net worth tied to stock price. Already an in-game boss.
 
 ## Suggested mapping onto the existing world
 
-The world already has Buffett/Vanderbilt/Musk as killable/robbable tycoon bosses with net-worth-scaled bodyguards. Natural additions that fit distinct gameplay hooks:
-- **Soros** → a "hostile currency attack" heist-style encounter (distinct from robbing a company - attacking a whole market).
+The world already has Biffle/Vanderbilt/Rusk as killable/robbable tycoon bosses with net-worth-scaled bodyguards. Natural additions that fit distinct gameplay hooks:
+- **Zoros** → a "hostile currency attack" heist-style encounter (distinct from robbing a company - attacking a whole market).
 - **Madoff** → a Ponzi-scheme quest chain (recruit "investors," scheme collapses on a timer if not managed).
 - **Belfort** → ties directly into the existing Pump & Run feature as a mentor/rival NPC.
-- **Icahn** → a hostile-takeover mechanic (buy out an NPC-owned business rather than robbing it outright).
+- **Eikahn** → a hostile-takeover mechanic (buy out an NPC-owned business rather than robbing it outright).

@@ -28,7 +28,7 @@ export function simulateDynamicSchedules(agents, day, govState) {
     const copy = { ...agent }
     const rand = Math.random()
 
-    // Warren Buffett Special Routine
+    // Warren Biffle Special Routine
     if (copy.id === 'buffett') {
       if (currentBlockIndex === 0 || currentBlockIndex === 1) {
         copy.currentLocation = "McDonald's & Cherry Coke Diner"
@@ -42,7 +42,7 @@ export function simulateDynamicSchedules(agents, day, govState) {
       return copy
     }
 
-    // Elon Musk Routine
+    // Elan Rusk Routine
     if (copy.id === 'musk') {
       if (rand < 0.4) {
         copy.currentLocation = 'Giga Factory & Design Lab'
