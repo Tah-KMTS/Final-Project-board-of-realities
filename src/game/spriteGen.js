@@ -205,7 +205,7 @@ function drawFrame(ctx, ox, facing, step, palette) {
 // rather than outlining each body-part rect individually, which would leave
 // visible seams between adjoining parts of the same color.
 function outlineFrame(ctx, ox) {
-  const imageData = ctx.getImageData(ox, 0, FRAME_W, FRAME_H)
+  const imageData = ctx.getImageData(ox, 0, PROCEDURAL_FRAME_W, PROCEDURAL_FRAME_H)
   const { data, width, height } = imageData
   const source = new Uint8ClampedArray(data)
   const idx = (x, y) => (y * width + x) * 4
@@ -239,18 +239,51 @@ export function procedural_ensurePlayerTexture(scene, key, palette) {
   // destroying and recreating it every time.
   if (scene.textures.exists(key)) return scene.textures.get(key)
   const canvas = document.createElement('canvas')
-  canvas.width = FRAME_W * FRAME_ORDER.length
-  canvas.height = FRAME_H
+  canvas.width = PROCEDURAL_FRAME_W * FRAME_ORDER.length
+  canvas.height = PROCEDURAL_FRAME_H
   const ctx = canvas.getContext('2d')
   ctx.imageSmoothingEnabled = false
   FRAME_ORDER.forEach((frameName, i) => {
     const [facing, step] = frameName.split('_')
-    drawFrame(ctx, i * FRAME_W, facing, Number(step), palette)
-    outlineFrame(ctx, i * FRAME_W)
+    drawFrame(ctx, i * PROCEDURAL_FRAME_W, facing, Number(step), palette)
+    outlineFrame(ctx, i * PROCEDURAL_FRAME_W)
   })
   const texture = scene.textures.addCanvas(key, canvas)
   FRAME_ORDER.forEach((frameName, i) => {
-    texture.add(frameName, 0, i * FRAME_W, 0, FRAME_W, FRAME_H)
+    texture.add(frameName, 0, i * PROCEDURAL_FRAME_W, 0, PROCEDURAL_FRAME_W, PROCEDURAL_FRAME_H)
   })
   return texture
+}
+
+// --- UNIFIED ACTOR ENTRY POINT ---
+// Single seam SpriteActor (actor.js) calls through, so it never needs to
+// know which rendering mode is active - mirrors the pattern tileGen.js
+// uses for buildTerrainLayer/placeTree/etc. Procedural mode generates one
+// texture per actor (keyed by `key`, real facing rows including "right" -
+// no mirroring, no tint since color is baked into the canvas). Sheet mode
+// shares one texture for every actor and differentiates via tint + the
+// left-mirrored-to-right trick (see the file header comment).
+export function getActorRenderInfo(scene, key, palette) {
+  if (USE_PROCEDURAL_GRAPHICS) {
+    procedural_ensurePlayerTexture(scene, key, palette)
+    return {
+      textureKey: key,
+      frameName: (facing, step) => `${facing}_${step}`,
+      flipX: () => false,
+      tint: null,
+      scale: 1,
+      frameW: PROCEDURAL_FRAME_W,
+      frameH: PROCEDURAL_FRAME_H,
+    }
+  }
+  ensurePlayerFrames(scene)
+  return {
+    textureKey: PLAYER_SHEET_KEY,
+    frameName: (facing, step) => `${facing === 'right' ? 'left' : facing}_${step}`,
+    flipX: (facing) => facing === 'right',
+    tint: tintFromPalette(palette),
+    scale: PLAYER_DISPLAY_SCALE,
+    frameW: FRAME_W,
+    frameH: FRAME_H,
+  }
 }
