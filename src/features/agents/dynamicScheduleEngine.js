@@ -21,7 +21,7 @@ const TIME_BLOCKS = ['Morning (8:00 AM)', 'Midday (12:00 PM)', 'Afternoon (4:00 
  * Updates dynamic routines, locations, and actions for all 76 agents based on day, time, and world events.
  */
 export function simulateDynamicSchedules(agents, day, govState) {
-  const currentBlockIndex = (day - 1) % TIME_BLOCKS.length
+  const currentBlockIndex = ((day - 1) % TIME_BLOCKS.length + TIME_BLOCKS.length) % TIME_BLOCKS.length
   const currentBlockName = TIME_BLOCKS[currentBlockIndex]
 
   const updatedAgents = agents.map((agent) => {
@@ -94,7 +94,7 @@ export function simulateDynamicSchedules(agents, day, govState) {
 
     // Generic Agent Routine Rotation
     if (rand < 0.3) {
-      copy.currentLocation = LOCATIONS_LIST[Math.floor(rand * LOCATIONS_LIST.length)]
+      copy.currentLocation = LOCATIONS_LIST[Math.floor(Math.random() * LOCATIONS_LIST.length)]
       copy.currentAction = 'Traveling between city districts'
       copy.thoughtProcess = 'Monitoring local commerce and evaluating new opportunities.'
     } else if (rand < 0.7) {

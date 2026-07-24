@@ -260,11 +260,12 @@ export function updateAgentPositions(activeAgents, timeTick = 0) {
     }
 
     const routine = TITAN_ROUTINES[routineKey]
-    const stepIndex = Math.floor((timeTick / 5) % routine.schedule.length)
+    const safeTimeTick = Math.max(0, timeTick)
+    const stepIndex = Math.floor((safeTimeTick / 5)) % routine.schedule.length
     const currentStep = routine.schedule[stepIndex]
     const nextStep = routine.schedule[(stepIndex + 1) % routine.schedule.length]
 
-    const progress = (timeTick % 5) / 5
+    const progress = (safeTimeTick % 5) / 5
     const lerpX = Math.round(currentStep.x + (nextStep.x - currentStep.x) * progress)
     const lerpY = Math.round(currentStep.y + (nextStep.y - currentStep.y) * progress)
 

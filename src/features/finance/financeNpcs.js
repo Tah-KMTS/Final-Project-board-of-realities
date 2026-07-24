@@ -374,7 +374,7 @@ export function generateStreetTargetMonster() {
 
 export function generateSwatSquad(wantedLevel) {
   const unit = wantedLevel >= 4 ? 'FBI Tactical Unit' : 'SWAT Squad'
-  const scale = wantedLevel >= 4 ? 12 : 8
+  const scale = wantedLevel
   const hp = 70 + scale * 12
   const atk = 9 + scale * 2.2
   return {

@@ -47,10 +47,11 @@ export function simulateGovernmentDailyTick(currentGovState, day, cash, wantedLe
   let cryptoHypeDelta = 0
 
   // 1. Election Cycle Progress
-  gov.daysUntilElection = Math.max(0, 10 - (day % 10))
+  gov.daysUntilElection = (day % 10 === 0 && day > 0) ? 0 : 10 - (day % 10)
   if (day % 10 === 0 && day > 0) {
     // Trigger Presidential Election
     gov.electionActive = true
+    gov.electionCycleDay = day
     // Pick 3 candidates for ballot
     const shuffled = [...PRESIDENTS_ROSTER].sort(() => Math.random() - 0.5)
     gov.activeCandidates = shuffled.slice(0, 3)

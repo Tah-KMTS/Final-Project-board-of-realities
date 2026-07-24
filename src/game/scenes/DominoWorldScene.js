@@ -88,8 +88,8 @@ export default class DominoWorldScene extends Phaser.Scene {
     // (at the same default depth 0) would render on top of it, hiding it
     // completely. Explicit depth keeps the player visible above terrain
     // regardless of add-order across zone switches.
-    this.playerActor.sprite.setDepth(10)
-    this.playerActor.shadow.setDepth(9)
+    this.playerActor.sprite.setDepth(this.playerActor.y)
+    this.playerActor.shadow.setDepth(this.playerActor.y - 1)
     this.tileMover = new TileMover({
       actor: this.playerActor,
       tileSize: TILE_SIZE,
@@ -193,6 +193,7 @@ export default class DominoWorldScene extends Phaser.Scene {
     const h = (r1 - r0 + 1) * TILE_SIZE
     this.zoneObjects.push(...placeBuildingFacade(this, x, y, w, h, 0x3a2f5f))
     const text = this.add.text(x + w / 2, y - 12, label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5, 1)
+    text.setDepth(y + h + 1)
     this.zoneObjects.push(text)
     this.zones.push({
       type, id, label: `Press E: ${label}`,
@@ -279,6 +280,8 @@ export default class DominoWorldScene extends Phaser.Scene {
     npcs.slice(0, spots.length).forEach((npc, i) => {
       const spot = spots[i]
       const actor = new SpriteActor(this, spot.col * TILE_SIZE + TILE_SIZE / 2, spot.row * TILE_SIZE + TILE_SIZE / 2, `npc_domino_${npc.NPC_ID}`, npc.palette)
+      actor.sprite.setDepth(actor.y)
+      actor.shadow.setDepth(actor.y - 1)
       this.npcActors.push(actor)
       this.zones.push({
         type: 'dominoNpc', id: npc.NPC_ID, npc, label: `Talk to ${npc.Name}`,
@@ -322,6 +325,8 @@ export default class DominoWorldScene extends Phaser.Scene {
   update(time, delta) {
     if (!this.playerActor || !this.tileMover) return
     this.tileMover.locked = this.interactionLocked
+    this.playerActor.sprite.setDepth(this.playerActor.y)
+    this.playerActor.shadow.setDepth(this.playerActor.y - 1)
 
     let horiz = null
     if (this.cursors.left.isDown || this.wasd.A.isDown) horiz = 'left'
@@ -332,7 +337,11 @@ export default class DominoWorldScene extends Phaser.Scene {
     const inputDir = combineDirection(horiz, vert)
 
     this.tileMover.update(delta, this.interactionLocked ? null : inputDir)
-    for (const actor of this.npcActors) actor.update(delta)
+    for (const actor of this.npcActors) {
+      actor.update(delta)
+      actor.sprite.setDepth(actor.y)
+      actor.shadow.setDepth(actor.y - 1)
+    }
 
     if (this.interactionLocked) return
     this.updateNearbyZone()

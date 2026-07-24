@@ -173,22 +173,26 @@ export function placeTree(scene, cx, cy) {
   if (Math.random() < 0.22) {
     // Oak_Tree.png (64x80) - occasional bigger tree for variety.
     const img = scene.add.image(cx, cy, ASSET_KEYS.treeBig).setOrigin(0.5, 0.82)
+    img.setDepth(cy)
     return [img]
   }
   const frame = SMALL_TREE_FRAMES[Math.floor(Math.random() * SMALL_TREE_FRAMES.length)]
   const img = scene.add.image(cx, cy, ASSET_KEYS.treeSmall, frame).setOrigin(0.5, 0.88)
+  img.setDepth(cy)
   return [img]
 }
 
 export function placeFlower(scene, cx, cy) {
   const frame = FLOWER_FRAMES[Math.floor(Math.random() * FLOWER_FRAMES.length)]
   const img = scene.add.image(cx, cy, ASSET_KEYS.decor, frame).setScale(1.4)
+  img.setDepth(cy)
   return [img]
 }
 
 export function placeRock(scene, cx, cy) {
   const frame = ROCK_FRAMES[Math.floor(Math.random() * ROCK_FRAMES.length)]
   const img = scene.add.image(cx, cy, ASSET_KEYS.decor, frame).setScale(1.4)
+  img.setDepth(cy)
   return [img]
 }
 
@@ -213,5 +217,7 @@ export function placeBuildingFacade(scene, x, y, w, h, tintColor) {
   const scale = w / 96
   const img = scene.add.image(x + w / 2, y + h, ASSET_KEYS.house).setOrigin(0.5, 1).setScale(scale)
   img.setTint(tintColor)
+  img.setDepth(y + h)
+  shadow.setDepth(y + h - 1)
   return [shadow, img]
 }

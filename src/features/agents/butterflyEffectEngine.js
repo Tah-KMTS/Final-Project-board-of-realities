@@ -21,6 +21,11 @@ export function triggerButterflyEffect(triggerEvent, agents, day) {
       }
       if (copy.id === 'musk') {
         copy.thoughtProcess = 'Tech growth stocks cooling down; pivoting capital into automated robot R&D.'
+        butterflyLogs.push({
+          id: `butterfly_${day}_${copy.id}`,
+          day,
+          text: `🦋 Fed Rate Hike Butterfly Effect: ${copy.name || 'Elan Rusk'} pivoted capital into automated robot R&D.`,
+        })
       }
     }
 

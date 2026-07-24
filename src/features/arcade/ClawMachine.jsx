@@ -44,7 +44,7 @@ export default function ClawMachine() {
   }, [sweeping])
 
   const startGrab = () => {
-    if (cash < PLAY_COST) return
+    if (sweeping || cash < PLAY_COST) return
     addCash(-PLAY_COST)
     setPrize(null)
     startTimeRef.current = performance.now()
@@ -52,6 +52,7 @@ export default function ClawMachine() {
   }
 
   const stopGrab = () => {
+    if (!sweeping) return
     setSweeping(false)
     const pos = markerPosRef.current
     const zoneEnd = GRIP_ZONE.start + GRIP_ZONE.width

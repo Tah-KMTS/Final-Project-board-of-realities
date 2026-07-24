@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 
 const MIN_BET = 5
@@ -61,18 +61,28 @@ export default function Slots() {
   const [spinning, setSpinning] = useState(false)
   const [message, setMessage] = useState('')
 
+  const flickerRef = useRef(null)
+  const timeoutRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (flickerRef.current) clearInterval(flickerRef.current)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [])
+
   const spin = () => {
     if (spinning || cash < bet || bet < MIN_BET) return
     addCash(-bet)
     setSpinning(true)
     setMessage('')
 
-    const flicker = setInterval(() => {
+    flickerRef.current = setInterval(() => {
       setReels([randomGlyph(), randomGlyph(), randomGlyph()])
     }, 80)
 
-    setTimeout(() => {
-      clearInterval(flicker)
+    timeoutRef.current = setTimeout(() => {
+      clearInterval(flickerRef.current)
       const finalReels = [spinReel(), spinReel(), spinReel()]
       setReels(finalReels)
       const { multiplier, matchedSymbol } = resolveSpin(finalReels)
@@ -111,9 +121,10 @@ export default function Slots() {
         <input
           type="number"
           min={MIN_BET}
-          value={bet}
+          value={betInput}
           disabled={spinning}
-          onChange={(e) => setBet(Math.max(MIN_BET, Math.floor(Number(e.target.value)) || MIN_BET))}
+          onChange={(e) => setBetInput(e.target.value)}
+          onBlur={() => setBetInput(String(bet))}
           className="w-24 border border-gray-600 bg-black px-1 py-1 text-white disabled:opacity-50"
         />
         <button

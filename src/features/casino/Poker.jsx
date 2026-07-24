@@ -59,8 +59,14 @@ function generateTellHint(npcHandEval, npcTellSkill, playerPER) {
   const isStrong = npcHandEval.rank >= 3 // three-of-a-kind or better
   const isWeak = npcHandEval.rank <= 1 // high card or one pair
   const accurate = Math.random() < readChance
-  const bucket = accurate ? (isStrong ? TELL_STRONG : isWeak ? TELL_WEAK : TELL_NEUTRAL)
-    : isStrong ? TELL_WEAK : isWeak ? TELL_STRONG : TELL_NEUTRAL
+  let bucket
+  if (accurate) {
+    bucket = isStrong ? TELL_STRONG : isWeak ? TELL_WEAK : TELL_NEUTRAL
+  } else {
+    if (isStrong) bucket = TELL_WEAK
+    else if (isWeak) bucket = TELL_STRONG
+    else bucket = Math.random() < 0.5 ? TELL_STRONG : TELL_WEAK
+  }
   return pick(bucket)
 }
 
@@ -99,7 +105,10 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
 
   const startHand = () => {
     const useAnte = variant === 'challenge' ? fixedStake : anteInput
-    if (variant === 'house' && cash < useAnte) return
+    if (variant === 'house') {
+      if (cash < useAnte) return
+      addCash(-useAnte)
+    }
     const useNpc = variant === 'challenge' ? npc : randomCasinoNpc()
     let d = shuffle(createDeck())
     const pHand = d.splice(d.length - 5, 5)
@@ -137,37 +146,38 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
     setPhase('drawn')
   }
 
-  const finalize = (result, net, msg) => {
+  const finalize = (result, payout, msg) => {
     setPhase('showdown')
     setOutcome(result)
     setMessage(msg)
     if (variant === 'house') {
-      if (net !== 0) addCash(net)
-      if (net >= BIG_WIN_REPUTATION_THRESHOLD) addReputation(2)
+      if (payout > 0) addCash(payout)
+      if (payout >= BIG_WIN_REPUTATION_THRESHOLD) addReputation(2)
     }
   }
 
   const resolveShowdown = (raiseAmt, npcFolded) => {
     if (npcFolded) {
-      finalize('win', ante, `${activeNpc.name} folds. You take the pot.`)
+      finalize('win', (ante * 2) + raiseAmt, `${activeNpc.name} folds. You take the pot.`)
       return
     }
     const playerEval = evaluateHand(playerHand)
     const npcEval = evaluateHand(npcHand)
     const cmp = compareHands(playerEval, npcEval)
-    const total = ante + raiseAmt
+    const total = (ante + raiseAmt) * 2
     if (cmp > 0) finalize('win', total, `You win with ${playerEval.name} vs their ${npcEval.name}!`)
-    else if (cmp < 0) finalize('lose', -total, `${activeNpc.name} wins with ${npcEval.name} vs your ${playerEval.name}.`)
-    else finalize('push', 0, `Split pot - you both show ${playerEval.name}.`)
+    else if (cmp < 0) finalize('lose', 0, `${activeNpc.name} wins with ${npcEval.name} vs your ${playerEval.name}.`)
+    else finalize('push', ante + raiseAmt, `Split pot - you both show ${playerEval.name}.`)
   }
 
-  const doFold = () => finalize('lose', -ante, `You fold. ${activeNpc.name} takes the pot.`)
+  const doFold = () => finalize('lose', 0, `You fold. ${activeNpc.name} takes the pot.`)
   const doCall = () => resolveShowdown(0, false)
   const doRaise = () => {
     if (variant !== 'house') return
     const maxRaise = Math.max(0, cash - ante)
     const amt = Math.min(raiseInput, maxRaise)
     if (amt <= 0) return
+    addCash(-amt)
     const npcEval = evaluateHand(npcHand)
     const npcFolds = npcRespondsToRaise(npcEval, activeNpc.tellSkill, playerPER, amt / (ante * 2 || 1))
     resolveShowdown(amt, npcFolds)

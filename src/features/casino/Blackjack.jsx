@@ -74,6 +74,7 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
 
   const hit = () => {
     const d = [...deck]
+    if (d.length === 0) return
     const card = d.pop()
     const pHand = [...playerHand, card]
     setDeck(d)
@@ -91,8 +92,8 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
   const doubleDown = () => {
     if (variant !== 'house' || cash < bet) return
     addCash(-bet)
-    setBet((b) => b * 2)
     const d = [...deck]
+    if (d.length === 0) return
     const card = d.pop()
     const pHand = [...playerHand, card]
     setDeck(d)
@@ -107,7 +108,7 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
   const runDealerAndResolve = (pHand, dHandStart, deckStart, betOverride) => {
     let dHand = [...dHandStart]
     let d = [...deckStart]
-    while (blackjackTotal(dHand) < 17) {
+    while (blackjackTotal(dHand) < 17 && d.length > 0) {
       dHand.push(d.pop())
     }
     setDealerHand(dHand)

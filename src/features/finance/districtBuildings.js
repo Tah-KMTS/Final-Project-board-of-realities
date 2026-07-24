@@ -83,7 +83,8 @@ export const DISTRICT_BUILDINGS_CONFIG = {
     flavor: 'A rare patch of real grass between the towers. Even predators need a place to breathe.',
     actions: [
       {
-        label: 'Take a Quiet Walk (Free)',
+        label: 'Fund Park Maintenance ($250)',
+        cost: 250,
         reputationDelta: 1,
         resultText: 'The city feels a little kinder from here.',
       },
@@ -97,7 +98,8 @@ export const DISTRICT_BUILDINGS_CONFIG = {
     flavor: 'Incense smoke curls past old stone. Even the most ruthless traders come here to feel forgiven.',
     actions: [
       {
-        label: 'Seek Atonement (Free)',
+        label: 'Seek Atonement ($1,000)',
+        cost: 1000,
         wantedDelta: -1,
         resultText: 'The monks nod. Some of the noise around you quiets.',
       },
