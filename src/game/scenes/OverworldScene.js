@@ -33,7 +33,13 @@ import { preloadPlayerSheet } from '../spriteGen'
 // ---------------------------------------------------------------------------
 
 const TILE_SIZE = 40
-const DEFAULT_SPAWN = { col: 7, row: 1 }
+// row must stay MAP_TOP_MARGIN - 1 (see below) - one clear row above the
+// first district band. Row 1 used to satisfy that with MAP_TOP_MARGIN=2,
+// but that put the player at world y=60, which the HTML HUD overlay (fixed
+// atop the canvas) visually covers - the player was invisible at spawn
+// until they moved down. Bumped alongside MAP_TOP_MARGIN so this stays
+// clear of the HUD without touching the band/gap layout math at all.
+const DEFAULT_SPAWN = { col: 7, row: 3 }
 
 // ---------------- Capital Syndicate: 4-district Financial region ----------------
 // Each district is a self-contained horizontal band, stacked top to bottom
@@ -100,7 +106,11 @@ const FINANCE_BUILDING_DEFS = [
 const BAND_COL_START = 2
 const BAND_COL_END_FROM_RIGHT = 3 // BAND_COL_END = MAP_COLS - this
 const BAND_GAP = 4 // tiles between buildings, and between a band's bottom and the next band's top
-const MAP_TOP_MARGIN = 2 // wall row + a clear spawn/buffer row before the first band
+// wall row + 3 clear buffer rows before the first band. Was 2 (wall + 1
+// buffer) until the HUD-overlap fix above needed DEFAULT_SPAWN pushed down;
+// raising this shifts every district band down by the same amount, so the
+// already-verified column/gap layout below is untouched, just offset.
+const MAP_TOP_MARGIN = 4
 
 function layoutFinanceMap(mapCols) {
   const bandColEnd = mapCols - BAND_COL_END_FROM_RIGHT

@@ -46,6 +46,14 @@ const BLOCKS = [
   { id: 'domino', name: 'Domino City', difficulty: 6, survivalRate: 45 },
 ]
 
+// Only Finance is currently reachable from OverworldScene.js (see
+// production/backlog.md "Current state") - hunter/yugioh/domino are paused
+// and nothing ever clears them, so letting clearBlock() below pick from
+// every uncleared block would strand currentBlockId on a world the player
+// can't actually enter. Add a block's id back here once it's wired back
+// into the overworld.
+const REACHABLE_BLOCK_IDS = ['finance']
+
 // world4.calendar: Time Block 1=Morning, 2=Afternoon, 3=Evening, 4=Night.
 // Day 1=Monday..7=Sunday. Display names live in the domino UI components.
 
@@ -225,7 +233,9 @@ export const useGameStore = create((set, get) => ({
       const blocks = state.blocks.map((b) =>
         b.id === blockId ? { ...b, cleared: true } : b
       )
-      const uncleared = blocks.filter((b) => !b.cleared)
+      const uncleared = blocks.filter(
+        (b) => !b.cleared && REACHABLE_BLOCK_IDS.includes(b.id)
+      )
       const nextBlock = uncleared.length > 0
         ? uncleared[Math.floor(Math.random() * uncleared.length)]
         : null
