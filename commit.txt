@@ -1,0 +1,7 @@
+fix: route game to custom towns and overhaul graphics to Serene Village style
+
+- GameCanvas.jsx now correctly routes to TokyoScene, KyotoScene, OsakaScene, and SapporoScene instead of falling back to the old OverworldScene.
+- smoothMover.js: Increased the collision bounding box inset to 12px. This dramatically improves wall-sliding and prevents the player from getting stuck on building corners.
+- tileGen.js: Completely removed procedural rectangle graphics (fallbackGraphics) and replaced them with actual pixel-art tilemaps from the Serene_Village_revamped_v1.9 and Modern_Interiors_Free_v2.2 asset packs.
+- BaseTownScene.js: Updated the interior rendering logic to use the new Modern Interiors flooring and wall tiles.
+- Achieved a much cozier, premium Stardew Valley aesthetic across all 4 towns!

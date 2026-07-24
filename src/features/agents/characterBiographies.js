@@ -107,7 +107,26 @@ export const CHARACTER_BIOGRAPHIES = {
   pitofsky: { age: 76, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Robert Pitofsky — Vertical Monopoly Squeezer. Georgetown Law professor who balanced consumer welfare with broader democratic market concerns.' },
 }
 
+import { getSyndicateMember } from '../../data/syndicate'
+
 export function getCharacterBiography(npcId) {
+  const syndicateMember = getSyndicateMember(npcId)
+  if (syndicateMember) {
+    return {
+      age: syndicateMember.age,
+      gender: syndicateMember.gender,
+      orientation: syndicateMember.orientation,
+      maritalStatus: syndicateMember.maritalStatus,
+      fidelity: syndicateMember.fidelity,
+      bio: syndicateMember.bio,
+      traits: syndicateMember.traits,
+      specialty: syndicateMember.specialty,
+      homeBase: syndicateMember.homeBase,
+      favoriteHangout: syndicateMember.favoriteHangout,
+      vehicle: syndicateMember.vehicle,
+    }
+  }
+
   return CHARACTER_BIOGRAPHIES[npcId] || {
     age: 45,
     gender: 'Male',
@@ -117,4 +136,5 @@ export function getCharacterBiography(npcId) {
     bio: 'Prominent figure in the Capital Syndicate.',
   }
 }
+
 

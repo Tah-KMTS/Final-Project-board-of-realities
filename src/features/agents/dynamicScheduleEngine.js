@@ -1,3 +1,5 @@
+import { getSyndicateMemberSchedule } from '../../data/syndicate'
+
 /**
  * Dynamic AI Schedule & Event Reaction Engine for 76 Agents.
  */
@@ -64,7 +66,15 @@ export function simulateDynamicSchedules(agents, day, govState) {
       return copy
     }
 
-    // Crime Syndicates Routine (Capone, Luciano, Escobar, etc.)
+    // Detailed 21 Crime Syndicate Members Routine (Capone, Nitti, Ricca, Luciano, Genovese, Costello, Lansky, Siegel, Cohen, Escobar, Gaviria, Ochoa, Blanco, Osvaldo, Dixon, Lepke, Anastasia, Weiss, Rothstein, Waxey, Remus)
+    const syndicateSchedule = getSyndicateMemberSchedule(copy.id, currentBlockIndex)
+    if (syndicateSchedule) {
+      copy.currentLocation = syndicateSchedule.location
+      copy.currentAction = syndicateSchedule.action
+      copy.thoughtProcess = syndicateSchedule.thought
+      return copy
+    }
+
     if (copy.category && copy.category.includes('Crime')) {
       if (currentBlockIndex >= 3) {
         copy.currentLocation = 'Underground Speakeasy Club'

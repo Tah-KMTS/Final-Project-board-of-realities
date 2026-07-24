@@ -182,8 +182,32 @@ export function resolvePresidentialElection(govState, playerCandidateChoice) {
     ftcChairman: newFtc,
     taxRate: winner.taxRate,
     electionActive: false,
-    playerVote: null,
+    playerVote: playerCandidateChoice,
     lastElectionWinner: winner.name,
+    lastElectionTally: voteTally,
     governmentFeed: [electionResultFeed, ...(govState.governmentFeed || [])].slice(0, 30),
   }
 }
+
+/**
+ * Triggers a special presidential election campaign.
+ */
+export function triggerPresidentialElection(govState) {
+  const shuffled = [...PRESIDENTS_ROSTER].sort(() => Math.random() - 0.5)
+  return {
+    ...govState,
+    electionActive: true,
+    activeCandidates: shuffled.slice(0, 3),
+    playerVote: null,
+    governmentFeed: [
+      {
+        id: `election_start_${Date.now()}`,
+        day: govState.electionCycleDay || 1,
+        title: '🗳️ SPECIAL PRESIDENTIAL ELECTION CAMPAIGN LAUNCHED',
+        text: 'A presidential election has been officially declared! Candidates are debating tax platforms across all 4 metropolitan hubs.',
+      },
+      ...(govState.governmentFeed || []),
+    ].slice(0, 30),
+  }
+}
+

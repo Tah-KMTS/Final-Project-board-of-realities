@@ -17,7 +17,7 @@ import {
 import { FINANCE_NPCS } from '../features/finance/financeNpcs'
 import { rollHeadline } from '../features/finance/newsHeadlines'
 import { initializeAgentsState, simulateDailyAgentInteractions } from '../features/finance/agentEngine'
-import { initializeGovernmentState, simulateGovernmentDailyTick, resolvePresidentialElection } from '../features/government/governmentEngine'
+import { initializeGovernmentState, simulateGovernmentDailyTick, resolvePresidentialElection, triggerPresidentialElection } from '../features/government/governmentEngine'
 import { buildMasterAgentRegistry } from '../features/agents/agentRegistry'
 import { simulateDynamicSchedules } from '../features/agents/dynamicScheduleEngine'
 import { simulateTownMigration } from '../features/agents/townMigrationEngine'
@@ -864,6 +864,18 @@ export const useGameStore = create((set, get) => ({
     const state = get()
     const currentGov = state.world2.governmentState || initializeGovernmentState()
     const updatedGov = resolvePresidentialElection(currentGov, candidateId)
+    set((s) => ({
+      world2: {
+        ...s.world2,
+        governmentState: updatedGov,
+      },
+    }))
+  },
+
+  triggerElection: () => {
+    const state = get()
+    const currentGov = state.world2.governmentState || initializeGovernmentState()
+    const updatedGov = triggerPresidentialElection(currentGov)
     set((s) => ({
       world2: {
         ...s.world2,
