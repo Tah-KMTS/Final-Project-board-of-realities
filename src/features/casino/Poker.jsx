@@ -106,10 +106,10 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
 
   const startHand = () => {
     const useAnte = variant === 'challenge' ? fixedStake : anteInput
-    if (variant === 'house') {
+    if (variant === 'house' || variant === 'playerHouse') {
       if (cash < useAnte || player.energy < 5) return
       if (!spendEnergy(5)) return
-      addCash(-useAnte)
+      if (variant === 'house') addCash(-useAnte)
     }
     const useNpc = variant === 'challenge' ? npc : randomCasinoNpc()
     let d = shuffle(createDeck())
@@ -148,38 +148,52 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
     setPhase('drawn')
   }
 
-  const finalize = (result, payout, msg) => {
+  const finalize = (result, payout, msg, totalBet) => {
     setPhase('showdown')
     setOutcome(result)
     setMessage(msg)
     if (variant === 'house') {
       if (payout > 0) addCash(payout)
       if (payout >= BIG_WIN_REPUTATION_THRESHOLD) addReputation(2)
+    } else if (variant === 'playerHouse') {
+      // If playerHouse, they act as the House.
+      // `payout` is what the challenger (playerHand) receives if we treat them like the house variant.
+      // Wait, in playerHouse, the player controls `playerHand` (the house) against the NPC.
+      // So if `result` === 'win', the player beat the NPC. The player gains the NPC's bet (`totalBet`).
+      // If `result` === 'lose', the NPC beat the player. The player loses `totalBet`.
+      // If `result` === 'push', nothing changes.
+      if (result === 'win') {
+        addCash(totalBet)
+      } else if (result === 'lose') {
+        addCash(-totalBet)
+      }
+      if (totalBet >= BIG_WIN_REPUTATION_THRESHOLD && result === 'win') addReputation(2)
     }
   }
 
   const resolveShowdown = (raiseAmt, npcFolded) => {
+    const totalBet = ante + raiseAmt
     if (npcFolded) {
-      finalize('win', (ante * 2) + raiseAmt, `${activeNpc.name} folds. You take the pot.`)
+      finalize('win', (ante * 2) + raiseAmt, `${activeNpc.name} folds. You take the pot.`, totalBet)
       return
     }
     const playerEval = evaluateHand(playerHand)
     const npcEval = evaluateHand(npcHand)
     const cmp = compareHands(playerEval, npcEval)
     const total = (ante + raiseAmt) * 2
-    if (cmp > 0) finalize('win', total, `You win with ${playerEval.name} vs their ${npcEval.name}!`)
-    else if (cmp < 0) finalize('lose', 0, `${activeNpc.name} wins with ${npcEval.name} vs your ${playerEval.name}.`)
-    else finalize('push', ante + raiseAmt, `Split pot - you both show ${playerEval.name}.`)
+    if (cmp > 0) finalize('win', total, `You win with ${playerEval.name} vs their ${npcEval.name}!`, totalBet)
+    else if (cmp < 0) finalize('lose', 0, `${activeNpc.name} wins with ${npcEval.name} vs your ${playerEval.name}.`, totalBet)
+    else finalize('push', ante + raiseAmt, `Split pot - you both show ${playerEval.name}.`, totalBet)
   }
 
-  const doFold = () => finalize('lose', 0, `You fold. ${activeNpc.name} takes the pot.`)
+  const doFold = () => finalize('lose', 0, `You fold. ${activeNpc.name} takes the pot.`, ante)
   const doCall = () => resolveShowdown(0, false)
   const doRaise = () => {
-    if (variant !== 'house') return
+    if (variant !== 'house' && variant !== 'playerHouse') return
     const maxRaise = Math.max(0, cash - ante)
     const amt = Math.min(raiseInput, maxRaise)
     if (amt <= 0) return
-    addCash(-amt)
+    if (variant === 'house') addCash(-amt)
     const npcEval = evaluateHand(npcHand)
     const npcFolds = npcRespondsToRaise(npcEval, activeNpc.tellSkill, playerPER, amt / (ante * 2 || 1))
     resolveShowdown(amt, npcFolds)

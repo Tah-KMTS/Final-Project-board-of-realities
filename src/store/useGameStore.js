@@ -83,6 +83,7 @@ function createDefaultState() {
     inventory: [],
     cash: 100,
     wantedLevel: 0,
+    notoriety: 0, // 0-100 stat for crime visibility
     // Capital Syndicate core loop: a persistent day counter (advanced by the
     // "End Day" button), a rolling flavor headline, and Public Reputation/
     // Social Status (0-100). Police Heat/SEC Suspicion is deliberately NOT a
@@ -698,6 +699,41 @@ export const useGameStore = create((set, get) => ({
     return true
   },
 
+  addNotoriety: (amount) => {
+    set((state) => ({ notoriety: Math.max(0, Math.min(100, state.notoriety + amount)) }))
+  },
+
+  executeCrime: ({ type, baseSuccessChance, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, energyCost, assetSeizureOnFail }) => {
+    const state = get()
+    if (!state.spendEnergy(energyCost)) return { success: false, reason: 'Not enough energy' }
+
+    // Streetwise increases success chance, Notoriety decreases it.
+    const streetwise = state.player.stats.streetwise || 5
+    const successProb = baseSuccessChance + (streetwise * 0.02) - (state.notoriety * 0.002)
+    const clampedProb = Math.max(0.05, Math.min(0.95, successProb))
+
+    const isSuccess = Math.random() < clampedProb
+
+    if (isSuccess) {
+      state.addCash(payout)
+      return { success: true, payout, message: `Success! You got away with $${payout.toLocaleString()}.` }
+    } else {
+      let failMsg = 'You were caught!'
+      if (notorietyIncreaseOnFail) state.addNotoriety(notorietyIncreaseOnFail)
+      if (wantedIncreaseOnFail) state.addWantedLevel(wantedIncreaseOnFail)
+      
+      let fine = 0
+      if (assetSeizureOnFail) {
+        fine = Math.floor(state.cash * assetSeizureOnFail)
+        if (fine > 0) {
+          state.addCash(-fine)
+          failMsg += ` Seized $${fine.toLocaleString()}.`
+        }
+      }
+      return { success: false, fine, message: failMsg }
+    }
+  },
+
   financeNpcAction: (npcId, action) => {
     const state = get()
     const npc = FINANCE_NPCS.find((n) => n.id === npcId)
@@ -705,20 +741,31 @@ export const useGameStore = create((set, get) => ({
     const status = state.world2.npcStatus[npcId] || 'alive'
     if (status === 'dead') return
 
-    const ENERGY_COST = { workFor: 5, collude: 15, mug: 15, extort: 15 }
+    const ENERGY_COST = { workFor: 5, collude: 15, extort: 15 }
     if (ENERGY_COST[action] !== undefined && !get().spendEnergy(ENERGY_COST[action])) return
 
     if (action === 'workFor') {
       get().addCash(300)
     } else if (action === 'collude') {
-      get().addCash(2000)
-      get().addWantedLevel(1)
-    } else if (action === 'mug') {
-      get().addCash(1500)
-      get().addWantedLevel(2)
+      get().executeCrime({
+        type: 'collude',
+        baseSuccessChance: 0.7,
+        payout: 2000,
+        notorietyIncreaseOnFail: 10,
+        wantedIncreaseOnFail: 2,
+        energyCost: 0, // already spent in financeNpcAction check
+        assetSeizureOnFail: 0
+      })
     } else if (action === 'extort') {
-      get().addCash(5000)
-      get().addWantedLevel(3)
+      get().executeCrime({
+        type: 'extort',
+        baseSuccessChance: 0.5,
+        payout: 5000,
+        notorietyIncreaseOnFail: 20,
+        wantedIncreaseOnFail: 4,
+        energyCost: 0, // already spent in financeNpcAction check
+        assetSeizureOnFail: 0
+      })
     }
   },
 
@@ -863,6 +910,11 @@ export const useGameStore = create((set, get) => ({
 
     if (state.wantedLevel > 0 && Math.random() < 0.4) {
       get().addWantedLevel(-1)
+    }
+    
+    // Notoriety cools down slowly every day
+    if (state.notoriety > 0) {
+      get().addNotoriety(-5)
     }
 
     if (recruited.includes('hamilton') && nextDay % 2 === 0 && state.wantedLevel > 0) {

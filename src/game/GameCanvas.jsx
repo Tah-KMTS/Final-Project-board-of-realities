@@ -11,11 +11,11 @@ import { createEventBridge } from './eventBridge'
 import { useGameStore } from '../store/useGameStore'
 
 const SCENES_BY_MODE = {
-  overworld: TokyoScene,
-  tokyo: TokyoScene,
-  kyoto: KyotoScene,
-  osaka: OsakaScene,
-  sapporo: SapporoScene,
+  overworld: OverworldScene,
+  tokyo: OverworldScene,
+  kyoto: OverworldScene,
+  osaka: OverworldScene,
+  sapporo: OverworldScene,
   domino: DominoWorldScene,
 }
 
@@ -69,6 +69,9 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
     const unsubCityTravel = bridge.on('cityTravel', ({ cityId }) => {
       useGameStore.getState().switchCity(cityId)
       if (sceneRef.current) {
+        if (typeof sceneRef.current.teleportToCity === 'function') {
+          sceneRef.current.teleportToCity(cityId)
+        }
         if (typeof sceneRef.current.loadZone === 'function') {
           sceneRef.current.loadZone('overworld', false)
         } else if (sceneRef.current.scene) {

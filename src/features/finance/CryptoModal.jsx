@@ -8,7 +8,9 @@ export default function CryptoModal({ onClose }) {
   const buyCrypto = useGameStore((s) => s.buyCrypto)
   const sellCrypto = useGameStore((s) => s.sellCrypto)
   const shillCrypto = useGameStore((s) => s.shillCrypto)
+  const executeCrime = useGameStore((s) => s.executeCrime)
   const [amount, setAmount] = useState(100)
+  const [feedbackMsg, setFeedbackMsg] = useState(null)
 
   const holdingsValue = world2.cryptoHoldings * world2.cryptoPrice
 
@@ -56,6 +58,26 @@ export default function CryptoModal({ onClose }) {
         >
           Shill It On Social Media (Pump)
         </button>
+
+        <button
+          onClick={() => {
+            const res = executeCrime({
+              type: 'hack',
+              baseSuccessChance: 0.6, // 60% base
+              payout: 5000,
+              notorietyIncreaseOnFail: 15,
+              wantedIncreaseOnFail: 2,
+              energyCost: 20,
+              assetSeizureOnFail: 0.1 // lose 10% of cash
+            })
+            setFeedbackMsg(res.message || res.reason)
+          }}
+          className="mb-4 w-full border-4 border-fuchsia-400 bg-fuchsia-900 py-2 font-bold text-white hover:bg-fuchsia-700"
+        >
+          Hack Exchange Wallet (20 Energy)
+        </button>
+
+        {feedbackMsg && <p className="mb-4 text-xs italic text-orange-300">{feedbackMsg}</p>}
 
         <button
           onClick={onClose}

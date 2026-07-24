@@ -42,36 +42,57 @@ const DEFAULT_SPAWN = { col: 7, row: 1 }
 // building and the map border) overlapping as the roster changes. Verified
 // with a standalone overlap/bounds check before wiring this in, not just
 // eyeballed.
-const DISTRICT_ORDER = ['Financial District', 'Commercial District', 'Underground District', 'Government & Cultural District']
+const DISTRICT_ORDER = ['Tokyo District', 'Kyoto District', 'Osaka District', 'Sapporo District']
 
 const FINANCE_BUILDING_DEFS = [
-  // --- Financial District (Stock Exchange, tycoon HQs, Crypto HQ, VC Hub) ---
-  { id: 'stockExchange', label: 'Stock Exchange', district: 'Financial District', color: 0x1f5f3a, width: 3, height: 3 },
-  { id: 'buffettHQ', label: 'Biffle Tower', district: 'Financial District', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
-  { id: 'vanderbiltHQ', label: 'Vanderbilt Rail Co.', district: 'Financial District', color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
-  { id: 'muskHQ', label: 'Rusk Industries', district: 'Financial District', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
-  { id: 'howardMarksHQ', label: 'Oaktree Cycle Capital', district: 'Financial District', color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
-  { id: 'vcHub', label: 'Venture Capital Hub', district: 'Financial District', color: 0x2a3a6b, width: 3, height: 3 },
-  { id: 'corporateOffice', label: 'Corporate Holdings', district: 'Financial District', color: 0x4a3a5f, width: 4, height: 3 },
-  { id: 'cryptoExchange', label: 'Crypto HQ', district: 'Financial District', color: 0x8a5a1f, width: 4, height: 3 },
+  // --- Tokyo District ---
+  { id: 'stockExchange', label: 'Tokyo Stock Exchange', district: 'Tokyo District', color: 0x1f5f3a, width: 3, height: 3 },
+  { id: 'buffettHQ', label: 'Biffle Tower', district: 'Tokyo District', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
+  { id: 'vanderbiltHQ', label: 'Vanderbilt Rail Co.', district: 'Tokyo District', color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
+  { id: 'muskHQ', label: 'Rusk Industries', district: 'Tokyo District', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
+  { id: 'howardMarksHQ', label: 'Oaktree Cycle Capital', district: 'Tokyo District', color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
+  { id: 'appleHQ', label: 'Apple Glass HQ', district: 'Tokyo District', color: 0xc0c0c0, width: 4, height: 3, npcId: 'jobs' },
+  { id: 'cryptoExchange', label: 'Crypto HQ', district: 'Tokyo District', color: 0x8a5a1f, width: 4, height: 3 },
+  { id: 'corporateOffice', label: 'Corporate Holdings', district: 'Tokyo District', color: 0x4a3a5f, width: 4, height: 3 },
+  { id: 'vcHub', label: 'Venture Capital Hub', district: 'Tokyo District', color: 0x2a3a6b, width: 3, height: 3 },
+  { id: 'bank', label: 'Bank & Realty Office', district: 'Tokyo District', color: 0x1f3a5f, width: 4, height: 3 },
+  { id: 'realEstateAgency', label: 'Real Estate Agency', district: 'Tokyo District', color: 0x3a5f4a, width: 4, height: 3 },
+  { id: 'parliament', label: 'Parliament Hall', district: 'Tokyo District', color: 0x3a3a6a, width: 4, height: 3 },
 
-  // --- Commercial District (Banks, Real Estate, Casino, Arcade, Hotel) ---
-  { id: 'bank', label: 'Bank & Realty Office', district: 'Commercial District', color: 0x1f3a5f, width: 4, height: 3 },
-  { id: 'realEstateAgency', label: 'Real Estate Agency', district: 'Commercial District', color: 0x3a5f4a, width: 4, height: 3 },
-  { id: 'hotel', label: 'Capital Suites Hotel', district: 'Commercial District', color: 0x8a6a2a, width: 4, height: 3 },
-  { id: 'casino', label: 'Neon Dragon Casino', district: 'Commercial District', color: 0x8a1f6a, width: 3, height: 3 },
-  { id: 'arcade', label: 'Pixel Palace Arcade', district: 'Commercial District', color: 0x1f6a8a, width: 3, height: 3 },
+  // --- Kyoto District ---
+  { id: 'irsHQ', label: 'IRS Internal Revenue', district: 'Kyoto District', color: 0x5a5a5a, width: 4, height: 3, npcId: 'caplin' },
+  { id: 'teaHouse', label: 'Cherry Coke Tea House', district: 'Kyoto District', color: 0x8a4a2a, width: 3, height: 2 },
+  { id: 'machiyaEstate', label: 'Machiya Executive Estate', district: 'Kyoto District', color: 0x6a5a3a, width: 4, height: 3 },
+  { id: 'zenGarden', label: 'Zen Rock Garden', district: 'Kyoto District', color: 0x8a8a6a, width: 3, height: 2 },
+  { id: 'silkMarket', label: 'Silk & Kimono Market', district: 'Kyoto District', color: 0x8a2a4a, width: 3, height: 2 },
+  { id: 'sakeBrewery', label: 'Fushimi Sake Brewery', district: 'Kyoto District', color: 0x6a4a2a, width: 3, height: 2 },
+  { id: 'artisanShop', label: 'Kiyomizu Artisan Shop', district: 'Kyoto District', color: 0x4a6a5a, width: 3, height: 2 },
+  { id: 'hotel', label: 'Ryokan Mountain Inn', district: 'Kyoto District', color: 0x5a4a3a, width: 4, height: 3 },
+  { id: 'park', label: 'Serenity Park', district: 'Kyoto District', color: 0x2a5f2a, width: 4, height: 2 },
+  { id: 'temple', label: 'Whispering Temple', district: 'Kyoto District', color: 0x5a5a4a, width: 4, height: 2 },
 
-  // --- Underground District (Crime Alley, Black Market, Call Center Ops) ---
-  { id: 'crimeAlley', label: 'Crime Alley', district: 'Underground District', color: 0x6a1f1f, width: 4, height: 2 },
-  { id: 'blackMarket', label: 'Black Market', district: 'Underground District', color: 0x4a1f6a, width: 3, height: 2 },
-  { id: 'callCenterOps', label: 'Call Center Ops', district: 'Underground District', color: 0x6a5a1f, width: 3, height: 2 },
+  // --- Osaka District ---
+  { id: 'casino', label: 'Neon Dragon Casino', district: 'Osaka District', color: 0x8a1f6a, width: 4, height: 3 },
+  { id: 'arcade', label: 'Pixel Palace Arcade', district: 'Osaka District', color: 0x1f6a8a, width: 3, height: 3 },
+  { id: 'speakeasyHotel', label: 'Chicago Speakeasy Hotel', district: 'Osaka District', color: 0x6a3a2a, width: 4, height: 3, npcId: 'capone' },
+  { id: 'fbiHQ', label: 'FBI Headquarters', district: 'Osaka District', color: 0x2a3a5a, width: 4, height: 3, npcId: 'hoover' },
+  { id: 'dotonboriArcade', label: 'Dotonbori Merchant Arcade', district: 'Osaka District', color: 0x8a6a2a, width: 4, height: 2 },
+  { id: 'fishMarket', label: 'Kuromon Fish Market', district: 'Osaka District', color: 0x2a5a6a, width: 3, height: 2 },
+  { id: 'takoyakiStand', label: 'Takoyaki Street Food', district: 'Osaka District', color: 0x8a4a1f, width: 2, height: 2 },
+  { id: 'crimeAlley', label: 'Crime Alley', district: 'Osaka District', color: 0x6a1f1f, width: 4, height: 2, npcId: 'luciano' },
+  { id: 'blackMarket', label: 'Black Market', district: 'Osaka District', color: 0x4a1f6a, width: 3, height: 2 },
+  { id: 'callCenterOps', label: 'Call Center Ops', district: 'Osaka District', color: 0x6a5a1f, width: 3, height: 2 },
+  { id: 'dockVaults', label: 'Dock Underground Vaults', district: 'Osaka District', color: 0x2a2a3a, width: 4, height: 2 },
 
-  // --- Government & Cultural District (Parliament, Park, Temple, Train Station) ---
-  { id: 'parliament', label: 'Parliament Hall', district: 'Government & Cultural District', color: 0x3a3a6a, width: 4, height: 2 },
-  { id: 'park', label: 'Serenity Park', district: 'Government & Cultural District', color: 0x2a5f2a, width: 4, height: 2 },
-  { id: 'temple', label: 'Whispering Temple', district: 'Government & Cultural District', color: 0x5a5a4a, width: 4, height: 2 },
-  { id: 'trainStation', label: '🚆 Central Train Station', district: 'Government & Cultural District', color: 0x4a6fa5, width: 4, height: 2 },
+  // --- Sapporo District ---
+  { id: 'fordRougeComplex', label: 'Ford River Rouge Complex', district: 'Sapporo District', color: 0x3a4a5a, width: 4, height: 3, npcId: 'ford' },
+  { id: 'carnegieSteelMill', label: 'Homestead Steel Mill', district: 'Sapporo District', color: 0x5a3a2a, width: 4, height: 3, npcId: 'carnegie' },
+  { id: 'standardOilRefinery', label: 'Standard Oil Refinery', district: 'Sapporo District', color: 0x2a3a3a, width: 4, height: 3, npcId: 'rockefeller' },
+  { id: 'pentagonDodHQ', label: 'Pentagon Procurement HQ', district: 'Sapporo District', color: 0x2a4a6a, width: 4, height: 3, npcId: 'mcnamara' },
+  { id: 'epaHQ', label: 'EPA Regulation Agency', district: 'Sapporo District', color: 0x2a5a3a, width: 4, height: 3, npcId: 'ruckelshaus' },
+  { id: 'sapporoBrewery', label: 'Alpine Snow Brewery', district: 'Sapporo District', color: 0x8a6a2a, width: 3, height: 2 },
+  { id: 'alpineLodge', label: 'Mount Yotei Alpine Lodge', district: 'Sapporo District', color: 0x6a4a3a, width: 4, height: 3 },
+  { id: 'trainStation', label: '🚆 Central Train Station', district: 'Sapporo District', color: 0x4a6fa5, width: 4, height: 2 },
 ]
 
 const BAND_COL_START = 2
@@ -120,11 +141,11 @@ function layoutFinanceMap(mapCols) {
     hStreets.push(Math.round((gapTop + gapBottom) / 2))
   }
 
-  return { buildings, mapRows, hStreets }
+  return { buildings, mapRows, hStreets, districtBandRows }
 }
 
 const MAP_COLS = 40
-const { buildings: FINANCE_BUILDINGS, mapRows: MAP_ROWS, hStreets: FINANCE_H_STREETS } = layoutFinanceMap(MAP_COLS)
+const { buildings: FINANCE_BUILDINGS, mapRows: MAP_ROWS, hStreets: FINANCE_H_STREETS, districtBandRows: DISTRICT_BAND_ROWS } = layoutFinanceMap(MAP_COLS)
 // Two vertical corridors: col 7 is the spawn column, col 33 is the far-side
 // expressway running from the coastal water channel to the city south gate.
 const FINANCE_V_STREETS = [7, 33]
@@ -171,10 +192,32 @@ const BUILDING_INTERIOR_TEMPLATE = {
   vanderbiltHQ: 'tycoonOffice',
   muskHQ: 'tycoonOffice',
   howardMarksHQ: 'tycoonOffice',
+  appleHQ: 'tycoonOffice',
   bank: 'officeA',
   realEstateAgency: 'officeA',
   corporateOffice: 'officeB',
   vcHub: 'officeB',
+  speakeasyHotel: 'officeB',
+  irsHQ: 'officeA',
+  fbiHQ: 'officeA',
+  pentagonDodHQ: 'officeA',
+  epaHQ: 'officeA',
+  fordRougeComplex: 'officeB',
+  carnegieSteelMill: 'officeB',
+  standardOilRefinery: 'officeB',
+  teaHouse: 'amenity',
+  machiyaEstate: 'amenity',
+  zenGarden: 'amenity',
+  silkMarket: 'amenity',
+  sakeBrewery: 'amenity',
+  artisanShop: 'amenity',
+  dotonboriArcade: 'amenity',
+  fishMarket: 'amenity',
+  takoyakiStand: 'amenity',
+  dockVaults: 'amenity',
+  sapporoBrewery: 'amenity',
+  alpineLodge: 'amenity',
+  trainStation: 'amenity',
   arcade: 'amenity',
   hotel: 'amenity',
   crimeAlley: 'amenity',
@@ -204,29 +247,26 @@ function buildLayout(tileTypeFn, cols, rows) {
 }
 
 // 'path' and 'water' render the same everywhere; 'grass' cells get a
-// per-city ground reskin (Tokyo slate marble, Kyoto cobblestone, everyone
+// per-district ground reskin (Tokyo slate marble, Kyoto cobblestone, everyone
 // else plain grass); border 'wall' cells are the same everywhere too.
-function terrainTileTypeAt(tile, cityId) {
+function terrainTileTypeAt(tile, row) {
   if (tile === 'water') return 'water'
   if (tile === 'path') return 'path'
   if (tile === 'wall') return 'wall'
-  if (cityId === 'tokyo') return 'slate'
-  if (cityId === 'kyoto') return 'cobblestone'
+  
+  if (row >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && row <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) return 'slate'
+  if (row >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && row <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2) return 'cobblestone'
+  
   return 'grass'
 }
 
-function scatterEnvironment(scene, layout, buildings, count, cityId, zoneObjects) {
+function scatterEnvironment(scene, layout, buildings, count, zoneObjects) {
   const forbidden = new Set()
   for (const b of buildings) {
     for (let r = b.tiles.r0 - 1; r <= b.tiles.r1 + 1; r++) {
       for (let c = b.tiles.c0 - 1; c <= b.tiles.c1 + 1; c++) forbidden.add(`${r},${c}`)
     }
   }
-  // Urban cities (Tokyo slate, Osaka) get rocks/props only, no nature.
-  // Kyoto (cobblestone JRPG) gets cherry blossom flowers + rocks.
-  // Default (grass biome) gets full mix: trees, flowers, rocks.
-  const isUrban = cityId === 'tokyo' || cityId === 'osaka'
-  const isJRPG = cityId === 'kyoto'
   for (let i = 0; i < count; i++) {
     const r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6)) // skip water rows at top
     const c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
@@ -234,6 +274,9 @@ function scatterEnvironment(scene, layout, buildings, count, cityId, zoneObjects
     const cx = c * TILE_SIZE + TILE_SIZE / 2
     const cy = r * TILE_SIZE + TILE_SIZE / 2
     let objs
+    const isUrban = (r >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && r <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) || (r >= DISTRICT_BAND_ROWS['Osaka District'].top - 2 && r <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 2)
+    const isJRPG = (r >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && r <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2)
+
     if (isUrban) {
       // Only sparse rocks for urban marble districts
       if (Math.random() > 0.25) continue
@@ -415,6 +458,32 @@ export default class OverworldScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.playerActor.sprite, true)
   }
 
+  teleportToCity(cityId) {
+    const districtMap = {
+      'tokyo': 'Tokyo District',
+      'kyoto': 'Kyoto District',
+      'osaka': 'Osaka District',
+      'sapporo': 'Sapporo District'
+    }
+    const districtName = districtMap[cityId] || 'Tokyo District'
+    
+    // Find a building in that district to spawn near (preferably train station)
+    let target = FINANCE_BUILDINGS.find(b => b.district === districtName && b.id === 'trainStation')
+    if (!target) {
+        target = FINANCE_BUILDINGS.find(b => b.district === districtName)
+    }
+    
+    if (target) {
+        this.overworldReturnSpawn = {
+            col: Math.round((target.tiles.c0 + target.tiles.c1) / 2),
+            row: target.tiles.r1 + 1,
+        }
+        if (this.currentZoneId === 'overworld') {
+            this.tileMover.teleport(this.overworldReturnSpawn.col, this.overworldReturnSpawn.row)
+        }
+    }
+  }
+
   clearZoneObjects() {
     for (const obj of this.zoneObjects) obj.destroy()
     this.zoneObjects = []
@@ -440,81 +509,74 @@ export default class OverworldScene extends Phaser.Scene {
 
     drawBuildings(this, FINANCE_BUILDINGS, this.zoneObjects)
 
-    // City-specific landmark buildings overlay
-    this.drawCityLandmarkOverlay(currentCityId)
+    // City-specific landmark buildings overlay (now District-specific)
+    this.drawCityLandmarkOverlay()
 
     this.drawFinanceNamedNpcs()
     this.spawnFinanceAmbientNpcs()
 
-    const cityLabel = currentCityId === 'kyoto' ? '⛩️ Kyoto — Shinto Pagoda District'
-      : currentCityId === 'tokyo' ? '🏛️ Tokyo — Luxury Financial District'
-      : currentCityId === 'osaka' ? '🐙 Osaka — Commerce Quarter'
-      : '❄️ Sapporo — Alpine Frontier'
-    this.regionLabel.setText(cityLabel)
+    this.regionLabel.setText('Capital Syndicate Mega-Map')
     this.buildOverworldZones()
   }
 
-  drawCityLandmarkOverlay(cityId) {
+  drawCityLandmarkOverlay() {
     const overlayGraphics = this.add.graphics().setDepth(2000)
     this.zoneObjects.push(overlayGraphics)
 
-    // Tokyo Option 3: amber-gold border accent on the first 3 buildings
-    if (cityId === 'tokyo') {
-      for (let i = 0; i < Math.min(3, FINANCE_BUILDINGS.length); i++) {
-        const b = FINANCE_BUILDINGS[i]
-        const x = b.tiles.c0 * TILE_SIZE
-        const y = b.tiles.r0 * TILE_SIZE
-        const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-        const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-        overlayGraphics.lineStyle(3, 0xf59e0b, 0.9)
-        overlayGraphics.strokeRect(x, y, w, h)
-        // Gold roof cap
-        overlayGraphics.fillStyle(0xf59e0b, 0.3)
-        overlayGraphics.fillRect(x, y - 4, w, 4)
-      }
+    // Tokyo District: amber-gold border accent
+    const tokyoBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Tokyo District')
+    for (let i = 0; i < Math.min(3, tokyoBuildings.length); i++) {
+      const b = tokyoBuildings[i]
+      const x = b.tiles.c0 * TILE_SIZE
+      const y = b.tiles.r0 * TILE_SIZE
+      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
+      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
+      overlayGraphics.lineStyle(3, 0xf59e0b, 0.9)
+      overlayGraphics.strokeRect(x, y, w, h)
+      overlayGraphics.fillStyle(0xf59e0b, 0.3)
+      overlayGraphics.fillRect(x, y - 4, w, 4)
     }
-    // Kyoto Option 2: red torii-gate accent on the first 3 buildings
-    if (cityId === 'kyoto') {
-      for (let i = 0; i < Math.min(3, FINANCE_BUILDINGS.length); i++) {
-        const b = FINANCE_BUILDINGS[i]
-        const x = b.tiles.c0 * TILE_SIZE
-        const y = b.tiles.r0 * TILE_SIZE
-        const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-        const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-        // Pagoda curved red roof accent
-        overlayGraphics.fillStyle(0xdc2626, 0.85)
-        overlayGraphics.fillRect(x - 4, y - 10, w + 8, 6)
-        overlayGraphics.fillStyle(0xfbbf24, 1)
-        overlayGraphics.fillRect(x + w / 2 - 2, y - 14, 4, 4)
-      }
+
+    // Kyoto District: red torii-gate accent
+    const kyotoBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Kyoto District')
+    for (let i = 0; i < Math.min(3, kyotoBuildings.length); i++) {
+      const b = kyotoBuildings[i]
+      const x = b.tiles.c0 * TILE_SIZE
+      const y = b.tiles.r0 * TILE_SIZE
+      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
+      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
+      overlayGraphics.fillStyle(0xdc2626, 0.85)
+      overlayGraphics.fillRect(x - 4, y - 10, w + 8, 6)
+      overlayGraphics.fillStyle(0xfbbf24, 1)
+      overlayGraphics.fillRect(x + w / 2 - 2, y - 14, 4, 4)
     }
-    // Osaka Option: cyan/neon magenta border accents
-    if (cityId === 'osaka') {
-      for (let i = 0; i < Math.min(3, FINANCE_BUILDINGS.length); i++) {
-        const b = FINANCE_BUILDINGS[i]
-        const x = b.tiles.c0 * TILE_SIZE
-        const y = b.tiles.r0 * TILE_SIZE
-        const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-        const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-        overlayGraphics.lineStyle(3, 0x06b6d4, 0.9)
-        overlayGraphics.strokeRect(x, y, w, h)
-        overlayGraphics.fillStyle(0xec4899, 0.7)
-        overlayGraphics.fillRect(x + 4, y - 6, w - 8, 4)
-      }
+
+    // Osaka District: cyan/neon magenta border accents
+    const osakaBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Osaka District')
+    for (let i = 0; i < Math.min(3, osakaBuildings.length); i++) {
+      const b = osakaBuildings[i]
+      const x = b.tiles.c0 * TILE_SIZE
+      const y = b.tiles.r0 * TILE_SIZE
+      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
+      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
+      overlayGraphics.lineStyle(3, 0x06b6d4, 0.9)
+      overlayGraphics.strokeRect(x, y, w, h)
+      overlayGraphics.fillStyle(0xec4899, 0.7)
+      overlayGraphics.fillRect(x + 4, y - 6, w - 8, 4)
     }
-    // Sapporo Option: ice-blue border accents & snow caps
-    if (cityId === 'sapporo') {
-      for (let i = 0; i < Math.min(3, FINANCE_BUILDINGS.length); i++) {
-        const b = FINANCE_BUILDINGS[i]
-        const x = b.tiles.c0 * TILE_SIZE
-        const y = b.tiles.r0 * TILE_SIZE
-        const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-        const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-        overlayGraphics.lineStyle(3, 0x38bdf8, 0.9)
-        overlayGraphics.strokeRect(x, y, w, h)
-        overlayGraphics.fillStyle(0xe0f2fe, 0.9)
-        overlayGraphics.fillRect(x - 2, y - 6, w + 4, 5)
-      }
+
+    // Sapporo District: ice-blue border accents & snow caps
+    const sapporoBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Sapporo District')
+    for (let i = 0; i < Math.min(3, sapporoBuildings.length); i++) {
+      const b = sapporoBuildings[i]
+      const x = b.tiles.c0 * TILE_SIZE
+      const y = b.tiles.r0 * TILE_SIZE
+      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
+      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
+      overlayGraphics.lineStyle(3, 0x38bdf8, 0.9)
+      overlayGraphics.strokeRect(x, y, w, h)
+      overlayGraphics.fillStyle(0xe0f2fe, 0.9)
+      overlayGraphics.fillRect(x - 2, y - 6, w + 4, 5)
     }
   }
 
@@ -683,9 +745,10 @@ export default class OverworldScene extends Phaser.Scene {
   buildOverworldZones() {
     const pad = TILE_SIZE / 2
 
-    this.zones = FINANCE_BUILDINGS.map((b) => ({
+    this.zones = FINANCE_BUILDINGS.map((b, i) => ({
       type: 'building',
       id: b.id,
+      uid: i,
       label: b.label,
       npcId: b.npcId,
       rect: new Phaser.Geom.Rectangle(
@@ -773,21 +836,23 @@ export default class OverworldScene extends Phaser.Scene {
         this.bridge.emit('interact', { type: 'townTravel' })
         return
       }
+      
+      const building = FINANCE_BUILDINGS[zone.uid] || FINANCE_BUILDINGS.find((b) => b.id === zone.id)
+      
       if (zone.id === 'stockExchange') {
         this.overworldReturnSpawn = STOCK_EXCHANGE_DOOR
         this.loadZone('stockExchangeInterior')
         return
       }
       if (zone.id === 'casino') {
-        const casinoBuilding = FINANCE_BUILDINGS.find((b) => b.id === 'casino')
         this.overworldReturnSpawn = {
-          col: Math.round((casinoBuilding.tiles.c0 + casinoBuilding.tiles.c1) / 2),
-          row: casinoBuilding.tiles.r1 + 1,
+          col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
+          row: building.tiles.r1 + 1,
         }
         this.loadZone('casinoInterior')
         return
       }
-      const building = FINANCE_BUILDINGS.find((b) => b.id === zone.id)
+      
       this.overworldReturnSpawn = {
         col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
         row: building.tiles.r1 + 1,
@@ -825,6 +890,20 @@ export default class OverworldScene extends Phaser.Scene {
     if (this.interactionLocked) return
 
     this.updateNearbyZone()
+
+    if (this.currentZoneId === 'overworld') {
+      const row = Math.floor(this.playerActor.y / TILE_SIZE)
+      let newCityId = null
+      if (row >= DISTRICT_BAND_ROWS['Tokyo District'].top - 4 && row <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 4) newCityId = 'tokyo'
+      else if (row >= DISTRICT_BAND_ROWS['Kyoto District'].top - 4 && row <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 4) newCityId = 'kyoto'
+      else if (row >= DISTRICT_BAND_ROWS['Osaka District'].top - 4 && row <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 4) newCityId = 'osaka'
+      else if (row >= DISTRICT_BAND_ROWS['Sapporo District'].top - 4 && row <= DISTRICT_BAND_ROWS['Sapporo District'].bottom + 4) newCityId = 'sapporo'
+
+      const state = useGameStore.getState()
+      if (newCityId && state.currentCityId !== newCityId) {
+        state.switchCity(newCityId)
+      }
+    }
 
     if (Phaser.Input.Keyboard.JustDown(this.wasd.E) && this.nearbyZone) {
       this.triggerInteraction(this.nearbyZone)

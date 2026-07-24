@@ -35,6 +35,7 @@ export default function NamedNpcModal({ npcId, onClose }) {
   const isRecruited = recruitedAdvisors.includes(npcId)
   const romanceState = world2.romanceState || { relationships: {}, spouses: [] }
   const relationshipLevel = (romanceState.relationships || {})[npcId] || 0
+  const isSpouse = (romanceState.spouses || []).includes(npcId)
 
   const bio = getCharacterBiography(npcId)
   const masterAgent = (world2.masterAgents || []).find((a) => a.id === npcId)
@@ -202,18 +203,43 @@ export default function NamedNpcModal({ npcId, onClose }) {
         <div className="mt-4 flex flex-col gap-2">
           {/* Dating & Romance Action Buttons */}
           <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => handleCourt('date_diner')}
-              className="border border-fuchsia-400 bg-fuchsia-950/50 py-2 text-xs font-bold text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black transition-all"
-            >
-              🍔 Invite to Diner Date
-            </button>
-            <button
-              onClick={() => handleCourt('proposal')}
-              className="border border-yellow-400 bg-yellow-950/50 py-2 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
-            >
-              💍 Propose Syndicate Marriage
-            </button>
+            {!isSpouse ? (
+              <>
+                <button
+                  onClick={() => handleCourt('date_diner')}
+                  className="border border-fuchsia-400 bg-fuchsia-950/50 py-2 text-xs font-bold text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black transition-all"
+                >
+                  🍔 Invite to Diner Date
+                </button>
+                <button
+                  onClick={() => handleCourt('proposal')}
+                  className="border border-yellow-400 bg-yellow-950/50 py-2 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
+                >
+                  💍 Propose Syndicate Marriage
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  const settlement = Math.floor(cash * 0.5)
+                  useGameStore.getState().addCash(-settlement)
+                  
+                  const updatedSpouses = romanceState.spouses.filter((id) => id !== npcId)
+                  setRomanceState({
+                    ...romanceState,
+                    spouses: updatedSpouses,
+                    relationships: {
+                      ...romanceState.relationships,
+                      [npcId]: 0,
+                    },
+                  })
+                  setFeedbackMsg(`Divorced ${npc.name}. They took 50% of your cash ($${settlement.toLocaleString()}).`)
+                }}
+                className="col-span-2 border border-red-500 bg-red-950/50 py-2 text-xs font-bold text-red-400 hover:bg-red-600 hover:text-white transition-all"
+              >
+                💔 Divorce (Settlement: 50% of your cash)
+              </button>
+            )}
           </div>
 
           {!isRecruited ? (

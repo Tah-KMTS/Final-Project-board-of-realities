@@ -28,11 +28,13 @@ export default function BankModal({ onClose }) {
   const loanTier = useGameStore((s) => s.loanTier)
   const takeLoan = useGameStore((s) => s.takeLoan)
   const repayLoan = useGameStore((s) => s.repayLoan)
+  const executeCrime = useGameStore((s) => s.executeCrime)
 
   const [depositInput, setDepositInput] = useState(100)
   const [withdrawInput, setWithdrawInput] = useState(100)
   const [loanInput, setLoanInput] = useState(1000)
   const [repayInput, setRepayInput] = useState(1000)
+  const [feedbackMsg, setFeedbackMsg] = useState(null)
 
   const tier = currentJobTier()
   const atRiskCash = Math.max(0, cash - (world2.bankedAmount || 0))
@@ -144,6 +146,26 @@ export default function BankModal({ onClose }) {
             )
           })}
         </div>
+
+        <button
+          onClick={() => {
+            const res = executeCrime({
+              type: 'rob',
+              baseSuccessChance: 0.4, // 40% base
+              payout: 25000,
+              notorietyIncreaseOnFail: 25,
+              wantedIncreaseOnFail: 3,
+              energyCost: 30,
+              assetSeizureOnFail: 0.2 // lose 20% of cash
+            })
+            setFeedbackMsg(res.message || res.reason)
+          }}
+          className="mb-4 w-full border-4 border-red-500 bg-red-900 py-2 font-bold text-white hover:bg-red-700"
+        >
+          Rob Vault (30 Energy)
+        </button>
+
+        {feedbackMsg && <p className="mb-4 text-xs italic text-red-300">{feedbackMsg}</p>}
 
         <button
           onClick={onClose}

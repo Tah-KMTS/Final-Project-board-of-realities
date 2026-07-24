@@ -1,0 +1,14 @@
+res://World/world.tscn
+res://World/world-tileset.tres
+res://Player/player.tscn
+res://World/parallax_background.tscn
+res://Player/player.gd
+res://Enemies/Oposum/oposum.tscn
+res://Enemies/Oposum/oposum.gd
+res://Enemies/Eagle/eagle.tscn
+res://Enemies/Frog/frog.tscn
+res://Enemies/Frog/frog.gd
+res://Pickups/Gem/gem.tscn
+res://Pickups/Cheery/cherry.tscn
+res://Pickups/Cheery/cherry.gd
+res://Pickups/Feedback/feedback.tscn

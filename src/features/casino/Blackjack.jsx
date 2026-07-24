@@ -38,11 +38,14 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
 
   const startHand = () => {
     let usingCount = false
-    if (variant === 'house') {
+    if (variant === 'house' || variant === 'playerHouse') {
+      // In playerHouse, the player needs enough cash to cover a potential 2.5x payout loss,
+      // but we'll just check if they have at least the bet.
       if (cash < bet || bet < minBet || energy < 5) return
       if (!spendEnergy(5)) return
-      addCash(-bet)
-      if (countCards) {
+      if (variant === 'house') addCash(-bet)
+      
+      if (countCards && variant !== 'playerHouse') {
         usingCount = true
         if (Math.random() < CARD_COUNT_CATCH_CHANCE) {
           setCaughtCounting(true)
@@ -93,8 +96,8 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
   }
 
   const doubleDown = () => {
-    if (variant !== 'house' || cash < bet) return
-    addCash(-bet)
+    if ((variant !== 'house' && variant !== 'playerHouse') || cash < bet) return
+    if (variant === 'house') addCash(-bet)
     const d = [...deck]
     if (d.length === 0) return
     const card = d.pop()
@@ -134,16 +137,16 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
 
     if (pTotal > 21) {
       result = 'lose'
-      msg = 'Bust! You lose the hand.'
+      msg = variant === 'playerHouse' ? 'Challenger Busts! You win the bet.' : 'Bust! You lose the hand.'
     } else if (checkedNaturals && (playerBJ || dealerBJ)) {
       if (playerBJ && dealerBJ) {
         result = 'push'
         payout = usedBet
-        msg = 'Both dealt naturals - push, your bet is returned.'
+        msg = 'Both dealt naturals - push, bet is returned.'
       } else if (playerBJ) {
         result = 'win'
         payout = Math.round(usedBet * 2.5)
-        msg = 'Blackjack! Natural 21 pays 3:2.'
+        msg = variant === 'playerHouse' ? 'Challenger hits Blackjack! You pay 3:2.' : 'Blackjack! Natural 21 pays 3:2.'
       } else {
         result = 'lose'
         msg = `${dealerName} has a natural blackjack.`
@@ -151,18 +154,18 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
     } else if (dTotal > 21) {
       result = 'win'
       payout = usedBet * 2
-      msg = 'Dealer busts. You win!'
+      msg = variant === 'playerHouse' ? 'House Busts. You pay the challenger.' : 'Dealer busts. You win!'
     } else if (pTotal > dTotal) {
       result = 'win'
       payout = usedBet * 2
-      msg = 'You beat the dealer!'
+      msg = variant === 'playerHouse' ? 'Challenger beats the house!' : 'You beat the dealer!'
     } else if (pTotal < dTotal) {
       result = 'lose'
-      msg = 'Dealer wins.'
+      msg = variant === 'playerHouse' ? 'House wins.' : 'Dealer wins.'
     } else {
       result = 'push'
       payout = usedBet
-      msg = 'Push - your bet is returned.'
+      msg = 'Push - bet is returned.'
     }
 
     setOutcome(result)
@@ -172,6 +175,10 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
       if (payout > 0) addCash(payout)
       const profit = payout - usedBet
       if (profit >= BIG_WIN_REPUTATION_THRESHOLD) addReputation(2)
+    } else if (variant === 'playerHouse') {
+      const challengerProfit = payout - usedBet
+      if (challengerProfit !== 0) addCash(-challengerProfit)
+      if (-challengerProfit >= BIG_WIN_REPUTATION_THRESHOLD) addReputation(2)
     }
   }
 

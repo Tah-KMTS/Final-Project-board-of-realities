@@ -19,6 +19,7 @@ import AmbientNpcModal from '../features/finance/AmbientNpcModal'
 import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
 import CasinoModal from '../features/casino/CasinoModal'
 import ArcadeModal from '../features/arcade/ArcadeModal'
+import TempleModal from '../features/temple/TempleModal'
 import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
 import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
 import GovernmentModal from './GovernmentModal'
@@ -479,7 +480,10 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id === 'arcade' && (
         <ArcadeModal onClose={closeModal} />
       )}
-      {activeModal?.type === 'building' && DISTRICT_BUILDING_IDS.includes(activeModal.id) && (
+      {activeModal?.type === 'building' && activeModal.id === 'temple' && (
+        <TempleModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'building' && activeModal.id !== 'temple' && DISTRICT_BUILDING_IDS.includes(activeModal.id) && (
         <DistrictBuildingModal buildingId={activeModal.id} onClose={closeModal} />
       )}
       {activeModal?.type === 'building' && activeModal.npcId && (
@@ -494,8 +498,16 @@ export default function WorldScreen() {
           npcName={activeModal.npcName}
           onClose={closeModal}
           onMug={() => {
-            useGameStore.getState().addCash(50)
-            useGameStore.getState().addWantedLevel(1)
+            const res = useGameStore.getState().executeCrime({
+              type: 'mug',
+              baseSuccessChance: 0.8,
+              payout: 50,
+              notorietyIncreaseOnFail: 5,
+              wantedIncreaseOnFail: 1,
+              energyCost: 15,
+              assetSeizureOnFail: 0
+            })
+            // if we had a toast we could show res.message
             closeModal()
           }}
           onAttack={() => setActiveModal({ type: 'ambientCombat', npcId: activeModal.npcId })}

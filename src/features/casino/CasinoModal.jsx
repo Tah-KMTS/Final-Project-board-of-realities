@@ -10,19 +10,17 @@ const TABS = [
   { id: 'poker', label: 'Poker' },
   { id: 'slots', label: 'Slots' },
   { id: 'challenge', label: 'Challenge an NPC' },
+  { id: 'host_blackjack', label: 'Host Blackjack (House Edge)' },
+  { id: 'host_poker', label: 'Host Poker (House Edge)' },
 ]
 
-// Neon Dragon Casino's bespoke interior modal - four real minigames behind
-// one tabbed panel, same weight of effort as the Stock Exchange's trading
-// floor (which also puts several independent mechanics - one TradeMeter per
-// stock - behind a single modal for one bespoke Phaser interior).
 export default function CasinoModal({ onClose }) {
   const cash = useGameStore((s) => s.cash)
   const [tab, setTab] = useState('blackjack')
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="glass-panel w-[560px] border-4 border-pink-400 bg-[#1c1d3a] p-6 font-mono text-white">
+      <div className="glass-panel w-[640px] border-4 border-pink-400 bg-[#1c1d3a] p-6 font-mono text-white">
         <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Commercial District</p>
         <h2 className="mb-2 text-xl font-bold text-pink-300">Neon Dragon Casino</h2>
         <p className="mb-3 text-xs text-gray-400">
@@ -47,11 +45,13 @@ export default function CasinoModal({ onClose }) {
           ))}
         </div>
 
-        <div className="mb-4 max-h-[420px] overflow-y-auto">
+        <div className="mb-4 max-h-[460px] overflow-y-auto">
           {tab === 'blackjack' && <Blackjack variant="house" />}
           {tab === 'poker' && <Poker variant="house" />}
           {tab === 'slots' && <Slots />}
           {tab === 'challenge' && <ChallengeNpc />}
+          {tab === 'host_blackjack' && <Blackjack variant="playerHouse" dealerName="The Challenger" />}
+          {tab === 'host_poker' && <Poker variant="playerHouse" />}
         </div>
 
         <button onClick={onClose} className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500">
