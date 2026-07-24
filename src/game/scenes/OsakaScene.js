@@ -143,21 +143,10 @@ export default class OsakaScene extends BaseTownScene {
       const tile = this.layout[row][col]
       if (tile === 'water') return TERRAIN_TILE_INDEX.water
       if (tile === 'path') return TERRAIN_TILE_INDEX.path
-      if (tile === 'grass') return TERRAIN_TILE_INDEX.grass
-      return null
+      if (tile === 'wall') return TERRAIN_TILE_INDEX.wall
+      return TERRAIN_TILE_INDEX.grass
     })
     this.zoneObjects.push(terrainLayer)
-
-    const fallbackGfx = this.add.graphics()
-    this.zoneObjects.push(fallbackGfx)
-    for (let r = 0; r < MAP_ROWS; r++) {
-      for (let c = 0; c < MAP_COLS; c++) {
-        if (this.layout[r][c] === 'wall') {
-          fallbackGfx.fillStyle(0x2a1a2a, 1)
-          fallbackGfx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-        }
-      }
-    }
 
     const darkOverlay = this.add.graphics().setDepth(1)
     this.zoneObjects.push(darkOverlay)

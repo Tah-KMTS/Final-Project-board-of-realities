@@ -2,16 +2,20 @@ import { useEffect, useRef } from 'react'
 import Phaser from 'phaser'
 import OverworldScene from './scenes/OverworldScene'
 import DominoWorldScene from './scenes/DominoWorldScene'
+import TokyoScene from './scenes/TokyoScene'
+import KyotoScene from './scenes/KyotoScene'
+import OsakaScene from './scenes/OsakaScene'
+import SapporoScene from './scenes/SapporoScene'
 import { createEventBridge } from './eventBridge'
 
 import { useGameStore } from '../store/useGameStore'
 
-// Hunter's Rift, Financial Anarchy and King of Games are no longer separate
-// mounted scenes - they're all regions of one continuous OverworldScene.
-// Domino City keeps its own star-topology scene (entered/exited like a big
-// building via a gate on the overworld map), so it's the only other mode.
 const SCENES_BY_MODE = {
-  overworld: OverworldScene,
+  overworld: TokyoScene,
+  tokyo: TokyoScene,
+  kyoto: KyotoScene,
+  osaka: OsakaScene,
+  sapporo: SapporoScene,
   domino: DominoWorldScene,
 }
 
@@ -19,9 +23,11 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
   const containerRef = useRef(null)
   const gameRef = useRef(null)
   const sceneRef = useRef(null)
+  const currentCityId = useGameStore((s) => s.currentCityId || 'tokyo')
 
   useEffect(() => {
-    const SceneClass = SCENES_BY_MODE[mode] || OverworldScene
+    const activeKey = mode === 'overworld' ? currentCityId : mode
+    const SceneClass = SCENES_BY_MODE[activeKey] || SCENES_BY_MODE[mode] || OverworldScene
     const scene = new SceneClass()
     scene.bridge = bridge
     // Lets the overworld scene spawn the player at a specific location
@@ -73,7 +79,7 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
       gameRef.current?.destroy(true)
       gameRef.current = null
     }
-  }, [mode, bridge])
+  }, [mode, currentCityId, bridge, spawnOverride])
 
   return (
     <div className="w-full h-full flex items-center justify-center bg-[#070a14]">

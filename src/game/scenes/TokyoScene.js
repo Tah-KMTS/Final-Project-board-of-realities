@@ -159,23 +159,10 @@ export default class TokyoScene extends BaseTownScene {
       const tile = this.layout[row][col]
       if (tile === 'water') return TERRAIN_TILE_INDEX.water
       if (tile === 'path') return TERRAIN_TILE_INDEX.path
-      return null
+      if (tile === 'wall') return TERRAIN_TILE_INDEX.wall
+      return TERRAIN_TILE_INDEX.slate
     })
     this.zoneObjects.push(terrainLayer)
-
-    const fallbackG = this.add.graphics()
-    this.zoneObjects.push(fallbackG)
-    for (let row = 0; row < MAP_ROWS; row++) {
-      for (let col = 0; col < MAP_COLS; col++) {
-        const tile = this.layout[row][col]
-        if (tile === 'grass') {
-          drawSlateMarbleTile(fallbackG, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE)
-        } else if (tile === 'wall') {
-          fallbackG.fillStyle(0x5b4636, 1)
-          fallbackG.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-        }
-      }
-    }
 
     this.scatterEnvironment(40)
     this.drawBuildings()

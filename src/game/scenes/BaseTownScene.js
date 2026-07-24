@@ -4,7 +4,9 @@ import { resolvePalette } from '../characterPalettes'
 import { SpriteActor } from '../actor'
 import { preloadPlayerSheet } from '../spriteGen'
 import { SmoothMover, combineDirection } from '../smoothMover'
-import { preloadTerrainAssets, placeBuildingFacade, addScreenVignette } from '../tileGen'
+import { preloadTerrainAssets, placeBuildingFacade, addScreenVignette, drawInteriorRoom } from '../tileGen'
+
+export { drawInteriorRoom }
 
 export const TILE_SIZE = 40
 
@@ -15,19 +17,19 @@ export const INTERIOR_DESK = { c0: 5, r0: 2, c1: 6, r1: 3 }
 export const INTERIOR_EXIT = { c0: 5, r0: 7, c1: 7, r1: 8 }
 
 export const INTERIOR_TEMPLATES = {
-  cryptoHQ:     { floorA: 0x1a1030, floorB: 0x241640, deskColor: 0x8a5a1f, deskLabel: 'Trading Terminal' },
-  tycoonOffice: { floorA: 0x2a2420, floorB: 0x241f1c, deskColor: 0x555555, deskLabel: 'Executive Desk' },
-  officeA:      { floorA: 0x1e2430, floorB: 0x1a1f29, deskColor: 0x1f3a5f, deskLabel: 'Front Desk' },
-  officeB:      { floorA: 0x241e30, floorB: 0x1f1a29, deskColor: 0x4a3a5f, deskLabel: 'Reception Desk' },
-  amenity:      { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter' },
-  exchange:     { floorA: 0x2a2b45, floorB: 0x252638, deskColor: 0x1f5f3a, deskLabel: 'Trading Floor' },
-  casinoFloor:  { floorA: 0x2a1030, floorB: 0x230d28, deskColor: 0x8a1f6a, deskLabel: 'Casino Floor' },
-  government:   { floorA: 0x1e2430, floorB: 0x1a1f29, deskColor: 0x5a5a5a, deskLabel: 'Revenue Counter' },
-  temple:       { floorA: 0x2a2218, floorB: 0x252010, deskColor: 0xd4a017, deskLabel: 'Altar' },
-  merchant:     { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter' },
-  entertainment:{ floorA: 0x1a0828, floorB: 0x240d30, deskColor: 0x8a1f6a, deskLabel: 'Stage / Counter' },
-  underground:  { floorA: 0x121018, floorB: 0x0e0c14, deskColor: 0x6a1f1f, deskLabel: 'Ops Desk' },
-  transport:    { floorA: 0x1e2028, floorB: 0x181a22, deskColor: 0x4a6fa5, deskLabel: 'Ticket Counter' },
+  cryptoHQ:     { floorA: 0x1a1030, floorB: 0x241640, deskColor: 0x8a5a1f, deskLabel: 'Trading Terminal', floorTileA: 34, floorTileB: 35 },
+  tycoonOffice: { floorA: 0x2a2420, floorB: 0x241f1c, deskColor: 0x555555, deskLabel: 'Executive Desk', floorTileA: 34, floorTileB: 34 },
+  officeA:      { floorA: 0x1e2430, floorB: 0x1a1f29, deskColor: 0x1f3a5f, deskLabel: 'Front Desk', floorTileA: 35, floorTileB: 35 },
+  officeB:      { floorA: 0x241e30, floorB: 0x1f1a29, deskColor: 0x4a3a5f, deskLabel: 'Reception Desk', floorTileA: 35, floorTileB: 35 },
+  amenity:      { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter', floorTileA: 34, floorTileB: 35 },
+  exchange:     { floorA: 0x2a2b45, floorB: 0x252638, deskColor: 0x1f5f3a, deskLabel: 'Trading Floor', floorTileA: 35, floorTileB: 34 },
+  casinoFloor:  { floorA: 0x2a1030, floorB: 0x230d28, deskColor: 0x8a1f6a, deskLabel: 'Casino Floor', floorTileA: 36, floorTileB: 36 },
+  government:   { floorA: 0x1e2430, floorB: 0x1a1f29, deskColor: 0x5a5a5a, deskLabel: 'Revenue Counter', floorTileA: 35, floorTileB: 35 },
+  temple:       { floorA: 0x2a2218, floorB: 0x252010, deskColor: 0xd4a017, deskLabel: 'Altar', floorTileA: 34, floorTileB: 34 },
+  merchant:     { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter', floorTileA: 34, floorTileB: 35 },
+  entertainment:{ floorA: 0x1a0828, floorB: 0x240d30, deskColor: 0x8a1f6a, deskLabel: 'Stage / Counter', floorTileA: 36, floorTileB: 36 },
+  underground:  { floorA: 0x121018, floorB: 0x0e0c14, deskColor: 0x6a1f1f, deskLabel: 'Ops Desk', floorTileA: 37, floorTileB: 37 },
+  transport:    { floorA: 0x1e2028, floorB: 0x181a22, deskColor: 0x4a6fa5, deskLabel: 'Ticket Counter', floorTileA: 35, floorTileB: 35 },
 }
 
 export function wanderActor(actor, delta, speed = 20) {
@@ -50,32 +52,6 @@ export function wanderActor(actor, delta, speed = 20) {
   actor.shadow.setDepth(actor.y - 1)
 }
 
-export function drawInteriorRoom(scene, zoneObjects, { floorA, floorB, deskColor, deskLabel }) {
-  const g = scene.add.graphics()
-  zoneObjects.push(g)
-  for (let row = 0; row < INTERIOR_ROWS; row++) {
-    for (let col = 0; col < INTERIOR_COLS; col++) {
-      const isBorder = row === 0 || col === 0 || row === INTERIOR_ROWS - 1 || col === INTERIOR_COLS - 1
-      const x = col * TILE_SIZE
-      const y = row * TILE_SIZE
-      g.fillStyle(isBorder ? 0x1a1a2e : (row + col) % 2 === 0 ? floorA : floorB, 1)
-      g.fillRect(x, y, TILE_SIZE, TILE_SIZE)
-    }
-  }
-
-  const d = INTERIOR_DESK
-  const dx = d.c0 * TILE_SIZE
-  const dy = d.r0 * TILE_SIZE
-  const dw = (d.c1 - d.c0 + 1) * TILE_SIZE
-  const dh = (d.r1 - d.r0 + 1) * TILE_SIZE
-  zoneObjects.push(...placeBuildingFacade(scene, dx, dy, dw, dh, deskColor))
-  const label = scene.add
-    .text(dx + dw / 2, dy - 12, deskLabel, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
-    .setOrigin(0.5, 1)
-    .setDepth(dy + dh + 10)
-  zoneObjects.push(label)
-  return { dx, dy, dw, dh }
-}
 
 export function interiorExitZone(cityLabel) {
   return {

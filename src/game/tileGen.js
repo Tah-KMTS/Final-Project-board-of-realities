@@ -59,12 +59,10 @@ export function addScreenVignette(scene, width = 640, height = 480) {
 }
 
 // ---------------------------------------------------------------------------
-// Real asset loading (Cute Fantasy Free pack)
+// Asset loading (Serene Village & Modern Interiors asset packs)
 // ---------------------------------------------------------------------------
 
 const ASSET_BASE = '/assets/cute_fantasy/Cute_Fantasy_Free'
-// "Outdoor decoration" has a literal space in its folder name - %20 keeps
-// the URL well-formed instead of relying on the browser to paper over it.
 const DECOR_DIR = `${ASSET_BASE}/Outdoor%20decoration`
 
 export const ASSET_KEYS = {
@@ -76,14 +74,14 @@ export const ASSET_KEYS = {
   decor: 'cf_decor',
   house: 'cf_house',
   modernInteriors: 'modern_interiors',
+  modernRoomBuilder: 'modern_room_builder',
   sereneVillage: 'serene_village',
+  sereneHouses: 'serene_houses',
+  sereneOutside: 'serene_outside',
 }
 
 // Call from every scene's preload() - queues the tile/decoration/building
-// images (the player sheet is preloaded separately by spriteGen.js since
-// SpriteActor needs it regardless of which scene owns the map). Guards on
-// scene.textures.exists so re-entering a zone/scene doesn't re-queue loads
-// for textures that already made it into the Texture Manager.
+// images (the player sheet is preloaded separately by spriteGen.js).
 export function preloadTerrainAssets(scene) {
   const L = scene.load
   if (!scene.textures.exists(ASSET_KEYS.tileGrass)) L.image(ASSET_KEYS.tileGrass, `${ASSET_BASE}/Tiles/Grass_Middle.png`)
@@ -100,22 +98,35 @@ export function preloadTerrainAssets(scene) {
   if (!scene.textures.exists(ASSET_KEYS.modernInteriors)) {
     L.image(ASSET_KEYS.modernInteriors, '/assets/packs/Modern_Interiors_Free_v2.2/Modern%20tiles_Free/Interiors_free/16x16/Interiors_free_16x16.png')
   }
+  if (!scene.textures.exists(ASSET_KEYS.modernRoomBuilder)) {
+    L.image(ASSET_KEYS.modernRoomBuilder, '/assets/packs/Modern_Interiors_Free_v2.2/Modern%20tiles_Free/Interiors_free/16x16/Room_Builder_free_16x16.png')
+  }
   if (!scene.textures.exists(ASSET_KEYS.sereneVillage)) {
     L.image(ASSET_KEYS.sereneVillage, '/assets/packs/Serene_Village_revamped_v1.9/SERENE_VILLAGE_REVAMPED/Serene_Village_16x16.png')
+  }
+  if (!scene.textures.exists(ASSET_KEYS.sereneHouses)) {
+    L.image(ASSET_KEYS.sereneHouses, '/assets/packs/Serene_Village_revamped_v1.9/SERENE_VILLAGE_REVAMPED/RPG_MAKER_MV/Houses_TILESET_B-C-D-E.png')
+  }
+  if (!scene.textures.exists(ASSET_KEYS.sereneOutside)) {
+    L.image(ASSET_KEYS.sereneOutside, '/assets/packs/Serene_Village_revamped_v1.9/SERENE_VILLAGE_REVAMPED/RPG_MAKER_MV/Outside_Stuff_TILESET_B-C-D-E.png')
   }
 }
 
 // ---------------------------------------------------------------------------
-// Terrain tile layer (grass/path/water)
+// Terrain tile layer (Serene Village spritesheet: 19 cols x 45 rows)
 // ---------------------------------------------------------------------------
-// Grass_Middle/Path_Middle/Water_Middle are each a single flat 16x16 tile
-// (the pack's simplest option - no autotile edges, which this game's grid
-// doesn't do anyway). Rather than one Phaser GameObject per tile (thousands
-// of them on the finance map), they're combined once into a small 3-cell
-// canvas atlas and rendered through a real Phaser Tilemap layer - one draw
-// call for the whole terrain instead of one Image per cell.
 
-export const TERRAIN_TILE_INDEX = { grass: 0, path: 1, water: 2 }
+export const TERRAIN_TILE_INDEX = {
+  grass: 4,
+  path: 285,
+  water: 79,
+  wall: 304,
+  slate: 220,
+  cobblestone: 57,
+  bridge: 327,
+  snow: 76,
+}
+
 const TERRAIN_ATLAS_KEY = 'cf_terrain_atlas'
 
 function ensureTerrainAtlas(scene) {
@@ -135,24 +146,10 @@ function ensureTerrainAtlas(scene) {
   return TERRAIN_ATLAS_KEY
 }
 
-// Builds (and scales up to `tileSize`) one Tilemap layer covering `cols` x
-// `rows` cells. `tileIndexAt(row, col)` should return a TERRAIN_TILE_INDEX
-// value, or null/undefined to leave that cell blank (e.g. tiles this game
-// still wants rendered as procedural marble/cobblestone/wall - see
-// OverworldScene's fallback Graphics pass for those).
-//
-// Tile-size note: the pack's native tile size is 16x16 but this game's grid
-// uses TILE_SIZE=40 (40/16 = 2.5x, a non-integer scale). Kept TILE_SIZE=40
-// rather than switching to a clean multiple of 16 because it's the least
-// invasive option - every map/building/spawn/camera coordinate in
-// OverworldScene and DominoWorldScene is already parameterized by
-// TILE_SIZE, so nothing else needed to change. A 2.5x nearest-neighbor
-// scale reads slightly softer at tile seams than an integer scale would,
-// but is not noticeable at normal play zoom.
 export function buildTerrainLayer(scene, cols, rows, tileSize, tileIndexAt) {
-  const atlasKey = ensureTerrainAtlas(scene)
   const map = scene.make.tilemap({ tileWidth: 16, tileHeight: 16, width: cols, height: rows })
-  const tileset = map.addTilesetImage('cf_terrain', atlasKey, 16, 16, 0, 0)
+  const tilesetKey = scene.textures.exists(ASSET_KEYS.sereneVillage) ? ASSET_KEYS.sereneVillage : ensureTerrainAtlas(scene)
+  const tileset = map.addTilesetImage('serene_terrain', tilesetKey, 16, 16, 0, 0)
   const layer = map.createBlankLayer('ground', tileset, 0, 0)
   layer.setScale(tileSize / 16)
   for (let r = 0; r < rows; r++) {
@@ -167,11 +164,6 @@ export function buildTerrainLayer(scene, cols, rows, tileSize, tileIndexAt) {
 // ---------------------------------------------------------------------------
 // Decoration (trees / flowers / rocks)
 // ---------------------------------------------------------------------------
-// Frame indices below were picked by visually inspecting the sheets - see
-// the cells identified during asset inspection: Oak_Tree_Small.png frame 0
-// is a small stump (unused here), frames 1-2 are two small round trees;
-// Outdoor_Decor_Free.png (7 cols x 12 rows of 16x16, frame = row*7+col)
-// frames 7-9 are flower clusters (row 1), frames 15-16 are rocks (row 2).
 
 const SMALL_TREE_FRAMES = [1, 2]
 const FLOWER_FRAMES = [7, 8, 9]
@@ -179,7 +171,6 @@ const ROCK_FRAMES = [15, 16]
 
 export function placeTree(scene, cx, cy) {
   if (Math.random() < 0.22) {
-    // Oak_Tree.png (64x80) - occasional bigger tree for variety.
     const img = scene.add.image(cx, cy, ASSET_KEYS.treeBig).setOrigin(0.5, 0.82)
     img.setDepth(cy)
     return [img]
@@ -205,27 +196,71 @@ export function placeRock(scene, cx, cy) {
 }
 
 // ---------------------------------------------------------------------------
-// Buildings
+// Buildings & Structures
 // ---------------------------------------------------------------------------
-// The pack ships exactly one building texture (House_1_Wood_Base_Blue.png,
-// 96x128). Every building/desk in the game reuses it, tinted per-building
-// with the same color FINANCE_BUILDING_DEFS already carried (so the roster
-// stays visually distinguishable by color exactly like before) instead of
-// each getting a unique hand-drawn facade.
-//
-// Rather than stretching the one texture to each building's exact
-// (w, h) tile footprint (which ranges from 3x2 to 4x3 tiles and would
-// squash/stretch the art unevenly), it's scaled uniformly so its width
-// matches the footprint width and anchored bottom-center on the footprint's
-// bottom edge - so every building looks like a proportional house of about
-// the right footprint width, with its own natural height, the same way the
-// old procedural facade's roof always extended above the footprint rect.
-export function placeBuildingFacade(scene, x, y, w, h, tintColor) {
+
+export function placeBuildingFacade(scene, x, y, w, h, tintColor, buildingId = '') {
   const shadow = scene.add.ellipse(x + w / 2, y + h + 3, w * 0.7, 10, 0x000000, 0.28)
+  
+  let assetKey = ASSET_KEYS.house
+  if (scene.textures.exists(ASSET_KEYS.sereneHouses) && buildingId !== 'desk') {
+    assetKey = ASSET_KEYS.sereneHouses
+  }
+  
   const scale = w / 96
-  const img = scene.add.image(x + w / 2, y + h, ASSET_KEYS.house).setOrigin(0.5, 1).setScale(scale)
-  img.setTint(tintColor)
+  const img = scene.add.image(x + w / 2, y + h, assetKey).setOrigin(0.5, 1).setScale(scale)
+  if (tintColor && tintColor !== 0xffffff) {
+    img.setTint(tintColor)
+  }
   img.setDepth(y + h)
   shadow.setDepth(y + h - 1)
   return [shadow, img]
 }
+
+// ---------------------------------------------------------------------------
+// Interior Room Renderer (Modern_Interiors tileset)
+// ---------------------------------------------------------------------------
+
+export function drawInteriorRoom(scene, zoneObjects, template = {}) {
+  const INTERIOR_COLS = 12
+  const INTERIOR_ROWS = 9
+  const TILE_SIZE = 40
+  const d = { c0: 5, r0: 2, c1: 6, r1: 3 }
+
+  const map = scene.make.tilemap({ tileWidth: 16, tileHeight: 16, width: INTERIOR_COLS, height: INTERIOR_ROWS })
+  const tilesetKey = scene.textures.exists(ASSET_KEYS.modernRoomBuilder)
+    ? ASSET_KEYS.modernRoomBuilder
+    : (scene.textures.exists(ASSET_KEYS.modernInteriors) ? ASSET_KEYS.modernInteriors : 'cf_terrain_atlas')
+  
+  const tileset = map.addTilesetImage('modern_interior', tilesetKey, 16, 16, 0, 0)
+  const layer = map.createBlankLayer('interior_room', tileset, 0, 0)
+  layer.setScale(TILE_SIZE / 16)
+
+  const wallTile = template.wallTile ?? 2
+  const floorA = template.floorTileA ?? 34
+  const floorB = template.floorTileB ?? 35
+
+  for (let r = 0; r < INTERIOR_ROWS; r++) {
+    for (let c = 0; c < INTERIOR_COLS; c++) {
+      const isBorder = r === 0 || c === 0 || r === INTERIOR_ROWS - 1 || c === INTERIOR_COLS - 1
+      const idx = isBorder ? wallTile : ((r + c) % 2 === 0 ? floorA : floorB)
+      layer.putTileAt(idx, c, r)
+    }
+  }
+  zoneObjects.push(layer)
+
+  const dx = d.c0 * TILE_SIZE
+  const dy = d.r0 * TILE_SIZE
+  const dw = (d.c1 - d.c0 + 1) * TILE_SIZE
+  const dh = (d.r1 - d.r0 + 1) * TILE_SIZE
+  const deskLabel = template.deskLabel || 'Counter'
+  const deskColor = template.deskColor || 0x555555
+  zoneObjects.push(...placeBuildingFacade(scene, dx, dy, dw, dh, deskColor, 'desk'))
+  const label = scene.add
+    .text(dx + dw / 2, dy - 12, deskLabel, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
+    .setOrigin(0.5, 1)
+    .setDepth(dy + dh + 10)
+  zoneObjects.push(label)
+  return { dx, dy, dw, dh }
+}
+

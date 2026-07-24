@@ -267,42 +267,15 @@ export default class SapporoScene extends BaseTownScene {
   buildOverworldZone() {
     this.layout = buildLayout()
 
-    // Base terrain layer (Grass, path, water)
+    // Base terrain layer (Grass, path, water, snow peaks, walls)
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) => {
       const tile = this.layout[row][col]
       if (tile === 'water') return TERRAIN_TILE_INDEX.water
       if (tile === 'path') return TERRAIN_TILE_INDEX.path
+      if (tile === 'wall') return row <= 3 ? TERRAIN_TILE_INDEX.snow : TERRAIN_TILE_INDEX.wall
       return TERRAIN_TILE_INDEX.grass
     })
     this.zoneObjects.push(terrainLayer)
-
-    // Graphics layer for Alpine Snow Peaks border & mountain caps
-    const mountainGfx = this.add.graphics()
-    this.zoneObjects.push(mountainGfx)
-    for (let r = 0; r < MAP_ROWS; r++) {
-      for (let c = 0; c < MAP_COLS; c++) {
-        if (this.layout[r][c] === 'wall') {
-          if (r <= 3) {
-            // Snowy mountain peaks
-            mountainGfx.fillStyle(0x4a5d6e, 1)
-            mountainGfx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-            mountainGfx.fillStyle(0xeef5fc, 0.85)
-            mountainGfx.fillTriangle(
-              c * TILE_SIZE + TILE_SIZE / 2,
-              r * TILE_SIZE + 2,
-              c * TILE_SIZE + 2,
-              r * TILE_SIZE + TILE_SIZE - 2,
-              c * TILE_SIZE + TILE_SIZE - 2,
-              r * TILE_SIZE + TILE_SIZE - 2
-            )
-          } else {
-            // Dense rock wall
-            mountainGfx.fillStyle(0x2a363b, 1)
-            mountainGfx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-          }
-        }
-      }
-    }
 
     // Cozy Stardew Valley environment scattering (Serene Village assets)
     this.scatterCozyEnvironment()

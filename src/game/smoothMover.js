@@ -107,7 +107,7 @@ export class SmoothMover {
   _resolveAxis(px, py, dx, dy) {
     const ts = this.tileSize
     const half = ts / 2
-    const inset = 1  // px inset from the hitbox edge for corner checks
+    const inset = 12  // px inset from the hitbox edge for corner checks
 
     const nx = px + dx
     const ny = py + dy

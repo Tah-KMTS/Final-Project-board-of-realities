@@ -150,28 +150,11 @@ export default class KyotoScene extends BaseTownScene {
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) => {
       const tile = this.layout[row][col]
       if (tile === 'water') return TERRAIN_TILE_INDEX.water
-      if (tile === 'path') return TERRAIN_TILE_INDEX.path
-      return null
+      if (tile === 'path') return BRIDGE_TILES.has(`${row},${col}`) ? TERRAIN_TILE_INDEX.bridge : TERRAIN_TILE_INDEX.path
+      if (tile === 'wall') return TERRAIN_TILE_INDEX.wall
+      return TERRAIN_TILE_INDEX.cobblestone
     })
     this.zoneObjects.push(terrainLayer)
-
-    const fallbackGraphics = this.add.graphics()
-    this.zoneObjects.push(fallbackGraphics)
-    for (let row = 0; row < MAP_ROWS; row++) {
-      for (let col = 0; col < MAP_COLS; col++) {
-        const tile = this.layout[row][col]
-        if (tile === 'grass') {
-          drawCobblestoneTile(fallbackGraphics, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE)
-        } else if (tile === 'wall') {
-          fallbackGraphics.fillStyle(0x3a2e1f, 1)
-          fallbackGraphics.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-          if (MOUNTAIN_ROWS.includes(row) && row > 0) {
-            fallbackGraphics.fillStyle(0x5a4a32, 0.4)
-            fallbackGraphics.fillRect(col * TILE_SIZE + 2, row * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE - 4, 2)
-          }
-        }
-      }
-    }
 
     this.scatterKyotoEnvironment()
     this.drawBuildings()
