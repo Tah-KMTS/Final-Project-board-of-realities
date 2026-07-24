@@ -2,9 +2,8 @@ import Phaser from 'phaser'
 import { useGameStore } from '../../store/useGameStore'
 import { resolvePalette } from '../characterPalettes'
 import { SpriteActor } from '../actor'
-import { preloadPlayerSheet } from '../spriteGen'
 import { SmoothMover, combineDirection } from '../smoothMover'
-import { preloadTerrainAssets, placeBuildingFacade, addScreenVignette, drawInteriorRoom } from '../tileGen'
+import { drawInteriorRoom } from '../tileGen'
 
 export { drawInteriorRoom }
 
@@ -17,19 +16,19 @@ export const INTERIOR_DESK = { c0: 5, r0: 2, c1: 6, r1: 3 }
 export const INTERIOR_EXIT = { c0: 5, r0: 7, c1: 7, r1: 8 }
 
 export const INTERIOR_TEMPLATES = {
-  cryptoHQ:     { floorA: 0x1a1030, floorB: 0x241640, deskColor: 0x8a5a1f, deskLabel: 'Trading Terminal', floorTileA: 34, floorTileB: 35 },
-  tycoonOffice: { floorA: 0x2a2420, floorB: 0x241f1c, deskColor: 0x555555, deskLabel: 'Executive Desk', floorTileA: 34, floorTileB: 34 },
-  officeA:      { floorA: 0x1e2430, floorB: 0x1a1f29, deskColor: 0x1f3a5f, deskLabel: 'Front Desk', floorTileA: 35, floorTileB: 35 },
-  officeB:      { floorA: 0x241e30, floorB: 0x1f1a29, deskColor: 0x4a3a5f, deskLabel: 'Reception Desk', floorTileA: 35, floorTileB: 35 },
-  amenity:      { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter', floorTileA: 34, floorTileB: 35 },
-  exchange:     { floorA: 0x2a2b45, floorB: 0x252638, deskColor: 0x1f5f3a, deskLabel: 'Trading Floor', floorTileA: 35, floorTileB: 34 },
-  casinoFloor:  { floorA: 0x2a1030, floorB: 0x230d28, deskColor: 0x8a1f6a, deskLabel: 'Casino Floor', floorTileA: 36, floorTileB: 36 },
-  government:   { floorA: 0x1e2430, floorB: 0x1a1f29, deskColor: 0x5a5a5a, deskLabel: 'Revenue Counter', floorTileA: 35, floorTileB: 35 },
-  temple:       { floorA: 0x2a2218, floorB: 0x252010, deskColor: 0xd4a017, deskLabel: 'Altar', floorTileA: 34, floorTileB: 34 },
-  merchant:     { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter', floorTileA: 34, floorTileB: 35 },
-  entertainment:{ floorA: 0x1a0828, floorB: 0x240d30, deskColor: 0x8a1f6a, deskLabel: 'Stage / Counter', floorTileA: 36, floorTileB: 36 },
-  underground:  { floorA: 0x121018, floorB: 0x0e0c14, deskColor: 0x6a1f1f, deskLabel: 'Ops Desk', floorTileA: 37, floorTileB: 37 },
-  transport:    { floorA: 0x1e2028, floorB: 0x181a22, deskColor: 0x4a6fa5, deskLabel: 'Ticket Counter', floorTileA: 35, floorTileB: 35 },
+  cryptoHQ:     { floorA: 0x1a1030, floorB: 0x241640, deskColor: 0x8a5a1f, deskLabel: 'Trading Terminal' },
+  tycoonOffice: { floorA: 0x2a2420, floorB: 0x241f1c, deskColor: 0x555555, deskLabel: 'Executive Desk' },
+  officeA:      { floorA: 0x1e2430, floorB: 0x1a1f29, deskColor: 0x1f3a5f, deskLabel: 'Front Desk' },
+  officeB:      { floorA: 0x241e30, floorB: 0x1f1a29, deskColor: 0x4a3a5f, deskLabel: 'Reception Desk' },
+  amenity:      { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter' },
+  exchange:     { floorA: 0x2a2b45, floorB: 0x252638, deskColor: 0x1f5f3a, deskLabel: 'Trading Floor' },
+  casinoFloor:  { floorA: 0x2a1030, floorB: 0x230d28, deskColor: 0x8a1f6a, deskLabel: 'Casino Floor' },
+  government:   { floorA: 0x1e2430, floorB: 0x1a1f29, deskColor: 0x5a5a5a, deskLabel: 'Revenue Counter' },
+  temple:       { floorA: 0x2a2218, floorB: 0x252010, deskColor: 0xd4a017, deskLabel: 'Altar' },
+  merchant:     { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter' },
+  entertainment:{ floorA: 0x1a0828, floorB: 0x240d30, deskColor: 0x8a1f6a, deskLabel: 'Stage / Counter' },
+  underground:  { floorA: 0x121018, floorB: 0x0e0c14, deskColor: 0x6a1f1f, deskLabel: 'Ops Desk' },
+  transport:    { floorA: 0x1e2028, floorB: 0x181a22, deskColor: 0x4a6fa5, deskLabel: 'Ticket Counter' },
 }
 
 export function wanderActor(actor, delta, speed = 20) {
@@ -82,11 +81,6 @@ export default class BaseTownScene extends Phaser.Scene {
     this.ambientActors = []
   }
 
-  preload() {
-    preloadPlayerSheet(this)
-    preloadTerrainAssets(this)
-  }
-
   create() {
     useGameStore.getState().initFinanceMarket()
 
@@ -104,7 +98,6 @@ export default class BaseTownScene extends Phaser.Scene {
     this.wasd = this.input.keyboard.addKeys('W,A,S,D,E,R')
 
     this.createPlayer()
-    addScreenVignette(this)
     this.loadZone('overworld', false)
 
     this.bridge?.emit('regionChanged', { region: this.townConfig.cityId })
@@ -165,7 +158,13 @@ export default class BaseTownScene extends Phaser.Scene {
     const rows = zoneId === 'overworld' ? this.townConfig.mapRows : INTERIOR_ROWS
     
     this.cameras.main.setBounds(0, 0, cols * TILE_SIZE, rows * TILE_SIZE)
-    
+    // Arcade Physics world bounds default to the 800x500 canvas size, not
+    // the map size - without this, the player's collideWorldBounds body
+    // gets clamped back inside that small box the moment they walk past it
+    // (fighting SmoothMover's manual position updates every frame), which
+    // reads as "walk, teleport back, get stuck/glitch".
+    this.physics.world.setBounds(0, 0, cols * TILE_SIZE, rows * TILE_SIZE)
+
     if (teleportPlayer) {
       const spawn = zoneId === 'overworld' ? this.overworldReturnSpawn : INTERIOR_SPAWN
       this.tileMover.teleport(spawn.col, spawn.row)
@@ -232,6 +231,7 @@ export default class BaseTownScene extends Phaser.Scene {
       isBlocked: (c, r) => this.isBlockedTile(c, r),
       startCol: this.overworldReturnSpawn.col,
       startRow: this.overworldReturnSpawn.row,
+      speed: 200,
     })
   }
 
@@ -316,12 +316,11 @@ export default class BaseTownScene extends Phaser.Scene {
     }
     
     if (zone.type === 'building') {
-      if (zone.id === 'trainStation') {
-        this.pauseForModal()
-        this.bridge.emit('interact', { type: 'townTravel' })
-        return
-      }
-
+      // Inter-city travel (trainStation -> TownTravelUI) is disabled while
+      // only Tokyo is a live map - Kyoto/Osaka/Sapporo are kept as dormant
+      // scenes/data rather than deleted, so this can be re-enabled later by
+      // restoring the special case removed here. The train station building
+      // itself stays on the map and just opens a normal generic interior.
       const buildings = this.getBuildings()
       const building = buildings.find((b) => b.id === zone.id)
       this.overworldReturnSpawn = {

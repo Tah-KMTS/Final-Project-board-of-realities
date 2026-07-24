@@ -1,8 +1,6 @@
 import BaseTownScene, { TILE_SIZE } from './BaseTownScene'
 import {
-  drawCobblestoneTile,
   buildTerrainLayer,
-  TERRAIN_TILE_INDEX,
   placeTree,
   placeFlower,
   placeRock,
@@ -149,10 +147,10 @@ export default class KyotoScene extends BaseTownScene {
 
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) => {
       const tile = this.layout[row][col]
-      if (tile === 'water') return TERRAIN_TILE_INDEX.water
-      if (tile === 'path') return BRIDGE_TILES.has(`${row},${col}`) ? TERRAIN_TILE_INDEX.bridge : TERRAIN_TILE_INDEX.path
-      if (tile === 'wall') return TERRAIN_TILE_INDEX.wall
-      return TERRAIN_TILE_INDEX.cobblestone
+      if (tile === 'water') return 'water'
+      if (tile === 'path') return BRIDGE_TILES.has(`${row},${col}`) ? 'bridge' : 'path'
+      if (tile === 'wall') return 'wall'
+      return 'cobblestone'
     })
     this.zoneObjects.push(terrainLayer)
 

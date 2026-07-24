@@ -2,23 +2,6 @@ import React, { useState } from 'react'
 import { useGameStore } from '../store/useGameStore'
 import { JAPAN_CITIES, getCityById } from '../features/world/japanCities'
 
-// Kenney UI Pack Adventure Asset Paths
-const ASSETS = {
-  panelBrown: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/panel_brown.png',
-  panelDark: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/panel_brown_dark.png',
-  panelBorder: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/panel_border_brown.png',
-  panelPaper: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/panel_grid_paper.png',
-  bannerHanging: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/banner_hanging.png',
-  buttonBrown: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/button_brown.png',
-  buttonGrey: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/button_grey.png',
-  buttonRedClose: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/button_red_close.png',
-  compass: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/minimap_compass_toon_n.png',
-  star: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/minimap_icon_star_yellow.png',
-  ring: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/minimap_ring_brown.png',
-  arrow: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/minimap_arrow_a.png',
-  progressGreen: '/assets/packs/kenney_ui-pack-adventure/PNG/Default/progress_green.png',
-}
-
 const CITY_METADATA = {
   tokyo: {
     emoji: '🏛️',
@@ -112,22 +95,16 @@ export default function TownTravelUI({ onClose, onTravel }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in font-mono">
-      {/* Cozy Outer Kenney UI Wooden Container Panel */}
+      {/* Outer wooden-style container panel (CSS gradient, no external art) */}
       <div
         className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl border-4 border-[#785338] shadow-2xl p-6 text-amber-100 select-none"
         style={{
-          backgroundImage: `linear-gradient(to bottom, rgba(35, 23, 16, 0.94), rgba(20, 14, 10, 0.97)), url(${ASSETS.panelDark})`,
-          backgroundSize: 'cover',
+          background: 'linear-gradient(to bottom, rgba(35, 23, 16, 0.94), rgba(20, 14, 10, 0.97))',
         }}
       >
-        {/* Kenney UI Banner Heading */}
+        {/* Banner Heading */}
         <div className="relative flex flex-col items-center justify-center mb-6 pt-2">
-          <img
-            src={ASSETS.bannerHanging}
-            alt="Travel Banner"
-            className="w-72 md:w-96 h-auto drop-shadow-lg"
-          />
-          <div className="absolute top-4 flex flex-col items-center text-center">
+          <div className="w-72 md:w-96 rounded-lg border-2 border-amber-700 bg-[#3a2718] py-3 text-center shadow-lg">
             <h2 className="text-xl md:text-2xl font-black tracking-wider text-amber-200 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] uppercase">
               🚆 Japan Express Station
             </h2>
@@ -139,21 +116,19 @@ export default function TownTravelUI({ onClose, onTravel }) {
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="absolute top-0 right-0 p-1 hover:scale-110 active:scale-95 transition-transform"
+            className="absolute top-0 right-0 flex h-8 w-8 items-center justify-center rounded border-2 border-red-500 bg-red-800 font-bold text-red-100 hover:scale-110 hover:bg-red-700 active:scale-95 transition-transform"
             title="Close Station"
           >
-            <img src={ASSETS.buttonRedClose} alt="Close" className="w-8 h-8 drop-shadow" />
+            ✕
           </button>
         </div>
 
         {/* Departure Transition Overlay */}
         {departingCity ? (
           <div className="my-12 flex flex-col items-center justify-center p-8 bg-[#2a1a10]/90 border-2 border-amber-600/60 rounded-xl shadow-inner text-center">
-            <div className="relative mb-6">
-              <img src={ASSETS.ring} alt="Ring" className="w-24 h-24 animate-spin-slow" />
-              <span className="absolute inset-0 flex items-center justify-center text-4xl">
-                🚅
-              </span>
+            <div className="relative mb-6 flex h-24 w-24 items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-dashed border-amber-600 animate-spin-slow" />
+              <span className="relative text-4xl">🚅</span>
             </div>
             <h3 className="text-2xl font-bold text-amber-200 mb-2">
               Boarding Express Train to {CITY_METADATA[departingCity]?.emoji} {departingCity.toUpperCase()}...
@@ -177,9 +152,8 @@ export default function TownTravelUI({ onClose, onTravel }) {
             {/* Status & Wallet Ribbon */}
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 p-3 bg-[#1e130c]/80 border-2 border-amber-800/80 rounded-xl">
               <div className="flex items-center gap-3">
-                <div className="relative flex items-center justify-center w-10 h-10">
-                  <img src={ASSETS.ring} alt="Ring" className="absolute w-10 h-10" />
-                  <img src={ASSETS.compass} alt="Compass" className="w-6 h-6 z-10" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-full border-2 border-amber-600 bg-[#2a1a10] text-lg">
+                  🧭
                 </div>
                 <div>
                   <div className="text-xs text-amber-400 font-bold uppercase tracking-wider">
@@ -232,8 +206,7 @@ export default function TownTravelUI({ onClose, onTravel }) {
 
                         {isCurrent && (
                           <span className="flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-900/90 text-emerald-300 border border-emerald-500 shadow">
-                            <img src={ASSETS.star} alt="Current" className="w-3.5 h-3.5" />
-                            Here
+                            ⭐ Here
                           </span>
                         )}
                       </div>
@@ -278,11 +251,7 @@ export default function TownTravelUI({ onClose, onTravel }) {
                       ) : (
                         <button
                           onClick={() => handleTravel(city.id)}
-                          className="relative group px-5 py-2 text-xs font-black uppercase text-amber-100 rounded-lg overflow-hidden border-2 border-amber-500 bg-amber-800 hover:bg-amber-700 active:scale-95 transition-all shadow-md flex items-center gap-1.5"
-                          style={{
-                            backgroundImage: `url(${ASSETS.buttonBrown})`,
-                            backgroundSize: 'cover',
-                          }}
+                          className="relative group px-5 py-2 text-xs font-black uppercase text-amber-100 rounded-lg border-2 border-amber-500 bg-amber-800 hover:bg-amber-700 active:scale-95 transition-all shadow-md flex items-center gap-1.5"
                         >
                           <span>Board Express</span>
                           <span className="group-hover:translate-x-1 transition-transform">🚅</span>

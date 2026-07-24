@@ -1,7 +1,6 @@
 import BaseTownScene, { TILE_SIZE } from './BaseTownScene'
 import {
   buildTerrainLayer,
-  TERRAIN_TILE_INDEX,
   placeTree,
   placeFlower,
   placeRock,
@@ -141,10 +140,10 @@ export default class OsakaScene extends BaseTownScene {
 
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) => {
       const tile = this.layout[row][col]
-      if (tile === 'water') return TERRAIN_TILE_INDEX.water
-      if (tile === 'path') return TERRAIN_TILE_INDEX.path
-      if (tile === 'wall') return TERRAIN_TILE_INDEX.wall
-      return TERRAIN_TILE_INDEX.grass
+      if (tile === 'water') return 'water'
+      if (tile === 'path') return 'path'
+      if (tile === 'wall') return 'wall'
+      return 'grass'
     })
     this.zoneObjects.push(terrainLayer)
 

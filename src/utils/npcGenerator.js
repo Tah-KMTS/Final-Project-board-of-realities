@@ -29,9 +29,9 @@ export function generateAmbientNpc(id) {
   const seed = hashSeed(id)
   const palette = {
     skin: SKIN_TONES[seed % SKIN_TONES.length],
-    hair: HAIR_COLORS[(seed >> 3) % HAIR_COLORS.length],
-    outfit: OUTFIT_COLORS[(seed >> 6) % OUTFIT_COLORS.length],
-    hairStyle: HAIR_OPTIONS[(seed >> 9) % HAIR_OPTIONS.length],
+    hair: HAIR_COLORS[(seed >>> 3) % HAIR_COLORS.length],
+    outfit: OUTFIT_COLORS[(seed >>> 6) % OUTFIT_COLORS.length],
+    hairStyle: HAIR_OPTIONS[(seed >>> 9) % HAIR_OPTIONS.length],
   }
   return {
     id,

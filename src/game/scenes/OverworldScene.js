@@ -4,14 +4,9 @@ import { resolvePalette } from '../characterPalettes'
 import { generateAmbientNpcs } from '../../utils/npcGenerator'
 import { FINANCE_NPCS } from '../../features/finance/financeNpcs'
 import { SpriteActor } from '../actor'
-import { preloadPlayerSheet } from '../spriteGen'
 import { TileMover, combineDirection } from '../tileMover'
 import {
-  drawSlateMarbleTile,
-  drawCobblestoneTile,
-  preloadTerrainAssets,
   buildTerrainLayer,
-  TERRAIN_TILE_INDEX,
   placeTree,
   placeFlower,
   placeRock,
@@ -208,26 +203,16 @@ function buildLayout(tileTypeFn, cols, rows) {
   return layout
 }
 
-// Real Cute Fantasy tile art (see tileGen.js's buildTerrainLayer) covers
-// 'path' and 'water' everywhere, plus 'grass' for every city except Tokyo
-// (slate marble) and Kyoto (cobblestone) - those two still don't have a
-// pack equivalent, so their "grass" cells and every city's border 'wall'
-// cells fall back to the old per-cell Graphics fill.
-function terrainTileIndexAt(tile, cityId) {
-  if (tile === 'water') return TERRAIN_TILE_INDEX.water
-  if (tile === 'path') return TERRAIN_TILE_INDEX.path
-  if (tile === 'grass' && cityId !== 'tokyo' && cityId !== 'kyoto') return TERRAIN_TILE_INDEX.grass
-  return null
-}
-
-function drawFallbackTileAt(graphics, tile, x, y, size, cityId) {
-  if (tile === 'grass') {
-    if (cityId === 'tokyo') drawSlateMarbleTile(graphics, x, y, size)
-    else if (cityId === 'kyoto') drawCobblestoneTile(graphics, x, y, size)
-  } else if (tile === 'wall') {
-    graphics.fillStyle(0x5b4636, 1)
-    graphics.fillRect(x, y, size, size)
-  }
+// 'path' and 'water' render the same everywhere; 'grass' cells get a
+// per-city ground reskin (Tokyo slate marble, Kyoto cobblestone, everyone
+// else plain grass); border 'wall' cells are the same everywhere too.
+function terrainTileTypeAt(tile, cityId) {
+  if (tile === 'water') return 'water'
+  if (tile === 'path') return 'path'
+  if (tile === 'wall') return 'wall'
+  if (cityId === 'tokyo') return 'slate'
+  if (cityId === 'kyoto') return 'cobblestone'
+  return 'grass'
 }
 
 function scatterEnvironment(scene, layout, buildings, count, cityId, zoneObjects) {
@@ -365,11 +350,6 @@ export default class OverworldScene extends Phaser.Scene {
     this.financeAmbientActors = []
   }
 
-  preload() {
-    preloadPlayerSheet(this)
-    preloadTerrainAssets(this)
-  }
-
   create() {
     useGameStore.getState().initFinanceMarket()
 
@@ -424,6 +404,10 @@ export default class OverworldScene extends Phaser.Scene {
 
     const zone = ZONES[zoneId]
     this.cameras.main.setBounds(0, 0, zone.cols * TILE_SIZE, zone.rows * TILE_SIZE)
+    // Arcade Physics world bounds default to the 800x500 canvas size, not
+    // the zone size - without this the player's collideWorldBounds body
+    // gets clamped back inside that small box while walking.
+    this.physics.world.setBounds(0, 0, zone.cols * TILE_SIZE, zone.rows * TILE_SIZE)
     if (teleportPlayer) {
       const spawn = zoneId === 'overworld' ? this.overworldReturnSpawn : INTERIOR_SPAWN
       this.tileMover.teleport(spawn.col, spawn.row)
@@ -445,22 +429,11 @@ export default class OverworldScene extends Phaser.Scene {
 
     const currentCityId = useGameStore.getState().currentCityId || 'tokyo'
 
-    // Real terrain art (grass/path/water) for every cell the pack covers -
-    // one Tilemap layer instead of one Graphics fill per cell.
+    // Procedural terrain layer - one Graphics pass, per-city ground reskin.
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) =>
-      terrainTileIndexAt(this.financeLayout[row][col], currentCityId)
+      terrainTileTypeAt(this.financeLayout[row][col], currentCityId)
     )
     this.zoneObjects.push(terrainLayer)
-
-    // Fallback Graphics pass for the handful of cell types the pack has no
-    // asset for (Tokyo marble / Kyoto cobblestone grass, and border walls).
-    const fallbackGraphics = this.add.graphics()
-    this.zoneObjects.push(fallbackGraphics)
-    for (let row = 0; row < MAP_ROWS; row++) {
-      for (let col = 0; col < MAP_COLS; col++) {
-        drawFallbackTileAt(fallbackGraphics, this.financeLayout[row][col], col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, currentCityId)
-      }
-    }
 
     // City-specific environment scatter
     scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, 80, currentCityId, this.zoneObjects)

@@ -1,8 +1,6 @@
 import BaseTownScene, { TILE_SIZE } from './BaseTownScene'
 import {
-  drawSlateMarbleTile,
   buildTerrainLayer,
-  TERRAIN_TILE_INDEX,
   placeRock,
   placeBuildingFacade,
 } from '../tileGen'
@@ -20,30 +18,33 @@ const H_STREETS = [4, 13, 22, 31]
 const V_STREETS = [7, 33]
 
 const TOKYO_BUILDINGS = [
-  // Financial District
+  // Financial District - trading venues, tycoon HQs, and every other
+  // corporate HQ (private companies aren't government buildings just
+  // because they used to share a row with Parliament/FTC/Fed).
   { id: 'stockExchange',  label: 'Tokyo Stock Exchange',     district: 'Financial',  color: 0x1f5f3a, width: 3, height: 3 },
   { id: 'buffettHQ',      label: 'Biffle Tower',             district: 'Financial',  color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
   { id: 'vanderbiltHQ',   label: 'Vanderbilt Rail Co.',      district: 'Financial',  color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
   { id: 'muskHQ',         label: 'Rusk Industries',          district: 'Financial',  color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
   { id: 'howardMarksHQ',  label: 'Oaktree Cycle Capital',    district: 'Financial',  color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
+  { id: 'cryptoExchange', label: 'Crypto HQ',                district: 'Financial',  color: 0x8a5a1f, width: 4, height: 3 },
+  { id: 'corporateOffice', label: 'Corporate Holdings',      district: 'Financial',  color: 0x4a3a5f, width: 4, height: 3 },
+  { id: 'vcHub',          label: 'Venture Capital Hub',      district: 'Financial',  color: 0x2a3a6b, width: 3, height: 3 },
+  { id: 'appleHQ',        label: 'Apple Glass HQ',           district: 'Financial',  color: 0xc0c0c0, width: 4, height: 3, npcId: 'jobs' },
   // Commercial District
   { id: 'bank',           label: 'Bank & Realty Office',     district: 'Commercial', color: 0x1f3a5f, width: 4, height: 3 },
   { id: 'realEstateAgency', label: 'Real Estate Agency',     district: 'Commercial', color: 0x3a5f4a, width: 4, height: 3 },
   { id: 'hotel',          label: 'Capital Suites Hotel',     district: 'Commercial', color: 0x8a6a2a, width: 4, height: 3 },
   { id: 'casino',         label: 'Neon Dragon Casino',       district: 'Commercial', color: 0x8a1f6a, width: 3, height: 3 },
   { id: 'arcade',         label: 'Pixel Palace Arcade',      district: 'Commercial', color: 0x1f6a8a, width: 3, height: 3 },
-  // Government District
+  // Government District - regulatory/political only. FTC/Federal Reserve
+  // were removed from the map (they had no interior wired to any modal -
+  // both functions are already fully reachable through the "Gov & Agencies"
+  // toolbar button/GovernmentModal, so the physical buildings were dead
+  // weight rather than a second entry point).
   { id: 'parliament',     label: 'Parliament Hall',          district: 'Government', color: 0x3a3a6a, width: 4, height: 3 },
-  { id: 'ftcHQ',          label: 'FTC Commission',           district: 'Government', color: 0x5a3a2a, width: 4, height: 3 },
-  { id: 'fedHQ',          label: 'Federal Reserve HQ',       district: 'Government', color: 0x2a5a3a, width: 4, height: 3 },
-  { id: 'corporateOffice', label: 'Corporate Holdings',      district: 'Government', color: 0x4a3a5f, width: 4, height: 3 },
-  { id: 'vcHub',          label: 'Venture Capital Hub',      district: 'Government', color: 0x2a3a6b, width: 3, height: 3 },
-  { id: 'cryptoExchange', label: 'Crypto HQ',                district: 'Government', color: 0x8a5a1f, width: 4, height: 3 },
   // Cultural District
   { id: 'park',           label: 'Serenity Park',            district: 'Cultural',   color: 0x2a5f2a, width: 4, height: 2 },
   { id: 'temple',         label: 'Whispering Temple',        district: 'Cultural',   color: 0x5a5a4a, width: 4, height: 2 },
-  { id: 'appleHQ',        label: 'Apple Glass HQ',           district: 'Cultural',   color: 0xc0c0c0, width: 4, height: 3, npcId: 'jobs' },
-  { id: 'gigaFactory',    label: 'Giga Factory',             district: 'Cultural',   color: 0x1a1a2e, width: 4, height: 3, npcId: 'musk' },
   { id: 'trainStation',   label: '🚆 Train Station',        district: 'Transport',  color: 0x4a6fa5, width: 3, height: 3 },
 ]
 
@@ -108,11 +109,8 @@ const BUILDING_INTERIOR_MAP = {
   muskHQ: 'tycoonOffice',
   howardMarksHQ: 'tycoonOffice',
   appleHQ: 'tycoonOffice',
-  gigaFactory: 'tycoonOffice',
   bank: 'officeA',
   realEstateAgency: 'officeA',
-  fedHQ: 'officeA',
-  ftcHQ: 'officeA',
   corporateOffice: 'officeB',
   vcHub: 'officeB',
   hotel: 'amenity',
@@ -157,10 +155,10 @@ export default class TokyoScene extends BaseTownScene {
     this.layout = buildLayout()
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) => {
       const tile = this.layout[row][col]
-      if (tile === 'water') return TERRAIN_TILE_INDEX.water
-      if (tile === 'path') return TERRAIN_TILE_INDEX.path
-      if (tile === 'wall') return TERRAIN_TILE_INDEX.wall
-      return TERRAIN_TILE_INDEX.slate
+      if (tile === 'water') return 'water'
+      if (tile === 'path') return 'path'
+      if (tile === 'wall') return 'wall'
+      return 'slate'
     })
     this.zoneObjects.push(terrainLayer)
 

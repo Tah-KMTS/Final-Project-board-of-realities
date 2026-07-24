@@ -2,16 +2,12 @@ import Phaser from 'phaser'
 import { useGameStore } from '../../store/useGameStore'
 import { resolvePalette } from '../characterPalettes'
 import { SpriteActor } from '../actor'
-import { preloadPlayerSheet } from '../spriteGen'
 import { TileMover, combineDirection } from '../tileMover'
 import {
-  preloadTerrainAssets,
   buildTerrainLayer,
-  TERRAIN_TILE_INDEX,
   placeTree,
   placeFlower,
   placeBuildingFacade,
-  addScreenVignette,
 } from '../tileGen'
 import { getActiveNpcsAt } from '../../features/domino/npcRoster'
 
@@ -42,11 +38,6 @@ export default class DominoWorldScene extends Phaser.Scene {
     this.currentZoneId = 'playersRoom'
   }
 
-  preload() {
-    preloadPlayerSheet(this)
-    preloadTerrainAssets(this)
-  }
-
   create() {
     this.cursors = this.input.keyboard.createCursorKeys()
     this.wasd = this.input.keyboard.addKeys('W,A,S,D,E')
@@ -63,7 +54,6 @@ export default class DominoWorldScene extends Phaser.Scene {
 
     const startZone = useGameStore.getState().world4.currentZone || 'playersRoom'
     this.createPlayer(startZone)
-    addScreenVignette(this)
     this.loadZone(startZone, false)
   }
 
@@ -121,6 +111,11 @@ export default class DominoWorldScene extends Phaser.Scene {
 
     if (teleportPlayer) this.tileMover.teleport(zone.spawn.col, zone.spawn.row)
     this.cameras.main.setBounds(0, 0, zone.cols * TILE_SIZE, zone.rows * TILE_SIZE)
+    // Arcade Physics world bounds default to the 800x500 canvas size, not
+    // the zone size - without this the player's collideWorldBounds body
+    // gets clamped back inside that small box while walking (reads as
+    // "walk, teleport back, get stuck/glitch").
+    this.physics.world.setBounds(0, 0, zone.cols * TILE_SIZE, zone.rows * TILE_SIZE)
     this.cameras.main.startFollow(this.playerActor.sprite, true)
   }
 
@@ -146,17 +141,17 @@ export default class DominoWorldScene extends Phaser.Scene {
     return layout
   }
 
-  // Outdoor zones ('grass'/'path' cells) get the real Cute Fantasy terrain
-  // layer; indoor zones keep their procedural checkerboard floor (no pack
-  // asset for that), and border 'wall' cells stay a flat Graphics fill in
-  // both cases (same reasoning as OverworldScene's fallback pass).
+  // Outdoor zones ('grass'/'path' cells) get the procedural terrain layer;
+  // indoor zones keep their own procedural checkerboard floor, and border
+  // 'wall' cells stay a flat Graphics fill in both cases (drawn by the pass
+  // below).
   drawGround(zoneId) {
     const { cols, rows, indoor } = ZONES[zoneId]
     if (!indoor) {
       const terrainLayer = buildTerrainLayer(this, cols, rows, TILE_SIZE, (r, c) => {
         const t = this.layout[r][c]
-        if (t === 'grass') return TERRAIN_TILE_INDEX.grass
-        if (t === 'path') return TERRAIN_TILE_INDEX.path
+        if (t === 'grass') return 'grass'
+        if (t === 'path') return 'path'
         return null
       })
       this.zoneObjects.push(terrainLayer)

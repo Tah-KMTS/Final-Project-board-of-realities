@@ -22,7 +22,6 @@ import ArcadeModal from '../features/arcade/ArcadeModal'
 import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
 import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
 import GovernmentModal from './GovernmentModal'
-import MinimapHUD from './MinimapHUD'
 import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
 import ScotusCourtroomModal from '../features/government/ScotusCourtroomModal'
 import IrsHearingModal from '../features/government/IrsHearingModal'
@@ -361,7 +360,6 @@ export default function WorldScreen() {
       {!worldCleared && (
         <div className="relative w-full max-w-5xl mx-auto my-2 rounded-xl overflow-hidden flex items-center justify-center">
           <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
-          {mode === 'overworld' && <MinimapHUD onOpenGov={() => setActiveModal({ type: 'government' })} />}
         </div>
       )}
 

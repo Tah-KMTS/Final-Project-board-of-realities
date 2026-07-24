@@ -23,10 +23,14 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
   const containerRef = useRef(null)
   const gameRef = useRef(null)
   const sceneRef = useRef(null)
-  const currentCityId = useGameStore((s) => s.currentCityId || 'tokyo')
 
   useEffect(() => {
-    const activeKey = mode === 'overworld' ? currentCityId : mode
+    // Only Tokyo is a live, reachable map right now - Kyoto/Osaka/Sapporo
+    // (and the currentCityId-driven switching that used to pick between
+    // them) are kept in the codebase as dormant data/scenes, not deleted,
+    // in case they get wired back in later. Overworld mode always resolves
+    // to Tokyo regardless of currentCityId.
+    const activeKey = mode === 'overworld' ? 'tokyo' : mode
     const SceneClass = SCENES_BY_MODE[activeKey] || SCENES_BY_MODE[mode] || OverworldScene
     const scene = new SceneClass()
     scene.bridge = bridge
@@ -79,7 +83,7 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
       gameRef.current?.destroy(true)
       gameRef.current = null
     }
-  }, [mode, currentCityId, bridge, spawnOverride])
+  }, [mode, bridge, spawnOverride])
 
   return (
     <div className="w-full h-full flex items-center justify-center bg-[#070a14]">

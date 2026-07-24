@@ -69,8 +69,8 @@ export class SmoothMover {
         let moveY = vec.dy * this.speed * scale * dt
 
         // Resolve each axis independently (wall-sliding).
-        const newX = this._resolveAxis(this._px, this._py, moveX, 0)
-        const newY = this._resolveAxis(newX, this._py, 0, moveY)
+        const newX = this._resolveAxis(this._px, this._py, moveX, 0, 'x')
+        const newY = this._resolveAxis(newX, this._py, 0, moveY, 'y')
 
         this._px = newX
         this._py = newY
@@ -104,7 +104,7 @@ export class SmoothMover {
    * exact tile boundaries — this is the secret sauce for smooth wall-sliding
    * around corners.
    */
-  _resolveAxis(px, py, dx, dy) {
+  _resolveAxis(px, py, dx, dy, axis) {
     const ts = this.tileSize
     const half = ts / 2
     const inset = 12  // px inset from the hitbox edge for corner checks
@@ -128,12 +128,12 @@ export class SmoothMover {
       for (let r = rTop; r <= rBottom; r++) {
         if (this.isBlocked(c, r)) {
           // This axis is blocked — return the original value for the moving axis.
-          return dx !== 0 ? px : py
+          return axis === 'x' ? px : py
         }
       }
     }
 
-    return dx !== 0 ? nx : ny
+    return axis === 'x' ? nx : ny
   }
 }
 

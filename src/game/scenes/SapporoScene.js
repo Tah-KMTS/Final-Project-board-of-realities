@@ -7,10 +7,10 @@ import BaseTownScene, {
 } from './BaseTownScene'
 import {
   buildTerrainLayer,
-  TERRAIN_TILE_INDEX,
   placeTree,
   placeFlower,
   placeRock,
+  placeCampfire,
   placeBuildingFacade,
   addScreenVignette,
 } from '../tileGen'
@@ -228,52 +228,16 @@ export default class SapporoScene extends BaseTownScene {
     })
   }
 
-  preload() {
-    super.preload()
-    this.preloadSapporoAssets()
-  }
-
-  preloadSapporoAssets() {
-    const L = this.load
-    const sereneBase = '/assets/packs/Serene_Village_revamped_v1.9/SERENE_VILLAGE_REVAMPED'
-    const modernBase = '/assets/packs/Modern_Interiors_Free_v2.2/Modern%20tiles_Free/Interiors_free'
-
-    // Serene Village environment pack assets for cozy Stardew Valley aesthetic
-    if (!this.textures.exists('serene_village_32')) {
-      L.image('serene_village_32', `${sereneBase}/Serene_Village_32x32.png`)
-    }
-    if (!this.textures.exists('serene_outside_stuff')) {
-      L.image('serene_outside_stuff', `${sereneBase}/RPG_MAKER_MV/Outside_Stuff_TILESET_B-C-D-E.png`)
-    }
-    if (!this.textures.exists('serene_houses_mv')) {
-      L.image('serene_houses_mv', `${sereneBase}/RPG_MAKER_MV/Houses_TILESET_B-C-D-E.png`)
-    }
-    if (!this.textures.exists('serene_campfire_32')) {
-      L.spritesheet('serene_campfire_32', `${sereneBase}/Animated%20stuff/campfire_32x32.png`, {
-        frameWidth: 32,
-        frameHeight: 32,
-      })
-    }
-
-    // Modern Interiors free pack assets for building interior rooms
-    if (!this.textures.exists('modern_interiors_32')) {
-      L.image('modern_interiors_32', `${modernBase}/32x32/Interiors_free_32x32.png`)
-    }
-    if (!this.textures.exists('modern_room_builder_32')) {
-      L.image('modern_room_builder_32', `${modernBase}/32x32/Room_Builder_free_32x32.png`)
-    }
-  }
-
   buildOverworldZone() {
     this.layout = buildLayout()
 
     // Base terrain layer (Grass, path, water, snow peaks, walls)
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) => {
       const tile = this.layout[row][col]
-      if (tile === 'water') return TERRAIN_TILE_INDEX.water
-      if (tile === 'path') return TERRAIN_TILE_INDEX.path
-      if (tile === 'wall') return row <= 3 ? TERRAIN_TILE_INDEX.snow : TERRAIN_TILE_INDEX.wall
-      return TERRAIN_TILE_INDEX.grass
+      if (tile === 'water') return 'water'
+      if (tile === 'path') return 'path'
+      if (tile === 'wall') return row <= 3 ? 'snow' : 'wall'
+      return 'grass'
     })
     this.zoneObjects.push(terrainLayer)
 
@@ -323,14 +287,8 @@ export default class SapporoScene extends BaseTownScene {
       glow.setDepth(cy - 2)
       this.zoneObjects.push(glow)
 
-      if (this.textures.exists('serene_campfire_32')) {
-        const fire = this.add.sprite(cx, cy, 'serene_campfire_32', 0).setScale(1.2)
-        fire.setDepth(cy)
-        this.zoneObjects.push(fire)
-      } else {
-        const rock = placeRock(this, cx, cy)
-        if (rock) this.zoneObjects.push(...rock)
-      }
+      const fire = placeCampfire(this, cx, cy)
+      this.zoneObjects.push(...fire)
     }
 
     // Scatter pine trees, flowers, and rustic rocks across alpine fields
