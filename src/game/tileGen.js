@@ -1,4 +1,4 @@
-const USE_PROCEDURAL_GRAPHICS = false;
+const USE_PROCEDURAL_GRAPHICS = true;
 
 // Terrain, decoration and building rendering. Base grass/road/water tiles,
 // trees/flowers/rocks and building facades all now come from the real
@@ -85,6 +85,7 @@ export const ASSET_KEYS = {
 // Call from every scene's preload() - queues the tile/decoration/building
 // images (the player sheet is preloaded separately by spriteGen.js).
 export function preloadTerrainAssets(scene) {
+  if (USE_PROCEDURAL_GRAPHICS) return // Procedural mode: no external assets needed
   const L = scene.load
   if (!scene.textures.exists(ASSET_KEYS.tileGrass)) L.image(ASSET_KEYS.tileGrass, `${ASSET_BASE}/Tiles/Grass_Middle.png`)
   if (!scene.textures.exists(ASSET_KEYS.tilePath)) L.image(ASSET_KEYS.tilePath, `${ASSET_BASE}/Tiles/Path_Middle.png`)
@@ -118,15 +119,17 @@ export function preloadTerrainAssets(scene) {
 // Terrain tile layer (Serene Village spritesheet: 19 cols x 45 rows)
 // ---------------------------------------------------------------------------
 
+// Tile indices into Serene_Village_16x16.png (19 tiles wide).
+// Formula: row * 19 + col. Kept to safe row 0-10 range.
 export const TERRAIN_TILE_INDEX = {
-  grass: 4,
-  path: 285,
-  water: 79,
-  wall: 304,
-  slate: 220,
-  cobblestone: 57,
-  bridge: 327,
-  snow: 76,
+  grass: 4,      // row 0, col 4
+  path: 23,      // row 1, col 4  (sandy path)
+  water: 38,     // row 2, col 0
+  wall: 0,       // row 0, col 0  (solid dark border)
+  slate: 57,     // row 3, col 0
+  cobblestone: 76, // row 4, col 0
+  bridge: 23,    // reuse path for bridges
+  snow: 95,      // row 5, col 0
 }
 
 const TERRAIN_ATLAS_KEY = 'cf_terrain_atlas'
@@ -152,20 +155,22 @@ export function buildTerrainLayer(scene, cols, rows, tileSize, tileTypeAt) {
   if (USE_PROCEDURAL_GRAPHICS) {
     return procedural_buildTerrainLayer(scene, cols, rows, tileSize, tileTypeAt)
   }
-  const map = scene.make.tilemap({ tileWidth: 16, tileHeight: 16, width: cols, height: rows })
-  const tilesetKey = scene.textures.exists(ASSET_KEYS.sereneVillage) ? ASSET_KEYS.sereneVillage : ensureTerrainAtlas(scene)
-  const tileset = map.addTilesetImage('serene_terrain', tilesetKey, 16, 16, 0, 0)
-  const layer = map.createBlankLayer('ground', tileset, 0, 0)
-  layer.setScale(tileSize / 16)
+  const data = []
   for (let r = 0; r < rows; r++) {
+    const row = []
     for (let c = 0; c < cols; c++) {
       const type = tileTypeAt(r, c)
-      if (type) {
-        const idx = TERRAIN_TILE_INDEX[type]
-        if (idx !== null && idx !== undefined) layer.putTileAt(idx, c, r)
-      }
+      row.push(type && TERRAIN_TILE_INDEX[type] !== undefined ? TERRAIN_TILE_INDEX[type] : -1)
     }
+    data.push(row)
   }
+
+  const map = scene.make.tilemap({ data, tileWidth: 16, tileHeight: 16 })
+  const tilesetKey = scene.textures.exists(ASSET_KEYS.sereneVillage) ? ASSET_KEYS.sereneVillage : ensureTerrainAtlas(scene)
+  const tileset = map.addTilesetImage('serene_terrain', tilesetKey, 16, 16, 0, 0)
+  const layer = map.createLayer(0, tileset, 0, 0)
+  layer.setScale(tileSize / 16)
+  
   return layer
 }
 
@@ -254,26 +259,29 @@ export function drawInteriorRoom(scene, zoneObjects, template = {}) {
   const TILE_SIZE = 40
   const d = { c0: 5, r0: 2, c1: 6, r1: 3 }
 
-  const map = scene.make.tilemap({ tileWidth: 16, tileHeight: 16, width: INTERIOR_COLS, height: INTERIOR_ROWS })
+  const wallTile = template.wallTile ?? 2
+  const floorA = template.floorTileA ?? 34
+  const floorB = template.floorTileB ?? 35
+
+  // Build tile data as a 2D array — avoids putTileAt out-of-bounds crashes
+  const data = []
+  for (let r = 0; r < INTERIOR_ROWS; r++) {
+    const row = []
+    for (let c = 0; c < INTERIOR_COLS; c++) {
+      const isBorder = r === 0 || c === 0 || r === INTERIOR_ROWS - 1 || c === INTERIOR_COLS - 1
+      row.push(isBorder ? wallTile : ((r + c) % 2 === 0 ? floorA : floorB))
+    }
+    data.push(row)
+  }
+
+  const map = scene.make.tilemap({ data, tileWidth: 16, tileHeight: 16 })
   const tilesetKey = scene.textures.exists(ASSET_KEYS.modernRoomBuilder)
     ? ASSET_KEYS.modernRoomBuilder
     : (scene.textures.exists(ASSET_KEYS.modernInteriors) ? ASSET_KEYS.modernInteriors : 'cf_terrain_atlas')
   
   const tileset = map.addTilesetImage('modern_interior', tilesetKey, 16, 16, 0, 0)
-  const layer = map.createBlankLayer('interior_room', tileset, 0, 0)
+  const layer = map.createLayer(0, tileset, 0, 0)
   layer.setScale(TILE_SIZE / 16)
-
-  const wallTile = template.wallTile ?? 2
-  const floorA = template.floorTileA ?? 34
-  const floorB = template.floorTileB ?? 35
-
-  for (let r = 0; r < INTERIOR_ROWS; r++) {
-    for (let c = 0; c < INTERIOR_COLS; c++) {
-      const isBorder = r === 0 || c === 0 || r === INTERIOR_ROWS - 1 || c === INTERIOR_COLS - 1
-      const idx = isBorder ? wallTile : ((r + c) % 2 === 0 ? floorA : floorB)
-      layer.putTileAt(idx, c, r)
-    }
-  }
   zoneObjects.push(layer)
 
   const dx = d.c0 * TILE_SIZE

@@ -11,7 +11,9 @@ import {
   placeFlower,
   placeRock,
   placeBuildingFacade,
+  preloadTerrainAssets,
 } from '../tileGen'
+import { preloadPlayerSheet } from '../spriteGen'
 
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
@@ -393,6 +395,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.financeAmbientActors = []
   }
 
+  preload() {
+    preloadTerrainAssets(this)
+    preloadPlayerSheet(this)
+  }
+
   create() {
     useGameStore.getState().initFinanceMarket()
 
@@ -500,12 +507,12 @@ export default class OverworldScene extends Phaser.Scene {
 
     // Procedural terrain layer - one Graphics pass, per-city ground reskin.
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) =>
-      terrainTileTypeAt(this.financeLayout[row][col], currentCityId)
+      terrainTileTypeAt(this.financeLayout[row][col], row)
     )
     this.zoneObjects.push(terrainLayer)
 
     // City-specific environment scatter
-    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, 80, currentCityId, this.zoneObjects)
+    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, 80, this.zoneObjects)
 
     drawBuildings(this, FINANCE_BUILDINGS, this.zoneObjects)
 

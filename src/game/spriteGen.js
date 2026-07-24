@@ -1,4 +1,4 @@
-const USE_PROCEDURAL_GRAPHICS = false;
+const USE_PROCEDURAL_GRAPHICS = true;
 ﻿// Player/NPC sprite setup - loads the real "Cute Fantasy Free" character
 // sheet (Player/Player.png, a clean 6-col x 10-row grid of 32x32 frames) as
 // ONE shared spritesheet texture and exposes named frame regions for the
@@ -39,6 +39,7 @@ const STEP_COLS = [0, 3]
 // so the image is guaranteed ready before create() runs (SpriteActor needs
 // the texture to exist the instant it's constructed).
 export function preloadPlayerSheet(scene) {
+  if (USE_PROCEDURAL_GRAPHICS) return // Procedural mode: sprites drawn on canvas, no external sheet
   if (!scene.textures.exists(PLAYER_SHEET_KEY)) {
     scene.load.image(PLAYER_SHEET_KEY, PLAYER_SHEET_URL)
   }
