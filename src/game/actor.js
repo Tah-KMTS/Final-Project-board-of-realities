@@ -10,7 +10,7 @@ import { PLAYER_SHEET_KEY, ensurePlayerFrames, tintFromPalette, FRAME_W, FRAME_H
 // left-facing frames mirrored via sprite.flipX - the only direction that
 // needs this trick.
 export class SpriteActor {
-  constructor(scene, x, y, textureKey, palette, { withPhysics = false } = {}) {
+  constructor(scene, x, y, textureKey, palette) {
     ensurePlayerFrames(scene)
     this.scene = scene
     this.shadowOffsetY = (FRAME_H * PLAYER_DISPLAY_SCALE) / 2 - 8
@@ -27,17 +27,16 @@ export class SpriteActor {
     this.sprite.setDepth(this.sprite.y)
     this.shadow.setDepth(this.sprite.y - 1)
 
-    if (withPhysics) {
-      scene.physics.add.existing(this.sprite)
-      const bodyW = 18
-      const bodyH = 16
-      this.sprite.body.setSize(bodyW / PLAYER_DISPLAY_SCALE, bodyH / PLAYER_DISPLAY_SCALE)
-      this.sprite.body.setOffset(
-        (FRAME_W - bodyW / PLAYER_DISPLAY_SCALE) / 2,
-        FRAME_H - bodyH / PLAYER_DISPLAY_SCALE - 6
-      )
-      this.sprite.body.setCollideWorldBounds(true)
-    }
+    // Always create physics body — required for smooth pixel movement.
+    scene.physics.add.existing(this.sprite)
+    const bodyW = 18
+    const bodyH = 16
+    this.sprite.body.setSize(bodyW / PLAYER_DISPLAY_SCALE, bodyH / PLAYER_DISPLAY_SCALE)
+    this.sprite.body.setOffset(
+      (FRAME_W - bodyW / PLAYER_DISPLAY_SCALE) / 2,
+      FRAME_H - bodyH / PLAYER_DISPLAY_SCALE - 6
+    )
+    this.sprite.body.setCollideWorldBounds(true)
   }
 
   get x() { return this.sprite.x }
@@ -78,7 +77,7 @@ export class SpriteActor {
 
     if (!this.moving) return
     this.animTimer += delta
-    if (this.animTimer > 180) {
+    if (this.animTimer > 150) {
       this.animTimer = 0
       this.stepFrame = this.stepFrame === 0 ? 1 : 0
       this.applyFrame()
