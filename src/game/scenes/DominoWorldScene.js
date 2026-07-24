@@ -83,13 +83,6 @@ export default class DominoWorldScene extends Phaser.Scene {
     const spawn = ZONES[zoneId].spawn
     const { x, y } = { x: spawn.col * TILE_SIZE + TILE_SIZE / 2, y: spawn.row * TILE_SIZE + TILE_SIZE / 2 }
     this.playerActor = new SpriteActor(this, x, y, 'player_texture_domino', palette)
-    // createPlayer() runs before loadZone(), so the zone's floor/building
-    // Graphics objects are added to the display list AFTER the player and
-    // (at the same default depth 0) would render on top of it, hiding it
-    // completely. Explicit depth keeps the player visible above terrain
-    // regardless of add-order across zone switches.
-    this.playerActor.sprite.setDepth(this.playerActor.y)
-    this.playerActor.shadow.setDepth(this.playerActor.y - 1)
     this.tileMover = new TileMover({
       actor: this.playerActor,
       tileSize: TILE_SIZE,
@@ -192,8 +185,7 @@ export default class DominoWorldScene extends Phaser.Scene {
     const w = (c1 - c0 + 1) * TILE_SIZE
     const h = (r1 - r0 + 1) * TILE_SIZE
     this.zoneObjects.push(...placeBuildingFacade(this, x, y, w, h, 0x3a2f5f))
-    const text = this.add.text(x + w / 2, y - 12, label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5, 1)
-    text.setDepth(y + h + 1)
+    const text = this.add.text(x + w / 2, y - 12, label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' }).setOrigin(0.5, 1).setDepth(y + h + 10)
     this.zoneObjects.push(text)
     this.zones.push({
       type, id, label: `Press E: ${label}`,

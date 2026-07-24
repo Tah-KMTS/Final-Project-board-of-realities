@@ -279,7 +279,7 @@ function drawBuildings(scene, buildings, zoneObjects) {
     const label = scene.add
       .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
       .setOrigin(0.5, 1)
-      .setDepth(y + h + 1)
+      .setDepth(y + h + 10)
     zoneObjects.push(label)
   }
 }
@@ -330,7 +330,7 @@ function drawInteriorRoom(scene, zoneObjects, { floorA, floorB, deskColor, deskL
   const deskLabelText = scene.add
     .text(dx + dw / 2, dy - 12, deskLabel, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
     .setOrigin(0.5, 1)
-    .setDepth(dy + dh + 1)
+    .setDepth(dy + dh + 10)
   zoneObjects.push(deskLabelText)
 
   return { dx, dy, dw, dh }
@@ -481,6 +481,9 @@ export default class OverworldScene extends Phaser.Scene {
   }
 
   drawCityLandmarkOverlay(cityId) {
+    const overlayGraphics = this.add.graphics().setDepth(2000)
+    this.zoneObjects.push(overlayGraphics)
+
     // Tokyo Option 3: amber-gold border accent on the first 3 buildings
     if (cityId === 'tokyo') {
       for (let i = 0; i < Math.min(3, FINANCE_BUILDINGS.length); i++) {
@@ -489,14 +492,11 @@ export default class OverworldScene extends Phaser.Scene {
         const y = b.tiles.r0 * TILE_SIZE
         const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
         const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-        const graphics = this.add.graphics()
-        graphics.lineStyle(3, 0xf59e0b, 0.9)
-        graphics.strokeRect(x, y, w, h)
+        overlayGraphics.lineStyle(3, 0xf59e0b, 0.9)
+        overlayGraphics.strokeRect(x, y, w, h)
         // Gold roof cap
-        graphics.fillStyle(0xf59e0b, 0.3)
-        graphics.fillRect(x, y - 4, w, 4)
-        graphics.setDepth(y + h + 1)
-        this.zoneObjects.push(graphics)
+        overlayGraphics.fillStyle(0xf59e0b, 0.3)
+        overlayGraphics.fillRect(x, y - 4, w, 4)
       }
     }
     // Kyoto Option 2: red torii-gate accent on the first 3 buildings
@@ -507,14 +507,11 @@ export default class OverworldScene extends Phaser.Scene {
         const y = b.tiles.r0 * TILE_SIZE
         const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
         const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-        const graphics = this.add.graphics()
         // Pagoda curved red roof accent
-        graphics.fillStyle(0xdc2626, 0.85)
-        graphics.fillRect(x - 4, y - 10, w + 8, 6)
-        graphics.fillStyle(0xfbbf24, 1)
-        graphics.fillRect(x + w / 2 - 2, y - 14, 4, 4)
-        graphics.setDepth(y + h + 1)
-        this.zoneObjects.push(graphics)
+        overlayGraphics.fillStyle(0xdc2626, 0.85)
+        overlayGraphics.fillRect(x - 4, y - 10, w + 8, 6)
+        overlayGraphics.fillStyle(0xfbbf24, 1)
+        overlayGraphics.fillRect(x + w / 2 - 2, y - 14, 4, 4)
       }
     }
   }
@@ -634,8 +631,6 @@ export default class OverworldScene extends Phaser.Scene {
       const cx = (b.tiles.c0 * TILE_SIZE + (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE / 2)
       const cy = (b.tiles.r1 + 1) * TILE_SIZE + TILE_SIZE / 2
       const actor = new SpriteActor(this, cx, cy, `npc_${npc.id}`, npc.palette)
-      actor.sprite.setDepth(actor.y)
-      actor.shadow.setDepth(actor.y - 1)
       this.financeNamedNpcActors[npc.id] = actor
     }
   }
@@ -658,8 +653,6 @@ export default class OverworldScene extends Phaser.Scene {
       actor.wanderTimer = 0
       actor.wanderDir = { x: 0, y: 0 }
       actor.dead = false
-      actor.sprite.setDepth(actor.y)
-      actor.shadow.setDepth(actor.y - 1)
       return actor
     })
   }
@@ -676,8 +669,6 @@ export default class OverworldScene extends Phaser.Scene {
       'player_texture_overworld',
       palette
     )
-    this.playerActor.sprite.setDepth(this.playerActor.y)
-    this.playerActor.shadow.setDepth(this.playerActor.y - 1)
     this.tileMover = new TileMover({
       actor: this.playerActor,
       tileSize: TILE_SIZE,
