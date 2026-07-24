@@ -24,6 +24,8 @@ export class SpriteActor {
     this.stepFrame = 0
     this.animTimer = 0
     this.moving = false
+    this.sprite.setDepth(this.sprite.y)
+    this.shadow.setDepth(this.sprite.y - 1)
 
     if (withPhysics) {
       scene.physics.add.existing(this.sprite)
@@ -71,6 +73,8 @@ export class SpriteActor {
 
   update(delta) {
     this.shadow.setPosition(this.sprite.x, this.sprite.y + this.shadowOffsetY)
+    this.sprite.setDepth(this.sprite.y)
+    this.shadow.setDepth(this.sprite.y - 1)
 
     if (!this.moving) return
     this.animTimer += delta
