@@ -4,7 +4,18 @@ import { getProfession } from './professions'
 import DialogueBox from '../../components/Dialogue/DialogueBox'
 import { HQ_RECEPTIONIST_LINES } from '../../data/hunterDialogue'
 
-const STAT_KEYS = ['STR', 'AGI', 'INT', 'VIT', 'PER']
+// streetwise/luck are the doc's crime-stat additions (see useGameStore's
+// createDefaultState) - they level up through the same allocateStat action
+// as the original RPG set, so they just need a spot in this same grid.
+const STAT_KEYS = [
+  { key: 'STR', label: 'STR' },
+  { key: 'AGI', label: 'AGI' },
+  { key: 'INT', label: 'INT' },
+  { key: 'VIT', label: 'VIT' },
+  { key: 'PER', label: 'PER' },
+  { key: 'streetwise', label: 'STW' },
+  { key: 'luck', label: 'LUK' },
+]
 
 export default function HunterHQModal({ onClose, onBeginFinalRaid }) {
   const player = useGameStore((s) => s.player)
@@ -52,10 +63,10 @@ export default function HunterHQModal({ onClose, onBeginFinalRaid }) {
           <p className="mb-2 text-sm">
             Unallocated Points: <span className="font-bold text-green-400">{player.unallocatedPoints}</span>
           </p>
-          <div className="grid grid-cols-5 gap-2 text-center text-xs">
-            {STAT_KEYS.map((key) => (
+          <div className="grid grid-cols-4 gap-2 text-center text-xs">
+            {STAT_KEYS.map(({ key, label }) => (
               <div key={key} className="flex flex-col items-center gap-1">
-                <span className="text-gray-400">{key}</span>
+                <span className="text-gray-400">{label}</span>
                 <span className="font-bold">{player.stats[key]}</span>
                 <button
                   onClick={() => allocateStat(key)}

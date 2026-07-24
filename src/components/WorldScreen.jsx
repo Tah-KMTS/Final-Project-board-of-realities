@@ -301,6 +301,9 @@ export default function WorldScreen() {
           HP: <span className="text-red-400">{player.hp}/{player.maxHp}</span>
         </div>
         <div>
+          Energy: <span className="text-cyan-400">{player.energy}/{player.maxEnergy}</span>
+        </div>
+        <div>
           Cash: <span className="text-green-400">${Math.round(cash).toLocaleString()}</span>
         </div>
         <div>

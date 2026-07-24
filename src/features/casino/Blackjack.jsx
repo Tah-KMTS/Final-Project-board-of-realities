@@ -20,6 +20,8 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
   const addCash = useGameStore((s) => s.addCash)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
   const addReputation = useGameStore((s) => s.addReputation)
+  const spendEnergy = useGameStore((s) => s.spendEnergy)
+  const energy = useGameStore((s) => s.player.energy)
 
   const [phase, setPhase] = useState(variant === 'challenge' ? 'dealing' : 'bet')
   const [bet, setBet] = useState(Math.max(minBet, 20))
@@ -37,7 +39,8 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
   const startHand = () => {
     let usingCount = false
     if (variant === 'house') {
-      if (cash < bet || bet < minBet) return
+      if (cash < bet || bet < minBet || energy < 5) return
+      if (!spendEnergy(5)) return
       addCash(-bet)
       if (countCards) {
         usingCount = true
@@ -210,7 +213,7 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
           />
           <button
             onClick={startHand}
-            disabled={cash < bet || bet < minBet}
+            disabled={cash < bet || bet < minBet || energy < 5}
             className="border-2 border-pink-400 px-3 py-1 font-bold text-pink-300 hover:bg-pink-400 hover:text-black disabled:opacity-30"
           >
             Deal (min ${minBet})

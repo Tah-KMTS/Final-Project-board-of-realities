@@ -87,6 +87,7 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
   const addReputation = useGameStore((s) => s.addReputation)
+  const spendEnergy = useGameStore((s) => s.spendEnergy)
   const player = useGameStore((s) => s.player)
   const playerPER = player.stats?.PER ?? 5
 
@@ -106,7 +107,8 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
   const startHand = () => {
     const useAnte = variant === 'challenge' ? fixedStake : anteInput
     if (variant === 'house') {
-      if (cash < useAnte) return
+      if (cash < useAnte || player.energy < 5) return
+      if (!spendEnergy(5)) return
       addCash(-useAnte)
     }
     const useNpc = variant === 'challenge' ? npc : randomCasinoNpc()
@@ -204,7 +206,7 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
           />
           <button
             onClick={startHand}
-            disabled={cash < anteInput}
+            disabled={cash < anteInput || player.energy < 5}
             className="border-2 border-pink-400 px-3 py-1 font-bold text-pink-300 hover:bg-pink-400 hover:text-black disabled:opacity-30"
           >
             Sit Down

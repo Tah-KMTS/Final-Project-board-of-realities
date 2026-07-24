@@ -29,6 +29,7 @@ export default function NamedNpcModal({ npcId, onClose }) {
   const cash = useGameStore((s) => s.cash)
   const recruitFinanceNpc = useGameStore((s) => s.recruitFinanceNpc)
   const setRomanceState = useGameStore((s) => s.setRomanceState)
+  const spendEnergy = useGameStore((s) => s.spendEnergy)
   
   const recruitedAdvisors = world2.recruitedAdvisors || []
   const isRecruited = recruitedAdvisors.includes(npcId)
@@ -83,6 +84,10 @@ export default function NamedNpcModal({ npcId, onClose }) {
   }
 
   const handleCourt = (actionType) => {
+    if (!spendEnergy(10)) {
+      setFeedbackMsg('Too tired for that right now - rest up and try again tomorrow.')
+      return
+    }
     const res = courtCharacter(romanceState, npcId, npc.name, actionType)
     if (res.success) {
       setRomanceState(res.updatedRomance)

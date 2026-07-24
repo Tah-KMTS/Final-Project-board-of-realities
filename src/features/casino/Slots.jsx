@@ -55,6 +55,8 @@ export default function Slots() {
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
   const addReputation = useGameStore((s) => s.addReputation)
+  const spendEnergy = useGameStore((s) => s.spendEnergy)
+  const energy = useGameStore((s) => s.player.energy)
 
   const [bet, setBet] = useState(MIN_BET)
   const [reels, setReels] = useState([null, null, null])
@@ -72,7 +74,8 @@ export default function Slots() {
   }, [])
 
   const spin = () => {
-    if (spinning || cash < bet || bet < MIN_BET) return
+    if (spinning || cash < bet || bet < MIN_BET || energy < 5) return
+    if (!spendEnergy(5)) return
     addCash(-bet)
     setSpinning(true)
     setMessage('')
@@ -129,7 +132,7 @@ export default function Slots() {
         />
         <button
           onClick={spin}
-          disabled={spinning || cash < bet || bet < MIN_BET}
+          disabled={spinning || cash < bet || bet < MIN_BET || energy < 5}
           className="border-2 border-pink-400 px-3 py-1 font-bold text-pink-300 hover:bg-pink-400 hover:text-black disabled:opacity-30"
         >
           {spinning ? 'Spinning...' : `Spin (min $${MIN_BET})`}

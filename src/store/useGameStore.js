@@ -13,6 +13,9 @@ import {
   NET_WORTH_WIN_TARGET,
   REAL_ESTATE_LISTINGS,
   COMPANY_LISTINGS,
+  JOB_TIERS,
+  JOB_ENERGY_COST,
+  LOAN_TIERS,
 } from '../features/finance/marketData'
 import { FINANCE_NPCS } from '../features/finance/financeNpcs'
 import { rollHeadline } from '../features/finance/newsHeadlines'
@@ -62,10 +65,18 @@ function createDefaultState() {
       outfitColor: 0,
       level: 1,
       exp: 0,
-      stats: { STR: 5, AGI: 5, INT: 5, VIT: 5, PER: 5 },
+      // streetwise/luck are the doc's "crime stat model" additions, kept
+      // alongside the original RPG set rather than replacing it - Hunter
+      // combat (computePlayerDamage) reads STR/AGI/INT/VIT/PER by name, and
+      // Poker's bluff mechanic already leans on PER as a charisma stand-in,
+      // so swapping the set out would risk breaking both. allocateStat is
+      // key-agnostic, so these level up through the same mechanism.
+      stats: { STR: 5, AGI: 5, INT: 5, VIT: 5, PER: 5, streetwise: 5, luck: 5 },
       unallocatedPoints: 0,
       hp: 100,
       maxHp: 100,
+      energy: 100,
+      maxEnergy: 100,
       alive: true,
       professionId: null,
     },
@@ -115,7 +126,12 @@ function createDefaultState() {
       companies: [],
       npcStatus: {},
       ambientKillCount: 0,
-      jobCooldownUntil: 0,
+      // bankedAmount is a protected sub-bucket of `cash`, not a separate
+      // pool - deposit/withdraw move value in and out of it. loanBalance is
+      // real debt, added to cash when borrowed and accruing interest each
+      // endDay() tick until repaid.
+      bankedAmount: 0,
+      loanBalance: 0,
       recruitedAdvisors: [],
       agentsState: initializeAgentsState(),
       agentEventFeed: [],
@@ -274,6 +290,19 @@ export const useGameStore = create((set, get) => ({
       world1: { ...state.world1, professionAssigned: true },
     })
     get().checkFortifyUnlock()
+  },
+
+  // Gate for the daily action economy - every meaningful action (job shift,
+  // crime, a casino hand, a date) costs energy instead of being limited only
+  // by a real-time cooldown or nothing at all, so a day's worth of actions
+  // is naturally capped at a handful instead of one action being spammable
+  // forever. Returns false (and changes nothing) if the player can't afford
+  // it, same shape as every existing `if (cash < cost) return false` guard.
+  spendEnergy: (amount) => {
+    const state = get()
+    if (state.player.energy < amount) return false
+    set({ player: { ...state.player, energy: state.player.energy - amount } })
+    return true
   },
 
   allocateStat: (statKey) => {
@@ -584,12 +613,87 @@ export const useGameStore = create((set, get) => ({
     return true
   },
 
-  workShift: () => {
+  // Highest JOB_TIERS entry the player currently qualifies for (INT + rep
+  // gates), walked from the top down so a qualifying player always gets
+  // their best tier rather than the first one just barely met.
+  currentJobTier: () => {
     const state = get()
-    if (Date.now() < state.world2.jobCooldownUntil) return false
+    const int = state.player.stats.INT
+    const rep = state.reputation
+    for (let i = JOB_TIERS.length - 1; i >= 0; i--) {
+      const tier = JOB_TIERS[i]
+      if (int >= tier.minInt && rep >= tier.minReputation) return tier
+    }
+    return JOB_TIERS[0]
+  },
+
+  // Previously gated on a 20-second real-time cooldown instead of a per-day
+  // limit, which meant legit income was effectively unlimited for a patient
+  // player - energy (a per-day resource) is now the only gate, so a day's
+  // worth of shifts is naturally capped at a handful like every other
+  // action instead of being spammable forever.
+  workShift: () => {
+    if (!get().spendEnergy(JOB_ENERGY_COST)) return false
+    const tier = get().currentJobTier()
+    set((state) => ({ cash: state.cash + tier.pay }))
+    return true
+  },
+
+  // --- Bank: deposit/withdraw ----------------------------------------------
+  // bankedAmount is a protected sub-bucket of `cash`, not a separate pool -
+  // it never leaves `cash`, it just marks a portion of it as "safe" so a
+  // future crime-against-the-player system can treat cash - bankedAmount as
+  // the only at-risk pool without every existing cash consumer (buyStock,
+  // buyRealEstate, casino games, ...) needing to be rewritten to read a
+  // split balance.
+  depositCash: (amount) => {
+    const state = get()
+    if (amount <= 0 || amount > state.cash - state.world2.bankedAmount) return false
+    set({ world2: { ...state.world2, bankedAmount: state.world2.bankedAmount + amount } })
+    return true
+  },
+
+  withdrawCash: (amount) => {
+    const state = get()
+    if (amount <= 0 || amount > state.world2.bankedAmount) return false
+    set({ world2: { ...state.world2, bankedAmount: state.world2.bankedAmount - amount } })
+    return true
+  },
+
+  // --- Bank: loans/credit ---------------------------------------------------
+  // 0-100 scale to match every other stat in the game (reputation, hp,
+  // energy) rather than a 300-850 FICO-style score - derived on read, not
+  // stored, so it always reflects current standing instead of going stale.
+  creditScore: () => {
+    const state = get()
+    const netWorth = get().computeNetWorth()
+    return Math.max(0, Math.min(100,
+      50 + state.reputation * 0.3 - state.wantedLevel * 10 + (netWorth > 50000 ? 10 : 0)
+    ))
+  },
+
+  loanTier: () => {
+    const score = get().creditScore()
+    return LOAN_TIERS.find((t) => score >= t.minCreditScore) || LOAN_TIERS[LOAN_TIERS.length - 1]
+  },
+
+  takeLoan: (amount) => {
+    const state = get()
+    const tier = get().loanTier()
+    if (amount <= 0 || state.world2.loanBalance + amount > tier.maxLoan) return false
     set({
-      cash: state.cash + 200,
-      world2: { ...state.world2, jobCooldownUntil: Date.now() + 20000 },
+      cash: state.cash + amount,
+      world2: { ...state.world2, loanBalance: state.world2.loanBalance + amount },
+    })
+    return true
+  },
+
+  repayLoan: (amount) => {
+    const state = get()
+    if (amount <= 0 || amount > state.cash || amount > state.world2.loanBalance) return false
+    set({
+      cash: state.cash - amount,
+      world2: { ...state.world2, loanBalance: state.world2.loanBalance - amount },
     })
     return true
   },
@@ -600,6 +704,9 @@ export const useGameStore = create((set, get) => ({
     if (!npc) return
     const status = state.world2.npcStatus[npcId] || 'alive'
     if (status === 'dead') return
+
+    const ENERGY_COST = { workFor: 5, collude: 15, mug: 15, extort: 15 }
+    if (ENERGY_COST[action] !== undefined && !get().spendEnergy(ENERGY_COST[action])) return
 
     if (action === 'workFor') {
       get().addCash(300)
@@ -735,7 +842,23 @@ export const useGameStore = create((set, get) => ({
     const state = get()
     const recruited = state.world2.recruitedAdvisors || []
     const nextDay = state.day + 1
-    set({ day: nextDay, newsHeadline: rollHeadline() })
+
+    // Loan interest accrues once per day tick, at whatever rate the
+    // player's *current* credit tier carries - a variable rate rather than
+    // one locked in at borrow time, so climbing/falling reputation and
+    // wantedLevel actually move the needle on existing debt, not just new
+    // borrowing.
+    const loanBalance = state.world2.loanBalance || 0
+    const accruedLoanBalance = loanBalance > 0
+      ? Math.round(loanBalance * (1 + get().loanTier().interestPerDay))
+      : 0
+
+    set({
+      day: nextDay,
+      newsHeadline: rollHeadline(),
+      player: { ...state.player, energy: state.player.maxEnergy },
+      world2: { ...state.world2, loanBalance: accruedLoanBalance },
+    })
     get().tickFinanceMarket()
 
     if (state.wantedLevel > 0 && Math.random() < 0.4) {
