@@ -56,6 +56,7 @@ import ShopModal from '../features/domino/ShopModal'
 import EventBoardModal from '../features/domino/EventBoardModal'
 import DominoNpcModal from '../features/domino/DominoNpcModal'
 import { getNpc } from '../features/domino/npcRoster'
+import TownTravelUI from './TownTravelUI'
 
 const REGION_LABELS = {
   hunter: "The Hunter's Rift",
@@ -392,6 +393,15 @@ export default function WorldScreen() {
       {activeModal?.type === 'hitmanContract' && <HitmanContractModal onClose={closeModal} />}
       {activeModal?.type === 'interactiveLocation' && (
         <InteractiveLocationModal locationId={activeModal.locationId || 'mcdonalds_diner'} onClose={closeModal} />
+      )}
+      {activeModal?.type === 'townTravel' && (
+        <TownTravelUI
+          onClose={closeModal}
+          onTravel={(cityId) => {
+            bridgeRef.current.emit('cityTravel', { cityId })
+            closeModal()
+          }}
+        />
       )}
 
       {/* World 1 */}

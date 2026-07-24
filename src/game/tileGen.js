@@ -75,6 +75,8 @@ export const ASSET_KEYS = {
   treeSmall: 'cf_tree_small',
   decor: 'cf_decor',
   house: 'cf_house',
+  modernInteriors: 'modern_interiors',
+  sereneVillage: 'serene_village',
 }
 
 // Call from every scene's preload() - queues the tile/decoration/building
@@ -95,6 +97,12 @@ export function preloadTerrainAssets(scene) {
     L.spritesheet(ASSET_KEYS.decor, `${DECOR_DIR}/Outdoor_Decor_Free.png`, { frameWidth: 16, frameHeight: 16 })
   }
   if (!scene.textures.exists(ASSET_KEYS.house)) L.image(ASSET_KEYS.house, `${DECOR_DIR}/House_1_Wood_Base_Blue.png`)
+  if (!scene.textures.exists(ASSET_KEYS.modernInteriors)) {
+    L.image(ASSET_KEYS.modernInteriors, '/assets/packs/Modern_Interiors_Free_v2.2/Modern%20tiles_Free/Interiors_free/16x16/Interiors_free_16x16.png')
+  }
+  if (!scene.textures.exists(ASSET_KEYS.sereneVillage)) {
+    L.image(ASSET_KEYS.sereneVillage, '/assets/packs/Serene_Village_revamped_v1.9/SERENE_VILLAGE_REVAMPED/Serene_Village_16x16.png')
+  }
 }
 
 // ---------------------------------------------------------------------------

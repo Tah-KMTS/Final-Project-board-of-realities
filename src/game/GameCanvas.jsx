@@ -4,6 +4,8 @@ import OverworldScene from './scenes/OverworldScene'
 import DominoWorldScene from './scenes/DominoWorldScene'
 import { createEventBridge } from './eventBridge'
 
+import { useGameStore } from '../store/useGameStore'
+
 // Hunter's Rift, Financial Anarchy and King of Games are no longer separate
 // mounted scenes - they're all regions of one continuous OverworldScene.
 // Domino City keeps its own star-topology scene (entered/exited like a big
@@ -54,8 +56,20 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
       sceneRef.current?.resumeFromModal?.()
     })
 
+    const unsubCityTravel = bridge.on('cityTravel', ({ cityId }) => {
+      useGameStore.getState().switchCity(cityId)
+      if (sceneRef.current) {
+        if (typeof sceneRef.current.loadZone === 'function') {
+          sceneRef.current.loadZone('overworld', false)
+        } else if (sceneRef.current.scene) {
+          sceneRef.current.scene.restart()
+        }
+      }
+    })
+
     return () => {
       unsubResume()
+      unsubCityTravel()
       gameRef.current?.destroy(true)
       gameRef.current = null
     }

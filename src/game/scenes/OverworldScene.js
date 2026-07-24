@@ -72,10 +72,11 @@ const FINANCE_BUILDING_DEFS = [
   { id: 'blackMarket', label: 'Black Market', district: 'Underground District', color: 0x4a1f6a, width: 3, height: 2 },
   { id: 'callCenterOps', label: 'Call Center Ops', district: 'Underground District', color: 0x6a5a1f, width: 3, height: 2 },
 
-  // --- Government & Cultural District (Parliament, Park, Temple) ---
+  // --- Government & Cultural District (Parliament, Park, Temple, Train Station) ---
   { id: 'parliament', label: 'Parliament Hall', district: 'Government & Cultural District', color: 0x3a3a6a, width: 4, height: 2 },
   { id: 'park', label: 'Serenity Park', district: 'Government & Cultural District', color: 0x2a5f2a, width: 4, height: 2 },
   { id: 'temple', label: 'Whispering Temple', district: 'Government & Cultural District', color: 0x5a5a4a, width: 4, height: 2 },
+  { id: 'trainStation', label: '🚆 Central Train Station', district: 'Government & Cultural District', color: 0x4a6fa5, width: 4, height: 2 },
 ]
 
 const BAND_COL_START = 2
@@ -514,6 +515,34 @@ export default class OverworldScene extends Phaser.Scene {
         overlayGraphics.fillRect(x + w / 2 - 2, y - 14, 4, 4)
       }
     }
+    // Osaka Option: cyan/neon magenta border accents
+    if (cityId === 'osaka') {
+      for (let i = 0; i < Math.min(3, FINANCE_BUILDINGS.length); i++) {
+        const b = FINANCE_BUILDINGS[i]
+        const x = b.tiles.c0 * TILE_SIZE
+        const y = b.tiles.r0 * TILE_SIZE
+        const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
+        const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
+        overlayGraphics.lineStyle(3, 0x06b6d4, 0.9)
+        overlayGraphics.strokeRect(x, y, w, h)
+        overlayGraphics.fillStyle(0xec4899, 0.7)
+        overlayGraphics.fillRect(x + 4, y - 6, w - 8, 4)
+      }
+    }
+    // Sapporo Option: ice-blue border accents & snow caps
+    if (cityId === 'sapporo') {
+      for (let i = 0; i < Math.min(3, FINANCE_BUILDINGS.length); i++) {
+        const b = FINANCE_BUILDINGS[i]
+        const x = b.tiles.c0 * TILE_SIZE
+        const y = b.tiles.r0 * TILE_SIZE
+        const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
+        const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
+        overlayGraphics.lineStyle(3, 0x38bdf8, 0.9)
+        overlayGraphics.strokeRect(x, y, w, h)
+        overlayGraphics.fillStyle(0xe0f2fe, 0.9)
+        overlayGraphics.fillRect(x - 2, y - 6, w + 4, 5)
+      }
+    }
   }
 
   buildStockExchangeInteriorZone() {
@@ -766,6 +795,11 @@ export default class OverworldScene extends Phaser.Scene {
       return
     }
     if (zone.type === 'building') {
+      if (zone.id === 'trainStation') {
+        this.pauseForModal()
+        this.bridge.emit('interact', { type: 'townTravel' })
+        return
+      }
       if (zone.id === 'stockExchange') {
         this.overworldReturnSpawn = STOCK_EXCHANGE_DOOR
         this.loadZone('stockExchangeInterior')
