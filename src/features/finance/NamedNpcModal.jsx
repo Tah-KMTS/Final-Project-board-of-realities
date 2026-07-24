@@ -5,6 +5,23 @@ import { getCharacterPortrait } from '../../data/characterPortraits'
 import { getCharacterBiography } from '../agents/characterBiographies'
 import { generateDynamicSpeech } from '../agents/dynamicDialogueEngine'
 import { courtCharacter } from '../agents/romanceEngine'
+import {
+  FINANCE_NPC_LINES,
+  CRIME_NPC_LINES,
+  PRESIDENT_NPC_LINES,
+  FED_NPC_LINES,
+  FTC_NPC_LINES,
+} from '../../data/financeDialogue'
+
+// Resolve which dialogue bank this npcId belongs to
+function resolveDialogueLines(npcId) {
+  if (FINANCE_NPC_LINES[npcId]) return FINANCE_NPC_LINES[npcId]
+  if (CRIME_NPC_LINES?.[npcId]) return CRIME_NPC_LINES[npcId]
+  if (PRESIDENT_NPC_LINES?.[npcId]) return PRESIDENT_NPC_LINES[npcId]
+  if (FED_NPC_LINES?.[npcId]) return FED_NPC_LINES[npcId]
+  if (FTC_NPC_LINES?.[npcId]) return FTC_NPC_LINES[npcId]
+  return null
+}
 
 export default function NamedNpcModal({ npcId, onClose }) {
   const npc = getFinanceNpc(npcId) || { id: npcId, name: npcId, title: 'Titan', netWorth: 1000000000 }
@@ -27,15 +44,34 @@ export default function NamedNpcModal({ npcId, onClose }) {
   }
 
   const [feedbackMsg, setFeedbackMsg] = useState(null)
+  const [lineIndex, setLineIndex] = useState(0)
   if (!npc) return null
 
-  const portraitSrc = getCharacterPortrait(npcId, npc.name, npc.era)
+  const portraitSrc = getCharacterPortrait(npcId)
+  const scriptedLines = resolveDialogueLines(npcId) || []
+  const currentLine = scriptedLines.length > 0 ? scriptedLines[lineIndex] : null
+  const currentText = typeof currentLine === 'string' ? currentLine : currentLine?.text
+  const currentAudio = typeof currentLine === 'object' ? currentLine?.audioSrc : null
+
+  // AI dynamic speech for context-aware situational dialogue
   const dynamicSpeech = generateDynamicSpeech(
     { id: npcId, name: npc.name, ...agentState },
     relationshipLevel,
     null,
     'Midday'
   )
+
+  const handleNextLine = () => {
+    if (scriptedLines.length > 1) {
+      setLineIndex((prev) => (prev + 1) % scriptedLines.length)
+      // Attempt audio playback if audioSrc is present
+      if (currentAudio && typeof window !== 'undefined') {
+        const audio = new Audio(currentAudio)
+        audio.volume = 0.6
+        audio.play().catch(() => {}) // Silently fail if file not found
+      }
+    }
+  }
 
   const handleRecruit = () => {
     const res = recruitFinanceNpc(npcId)
@@ -98,17 +134,45 @@ export default function NamedNpcModal({ npcId, onClose }) {
           </div>
         </div>
 
-        {/* Dynamic Context-Aware AI Dialogue Box with Character Portrait */}
-        <div className="my-3 rounded border border-yellow-500/40 bg-[#171a38] p-4">
-          <div className="flex items-start gap-4">
-            <img src={portraitSrc} alt={npc.name} className="h-16 w-16 shrink-0 rounded border border-yellow-400 bg-slate-900" />
-            <div>
-              <div className="text-xs font-bold text-yellow-300 mb-1">{npc.name} (Dynamic AI Voice):</div>
-              <p className="text-xs text-gray-200 italic leading-relaxed">
-                "{dynamicSpeech}"
-              </p>
+        {/* Character Portrait + Biography */}
+        <div className="my-3 rounded border border-yellow-500/30 bg-[#0e1130] p-3 flex items-start gap-3">
+          <img src={portraitSrc} alt={npc.name} className="h-20 w-20 shrink-0 rounded-lg border-2 border-yellow-400 object-contain bg-slate-900" />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-bold text-yellow-300 mb-1">📜 Biography</div>
+            <p className="text-[11px] text-gray-300 leading-relaxed">{bio.bio}</p>
+            <div className="mt-1.5 text-[10px] text-gray-500">
+              {bio.orientation && <span className="mr-2">Orientation: <span className="text-cyan-400">{bio.orientation}</span></span>}
+              {bio.maritalStatus && <span>Status: <span className="text-emerald-400">{bio.maritalStatus}</span></span>}
             </div>
           </div>
+        </div>
+
+        {/* Scripted Dialogue Lines Carousel */}
+        {scriptedLines.length > 0 && (
+          <div className="my-3 rounded border border-cyan-500/40 bg-[#0c1a2e] p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-cyan-300">💬 {npc.name}:</span>
+              {scriptedLines.length > 1 && (
+                <button
+                  onClick={handleNextLine}
+                  className="text-[10px] text-gray-400 border border-gray-700 px-2 py-0.5 rounded hover:bg-gray-800"
+                >
+                  Next Quote ({lineIndex + 1}/{scriptedLines.length})
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-cyan-100 italic leading-relaxed">
+              "{currentText}"
+            </p>
+          </div>
+        )}
+
+        {/* Dynamic AI Context-Aware Speech */}
+        <div className="my-2 rounded border border-yellow-500/30 bg-[#171a38] p-3">
+          <div className="text-xs font-bold text-yellow-300 mb-1">🤖 AI Situational Response:</div>
+          <p className="text-[11px] text-gray-200 italic leading-relaxed">
+            "{dynamicSpeech}"
+          </p>
         </div>
 
         {/* Relationship Tier Level Meter */}
