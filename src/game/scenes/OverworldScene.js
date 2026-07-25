@@ -369,16 +369,21 @@ function agentAmbientActions(c) {
   return acts
 }
 
-function wanderActor(actor, delta, speed = 20) {
+function wanderActor(scene, actor, delta, speed = 20) {
   actor.wanderTimer -= delta
   if (actor.wanderTimer <= 0) {
     actor.wanderTimer = 1500 + Math.random() * 2500
     const dirs = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]
     actor.wanderDir = dirs[Math.floor(Math.random() * dirs.length)]
   }
-  const nx = actor.x + actor.wanderDir.x * speed * (delta / 1000)
-  const ny = actor.y + actor.wanderDir.y * speed * (delta / 1000)
+  const rawNx = actor.x + actor.wanderDir.x * speed * (delta / 1000)
+  const rawNy = actor.y + actor.wanderDir.y * speed * (delta / 1000)
+  const { x: nx, y: ny, blocked } = scene.resolveOpenPosition(rawNx, rawNy)
   actor.sprite.setPosition(nx, ny)
+  // Hit a building wall - kill the current drift immediately instead of
+  // pushing into it again next tick, so the wander timer re-rolls a new
+  // (hopefully open) direction right away rather than looking stuck.
+  if (blocked) actor.wanderTimer = 0
   actor.setMoving(actor.wanderDir.x !== 0 || actor.wanderDir.y !== 0)
   if (actor.wanderDir.x > 0) actor.setFacing('right')
   else if (actor.wanderDir.x < 0) actor.setFacing('left')
@@ -747,6 +752,40 @@ export default class OverworldScene extends Phaser.Scene {
     return false
   }
 
+  // The player is grid-locked through TileMover/isBlockedTile above, so it
+  // can never step onto a building tile in the first place. Named roamers
+  // and ambient NPCs move continuously (lerped routine positions, free
+  // wander drift) with no equivalent check, so they could be computed
+  // straight into - or spawn inside - a building's footprint and visibly
+  // stand/walk through it. This snaps a candidate world position out to
+  // just past whichever padded building edge it's closest to, so buildings
+  // read as solid for them too without needing full pathfinding.
+  resolveOpenPosition(x, y) {
+    if (this.currentZoneId !== 'overworld') return { x, y, blocked: false }
+    const col = Math.floor(x / TILE_SIZE)
+    const row = Math.floor(y / TILE_SIZE)
+    const building = FINANCE_BUILDINGS.find(
+      (b) => col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1
+    )
+    if (!building) return { x, y, blocked: false }
+    const pad = TILE_SIZE * 0.7
+    const left = building.tiles.c0 * TILE_SIZE - pad
+    const right = (building.tiles.c1 + 1) * TILE_SIZE + pad
+    const top = building.tiles.r0 * TILE_SIZE - pad
+    const bottom = (building.tiles.r1 + 1) * TILE_SIZE + pad
+    const edges = [
+      { side: 'left', d: x - left },
+      { side: 'right', d: right - x },
+      { side: 'top', d: y - top },
+      { side: 'bottom', d: bottom - y },
+    ].sort((a, b) => a.d - b.d)
+    const closest = edges[0].side
+    if (closest === 'left') return { x: left, y, blocked: true }
+    if (closest === 'right') return { x: right, y, blocked: true }
+    if (closest === 'top') return { x, y: top, blocked: true }
+    return { x, y: bottom, blocked: true }
+  }
+
   // ---------------- NPCs ----------------
 
   spawnNamedRoamers() {
@@ -807,7 +846,8 @@ export default class OverworldScene extends Phaser.Scene {
       if (roamer.dead) continue
       const raw = raws[i]
       roamer.currentAction = raw.currentAction || ''
-      const { x, y } = this.roamerWorldPosition(raw, roamer.district)
+      const rawPos = this.roamerWorldPosition(raw, roamer.district)
+      const { x, y } = this.resolveOpenPosition(rawPos.x, rawPos.y)
       const dx = x - roamer.actor.x
       const dy = y - roamer.actor.y
       const moved = Math.abs(dx) + Math.abs(dy) > 0.05
@@ -942,7 +982,7 @@ export default class OverworldScene extends Phaser.Scene {
 
   updateAllAmbientNpcs(delta) {
     for (const actor of this.financeAmbientActors) {
-      if (!actor.dead) wanderActor(actor, delta)
+      if (!actor.dead) wanderActor(this, actor, delta)
     }
   }
 

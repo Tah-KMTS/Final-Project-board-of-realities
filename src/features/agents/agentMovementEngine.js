@@ -240,6 +240,24 @@ export const TITAN_ROUTINES = {
   },
 }
 
+// Bounded per-id hash for the generic wander tier below. This used to be
+// `parseInt(agent.id, 36)`, which silently parses an ENTIRE lowercase id as
+// a base-36 integer (every a-z character is a valid base-36 digit), so any
+// multi-letter id produces a seed in the ~1e15-1e17 range. Adding
+// timeTick's small per-frame increment to a number that large gets
+// swallowed by floating-point rounding (a double only carries ~15-17
+// significant digits), so `angle` never actually changed and
+// Math.cos/sin(angle) returned the same constant forever - the agent
+// visually froze in place. Most of the roster (everyone without a bespoke
+// TITAN_ROUTINES entry) was silently affected, not just one character. A
+// small bounded hash keeps the seed tiny so real motion never gets lost to
+// rounding.
+function hashSeed(id) {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return h % 100000
+}
+
 export function updateAgentPositions(activeAgents, timeTick = 0) {
   return activeAgents.map((agent) => {
     // Match strictly by id - the old fuzzy name.includes(key) matching made
@@ -254,7 +272,7 @@ export function updateAgentPositions(activeAgents, timeTick = 0) {
       // ambientActions (derived from their real biographical data) rotate as
       // their current "thought". Coordinates live in the same 1600x1800
       // space the routines use; callers remap into the live map.
-      const seed = parseInt(agent.id, 36) || 1
+      const seed = hashSeed(agent.id || '') || 1
       const angle = timeTick * (0.04 + (seed % 7) * 0.012) + seed
       const cx = 300 + (seed % 11) * 100
       const cy = 400 + ((seed >> 3) % 9) * 120

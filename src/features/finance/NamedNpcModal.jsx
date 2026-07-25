@@ -5,6 +5,7 @@ import { getCharacterPortrait } from '../../data/characterPortraits'
 import { getCharacterBiography } from '../agents/characterBiographies'
 import { generateDynamicSpeech } from '../agents/dynamicDialogueEngine'
 import { courtCharacter } from '../agents/romanceEngine'
+import { sendNpcMessage } from '../../utils/npcChatClient'
 import {
   FINANCE_NPC_LINES,
   CRIME_NPC_LINES,
@@ -59,6 +60,10 @@ export default function NamedNpcModal({ npcId, onClose }) {
 
   const [feedbackMsg, setFeedbackMsg] = useState(null)
   const [lineIndex, setLineIndex] = useState(0)
+  const [chatHistory, setChatHistory] = useState([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatError, setChatError] = useState(false)
   if (!npc) return null
 
   const portraitSrc = getCharacterPortrait(npcId)
@@ -66,6 +71,22 @@ export default function NamedNpcModal({ npcId, onClose }) {
   const currentLine = scriptedLines.length > 0 ? scriptedLines[lineIndex] : null
   const currentText = typeof currentLine === 'string' ? currentLine : currentLine?.text
   const currentAudio = typeof currentLine === 'object' ? currentLine?.audioSrc : null
+
+  // Sent to the backend so it can build this character's persona from the
+  // game's own real roster/biography data instead of a second hand-written
+  // copy (see backend/main.py's build_character_persona). `bio`'s own text
+  // field is kept separate under personalBio - agency leaders already carry
+  // a `bio` field from FAMOUS_AGENCY_LEADERS (their role background) and
+  // spreading biography.bio into the same key would silently clobber it.
+  const characterPayload = {
+    ...npc,
+    age: bio.age,
+    gender: bio.gender,
+    orientation: bio.orientation,
+    maritalStatus: bio.maritalStatus,
+    fidelity: bio.fidelity,
+    personalBio: bio.bio,
+  }
 
   // AI dynamic speech for context-aware situational dialogue
   const dynamicSpeech = generateDynamicSpeech(
@@ -107,6 +128,46 @@ export default function NamedNpcModal({ npcId, onClose }) {
       setFeedbackMsg(`Dating action successful! ${npc.name} relationship level is now ${res.newLevel}/100.`)
     } else {
       setFeedbackMsg(res.reason)
+    }
+  }
+
+  // Free-text persuasion chat: unlike the scripted carousel above, this is
+  // a live LLM reply from backend/main.py, in character for THIS specific
+  // person using their real roster/biography data. The model itself
+  // decides `agreed` and `relationshipDelta` from that character's actual
+  // personality - not scripted, not a coin flip - and we apply the delta
+  // straight to the same relationship meter the dating actions use.
+  // Degrades to a fallback line (sendNpcMessage never throws) if the local
+  // FastAPI backend (npm run dev:backend) isn't running.
+  const submitChat = async (e) => {
+    e.preventDefault()
+    const text = chatInput.trim()
+    if (!text || chatLoading) return
+
+    const historyForRequest = chatHistory.map((h) => ({ role: h.role, text: h.text }))
+    setChatHistory((h) => [...h, { role: 'player', text }])
+    setChatInput('')
+    setChatLoading(true)
+    setChatError(false)
+
+    const { reply, ok, agreed, relationshipDelta } = await sendNpcMessage({
+      npcId,
+      playerText: text,
+      relationshipTier: relationshipLevel,
+      conversationHistory: historyForRequest,
+      character: characterPayload,
+    })
+
+    setChatHistory((h) => [...h, { role: 'npc', text: reply, agreed: ok ? agreed : null }])
+    setChatError(!ok)
+    setChatLoading(false)
+
+    if (ok && relationshipDelta) {
+      const newLevel = Math.max(0, Math.min(100, relationshipLevel + relationshipDelta))
+      setRomanceState({
+        ...romanceState,
+        relationships: { ...romanceState.relationships, [npcId]: newLevel },
+      })
     }
   }
 
@@ -191,6 +252,54 @@ export default function NamedNpcModal({ npcId, onClose }) {
           <p className="text-[11px] text-gray-200 italic leading-relaxed">
             "{dynamicSpeech}"
           </p>
+        </div>
+
+        {/* Free-Text Persuasion Chat - real LLM conversation, not scripted.
+            Try to convince this specific character (in their own words) to
+            do something; whether it lands depends on their actual
+            personality/bio, decided live by the model. */}
+        <div className="my-3 rounded border border-cyan-400/40 bg-[#0c1a2e] p-3">
+          <div className="mb-2 text-xs font-bold text-cyan-300">🗣️ Talk to {npc.name}</div>
+          {chatHistory.length > 0 && (
+            <div className="mb-2 max-h-32 overflow-y-auto pr-1">
+              {chatHistory.map((turn, i) => (
+                <div key={i} className="mb-1.5">
+                  <p className={`text-xs ${turn.role === 'player' ? 'text-cyan-300' : 'text-gray-200'}`}>
+                    <span className="font-bold uppercase">{turn.role === 'player' ? 'You' : npc.name}: </span>
+                    {turn.text}
+                  </p>
+                  {turn.role === 'npc' && turn.agreed !== null && (
+                    <p className={`text-[10px] ${turn.agreed ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {turn.agreed ? '✓ Convinced.' : '✗ Not convinced.'}
+                    </p>
+                  )}
+                </div>
+              ))}
+              {chatError && (
+                <p className="text-[10px] italic text-red-400">
+                  (Couldn't reach the NPC chat backend - is it running? See backend/README.md.)
+                </p>
+              )}
+            </div>
+          )}
+          <form onSubmit={submitChat} className="flex gap-2">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder={`Try to convince ${npc.name}...`}
+              disabled={chatLoading}
+              maxLength={500}
+              className="flex-1 border-2 border-cyan-400/60 bg-black/70 px-2 py-1 text-xs text-white placeholder:text-gray-500 focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={chatLoading || !chatInput.trim()}
+              className="border-2 border-cyan-400 px-3 py-1 text-xs font-bold text-cyan-300 hover:bg-cyan-400 hover:text-black disabled:opacity-30"
+            >
+              {chatLoading ? '...' : 'Send'}
+            </button>
+          </form>
         </div>
 
         {/* Relationship Tier Level Meter */}
