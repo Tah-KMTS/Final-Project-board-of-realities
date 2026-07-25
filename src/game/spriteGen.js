@@ -1,4 +1,12 @@
+import { PLAYER_ART_FRAME_W, PLAYER_ART_FRAME_H, PLAYER_ART_SCALE, drawPlayerArtFrame } from './playerSpriteArt'
+
 const USE_PROCEDURAL_GRAPHICS = true;
+// Every texture key the player actually uses across scenes (each scene
+// keeps its own key even though the art is identical — see createPlayer()
+// in BaseTownScene/OverworldScene/DominoWorldScene). NPCs keep the generic
+// palette-driven humanoid from drawFrame(); the player always renders the
+// hand-authored turnaround from playerSpriteArt.js instead.
+const PLAYER_TEXTURE_KEYS = new Set(['player_texture', 'player_texture_overworld', 'player_texture_domino'])
 ﻿// Player/NPC sprite setup - loads the real "Cute Fantasy Free" character
 // sheet (Player/Player.png, a clean 6-col x 10-row grid of 32x32 frames) as
 // ONE shared spritesheet texture and exposes named frame regions for the
@@ -238,19 +246,26 @@ export function procedural_ensurePlayerTexture(scene, key, palette) {
   // ensure - skip regeneration if the texture already exists instead of
   // destroying and recreating it every time.
   if (scene.textures.exists(key)) return scene.textures.get(key)
+  const isPlayerArt = PLAYER_TEXTURE_KEYS.has(key)
+  const frameW = isPlayerArt ? PLAYER_ART_FRAME_W : PROCEDURAL_FRAME_W
+  const frameH = isPlayerArt ? PLAYER_ART_FRAME_H : PROCEDURAL_FRAME_H
   const canvas = document.createElement('canvas')
-  canvas.width = PROCEDURAL_FRAME_W * FRAME_ORDER.length
-  canvas.height = PROCEDURAL_FRAME_H
+  canvas.width = frameW * FRAME_ORDER.length
+  canvas.height = frameH
   const ctx = canvas.getContext('2d')
   ctx.imageSmoothingEnabled = false
   FRAME_ORDER.forEach((frameName, i) => {
     const [facing, step] = frameName.split('_')
-    drawFrame(ctx, i * PROCEDURAL_FRAME_W, facing, Number(step), palette)
-    outlineFrame(ctx, i * PROCEDURAL_FRAME_W)
+    if (isPlayerArt) {
+      drawPlayerArtFrame(ctx, i * frameW, facing, Number(step))
+    } else {
+      drawFrame(ctx, i * frameW, facing, Number(step), palette)
+      outlineFrame(ctx, i * frameW)
+    }
   })
   const texture = scene.textures.addCanvas(key, canvas)
   FRAME_ORDER.forEach((frameName, i) => {
-    texture.add(frameName, 0, i * PROCEDURAL_FRAME_W, 0, PROCEDURAL_FRAME_W, PROCEDURAL_FRAME_H)
+    texture.add(frameName, 0, i * frameW, 0, frameW, frameH)
   })
   return texture
 }
@@ -266,14 +281,19 @@ export function procedural_ensurePlayerTexture(scene, key, palette) {
 export function getActorRenderInfo(scene, key, palette) {
   if (USE_PROCEDURAL_GRAPHICS) {
     procedural_ensurePlayerTexture(scene, key, palette)
+    const isPlayerArt = PLAYER_TEXTURE_KEYS.has(key)
     return {
       textureKey: key,
       frameName: (facing, step) => `${facing}_${step}`,
-      flipX: () => false,
+      // Player art only authors a 'right' profile (playerSpriteArt.js draws
+      // it into the 'left_*' frames unmirrored too); flip it here instead.
+      // Generic NPC frames already have real art for both sides, so they
+      // never flip.
+      flipX: (facing) => isPlayerArt && facing === 'left',
       tint: null,
-      scale: 1,
-      frameW: PROCEDURAL_FRAME_W,
-      frameH: PROCEDURAL_FRAME_H,
+      scale: isPlayerArt ? PLAYER_ART_SCALE : 1,
+      frameW: isPlayerArt ? PLAYER_ART_FRAME_W : PROCEDURAL_FRAME_W,
+      frameH: isPlayerArt ? PLAYER_ART_FRAME_H : PROCEDURAL_FRAME_H,
     }
   }
   ensurePlayerFrames(scene)
