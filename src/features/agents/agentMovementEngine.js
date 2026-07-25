@@ -242,18 +242,30 @@ export const TITAN_ROUTINES = {
 
 export function updateAgentPositions(activeAgents, timeTick = 0) {
   return activeAgents.map((agent) => {
-    const routineKey = Object.keys(TITAN_ROUTINES).find((k) =>
-      agent.name?.toLowerCase().includes(k) ||
-      agent.id?.toLowerCase() === k
-    )
+    // Match strictly by id - the old fuzzy name.includes(key) matching made
+    // unrelated characters inherit someone else's routine (e.g. FTC chairman
+    // "Joe Simons" picked up quant Jim Simons' schedule via the 'simons'
+    // substring). Registry ids equal roster ids, so exact match is enough.
+    const routineKey = TITAN_ROUTINES[agent.id?.toLowerCase()] ? agent.id.toLowerCase() : null
     if (!routineKey) {
-      // Default wandering behavior — stays within tilemap grid bounds (40×45 grid * 40px tile = 1600×1800)
-      const angle = (timeTick * 0.05 + (parseInt(agent.id, 36) || 0)) % (Math.PI * 2)
+      // Generic agent tier: characters without a bespoke schedule wander a
+      // deterministic per-id orbit - id-seeded center, radius, and angular
+      // speed so no two agents share the same track, and the agent's own
+      // ambientActions (derived from their real biographical data) rotate as
+      // their current "thought". Coordinates live in the same 1600x1800
+      // space the routines use; callers remap into the live map.
+      const seed = parseInt(agent.id, 36) || 1
+      const angle = timeTick * (0.04 + (seed % 7) * 0.012) + seed
+      const cx = 300 + (seed % 11) * 100
+      const cy = 400 + ((seed >> 3) % 9) * 120
+      const radius = 120 + (seed % 5) * 60
+      const actions = agent.ambientActions?.length ? agent.ambientActions : ['🚶 Wandering City District']
+      const actionIndex = Math.floor(Math.max(0, timeTick) / 5 + (seed % actions.length)) % actions.length
       return {
         ...agent,
-        currentX: Math.round(800 + Math.cos(angle) * 400),
-        currentY: Math.round(900 + Math.sin(angle) * 350),
-        currentAction: '🚶 Wandering City District',
+        currentX: Math.min(1560, Math.max(40, Math.round(cx + Math.cos(angle) * radius))),
+        currentY: Math.min(1760, Math.max(40, Math.round(cy + Math.sin(angle) * radius))),
+        currentAction: actions[actionIndex],
       }
     }
 

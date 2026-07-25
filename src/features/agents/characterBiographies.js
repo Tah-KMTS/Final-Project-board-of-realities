@@ -22,6 +22,7 @@ export const CHARACTER_BIOGRAPHIES = {
   livermore: { age: 63, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Divorced', fidelity: 'High Romance Risk', bio: 'Greatest bear trader in history. Made and lost four fortunes. Predicted the 1929 crash and shorted it for $100M.' },
   templeton: { age: 95, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Widowed', fidelity: 'Strictly Faithful', bio: 'Global contrarian investor. Bought European stocks during WWII, achieved 20-year fund returns of 13.8%/yr.' },
   buffett: { age: 93, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Oracle of Omaha. Prefers value investing and simple living. Loves Cherry Coke and McDonald\'s breakfasts.' },
+  howardmarks: { age: 79, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Oaktree Capital co-founder and philosopher of market cycles. Turned memo-writing about risk and psychology into a Wall Street art form.' },
   munger: { age: 99, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Biffle\'s right hand. Polymath who applied multi-disciplinary mental models to investing.' },
   lynch: { age: 79, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Fidelity Magellan fund manager. Achieved 29.2%/yr returns over 13 years. Famous for "invest in what you know".' },
 

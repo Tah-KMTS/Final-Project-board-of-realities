@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import { getFinanceNpc } from './financeNpcs'
+import { getAnyCharacter } from '../agents/characterLookup'
 import { getCharacterPortrait } from '../../data/characterPortraits'
 import { getCharacterBiography } from '../agents/characterBiographies'
 import { generateDynamicSpeech } from '../agents/dynamicDialogueEngine'
@@ -11,6 +11,7 @@ import {
   PRESIDENT_NPC_LINES,
   FED_NPC_LINES,
   FTC_NPC_LINES,
+  AGENCY_NPC_LINES,
 } from '../../data/financeDialogue'
 
 // Resolve which dialogue bank this npcId belongs to
@@ -20,11 +21,16 @@ function resolveDialogueLines(npcId) {
   if (PRESIDENT_NPC_LINES?.[npcId]) return PRESIDENT_NPC_LINES[npcId]
   if (FED_NPC_LINES?.[npcId]) return FED_NPC_LINES[npcId]
   if (FTC_NPC_LINES?.[npcId]) return FTC_NPC_LINES[npcId]
+  if (AGENCY_NPC_LINES?.[npcId]) return AGENCY_NPC_LINES[npcId]
   return null
 }
 
 export default function NamedNpcModal({ npcId, onClose }) {
-  const npc = getFinanceNpc(npcId) || { id: npcId, name: npcId, title: 'Titan', netWorth: 1000000000 }
+  // getAnyCharacter resolves across every roster (titan/crime/president/fed/
+  // ftc/agency-head) - previously this only ever checked FINANCE_NPCS, so
+  // every non-titan character showed up as its raw id with a fake "Titan"/
+  // $1B placeholder instead of their real name and title.
+  const npc = getAnyCharacter(npcId) || { id: npcId, name: npcId, title: 'Unknown', netWorth: 1000000 }
   const world2 = useGameStore((s) => s.world2)
   const cash = useGameStore((s) => s.cash)
   const recruitFinanceNpc = useGameStore((s) => s.recruitFinanceNpc)
@@ -37,7 +43,13 @@ export default function NamedNpcModal({ npcId, onClose }) {
   const relationshipLevel = (romanceState.relationships || {})[npcId] || 0
   const isSpouse = (romanceState.spouses || []).includes(npcId)
 
-  const bio = getCharacterBiography(npcId)
+  const bioRecord = getCharacterBiography(npcId)
+  // Characters without a bespoke biography entry but with real roster data
+  // (e.g. agency heads' `background` field) show that instead of the generic
+  // "Prominent figure" placeholder.
+  const bio = bioRecord.bio === 'Prominent figure in the Capital Syndicate.' && npc.bio
+    ? { ...bioRecord, bio: npc.bio }
+    : bioRecord
   const masterAgent = (world2.masterAgents || []).find((a) => a.id === npcId)
   const agentState = masterAgent || (world2.agentsState || {})[npcId] || {
     currentMood: 'Bullish Expansion',

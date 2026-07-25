@@ -22,6 +22,7 @@ const APPEARANCE = {
   livermore:   { skin:'#e8c090', hair:'#404040', suit:'#111111', tie:'#dc143c', badge:'📉', label:'The Bear',      bald:false, beard:false, glasses:false },
   templeton:   { skin:'#f0d4a0', hair:'#f0f0f0', suit:'#1e3d59', tie:'#2a7f6f', badge:'🌍', label:'Contrarian',   bald:false, beard:false, glasses:true },
   buffett:     { skin:'#f0d4a0', hair:'#e0e0e0', suit:'#333333', tie:'#cc4444', badge:'🥤', label:'Oracle of Omaha',bald:false, beard:false, glasses:true },
+  howardmarks: { skin:'#e8c898', hair:'#c0c0c0', suit:'#2a4f4a', tie:'#3a7f6f', badge:'🔄', label:'Cycle Philosopher', bald:false, beard:false, glasses:true },
   munger:      { skin:'#e8c890', hair:'#d8d8d8', suit:'#2c2c54', tie:'#3a3a88', badge:'🧠', label:'Polymath',      bald:false, beard:false, glasses:true },
   lynch:       { skin:'#f0d4a0', hair:'#ffffff', suit:'#27ae60', tie:'#145a32', badge:'🔍', label:'10-Bagger',     bald:false, beard:false, glasses:false },
   soros:       { skin:'#f0d4a0', hair:'#dcdcdc', suit:'#4a154b', tie:'#c0a000', badge:'💷', label:'Reflexive',     bald:false, beard:false, glasses:false },
@@ -93,6 +94,16 @@ const APPEARANCE = {
   majoras:     { skin:'#e8c898', hair:'#b8a080', suit:'#2a1e3a', tie:'none',    badge:'🔄', label:'Merger Chair',   bald:false, beard:false, glasses:false },
   leibowitz:   { skin:'#e0c090', hair:'#888888', suit:'#1a2234', tie:'#442244', badge:'💊', label:'Pharma Chair',   bald:false, beard:false, glasses:false },
   pitofsky:    { skin:'#e0c090', hair:'#cccccc', suit:'#1e2838', tie:'#334455', badge:'📐', label:'Vertical Chair', bald:false, beard:false, glasses:true },
+}
+
+// Overworld sprite palette derived from the same APPEARANCE data the
+// portraits use (suit maps to outfit), so a character's walking sprite and
+// dialogue portrait agree on colors. Rosters without their own palette field
+// (presidents, fed/ftc chairmen, agency heads) get theirs from here.
+export function getCharacterSpritePalette(npcId) {
+  const app = APPEARANCE[npcId]
+  if (!app) return null
+  return { skin: app.skin, hair: app.hair, outfit: app.suit }
 }
 
 export function getCharacterPortrait(npcId) {

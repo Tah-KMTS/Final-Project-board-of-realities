@@ -2,7 +2,8 @@ import Phaser from 'phaser'
 import { useGameStore } from '../../store/useGameStore'
 import { resolvePalette } from '../characterPalettes'
 import { generateAmbientNpcs } from '../../utils/npcGenerator'
-import { FINANCE_NPCS } from '../../features/finance/financeNpcs'
+import { getAllCharacters } from '../../features/agents/characterLookup'
+import { TITAN_ROUTINES, updateAgentPositions } from '../../features/agents/agentMovementEngine'
 import { SpriteActor } from '../actor'
 import { TileMover, combineDirection } from '../tileMover'
 import {
@@ -325,6 +326,49 @@ function drawBuildings(scene, buildings, zoneObjects) {
   }
 }
 
+// ---------------- named-character agent spawning ----------------
+// Every character in every roster (titans, crime syndicate, presidents, fed/
+// ftc chairmen, agency heads) walks the merged mega-map as a live agent:
+// position and current action come from agentMovementEngine each frame -
+// bespoke TITAN_ROUTINES schedules where they exist, the id-seeded orbit
+// tier otherwise - with the "thought" strings below derived from each
+// character's real roster data (platform, policy bias, syndicate territory,
+// perk, archetype) rather than a generic shared string.
+
+const CITY_TO_DISTRICT = {
+  tokyo: 'Tokyo District',
+  kyoto: 'Kyoto District',
+  osaka: 'Osaka District',
+  sapporo: 'Sapporo District',
+}
+
+function homeDistrictFor(character) {
+  const routine = TITAN_ROUTINES[character.id]
+  if (routine) return CITY_TO_DISTRICT[routine.homeCity] || 'Tokyo District'
+  const cat = character.category || ''
+  if (cat.startsWith('Crime') || cat === 'FBI Leader') return 'Osaka District'
+  if (cat === 'IRS Leader' || cat === 'FTC Chairman') return 'Kyoto District'
+  if (cat === 'DOD Leader' || cat === 'EPA Leader') return 'Sapporo District'
+  // Presidents (Parliament Hall), Fed chairmen (Bank), SEC leaders (Stock
+  // Exchange), and remaining titans all live around Tokyo's civic core.
+  return 'Tokyo District'
+}
+
+function agentAmbientActions(c) {
+  const acts = []
+  if (c.executivePriority) acts.push(`🏛️ Agenda: ${String(c.executivePriority).replace(/_/g, ' ')}`)
+  if (c.platform) acts.push(`📜 Championing ${c.platform}`)
+  if (c.heatPolicy) acts.push(`🚔 Enforcing ${c.heatPolicy}`)
+  if (c.policyBias) acts.push(`🏦 Steering rates: ${c.policyBias}`)
+  if (c.bias) acts.push(`⚖️ Pursuing ${c.bias}`)
+  if (c.territory) acts.push(`🗺️ Patrolling ${c.territory}`)
+  if (c.specialty) acts.push(`🕶️ Running ${c.specialty}`)
+  if (c.perkTitle) acts.push(`💼 Working ${c.perkTitle}`)
+  if (c.archetype) acts.push(`📊 Playing the ${String(c.archetype).replace(/_/g, ' ')} book`)
+  if (!acts.length && c.title) acts.push(`🚶 ${c.title}`)
+  return acts
+}
+
 function wanderActor(actor, delta, speed = 20) {
   actor.wanderTimer -= delta
   if (actor.wanderTimer <= 0) {
@@ -403,6 +447,8 @@ export default class OverworldScene extends Phaser.Scene {
     this.overworldReturnSpawn = DEFAULT_SPAWN
     this.financeNamedNpcActors = {}
     this.financeAmbientActors = []
+    this.namedRoamers = []
+    this.agentClock = 0
   }
 
   preload() {
@@ -433,7 +479,7 @@ export default class OverworldScene extends Phaser.Scene {
     this.bridge?.emit('regionChanged', { region: 'finance' })
 
     this.bridge?.on('npcKilled', ({ npcId }) => {
-      this.financeNamedNpcActors[npcId]?.destroy()
+      this.removeNamedRoamer(npcId)
     })
     this.bridge?.on('ambientNpcKilled', ({ npcId }) => {
       this.removeFinanceAmbientNpc(npcId)
@@ -504,8 +550,12 @@ export default class OverworldScene extends Phaser.Scene {
   clearZoneObjects() {
     for (const obj of this.zoneObjects) obj.destroy()
     this.zoneObjects = []
-    for (const id in this.financeNamedNpcActors) this.financeNamedNpcActors[id]?.destroy()
+    for (const roamer of this.namedRoamers) {
+      roamer.actor.destroy()
+      roamer.label.destroy()
+    }
     for (const actor of this.financeAmbientActors) actor.destroy()
+    this.namedRoamers = []
     this.financeNamedNpcActors = {}
     this.financeAmbientActors = []
   }
@@ -529,7 +579,7 @@ export default class OverworldScene extends Phaser.Scene {
     // City-specific landmark buildings overlay (now District-specific)
     this.drawCityLandmarkOverlay()
 
-    this.drawFinanceNamedNpcs()
+    this.spawnNamedRoamers()
     this.spawnFinanceAmbientNpcs()
 
     this.regionLabel.setText('Capital Syndicate Mega-Map')
@@ -699,20 +749,96 @@ export default class OverworldScene extends Phaser.Scene {
 
   // ---------------- NPCs ----------------
 
-  drawFinanceNamedNpcs() {
+  spawnNamedRoamers() {
     const npcStatus = useGameStore.getState().world2.npcStatus
+    this.namedRoamers = []
     this.financeNamedNpcActors = {}
-    for (const b of FINANCE_BUILDINGS) {
-      if (!b.npcId) continue
-      if (npcStatus[b.npcId] === 'dead') continue
-      const npc = FINANCE_NPCS.find((n) => n.id === b.npcId)
-      if (!npc) continue
-      // Place NPC one tile south of the building's bottom edge, horizontally
-      // centered on the building footprint.
-      const cx = (b.tiles.c0 * TILE_SIZE + (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE / 2)
-      const cy = (b.tiles.r1 + 1) * TILE_SIZE + TILE_SIZE / 2
-      const actor = new SpriteActor(this, cx, cy, `npc_${npc.id}`, npc.palette)
-      this.financeNamedNpcActors[npc.id] = actor
+    for (const character of getAllCharacters()) {
+      if (npcStatus[character.id] === 'dead') continue
+      const actor = new SpriteActor(this, -100, -100, `npc_${character.id}`, character.palette)
+      const label = this.add
+        .text(-100, -100, character.name, {
+          fontFamily: 'monospace',
+          fontSize: '9px',
+          color: '#ffe066',
+          align: 'center',
+          stroke: '#000000',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5, 1)
+      const roamer = {
+        agent: { id: character.id, name: character.name, ambientActions: agentAmbientActions(character) },
+        character,
+        actor,
+        label,
+        district: homeDistrictFor(character),
+        currentAction: '',
+        dead: false,
+      }
+      this.namedRoamers.push(roamer)
+      this.financeNamedNpcActors[character.id] = actor
+    }
+    this.updateNamedRoamers(0)
+  }
+
+  // Maps the movement engine's 1600x1800 legacy per-city coordinate space
+  // into the character's home-district band on the merged mega-map: x carries
+  // over directly (both spaces are 1600px wide), y is normalized into the
+  // band's row range (staying clear of the coastal water rows up top).
+  roamerWorldPosition(raw, district) {
+    const band = DISTRICT_BAND_ROWS[district] || DISTRICT_BAND_ROWS['Tokyo District']
+    const topPx = Math.max(4, band.top - 1) * TILE_SIZE
+    const bottomPx = (band.bottom + 3) * TILE_SIZE
+    const y = topPx + (raw.currentY / 1800) * (bottomPx - topPx)
+    const x = Math.min((MAP_COLS - 1.5) * TILE_SIZE, Math.max(TILE_SIZE * 1.5, raw.currentX))
+    return { x, y }
+  }
+
+  updateNamedRoamers(delta) {
+    if (!this.namedRoamers.length) return
+    // agentClock is the engine's timeTick: schedule steps advance every 5
+    // ticks, so delta/4000 here means one routine step every ~20 seconds.
+    this.agentClock += delta / 4000
+    const raws = updateAgentPositions(this.namedRoamers.map((r) => r.agent), this.agentClock)
+    const px = this.playerActor?.x ?? -9999
+    const py = this.playerActor?.y ?? -9999
+    for (let i = 0; i < raws.length; i++) {
+      const roamer = this.namedRoamers[i]
+      if (roamer.dead) continue
+      const raw = raws[i]
+      roamer.currentAction = raw.currentAction || ''
+      const { x, y } = this.roamerWorldPosition(raw, roamer.district)
+      const dx = x - roamer.actor.x
+      const dy = y - roamer.actor.y
+      const moved = Math.abs(dx) + Math.abs(dy) > 0.05
+      roamer.actor.sprite.setPosition(x, y)
+      roamer.actor.setMoving(moved)
+      if (Math.abs(dx) > Math.abs(dy)) roamer.actor.setFacing(dx > 0 ? 'right' : 'left')
+      else if (moved) roamer.actor.setFacing(dy > 0 ? 'down' : 'up')
+      roamer.actor.update(delta)
+      // Name floats above the sprite; the agent's current "thought" appears
+      // once the player is close enough to read it.
+      const near = Phaser.Math.Distance.Between(px, py, x, y) < 180
+      const wanted = near && roamer.currentAction ? `${roamer.character.name}\n${roamer.currentAction}` : roamer.character.name
+      if (roamer.label.text !== wanted) roamer.label.setText(wanted)
+      roamer.label.setPosition(x, y - 26)
+      roamer.label.setDepth(y + 500)
+    }
+  }
+
+  findNearbyNamedRoamer() {
+    const px = this.playerActor.x
+    const py = this.playerActor.y
+    return this.namedRoamers.find((r) => !r.dead && Phaser.Math.Distance.Between(px, py, r.actor.x, r.actor.y) < 30)
+  }
+
+  removeNamedRoamer(npcId) {
+    const roamer = this.namedRoamers.find((r) => r.agent.id === npcId)
+    if (roamer) {
+      roamer.dead = true
+      roamer.actor.sprite.setVisible(false)
+      roamer.actor.shadow.setVisible(false)
+      roamer.label.setVisible(false)
     }
   }
 
@@ -824,12 +950,16 @@ export default class OverworldScene extends Phaser.Scene {
     const px = this.playerActor.x
     const py = this.playerActor.y
     const staticZone = this.zones.find((z) => Phaser.Geom.Rectangle.Contains(z.rect, px, py))
-    const financeAmbient = !staticZone ? this.findNearbyFinanceAmbientNpc() : null
+    const namedRoamer = !staticZone && this.currentZoneId === 'overworld' ? this.findNearbyNamedRoamer() : null
+    const financeAmbient = !staticZone && !namedRoamer ? this.findNearbyFinanceAmbientNpc() : null
 
     if (staticZone) {
       this.nearbyZone = staticZone
       const verb = staticZone.type === 'building' ? 'enter' : null
       this.promptText.setText(verb ? `Press E to ${verb} ${staticZone.label}` : `Press E: ${staticZone.label}`)
+    } else if (namedRoamer) {
+      this.nearbyZone = { type: 'namedRoamer', roamer: namedRoamer }
+      this.promptText.setText(`Press E to talk to ${namedRoamer.character.name}`)
     } else if (financeAmbient) {
       this.nearbyZone = { type: 'financeAmbientNpc', npcRef: financeAmbient }
       this.promptText.setText(`Press E to approach ${financeAmbient.npcName}`)
@@ -881,6 +1011,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.pauseForModal()
     if (zone.type === 'interiorDesk') {
       this.bridge.emit('interact', { type: 'building', id: zone.id, npcId: zone.npcId })
+    } else if (zone.type === 'namedRoamer') {
+      // 'namedRoamer' matches no building-specific modal case, so
+      // WorldScreen's generic building-with-npcId branch renders
+      // NamedNpcModal - the same modal the interior desks open.
+      this.bridge.emit('interact', { type: 'building', id: 'namedRoamer', npcId: zone.roamer.agent.id })
     } else if (zone.type === 'financeAmbientNpc') {
       this.bridge.emit('interact', { type: 'ambientNpc', npcId: zone.npcRef.npcId, npcName: zone.npcRef.npcName })
     }
@@ -903,6 +1038,7 @@ export default class OverworldScene extends Phaser.Scene {
 
     this.tileMover.update(delta, this.interactionLocked ? null : inputDir)
     this.updateAllAmbientNpcs(delta)
+    if (this.currentZoneId === 'overworld') this.updateNamedRoamers(delta)
 
     if (this.interactionLocked) return
 
