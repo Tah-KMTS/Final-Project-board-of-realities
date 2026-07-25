@@ -824,6 +824,8 @@ export default class OverworldScene extends Phaser.Scene {
   // into the character's home-district band on the merged mega-map: x carries
   // over directly (both spaces are 1600px wide), y is normalized into the
   // band's row range (staying clear of the coastal water rows up top).
+  // Fallback only - see updateNamedRoamers, which prefers real building
+  // positions via buildingDoorPixel whenever a schedule step names one.
   roamerWorldPosition(raw, district) {
     const band = DISTRICT_BAND_ROWS[district] || DISTRICT_BAND_ROWS['Tokyo District']
     const topPx = Math.max(4, band.top - 1) * TILE_SIZE
@@ -831,6 +833,19 @@ export default class OverworldScene extends Phaser.Scene {
     const y = topPx + (raw.currentY / 1800) * (bottomPx - topPx)
     const x = Math.min((MAP_COLS - 1.5) * TILE_SIZE, Math.max(TILE_SIZE * 1.5, raw.currentX))
     return { x, y }
+  }
+
+  // Real live-map pixel position just outside a building's south edge (the
+  // same "stand outside the door" convention triggerInteraction uses for
+  // overworldReturnSpawn) - the ground truth for "this character is
+  // physically at this building", not just narrating it.
+  buildingDoorPixel(buildingId) {
+    const b = FINANCE_BUILDINGS.find((bd) => bd.id === buildingId)
+    if (!b) return null
+    return {
+      x: ((b.tiles.c0 + b.tiles.c1 + 1) / 2) * TILE_SIZE,
+      y: (b.tiles.r1 + 1) * TILE_SIZE + TILE_SIZE / 2,
+    }
   }
 
   updateNamedRoamers(delta) {
@@ -846,7 +861,21 @@ export default class OverworldScene extends Phaser.Scene {
       if (roamer.dead) continue
       const raw = raws[i]
       roamer.currentAction = raw.currentAction || ''
-      const rawPos = this.roamerWorldPosition(raw, roamer.district)
+      // A schedule step naming a real building is ground truth for where
+      // this character actually is; only fall back to the proportional
+      // legacy-space placement when no buildingId exists at all (generic
+      // wander-tier characters, who don't claim to be anywhere specific).
+      const doorA = raw.currentBuildingId ? this.buildingDoorPixel(raw.currentBuildingId) : null
+      const doorB = raw.nextBuildingId ? this.buildingDoorPixel(raw.nextBuildingId) : null
+      let rawPos
+      if (doorA && doorB) {
+        const t = raw.stepProgress ?? 0
+        rawPos = { x: doorA.x + (doorB.x - doorA.x) * t, y: doorA.y + (doorB.y - doorA.y) * t }
+      } else if (doorA) {
+        rawPos = doorA
+      } else {
+        rawPos = this.roamerWorldPosition(raw, roamer.district)
+      }
       const { x, y } = this.resolveOpenPosition(rawPos.x, rawPos.y)
       const dx = x - roamer.actor.x
       const dy = y - roamer.actor.y

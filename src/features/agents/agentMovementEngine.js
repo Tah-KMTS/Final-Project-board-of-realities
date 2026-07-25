@@ -3,6 +3,22 @@
  * All 25 Finance NPCs have bespoke city-authentic schedules based on their
  * home city assignment in japanCities.js primaryResidents lists.
  * Positions are synced to the new tilemap grid (40×45 grid, 40px tiles = 1600×1800 tilemap coordinate space).
+ *
+ * `buildingId` on each schedule step is the authoritative position source -
+ * it's a real id from FINANCE_BUILDING_DEFS (OverworldScene.js), so a
+ * character whose action says they're "at the Diner" is actually standing
+ * outside that building on the live map, not just narrating it while
+ * physically somewhere unrelated (OverworldScene.roamerWorldPosition used
+ * to only place characters proportionally within their home district band
+ * from the legacy x/y below, with no connection at all to where the named
+ * location in `location`/`action` actually is). Every step was re-picked
+ * to land on a real building already in that character's own district - no
+ * new buildings, no cross-district travel (that's a separate, larger
+ * change - characters stay inside one district for now, same as before).
+ * Some `location` text was renamed to match the real building's actual
+ * name so the label and the standing position never disagree; legacy x/y
+ * stay as an inert fallback only used if a buildingId ever fails to
+ * resolve (see updateAgentPositions below).
  */
 
 export const TITAN_ROUTINES = {
@@ -11,27 +27,27 @@ export const TITAN_ROUTINES = {
     name: 'Steve Jobs',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Apple Glass Campus', action: '🍎 Perfecting the Next Design Language', x: 320, y: 1360 },
-      { location: 'Tokyo Stock Exchange', action: '📈 Reviewing Apple Share Buyback Program', x: 840, y: 320 },
-      { location: 'Giga Factory', action: '🤝 Meeting Rusk on AI Chip Supply Chain', x: 1240, y: 1400 },
+      { location: 'Apple Glass Campus', action: '🍎 Perfecting the Next Design Language', buildingId: 'appleHQ', x: 320, y: 1360 },
+      { location: 'Tokyo Stock Exchange', action: '📈 Reviewing Apple Share Buyback Program', buildingId: 'stockExchange', x: 840, y: 320 },
+      { location: 'Rusk Industries', action: '🤝 Meeting Rusk on AI Chip Supply Chain', buildingId: 'muskHQ', x: 1240, y: 1400 },
     ],
   },
   musk: {
     name: 'Elan Rusk',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Giga Factory Spire', action: '🤖 Inspecting Robotic Assembly Lines', x: 1160, y: 1400 },
-      { location: 'SpaceX Launchpad', action: '🚀 Testing Starship Propulsion Burns', x: 1400, y: 1440 },
-      { location: 'Apple Glass Campus', action: '📱 Negotiating AI Chip Silicon Patents', x: 400, y: 1360 },
+      { location: 'Rusk Industries', action: '🤖 Inspecting Robotic Assembly Lines', buildingId: 'muskHQ', x: 1160, y: 1400 },
+      { location: 'Rusk Industries', action: '🚀 Testing Starship Propulsion Burns', buildingId: 'muskHQ', x: 1400, y: 1440 },
+      { location: 'Apple Glass Campus', action: '📱 Negotiating AI Chip Silicon Patents', buildingId: 'appleHQ', x: 400, y: 1360 },
     ],
   },
   huang: {
     name: 'Jensen Fang',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Tokyo Stock Exchange', action: '📊 Pitching H100 GPU Cluster Order', x: 800, y: 320 },
-      { location: 'Apple Glass Campus', action: '🧠 Demoing AI Inference Engine', x: 340, y: 1360 },
-      { location: 'FTC Hearing Room', action: '⚖️ Defending CUDA Monopoly Claim', x: 1300, y: 1000 },
+      { location: 'Tokyo Stock Exchange', action: '📊 Pitching H100 GPU Cluster Order', buildingId: 'stockExchange', x: 800, y: 320 },
+      { location: 'Apple Glass Campus', action: '🧠 Demoing AI Inference Engine', buildingId: 'appleHQ', x: 340, y: 1360 },
+      { location: 'Parliament Hall', action: '⚖️ Defending CUDA Monopoly Claim', buildingId: 'parliament', x: 1300, y: 1000 },
     ],
   },
 
@@ -40,36 +56,36 @@ export const TITAN_ROUTINES = {
     name: 'Warren Biffle',
     homeCity: 'kyoto',
     schedule: [
-      { location: 'Berkshire Tower', action: '📈 Auditing Value Stock Balance Sheets', x: 440, y: 320 },
-      { location: 'Cherry Coke Tea House', action: '🥤 Drinking Cherry Coke at the Diner', x: 800, y: 320 },
-      { location: 'Commercial Bank', action: '🏦 Depositing Capital Dividends', x: 1240, y: 720 },
+      { location: 'Machiya Executive Estate', action: '📈 Auditing Value Stock Balance Sheets', buildingId: 'machiyaEstate', x: 440, y: 320 },
+      { location: 'Cherry Coke Tea House', action: '🥤 Drinking Cherry Coke at the Diner', buildingId: 'teaHouse', x: 800, y: 320 },
+      { location: 'Ryokan Mountain Inn', action: '🍵 Reviewing Portfolio Over Morning Tea', buildingId: 'hotel', x: 1240, y: 720 },
     ],
   },
   munger: {
     name: 'Charlie Munger',
     homeCity: 'kyoto',
     schedule: [
-      { location: 'Berkshire Tower', action: '📚 Reading Multi-Disciplinary Research', x: 520, y: 320 },
-      { location: 'Kyoto Machiya Library', action: '🧠 Applying Mental Model Inversion', x: 1000, y: 320 },
-      { location: 'Cherry Coke Tea House', action: '☕ Discussing Philosophy with Biffle', x: 780, y: 320 },
+      { location: 'Whispering Temple', action: '📚 Reading Multi-Disciplinary Research', buildingId: 'temple', x: 520, y: 320 },
+      { location: 'Machiya Executive Estate', action: '🧠 Applying Mental Model Inversion', buildingId: 'machiyaEstate', x: 1000, y: 320 },
+      { location: 'Cherry Coke Tea House', action: '☕ Discussing Philosophy with Biffle', buildingId: 'teaHouse', x: 780, y: 320 },
     ],
   },
   graham: {
     name: 'Benjamin Graham',
     homeCity: 'kyoto',
     schedule: [
-      { location: 'Berkshire Tower', action: '📖 Writing Security Analysis Appendix', x: 460, y: 320 },
-      { location: 'Kyoto Commercial Bank', action: '💰 Scanning for Net-Net Opportunities', x: 1160, y: 720 },
-      { location: 'Cherry Coke Tea House', action: '📊 Tutoring Young Biffle on Margins', x: 820, y: 320 },
+      { location: 'Zen Rock Garden', action: '📖 Writing Security Analysis Appendix', buildingId: 'zenGarden', x: 460, y: 320 },
+      { location: 'Ryokan Mountain Inn', action: '💰 Scanning for Net-Net Opportunities', buildingId: 'hotel', x: 1160, y: 720 },
+      { location: 'Cherry Coke Tea House', action: '📊 Tutoring Young Biffle on Margins', buildingId: 'teaHouse', x: 820, y: 320 },
     ],
   },
   templeton: {
     name: 'Sir John Templeton',
     homeCity: 'kyoto',
     schedule: [
-      { location: 'Kyoto Bamboo Forest', action: '🌿 Meditating on Maximum Pessimism', x: 1360, y: 320 },
-      { location: 'Berkshire Tower', action: '🌍 Buying Cheap Japanese Export Stocks', x: 480, y: 320 },
-      { location: 'IRS Building', action: '📑 Filing Offshore Tax Exemption Papers', x: 900, y: 760 },
+      { location: 'Serenity Park', action: '🌿 Meditating on Maximum Pessimism', buildingId: 'park', x: 1360, y: 320 },
+      { location: 'Machiya Executive Estate', action: '🌍 Buying Cheap Japanese Export Stocks', buildingId: 'machiyaEstate', x: 480, y: 320 },
+      { location: 'IRS Internal Revenue', action: '📑 Filing Offshore Tax Exemption Papers', buildingId: 'irsHQ', x: 900, y: 760 },
     ],
   },
 
@@ -78,36 +94,36 @@ export const TITAN_ROUTINES = {
     name: 'Al Capone',
     homeCity: 'osaka',
     schedule: [
-      { location: 'Speakeasy Hotel', action: '🩸 Collecting Protection Tolls', x: 760, y: 240 },
-      { location: 'Dotonbori Arcade', action: '🎰 Inspecting Underground Gambling Vaults', x: 1040, y: 240 },
-      { location: 'Osaka Docks', action: '🚢 Overseeing Rum Runner Shipments', x: 400, y: 640 },
+      { location: 'Speakeasy Hotel', action: '🩸 Collecting Protection Tolls', buildingId: 'speakeasyHotel', x: 760, y: 240 },
+      { location: 'Dotonbori Arcade', action: '🎰 Inspecting Underground Gambling Vaults', buildingId: 'dotonboriArcade', x: 1040, y: 240 },
+      { location: 'Dock Underground Vaults', action: '🚢 Overseeing Rum Runner Shipments', buildingId: 'dockVaults', x: 400, y: 640 },
     ],
   },
   luciano: {
     name: 'Lucky Luciano',
     homeCity: 'osaka',
     schedule: [
-      { location: 'Speakeasy Hotel', action: '🤝 Brokering Five Families Summit', x: 800, y: 240 },
-      { location: 'Osaka Docks', action: '💼 Reviewing Narcotics Import Manifests', x: 420, y: 640 },
-      { location: 'Dotonbori Arcade', action: '🎲 Holding Court at the Casino Tables', x: 1120, y: 240 },
+      { location: 'Speakeasy Hotel', action: '🤝 Brokering Five Families Summit', buildingId: 'speakeasyHotel', x: 800, y: 240 },
+      { location: 'Dock Underground Vaults', action: '💼 Reviewing Narcotics Import Manifests', buildingId: 'dockVaults', x: 420, y: 640 },
+      { location: 'Dotonbori Arcade', action: '🎲 Holding Court at the Casino Tables', buildingId: 'dotonboriArcade', x: 1120, y: 240 },
     ],
   },
   soros: {
     name: 'George Zoros',
     homeCity: 'osaka',
     schedule: [
-      { location: 'Osaka Currency Exchange', action: '💴 Shorting the Japanese Yen', x: 960, y: 1040 },
-      { location: 'Speakeasy Hotel', action: '📞 Calling London to Execute Pound Short', x: 780, y: 240 },
-      { location: 'Dotonbori Canal', action: '🌊 Watching the Yen Crash from the Bridge', x: 600, y: 640 },
+      { location: 'Black Market', action: '💴 Shorting the Japanese Yen', buildingId: 'blackMarket', x: 960, y: 1040 },
+      { location: 'Speakeasy Hotel', action: '📞 Calling London to Execute Pound Short', buildingId: 'speakeasyHotel', x: 780, y: 240 },
+      { location: 'Kuromon Fish Market', action: '🌊 Watching the Yen Crash from the Canal-side Market', buildingId: 'fishMarket', x: 600, y: 640 },
     ],
   },
   livermore: {
     name: 'Jesse Livermore',
     homeCity: 'osaka',
     schedule: [
-      { location: 'Osaka Stock Exchange', action: '📉 Accumulating Short Positions', x: 900, y: 1040 },
-      { location: 'Docks Warehouse', action: '📜 Reviewing Commodity Futures Ledgers', x: 360, y: 640 },
-      { location: 'Speakeasy Hotel', action: '🥃 Drinking Alone After Margin Call', x: 800, y: 240 },
+      { location: 'Black Market', action: '📉 Accumulating Short Positions', buildingId: 'blackMarket', x: 900, y: 1040 },
+      { location: 'Dock Underground Vaults', action: '📜 Reviewing Commodity Futures Ledgers', buildingId: 'dockVaults', x: 360, y: 640 },
+      { location: 'Speakeasy Hotel', action: '🥃 Drinking Alone After Margin Call', buildingId: 'speakeasyHotel', x: 800, y: 240 },
     ],
   },
 
@@ -116,126 +132,126 @@ export const TITAN_ROUTINES = {
     name: 'Henry Ford',
     homeCity: 'sapporo',
     schedule: [
-      { location: 'Ford River Rouge Complex', action: '⚙️ Inspecting Assembly Line Efficiency', x: 400, y: 320 },
-      { location: 'Carnegie Steel Mill', action: '🔩 Ordering Steel Coil Deliveries', x: 1080, y: 320 },
-      { location: 'Sapporo Tool Shop', action: '🔧 Testing New Engine Block Designs', x: 740, y: 720 },
+      { location: 'Ford River Rouge Complex', action: '⚙️ Inspecting Assembly Line Efficiency', buildingId: 'fordRougeComplex', x: 400, y: 320 },
+      { location: 'Homestead Steel Mill', action: '🔩 Ordering Steel Coil Deliveries', buildingId: 'carnegieSteelMill', x: 1080, y: 320 },
+      { location: 'Mount Yotei Alpine Lodge', action: '🔧 Testing New Engine Designs at the Lodge Workshop', buildingId: 'alpineLodge', x: 740, y: 720 },
     ],
   },
   carnegie: {
     name: 'Andrew Carnegie',
     homeCity: 'sapporo',
     schedule: [
-      { location: 'Homestead Steel Mill', action: '🔥 Inspecting Bessemer Converter Output', x: 1040, y: 320 },
-      { location: 'Standard Oil Refinery', action: '🤝 Negotiating Rail-Oil Integration Deal', x: 640, y: 320 },
-      { location: 'Alpine Library', action: '📚 Donating Books to Sapporo Library', x: 1360, y: 1200 },
+      { location: 'Homestead Steel Mill', action: '🔥 Inspecting Bessemer Converter Output', buildingId: 'carnegieSteelMill', x: 1040, y: 320 },
+      { location: 'Standard Oil Refinery', action: '🤝 Negotiating Rail-Oil Integration Deal', buildingId: 'standardOilRefinery', x: 640, y: 320 },
+      { location: 'Mount Yotei Alpine Lodge', action: '📚 Donating Books to the Lodge Library', buildingId: 'alpineLodge', x: 1360, y: 1200 },
     ],
   },
   rockefeller: {
     name: 'John D. Rockefeller',
     homeCity: 'sapporo',
     schedule: [
-      { location: 'Standard Oil Refinery', action: '🛢️ Squeezing Rival Refinery Margins', x: 680, y: 320 },
-      { location: 'Ford River Rouge Complex', action: '🚗 Supplying Gasoline to Ford Plants', x: 420, y: 320 },
-      { location: 'Sapporo Bank', action: '💵 Depositing This Month\'s Monopoly Rents', x: 1180, y: 720 },
+      { location: 'Standard Oil Refinery', action: '🛢️ Squeezing Rival Refinery Margins', buildingId: 'standardOilRefinery', x: 680, y: 320 },
+      { location: 'Ford River Rouge Complex', action: '🚗 Supplying Gasoline to Ford Plants', buildingId: 'fordRougeComplex', x: 420, y: 320 },
+      { location: 'Central Train Station', action: '💵 Wiring This Month\'s Monopoly Rents', buildingId: 'trainStation', x: 1180, y: 720 },
     ],
   },
   vanderbilt: {
     name: 'Cornelius Vanderbilt',
     homeCity: 'sapporo',
     schedule: [
-      { location: 'Sapporo Rail Depot', action: '🚂 Auditing New Track Expansion Plans', x: 920, y: 720 },
-      { location: 'Hokkaido Port', action: '⚓ Inspecting Steamship Cargo Manifests', x: 440, y: 720 },
-      { location: 'Ford River Rouge Complex', action: '🤝 Negotiating Rail-Factory Partnership', x: 420, y: 320 },
+      { location: 'Central Train Station', action: '🚂 Auditing New Track Expansion Plans', buildingId: 'trainStation', x: 920, y: 720 },
+      { location: 'Alpine Snow Brewery', action: '⚓ Auditing Freight Manifests at the Brewery Docks', buildingId: 'sapporoBrewery', x: 440, y: 720 },
+      { location: 'Ford River Rouge Complex', action: '🤝 Negotiating Rail-Factory Partnership', buildingId: 'fordRougeComplex', x: 420, y: 320 },
     ],
   },
   gates: {
     name: 'Will Gatling',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Tokyo Stock Exchange', action: '💻 Pitching MS Office Enterprise Deals', x: 820, y: 320 },
-      { location: 'FTC Hearing Room', action: '⚖️ Defending Windows OS Antitrust Case', x: 1280, y: 1000 },
-      { location: 'Apple Glass Campus', action: '👀 Observing Apple Design Philosophy', x: 330, y: 1360 },
+      { location: 'Tokyo Stock Exchange', action: '💻 Pitching MS Office Enterprise Deals', buildingId: 'stockExchange', x: 820, y: 320 },
+      { location: 'Parliament Hall', action: '⚖️ Defending Windows OS Antitrust Case', buildingId: 'parliament', x: 1280, y: 1000 },
+      { location: 'Apple Glass Campus', action: '👀 Observing Apple Design Philosophy', buildingId: 'appleHQ', x: 330, y: 1360 },
     ],
   },
   bezos: {
     name: 'Geoff Bezel',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Tokyo Stock Exchange', action: '📦 Announcing AWS Cloud Expansion', x: 840, y: 320 },
-      { location: 'Giga Factory', action: '🤖 Testing Amazon Delivery Drones', x: 1180, y: 1400 },
-      { location: 'Federal Reserve HQ', action: '💰 Reviewing Prime Credit Card Float', x: 1400, y: 1000 },
+      { location: 'Tokyo Stock Exchange', action: '📦 Announcing AWS Cloud Expansion', buildingId: 'stockExchange', x: 840, y: 320 },
+      { location: 'Rusk Industries', action: '🤖 Testing Amazon Delivery Drones', buildingId: 'muskHQ', x: 1180, y: 1400 },
+      { location: 'Bank & Realty Office', action: '💰 Reviewing Prime Credit Card Float', buildingId: 'bank', x: 1400, y: 1000 },
     ],
   },
   son: {
     name: 'Masatoshi Ren',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Tokyo Stock Exchange', action: '📱 Pitching SoftBank Vision Fund II', x: 830, y: 320 },
-      { location: 'Apple Glass Campus', action: '💡 Scouting AI Startup Founders', x: 336, y: 1360 },
-      { location: 'Giga Factory', action: '🚀 Co-Investing SpaceX Series Round', x: 1170, y: 1400 },
+      { location: 'Tokyo Stock Exchange', action: '📱 Pitching SoftBank Vision Fund II', buildingId: 'stockExchange', x: 830, y: 320 },
+      { location: 'Apple Glass Campus', action: '💡 Scouting AI Startup Founders', buildingId: 'appleHQ', x: 336, y: 1360 },
+      { location: 'Rusk Industries', action: '🚀 Co-Investing SpaceX Series Round', buildingId: 'muskHQ', x: 1170, y: 1400 },
     ],
   },
   icahn: {
     name: 'Karl Eikahn',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Tokyo Stock Exchange', action: '⚔️ Filing Hostile Takeover Prospectus', x: 844, y: 320 },
-      { location: 'FTC Hearing Room', action: '💼 Greenmail Negotiation with Board', x: 1296, y: 1000 },
-      { location: 'Corporate Tower', action: '📋 Stripping Underperforming Assets', x: 620, y: 1000 },
+      { location: 'Tokyo Stock Exchange', action: '⚔️ Filing Hostile Takeover Prospectus', buildingId: 'stockExchange', x: 844, y: 320 },
+      { location: 'Parliament Hall', action: '💼 Greenmail Negotiation with Board', buildingId: 'parliament', x: 1296, y: 1000 },
+      { location: 'Corporate Holdings', action: '📋 Stripping Underperforming Assets', buildingId: 'corporateOffice', x: 620, y: 1000 },
     ],
   },
   dalio: {
     name: 'Ray Daglio',
     homeCity: 'kyoto',
     schedule: [
-      { location: 'Berkshire Tower', action: '🌦️ Calibrating All-Weather Portfolio', x: 456, y: 320 },
-      { location: 'Kyoto Bamboo Forest', action: '🧘 Practicing Principles Meditation', x: 1350, y: 320 },
-      { location: 'IRS Building', action: '📊 Filing Bridgewater Macro Projections', x: 896, y: 760 },
+      { location: 'Machiya Executive Estate', action: '🌦️ Calibrating All-Weather Portfolio', buildingId: 'machiyaEstate', x: 456, y: 320 },
+      { location: 'Serenity Park', action: '🧘 Practicing Principles Meditation', buildingId: 'park', x: 1350, y: 320 },
+      { location: 'IRS Internal Revenue', action: '📊 Filing Bridgewater Macro Projections', buildingId: 'irsHQ', x: 896, y: 760 },
     ],
   },
   simons: {
     name: 'Jim Simons',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Tokyo Stock Exchange', action: '🔢 Running Medallion HFT Algorithms', x: 836, y: 320 },
-      { location: 'Federal Reserve HQ', action: '📡 Accessing Central Bank Data Feeds', x: 1390, y: 1000 },
-      { location: 'Apple Glass Campus', action: '💻 Expanding Quant Research Servers', x: 326, y: 1360 },
+      { location: 'Tokyo Stock Exchange', action: '🔢 Running Medallion HFT Algorithms', buildingId: 'stockExchange', x: 836, y: 320 },
+      { location: 'Bank & Realty Office', action: '📡 Accessing Central Bank Data Feeds', buildingId: 'bank', x: 1390, y: 1000 },
+      { location: 'Crypto HQ', action: '💻 Expanding Quant Research Servers', buildingId: 'cryptoExchange', x: 326, y: 1360 },
     ],
   },
   lynch: {
     name: 'Peter Vance',
     homeCity: 'kyoto',
     schedule: [
-      { location: 'Cherry Coke Tea House', action: '☕ Spotting Consumer Trend Opportunities', x: 810, y: 320 },
-      { location: 'Kyoto Machiya 7-Eleven', action: '🏪 Researching Convenience Store Stocks', x: 1080, y: 1160 },
-      { location: 'Berkshire Tower', action: '📈 Presenting 10-Bagger Fund Results', x: 470, y: 320 },
+      { location: 'Cherry Coke Tea House', action: '☕ Spotting Consumer Trend Opportunities', buildingId: 'teaHouse', x: 810, y: 320 },
+      { location: 'Silk & Kimono Market', action: '🏪 Researching Convenience Store Stocks', buildingId: 'silkMarket', x: 1080, y: 1160 },
+      { location: 'Machiya Executive Estate', action: '📈 Presenting 10-Bagger Fund Results', buildingId: 'machiyaEstate', x: 470, y: 320 },
     ],
   },
   walker: {
     name: 'Madam C.J. Walker',
     homeCity: 'osaka',
     schedule: [
-      { location: 'Osaka Market District', action: '💼 Expanding Door-to-Door Sales Network', x: 740, y: 640 },
-      { location: 'Dotonbori Arcade', action: '🌟 Recruiting Female Sales Agents', x: 1070, y: 240 },
-      { location: 'Speakeasy Hotel', action: '🤝 Pitching Haircare Empire to Investors', x: 790, y: 240 },
+      { location: 'Kuromon Fish Market', action: '💼 Expanding Door-to-Door Sales Network', buildingId: 'fishMarket', x: 740, y: 640 },
+      { location: 'Dotonbori Arcade', action: '🌟 Recruiting Female Sales Agents', buildingId: 'dotonboriArcade', x: 1070, y: 240 },
+      { location: 'Speakeasy Hotel', action: '🤝 Pitching Haircare Empire to Investors', buildingId: 'speakeasyHotel', x: 790, y: 240 },
     ],
   },
   jpmorgan: {
     name: 'J.P. Morgan',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Tokyo Stock Exchange', action: '🏦 Organizing Emergency Market Bailout', x: 850, y: 320 },
-      { location: 'Federal Reserve HQ', action: '💰 Meeting with Central Bankers', x: 1376, y: 1000 },
-      { location: 'Corporate Tower', action: '📋 Consolidating Steel & Rail Trusts', x: 630, y: 1000 },
+      { location: 'Tokyo Stock Exchange', action: '🏦 Organizing Emergency Market Bailout', buildingId: 'stockExchange', x: 850, y: 320 },
+      { location: 'Bank & Realty Office', action: '💰 Meeting with Central Bankers', buildingId: 'bank', x: 1376, y: 1000 },
+      { location: 'Corporate Holdings', action: '📋 Consolidating Steel & Rail Trusts', buildingId: 'corporateOffice', x: 630, y: 1000 },
     ],
   },
   escobar: {
     name: 'Pablo Escobar',
     homeCity: 'osaka',
     schedule: [
-      { location: 'Osaka Docks', action: '🌿 Inspecting Medellin Cocaine Shipments', x: 390, y: 640 },
-      { location: 'Speakeasy Hotel', action: '🍷 Brokering Syndicate Deals with Capone', x: 804, y: 240 },
-      { location: 'Dotonbori Arcade', action: '🎲 Laundering Dirty Cartel Cash', x: 1096, y: 240 },
+      { location: 'Dock Underground Vaults', action: '🌿 Inspecting Medellin Cocaine Shipments', buildingId: 'dockVaults', x: 390, y: 640 },
+      { location: 'Speakeasy Hotel', action: '🍷 Brokering Syndicate Deals with Capone', buildingId: 'speakeasyHotel', x: 804, y: 240 },
+      { location: 'Dotonbori Arcade', action: '🎲 Laundering Dirty Cartel Cash', buildingId: 'dotonboriArcade', x: 1096, y: 240 },
     ],
   },
 }
@@ -299,11 +315,18 @@ export function updateAgentPositions(activeAgents, timeTick = 0) {
 
     return {
       ...agent,
+      // currentX/currentY (legacy space) are only a fallback now - the
+      // caller (OverworldScene.updateNamedRoamers) prefers interpolating
+      // between currentBuildingId/nextBuildingId's real map positions, so
+      // that "at the Diner" and standing outside the Diner actually agree.
       currentX: Math.min(1560, Math.max(40, lerpX)),
       currentY: Math.min(1760, Math.max(40, lerpY)),
       currentAction: currentStep.action,
       currentLocation: currentStep.location,
       currentCity: routine.homeCity,
+      currentBuildingId: currentStep.buildingId || null,
+      nextBuildingId: nextStep.buildingId || null,
+      stepProgress: progress,
     }
   })
 }

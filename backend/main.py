@@ -242,21 +242,36 @@ PERSUASION_INSTRUCTIONS = """
 Every reply must also decide `agreed` and `relationshipDelta`, based on this
 specific character's real personality, values, and current relationship with
 the player - never a coin flip, never automatic just because the player asked.
-- `agreed`: true only if the player's most recent message contains an actual
-  request/ask/persuasion attempt AND this character, given who they really
-  are, their background, and the relationship tier, would genuinely say yes.
-  If the player didn't ask for anything (small talk, insults, unrelated
-  chat), or if this character would refuse, set it to false. Stay true to
-  the person - a request that contradicts everything they stand for should
-  usually be refused no matter how persistent the player is; a request that
-  plays to their actual values, interests, or self-interest can plausibly
-  land, especially at higher relationship tiers.
-- `relationshipDelta`: an integer from -3 to 3 for how this single exchange
-  shifts this character's opinion of the player. Be stingy - most ordinary
-  exchanges are -1, 0, or +1. Reserve +-2/+-3 for something that would
-  genuinely matter to this specific person (a serious insult to something
-  they built their life on, a request that perfectly flatters their values,
-  a threat, real generosity, betrayal, etc).
+
+`agreed`: true only if the player's most recent message contains an actual
+request/ask/persuasion attempt AND this character, given who they really
+are, their background, and the relationship tier, would genuinely say yes.
+If the player didn't ask for anything (small talk, insults, unrelated
+chat), or if this character would refuse, set it to false. Stay true to
+the person - a request that contradicts everything they stand for should
+usually be refused no matter how persistent the player is; a request that
+plays to their actual values, interests, or self-interest can plausibly
+land, especially at higher relationship tiers.
+
+`relationshipDelta`: an integer from -3 to 3. This is NOT only for requests -
+plain conversation with no ask attached still moves it, and by how much
+depends entirely on who this character actually is, not a flat default:
+- Warm, sociable, folksy, or lonely-for-connection characters (their bio/
+  personality will say so) genuinely warm up from good conversation alone -
+  a pleasant exchange can earn +1 even with nothing asked for.
+- Cold, guarded, transactional, institutionally-loyal, or all-business
+  characters barely move from talk alone, agreeable or not - for them,
+  opinion is earned by actions, results, or things that touch their actual
+  interests, not by being chatted at nicely. Small talk with these
+  characters should mostly land on 0, occasionally +1 if the player says
+  something that actually resonates with their specific values.
+- Being rude, wasting their time, or contradicting their values should
+  read as negative regardless of character type, though how negative
+  still depends on their temperament (some shrug it off, some don't).
+Be stingy generally - most exchanges are -1, 0, or +1. Reserve +-2/+-3 for
+something that would genuinely matter to this specific person (a serious
+insult to something they built their life on, a request that perfectly
+flatters their values, a threat, real generosity, betrayal, etc).
 """.strip()
 
 
