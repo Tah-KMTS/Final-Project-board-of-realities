@@ -1,0 +1,394 @@
+# Handoff: Building Interiors + NPCs Indoors
+
+**For:** teammate picking up the interior work
+**From:** the Capital Syndicate / world-simulation workstream
+**Repo state at handoff:** `main` @ `c4d6ad0`, working tree clean, build green
+
+## How to use this
+
+Everything below the `---` line is a single prompt. Copy it all and paste it
+into Claude Code opened at the repo root. It is written to be self-contained —
+it carries the architecture facts, the current numbers, the known bugs, and the
+verification bar, so the agent does not have to rediscover any of it.
+
+Two tasks are in scope: **NPCs actually being inside their buildings** (Task 1)
+and **real interiors for every building** (Task 2). They are deliberately in one
+prompt because Task 1 is not meaningful without Task 2 — there is nowhere to
+*be* inside until interiors exist.
+
+---
+
+You are the **MANAGER (Opus)** for a large feature build in this repo.
+
+# TEAM STRUCTURE (mandatory — the human running this asked for it explicitly)
+
+Three tiers. You are the top.
+
+- **You, the Manager (Opus).** You plan, decompose, delegate, and adjudicate.
+  You do **not** write the bulk of the implementation. You are the **strictest**
+  reviewer in the chain — stricter than your supervisors.
+- **Supervisors (Sonnet).** Spawn with `Agent`, `subagent_type: "general-purpose"`,
+  `model: "sonnet"`. Each owns one workstream, delegates to its own workers,
+  and reviews their output **very strictly** before reporting up to you. You may
+  run **several supervisors** — one per independent workstream is the intent.
+- **Workers (Haiku).** Supervisors spawn these with `model: "haiku"` for the
+  actual implementation. There can be **many** workers per supervisor. Keep each
+  worker's task narrow and concrete — Haiku does well with tight, well-specified
+  units of work and poorly with sprawling open-ended ones. Decompose accordingly.
+
+Delegation mechanics:
+- Use `run_in_background: false` when you need a result before you can continue.
+- Use `SendMessage` to continue an existing agent with its context intact rather
+  than respawning it cold.
+- A subagent's final report is **not** shown to the human — relay what matters.
+
+## The strictness mandate (this is the point of the structure)
+
+Supervisors must be very strict. You must be stricter still. Concretely:
+
+1. **Never accept a claim as evidence.** If a worker says "verified, all
+   passing," that is a hypothesis. Read the actual diff. Run the build, the
+   lint, and the verification scripts *yourself*.
+2. **Interrogate what was measured, not just the number.** A real failure from
+   the previous round of this project: a worker reported "0 building-footprint
+   intrusions" — but it had measured *after* the collision-pushout guard ran,
+   where the answer is trivially always 0. Re-measured correctly (before the
+   guard) there were 52,410. The conclusion happened to survive; the evidence was
+   worthless. Ask of every metric: *could this number have come out any other
+   way?* If not, it proves nothing.
+3. **Re-derive headline results independently.** Don't just re-run the worker's
+   script — a script that reimplements the function under test instead of
+   importing it is testing a copy, not the code that ships. Check for that
+   specifically; it also happened last round.
+4. **Reject "it should work."** Untested code is unfinished code.
+5. **Demand honesty about limits.** If browser rendering wasn't visually
+   confirmed, the report must say so plainly rather than implying it was.
+
+# THE REPO
+
+Path: `Final-Project-board-of-realities` (open at repo root).
+Stack: React 19 + Vite 8 + Phaser 4 + Zustand + Tailwind v4. Plus a small Python
+FastAPI backend (`backend/main.py`) for LLM NPC chat — don't break it, it's not
+central here.
+
+Commands:
+- `npm run build` — must pass.
+- `npm run lint` — oxlint. **Baseline is 38 warnings, all pre-existing.** Do not
+  increase it. Do not "fix" unrelated pre-existing warnings either.
+- `npm run dev` — Vite dev server.
+- Backend runs on port **8079** (port 8000 is occupied by an unrelated service on
+  this machine).
+
+## Conventions that are enforced here
+
+- **"House rules" comments.** When code deviates from the ideal, simplifies, or
+  makes a non-obvious tradeoff, a comment explicitly says *what* and *why*. The
+  codebase is full of these; match the style. Outside of that, the project
+  prefers **no** explanatory comments — don't narrate what the code plainly does.
+- **Procedural graphics only.** `src/game/tileGen.js` has `USE_PROCEDURAL_GRAPHICS
+  = true` at line 1. Everything is drawn at runtime with the Phaser Graphics API.
+  The file also contains an *asset-based* branch referencing packs
+  (`Cute Fantasy`, `Modern Interiors`, `Serene Village`) — **those files are not
+  in the repo** (`public/assets/` contains only `packs/GodotProject` and
+  `portraits`). That branch is unreachable dead code in the current config and
+  would 404 if the flag were flipped. **Build interiors procedurally.** Do not
+  add external art. Do not flip the flag.
+- **No new npm dependencies.**
+
+# CURRENT STATE OF THE WORLD (facts — you don't need to rediscover these)
+
+- **One live Phaser scene:** `src/game/scenes/OverworldScene.js`.
+  `TokyoScene/KyotoScene/OsakaScene/SapporoScene` are **dead dormant files** —
+  every mode resolves to `OverworldScene`. Ignore them.
+- The four former cities are now **districts** inside one merged map:
+  `DISTRICT_ORDER = ['Tokyo District','Kyoto District','Osaka District','Sapporo District']`.
+- **Map:** 80 cols × 73 rows, `TILE_SIZE = 40`.
+- **129 buildings** in `FINANCE_BUILDING_DEFS`: 41 hand-authored + **88
+  generated character homes/hideouts** (67 `kind:'home'`, 21 `kind:'hideout'`).
+  Verified: zero overlapping tiles, all in bounds, all reachable on foot by BFS
+  from spawn.
+- **88 named characters** unified by `src/features/agents/characterLookup.js`
+  (`getAllCharacters()`, `getAnyCharacter(id)`).
+- **`layoutFinanceMap()`** auto-packs buildings into district bands. You add an
+  entry to `FINANCE_BUILDING_DEFS`; layout, collision, and door zone are
+  automatic. A def may carry its own `gap` override (homes use a tighter one).
+
+## The simulation layer (single source of truth — do not fork it)
+
+- **`src/features/agents/worldPresenceEngine.js`** — the authority on "where is
+  character X right now." `resolvePresence(id, ctx)` is **pure and
+  deterministic**: a mulberry32 PRNG seeded on
+  `(runSeed, characterId, day, timeBlockIndex)`. **No `Math.random` in this
+  file — keep it that way.** Returns
+  `{characterId, buildingId, atHome, location, action, thought, discoverable}`.
+  `simulateWorldPresence(ids, ctx)` is the batch form.
+- **`src/features/agents/characterDispositions.js`** — `getDisposition(id)` →
+  `{tier, homeBuildingId, district, sociability, homeAffinity, travelRange, isCrime, workBuildingIds}`.
+  Tiers: `recluse | homebody | regular | socialite | fugitive`
+  (counts: 8 / 10 / 16 / 38 / 16).
+- **`src/features/world/characterHomeBuildings.js`** — generates the 88 home/
+  hideout defs. `getHomeBuildingDef(characterId)`.
+- **`src/features/agents/intelReports.js`** — `generateIntelReports()`, wired
+  into `endDay()`'s event feed. Reports where a character actually is (reusing
+  the same presence ctx), or a vague rumor if they aren't `discoverable`.
+- **Time:** 5 blocks (`morning/midday/afternoon/night/midnight`) in
+  `worldClock`, advancing **one block per End Day press**;
+  a full cycle completes within one `worldClock.day`. This is separate from the
+  economic `day` counter, deliberately — many systems key off that one.
+- `dynamicScheduleEngine.js` is now a **thin adapter** over the presence engine
+  (same signature, so its callers were untouched). Don't reintroduce a second
+  independent "where is X" simulation.
+
+**Invariant that must not regress:** a character's sprite position, their modal
+`currentLocation` text, and the intel feed must all agree. This is enforced by a
+verification script across 1,760 character-instants. Breaking it reintroduces a
+bug the human already reported once ("action doesn't match location").
+
+## The interior system as it exists today (this is what you're replacing)
+
+In `OverworldScene.js`:
+
+- `INTERIOR_COLS = 12`, `INTERIOR_ROWS = 9` — **every interior is the same fixed
+  12×9 room.**
+- `INTERIOR_SPAWN = {col:6,row:5}`, `INTERIOR_DESK = {c0:5,r0:2,c1:6,r1:3}`,
+  `INTERIOR_EXIT = {c0:5,r0:7,c1:7,r1:8}` — all fixed, identical for every
+  building.
+- `INTERIOR_TEMPLATES` — 7 palettes only: `cryptoHQ`, `tycoonOffice`, `officeA`,
+  `officeB`, `amenity`, `residence`, `hideout`. Each is just
+  `{floorA, floorB, deskColor, deskLabel}` — **a two-tone checkerboard floor and
+  one desk rectangle.** That is the entire "interior."
+- `BUILDING_INTERIOR_TEMPLATE` maps 39 hand-authored building ids → template
+  name; `interiorTemplateFor()` falls back to `kind` (`residence`/`hideout`) for
+  the 88 generated ones.
+- `drawInteriorRoom()` actually lives in **`src/game/tileGen.js`** (line ~253),
+  which dispatches to `procedural_drawInteriorRoom()` under the procedural flag.
+- Two bespoke exceptions keep their own rooms: `buildStockExchangeInteriorZone()`
+  and `buildCasinoInteriorZone()`.
+- `ZONES` declares zone dimensions; `isBlockedTile()` handles interior collision
+  generically (border ring + desk rect solid).
+
+**Entry/exit flow:** `buildOverworldZones()` auto-generates a `{type:'building'}`
+zone per building → player presses E → `triggerInteraction()` saves
+`overworldReturnSpawn` (tile just south of the building) and calls
+`loadZone('buildingInterior')` → `buildGenericInteriorZone(buildingId)` draws it
+→ the desk inside emits `bridge.emit('interact', {type:'building', id, npcId})`
+→ `WorldScreen.jsx` routes that payload (an `npcId` opens `NamedNpcModal`) →
+the exit zone calls `loadZone('overworld')` and teleports back to the saved spawn.
+
+**This contract must keep working.** `{type:'building', id, npcId}` is what makes
+all 88 character buildings clickable with zero per-building modal code.
+
+## Useful procedural drawing helpers (`src/game/tileGen.js`)
+
+`buildTerrainLayer`, `placeBuildingFacade`, `placeTree`, `placeFlower`,
+`placeRock`, `placeCampfire`, `drawInteriorRoom`, plus `procedural_*` variants of
+each and per-tile painters (`procedural_drawWallTile`, `procedural_drawWaterTile`,
+`procedural_drawSnowTile`, …). `src/game/actor.js` exports `SpriteActor`;
+`src/game/spriteGen.js` handles procedural character textures
+(`procedural_ensurePlayerTexture`, `getActorRenderInfo`, `tintFromPalette`).
+Study these before inventing new drawing primitives — match the established look.
+
+# TASK 1 — Characters must be INSIDE their buildings, not standing outside
+
+**Reported by the human, verbatim:**
+
+> "if character stay at their place i.e building, home they should be staying
+> inside their place not standing still outside their place, take example of
+> their real self — if they stay at home, they will probably be inside their own
+> home not staying in front of their place the whole time, so they will enter and
+> stay in their own places be it home, condo, hideout, building or other places"
+
+**Current behavior:** `updateNamedRoamers()` positions every character at
+`buildingDoorPixel(buildingId)` — the tile *just outside* the building's south
+edge — and (as of `c4d6ad0`) has them idle-drift in a small loop around that
+outdoor spot. So a reclusive billionaire "at home" is milling on the pavement
+outside his mansion 24/7. Wrong, and it looks wrong.
+
+**Required behavior:** when the simulation resolves a character to building X
+and they are staying there, they are **inside X**. The player walks to X, enters
+it, and finds them in the room. Their idle motion should happen **inside**,
+bounded by the room's walls, not on the street.
+
+Design constraints and things to get right:
+
+- **Preserve the agreement invariant.** Sprite location, modal text, and intel
+  must still agree. "Inside X" and "at X" must remain the same fact.
+- **Populate interiors from the presence engine.** When the player enters
+  building X, the scene should spawn whichever characters currently resolve to X
+  inside that room — driven by `simulateWorldPresence`, not a hardcoded list.
+  Multiple characters can legitimately be in one building.
+- **Decide, and document, what the street looks like.** ~49% of characters are at
+  their anchor building at any moment; at night it's ~75%. If all of them vanish
+  indoors, the overworld will feel dead. Think about who remains visible
+  outdoors (characters in transit between buildings, the ambient crowd) and
+  whether "indoors" should mean *removed from the overworld* or *not rendered but
+  still logically present*. This is a real playtest risk — reason about it
+  explicitly rather than letting it emerge.
+- **The intel loop should now pay off.** The feed says "X was seen at Y" → the
+  player goes to Y, enters, and X is actually in there. Verify that end to end.
+- **Interaction inside.** Talking to a character found inside should open
+  `NamedNpcModal` for that character. Note the existing interior desk already
+  emits the building's *own* `npcId`; a room containing several characters needs
+  per-character interaction, not just the desk.
+- **`buildingDoorPixel` still matters** for characters actually in transit — don't
+  delete it.
+
+# TASK 2 — Real interiors for all 129 buildings
+
+**Reported by the human, verbatim:**
+
+> "i want a proper interior built for all building, things that should be in that
+> place should be built — for example in a factory they should have machine that
+> build things and corresponding worker in that building, for a house you should
+> have a bedroom a bed, a kitchen and so on"
+
+Today every one of the 129 buildings is the **same 12×9 checkerboard room with a
+single desk rectangle**, differing only in two floor colors and a desk label. A
+steel mill, a mob hideout, a Zen garden, and Warren Buffett's house are visually
+identical. That is the gap.
+
+**Required:** interiors that reflect what the building actually *is* — appropriate
+rooms, furniture, props, and where it makes sense, **staff/occupant NPCs doing
+the relevant thing**.
+
+Per-category guidance (the building list is in `FINANCE_BUILDING_DEFS`; `kind`
+and `label` tell you what each one is):
+
+- **Residences (67 `kind:'home'`)** — genuinely multi-room: a **bedroom with a
+  bed**, a **kitchen** with counter/stove/table, a living area, maybe a study or
+  bathroom. Scale and richness should reflect the occupant — Mansa Musa's
+  residence should not look like a mid-tier FTC chairman's.
+- **Hideouts (21 `kind:'hideout'`)** — back room, card table, crates/contraband,
+  a safe, lookout posts, boarded windows. Should feel clandestine, not domestic.
+- **Industrial** (`fordRougeComplex`, `carnegieSteelMill`, `standardOilRefinery`)
+  — **working machinery**: assembly line, conveyors, furnaces, pipes, plus
+  **worker NPCs at stations**, as the human explicitly asked.
+- **Corporate/finance HQs** (`buffettHQ`, `muskHQ`, `appleHQ`, `vanderbiltHQ`,
+  `howardMarksHQ`, `corporateOffice`, `vcHub`, `bank`, `cryptoExchange`,
+  `realEstateAgency`) — desks, terminals, meeting rooms, reception, vault where
+  apt.
+- **Government** (`irsHQ`, `fbiHQ`, `epaHQ`, `pentagonDodHQ`, `parliament`) —
+  filing cabinets, evidence/ops boards, bullpen desks, a chamber/podium.
+- **Retail & market** (`silkMarket`, `fishMarket`, `takoyakiStand`,
+  `artisanShop`, `dotonboriArcade`, `blackMarket`) — stalls, shelves, goods,
+  a counter, and shopkeeper/customer NPCs.
+- **Hospitality & production** (`teaHouse`, `hotel`, `alpineLodge`,
+  `sakeBrewery`, `sapporoBrewery`, `speakeasyHotel`) — tables, bar counter,
+  brewing vats, guest rooms.
+- **Leisure & civic** (`park`, `zenGarden`, `temple`, `arcade`, `callCenterOps`,
+  `crimeAlley`, `dockVaults`, `trainStation`) — benches, rock gardens, altar,
+  arcade cabinets, phone banks, platform + ticket booth.
+- `stockExchange` and `casino` already have bespoke rooms — improve them in the
+  same spirit, don't regress them.
+
+**The hard architectural part:** the current system assumes **one fixed 12×9 room
+with a fixed desk and a fixed exit**. Multi-room houses and factory floors won't
+fit that. Expect to generalize interiors to variable dimensions and multiple
+rooms, which touches `ZONES`, `isBlockedTile()`'s interior branch,
+`INTERIOR_SPAWN/DESK/EXIT`, `buildGenericInteriorZone()`, and
+`drawInteriorRoom()` in `tileGen.js`. Plan this deliberately — it is the piece
+most likely to break the entry/exit contract if rushed.
+
+Strong suggestion: make interiors **data-driven** (a room/furniture schema per
+building category, expanded procedurally) rather than 129 hand-authored rooms.
+Hand-authoring 129 is how this becomes unmaintainable. But **every building must
+end up with an interior appropriate to it** — a generic fallback applied to 88
+homes would miss the point of the request.
+
+# KNOWN BUGS — fix these as part of this work
+
+1. **Travelling roamers clip through buildings.** Characters moving between two
+   buildings are positioned by a straight-line lerp between door pixels, which
+   cuts through anything in between — measured at **~12.4% of frames**, where the
+   collision pushout (`resolveOpenPosition`) then snaps them sideways, producing
+   visible jitter. Pre-existing and previously flagged as its own task; it is now
+   in scope. Needs real routing (waypoints along the street grid, or pathfinding)
+   rather than a straight line. `FINANCE_V_STREETS` / `FINANCE_H_STREETS` define
+   the road network and are the obvious routing skeleton.
+
+2. **Recluses read as "sliding."** `setMoving()` is now effectively always true
+   for named roamers, so a recluse drifting at ~5.7 px/s plays a full walk cycle
+   and appears to glide. Accepted deliberately in `c4d6ad0` to avoid ~11%
+   animation stutter, but if characters move indoors (Task 1) the whole
+   idle-drift model should be revisited anyway — an idle/standing animation state
+   would be the proper fix.
+
+3. **Duplicated building labels — real drift risk.**
+   `worldPresenceEngine.js` hand-copies all 41 non-home building **labels** from
+   `OverworldScene.js`, and `characterDispositions.js` hand-copies the building
+   **ids**, both because `OverworldScene.js` imports Phaser and can't load in
+   plain Node. Rename a building in one place and they silently disagree. The
+   clean fix is to extract the building defs into a **Phaser-free module** that
+   all three import. Doing this early will make Task 2 much safer, since you'll
+   be touching building data heavily.
+
+4. **Ambient wander NPCs stand still ~20% of the time** (`{x:0,y:0}` is 1 of 5
+   wander options), bounded to ≤4s per episode. Investigated and judged *not* the
+   reported bug, but it's a known cosmetic wart if you're in there anyway.
+
+# VERIFICATION BAR
+
+Existing verification scripts live in a scratchpad outside the repo. **Recreate
+equivalents inside the repo** (suggest `scripts/verify/`) so they're durable and
+your teammates can run them. They must exercise the **real modules**, not
+reimplementations.
+
+To import repo modules in plain Node you need two shims (the previous round used
+these; rebuild them):
+- an **extensionless-import resolver** (the project's imports omit `.js`, which
+  Vite resolves but Node does not), and
+- a **`phaser` → stub redirect**, so `OverworldScene.js` can be imported without
+  a canvas. `OverworldScene.js` already exports `FINANCE_BUILDINGS`, `MAP_COLS`,
+  `MAP_ROWS`, `DISTRICT_BAND_ROWS`, `TILE_SIZE`, and some presence helpers
+  specifically to make this possible.
+
+Run both via `node --import "file:///<abs-path-to-resolver>.mjs" <script>.mjs`.
+
+**Before you report success, personally confirm:**
+
+1. `npm run build` passes.
+2. `npm run lint` still at **38** warnings (no new ones).
+3. **Regression — these invariants must still hold:**
+   - all 129 buildings: zero overlapping tiles, in bounds, reachable on foot
+     (BFS from player spawn);
+   - all 88 characters resolve to a real home building; ids and labels unique;
+   - sprite position ↔ modal `currentLocation` text agree across ≥1,000
+     character-instants;
+   - same run-seed reproduces identical behavior; different seeds diverge;
+   - night raises at-home rate well above business hours; heat drives crime
+     characters to hide.
+4. **New proof for Task 1:** characters resolved to building X are actually
+   placed inside X's interior; entering X shows them; the intel feed's "seen at
+   Y" leads to actually finding them at Y.
+5. **New proof for Task 2:** every one of the 129 buildings has an interior;
+   assert *category-appropriate* content (e.g. every residence contains a bed and
+   a kitchen; every industrial building contains machinery and ≥1 worker NPC) —
+   not merely "a room was drawn." Report counts.
+6. **Entry/exit contract intact:** entering and leaving every building type
+   returns the player to the correct outdoor tile, and the
+   `{type:'building', id, npcId}` payload still opens `NamedNpcModal`.
+7. **Interior collision:** the player cannot walk through furniture, cannot
+   escape the room bounds, and cannot get stuck (no walled-off spawn, no
+   unreachable exit). Assert reachability from interior spawn → exit for every
+   generated interior.
+
+**Browser check:** genuinely valuable here since this is heavily visual. Be aware
+that in the previous round Phaser's RAF loop was paused in the preview pane —
+*nothing* animated, including things that were working — so the previous agent
+drove the real update method directly against live scene state instead. If you
+hit the same, say so plainly and describe exactly what you did instead. **Do not
+imply visual confirmation you did not get.**
+
+# REPORTING
+
+When done, report: what was built, files changed, before/after numbers with real
+measurements, what you rejected from supervisors/workers and why, and remaining
+risks or gaps stated honestly. Do **not** commit or push — the human handles
+that.
+
+If you hit a genuine blocking design decision this prompt doesn't settle (most
+likely: how interiors should scale to multi-room, or what the street should look
+like once characters move indoors), **stop and ask** rather than guessing.
+
+Begin by forming a concrete plan and telling me the workstream split before you
+spawn anyone.
