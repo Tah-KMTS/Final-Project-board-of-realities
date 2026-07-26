@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/useGameStore'
 import { resolvePalette } from '../characterPalettes'
 import { generateAmbientNpcs } from '../../utils/npcGenerator'
 import { getAllCharacters } from '../../features/agents/characterLookup'
+import { getDisposition } from '../../features/agents/characterDispositions'
 import { TITAN_ROUTINES } from '../../features/agents/agentMovementEngine'
 import { TIME_BLOCKS, simulateWorldPresence } from '../../features/agents/worldPresenceEngine'
 import { CHARACTER_HOME_BUILDING_DEFS } from '../../features/world/characterHomeBuildings'
@@ -186,7 +187,17 @@ const { buildings: FINANCE_BUILDINGS, mapRows: MAP_ROWS, hStreets: FINANCE_H_STR
 // building overlaps, every door reachable) without a Phaser canvas - the
 // packing is generated from a 129-entry def list now, far past the point
 // where eyeballing it is meaningful. Nothing in the game reads these.
-export { FINANCE_BUILDINGS, MAP_COLS, MAP_ROWS, DISTRICT_BAND_ROWS }
+export {
+  FINANCE_BUILDINGS,
+  MAP_COLS,
+  MAP_ROWS,
+  DISTRICT_BAND_ROWS,
+  TILE_SIZE,
+  presenceStepProgress,
+  presencePhaseOffset,
+  idleDriftOffset,
+  IDLE_DRIFT_RADIUS_BY_TIER,
+}
 // Six vertical corridors spread evenly across the 80-wide map: col 7 is the
 // spawn column (kept - DEFAULT_SPAWN sits on it), the rest give the right
 // half of the map (which the original two-corridor [7, 33] left with no
@@ -464,6 +475,73 @@ function presenceStepProgress(agentClock, phaseOffset) {
   const x = agentClock / PRESENCE_STEP_PERIOD + phaseOffset
   const frac = x - Math.floor(x)
   return frac < 0.5 ? frac * 2 : (1 - frac) * 2
+}
+
+// House rule: the lerp above has nothing to interpolate between when a
+// roamer's current-block and next-block buildingId are the SAME building
+// (doorA === doorB in updateNamedRoamers) - measured as the common case by
+// design (~49% of all character-instants frozen at any moment, up to ~79%
+// for recluse tier, since staying put across consecutive blocks is normal
+// behavior, not a glitch). Without something layered on top, that's a
+// sprite pinned to one exact pixel with setMoving(false) killing its walk
+// animation - forever, since worldPresenceEngine.js only advances a block on
+// an End Day press (see the house rule above nextTimeBlock()). A character
+// the simulation says is at building X must still read as unambiguously AT
+// building X (see buildingDoorPixel's "ground truth" comment above) - so
+// this is deliberately NOT "give them somewhere to walk", it's "make
+// staying put look alive": a small idle mill/pace loop centered on the
+// character's own door, added to rawPos in updateNamedRoamers BEFORE
+// resolveOpenPosition so the existing building-footprint pushout still
+// guards this position exactly like every other one. It's cosmetic,
+// scene-layer motion only, applied after worldPresenceEngine.js has already
+// resolved the real buildingId for this frame - worldPresenceEngine.js
+// itself is untouched and stays pure, same as agentClock/presenceStepProgress
+// never feeding anything back into it. Two sin/cos terms at different,
+// golden-ratio-scaled (so never in sync) periods trace a wandering Lissajous
+// loop instead of a straight back-and-forth line, so the two axes are
+// (short of a measure-zero instant) never simultaneously motionless -
+// updateNamedRoamers' moving/facing logic below leans on that to keep the
+// walk-cycle animation playing and facing changes non-jittery. Per-character
+// phase on both axes is the same hashId()-style deterministic hash as
+// presencePhaseOffset() above / characterDispositions.js's hashId (no
+// Math.random - see this file's and that file's other house rules on that),
+// so the 88 sprites don't mill in lockstep. Radius is scaled by disposition
+// tier (characterDispositions.js's getDisposition) - a recluse paces tight
+// to their door, a socialite circulates wider - and the tuned radii below
+// stay well under the ~160px minimum door-to-door spacing the generated map
+// happens to have, so a drifting character's nearest door is always still
+// their own.
+function idleDriftHash(seed) {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return h
+}
+
+const GOLDEN_RATIO = 1.6180339887498949
+// agentClock units (see updateNamedRoamers - advances delta/4000 per frame,
+// i.e. 1 unit = 4 real seconds, same units PRESENCE_STEP_PERIOD uses) for one
+// full idle-drift loop on each axis - a handful of real seconds, so the mill
+// reads as idle fidgeting rather than vibrating (too fast) or standing still
+// (too slow). The Y period is the X period scaled by the golden ratio so the
+// two never share a beat.
+const IDLE_DRIFT_PERIOD_X = 1.8
+const IDLE_DRIFT_PERIOD_Y = IDLE_DRIFT_PERIOD_X * GOLDEN_RATIO
+
+const IDLE_DRIFT_RADIUS_BY_TIER = {
+  recluse: 6,
+  fugitive: 7,
+  homebody: 9,
+  regular: 12,
+  socialite: 16,
+}
+
+function idleDriftOffset(characterId, agentClock, tier) {
+  const radius = IDLE_DRIFT_RADIUS_BY_TIER[tier] ?? IDLE_DRIFT_RADIUS_BY_TIER.regular
+  const phaseX = ((idleDriftHash(`${characterId}:driftX`) % 1000) / 1000) * Math.PI * 2
+  const phaseY = ((idleDriftHash(`${characterId}:driftY`) % 1000) / 1000) * Math.PI * 2
+  const x = Math.sin((agentClock / IDLE_DRIFT_PERIOD_X) * Math.PI * 2 + phaseX) * radius
+  const y = Math.cos((agentClock / IDLE_DRIFT_PERIOD_Y) * Math.PI * 2 + phaseY) * radius
+  return { x, y }
 }
 
 function agentAmbientActions(c) {
@@ -1022,14 +1100,26 @@ export default class OverworldScene extends Phaser.Scene {
       } else {
         rawPos = { x: roamer.actor.x, y: roamer.actor.y }
       }
+      if (doorA) {
+        const tier = getDisposition(roamer.agent.id)?.tier
+        const drift = idleDriftOffset(roamer.agent.id, this.agentClock, tier)
+        rawPos = { x: rawPos.x + drift.x, y: rawPos.y + drift.y }
+      }
       const { x, y } = this.resolveOpenPosition(rawPos.x, rawPos.y)
       const dx = x - roamer.actor.x
       const dy = y - roamer.actor.y
-      const moved = Math.abs(dx) + Math.abs(dy) > 0.05
+      const movedDist = Math.abs(dx) + Math.abs(dy)
       roamer.actor.sprite.setPosition(x, y)
-      roamer.actor.setMoving(moved)
-      if (Math.abs(dx) > Math.abs(dy)) roamer.actor.setFacing(dx > 0 ? 'right' : 'left')
-      else if (moved) roamer.actor.setFacing(dy > 0 ? 'down' : 'up')
+      // "moving" tracks having a real door anchor (see the idleDriftOffset
+      // house rule above) rather than a per-frame pixel delta, which can dip
+      // below threshold right at a drift turning point and falsely freeze
+      // the walk cycle; facing only updates on frames that moved enough to
+      // have a dominant axis, so it no longer flips on sub-pixel deltas.
+      roamer.actor.setMoving(Boolean(doorA))
+      if (movedDist > 0.05) {
+        if (Math.abs(dx) > Math.abs(dy)) roamer.actor.setFacing(dx > 0 ? 'right' : 'left')
+        else roamer.actor.setFacing(dy > 0 ? 'down' : 'up')
+      }
       roamer.actor.update(delta)
       // Name floats above the sprite; the agent's current "thought" appears
       // once the player is close enough to read it.
