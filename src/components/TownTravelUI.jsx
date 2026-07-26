@@ -41,7 +41,7 @@ const CITY_METADATA = {
   },
 }
 
-export default function TownTravelUI({ onClose, onTravel }) {
+export default function TownTravelUI({ onClose, onTravel, onOpenTransitShop }) {
   const currentCityId = useGameStore((s) => s.currentCityId || 'tokyo')
   const switchCity = useGameStore((s) => s.switchCity)
   const cash = useGameStore((s) => s.cash)
@@ -262,6 +262,21 @@ export default function TownTravelUI({ onClose, onTravel }) {
                 )
               })}
             </div>
+
+            {/* Station Shop - vehicles & train passes (interactiveLocations.js's
+                transit_hub). trainStation opens this modal directly rather
+                than a generic building interior, so this button is the
+                location's only entry point - see WorldScreen.jsx. */}
+            {onOpenTransitShop && (
+              <div className="flex justify-center mb-4">
+                <button
+                  onClick={onOpenTransitShop}
+                  className="px-5 py-2 text-xs font-black uppercase text-emerald-100 rounded-lg border-2 border-emerald-500 bg-emerald-800 hover:bg-emerald-700 active:scale-95 transition-all shadow-md"
+                >
+                  🛍️ Visit Station Shop (Vehicles & Passes)
+                </button>
+              </div>
+            )}
 
             {/* Cozy Footer Info */}
             <div className="text-center text-[11px] text-amber-400/70 pt-2 border-t border-amber-950">

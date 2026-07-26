@@ -1,120 +1,62 @@
 import { getSyndicateMemberSchedule } from '../../data/syndicate'
+import { TIME_BLOCKS, simulateWorldPresence } from './worldPresenceEngine'
 
-/**
- * Dynamic AI Schedule & Event Reaction Engine for 76 Agents.
- */
+// House rule: this file used to be its OWN independent "where is this agent"
+// simulation (bespoke buffett/musk/jobs specials, a flat LOCATIONS_LIST for
+// everyone else, and `(day-1) % TIME_BLOCKS.length` block math) that never
+// touched the map sprites - so a character's modal text and their actual
+// on-map position routinely contradicted each other, and one full 5-block
+// day-cycle took 5 in-game days instead of cycling within one. It is now a
+// THIN ADAPTER over worldPresenceEngine.js (the single source of truth both
+// sprites and this modal text read from) so those two views can never
+// disagree again. It still exists, unchanged in name/signature/return
+// shape, purely so useGameStore.js's endDay() and the two modals
+// (AgentInteractionsModal.jsx, NamedNpcModal.jsx) keep working with zero
+// changes on their end.
+//
+// `extraCtx` is an additive 4th parameter (optional, defaults to `{}`) - it
+// doesn't change the original 3-arg call shape, it just carries the extra
+// inputs worldPresenceEngine.js's contract requires (timeBlockIndex,
+// runSeed, wantedLevel, heatByCharacter) that the old 3-arg signature had no
+// room for. useGameStore.js (the only caller) passes these from its own
+// clock/runSeed state.
+export function simulateDynamicSchedules(agents, day, govState, extraCtx = {}) {
+  const timeBlockIndex = normalizeBlockIndex(extraCtx.timeBlockIndex)
+  const timeBlock = TIME_BLOCKS[timeBlockIndex]
 
-const LOCATIONS_LIST = [
-  'Financial District - Stock Exchange',
-  "McDonald's & Cherry Coke Diner",
-  'Apple Design Lab',
-  'Ford Assembly Plant',
-  'Underground Speakeasy Club',
-  'Commercial District - Docks',
-  'Government District - White House',
-  'Government District - Fed Reserve',
-  'Grand Central Transit Hub',
-  'Serenity City Park',
-]
+  const ctx = {
+    day,
+    timeBlockIndex,
+    runSeed: extraCtx.runSeed ?? 0,
+    wantedLevel: extraCtx.wantedLevel ?? 0,
+    heatByCharacter: extraCtx.heatByCharacter,
+  }
 
-const TIME_BLOCKS = ['Morning (8:00 AM)', 'Midday (12:00 PM)', 'Afternoon (4:00 PM)', 'Night (8:00 PM)', 'Midnight (12:00 AM)']
-
-/**
- * Updates dynamic routines, locations, and actions for all 76 agents based on day, time, and world events.
- */
-export function simulateDynamicSchedules(agents, day, govState) {
-  const currentBlockIndex = ((day - 1) % TIME_BLOCKS.length + TIME_BLOCKS.length) % TIME_BLOCKS.length
-  const currentBlockName = TIME_BLOCKS[currentBlockIndex]
+  const presenceById = new Map(
+    simulateWorldPresence(agents.map((agent) => agent.id), ctx).map((presence) => [presence.characterId, presence])
+  )
 
   const updatedAgents = agents.map((agent) => {
-    const copy = { ...agent }
-    const rand = Math.random()
+    const presence = presenceById.get(agent.id)
+    if (!presence) return { ...agent }
 
-    // Warren Biffle Special Routine
-    if (copy.id === 'buffett') {
-      if (currentBlockIndex === 0 || currentBlockIndex === 1) {
-        copy.currentLocation = "McDonald's & Cherry Coke Diner"
-        copy.currentAction = 'Ordering $3.17 Bacon McMuffin & Sipping Cherry Coke'
-        copy.thoughtProcess = 'Predictable low-cost breakfast fuels compound interest.'
-      } else {
-        copy.currentLocation = 'Financial District - Berkshire Office'
-        copy.currentAction = 'Reading Financial Statements & Annual Reports'
-        copy.thoughtProcess = 'Rule No. 1: Never lose money. Rule No. 2: Never forget rule No. 1.'
-      }
-      return copy
+    const copy = {
+      ...agent,
+      currentLocation: presence.location,
+      currentAction: presence.action,
+      thoughtProcess: presence.thought,
     }
 
-    // Elan Rusk Routine
-    if (copy.id === 'musk') {
-      if (rand < 0.4) {
-        copy.currentLocation = 'Giga Factory & Design Lab'
-        copy.currentAction = 'Inspecting Automated Robot Assembly Lines'
-        copy.thoughtProcess = 'Optimizing manufacturing throughput down to first principles.'
-      } else {
-        copy.currentLocation = 'Crypto Trading Hub'
-        copy.currentAction = 'Posting Market Headlines & Memes'
-        copy.thoughtProcess = 'Decentralized liquidity will outpace traditional fiat.'
-      }
-      return copy
-    }
-
-    // Steve Jobs Routine
-    if (copy.id === 'jobs') {
-      copy.currentLocation = 'Apple Design Lab'
-      copy.currentAction = 'Perfecting Unibody Curved Glass Aesthetics'
-      copy.thoughtProcess = 'Design is not just what it looks like; design is how it works.'
-      return copy
-    }
-
-    // Detailed 21 Crime Syndicate Members Routine (Capone, Nitti, Ricca, Luciano, Genovese, Costello, Lansky, Siegel, Cohen, Escobar, Gaviria, Ochoa, Blanco, Osvaldo, Dixon, Lepke, Anastasia, Weiss, Rothstein, Waxey, Remus)
-    const syndicateSchedule = getSyndicateMemberSchedule(copy.id, currentBlockIndex)
+    // The 21 Crime Syndicate members keep syndicate.js's authored
+    // action/thought flavor text (still canonical for these characters'
+    // voice) layered on top of the engine's result - but never its
+    // `location` string, which is free text that could disagree with the
+    // buildingId worldPresenceEngine actually resolved (and therefore with
+    // where the character's sprite/home building places them on the map).
+    const syndicateSchedule = getSyndicateMemberSchedule(agent.id, timeBlock.key)
     if (syndicateSchedule) {
-      copy.currentLocation = syndicateSchedule.location
       copy.currentAction = syndicateSchedule.action
       copy.thoughtProcess = syndicateSchedule.thought
-      return copy
-    }
-
-    if (copy.category && copy.category.includes('Crime')) {
-      if (currentBlockIndex >= 3) {
-        copy.currentLocation = 'Underground Speakeasy Club'
-        copy.currentAction = 'Counting Weekly Turf Tolls & Bribing Local Officials'
-        copy.thoughtProcess = 'Keeping law enforcement compliant and protecting syndicate borders.'
-      } else {
-        copy.currentLocation = copy.homeBase || 'Syndicate Safehouse'
-        copy.currentAction = 'Meeting with Capos & Reviewing Protection Rackets'
-        copy.thoughtProcess = 'Expanding turf before rival syndicates make a move.'
-      }
-      return copy
-    }
-
-    // Federal Reserve & FTC Chairs Routine
-    if (copy.category && (copy.category.includes('Fed') || copy.category.includes('FTC'))) {
-      if (currentBlockIndex === 1 || currentBlockIndex === 2) {
-        copy.currentLocation = copy.category.includes('Fed') ? 'Government District - Fed Reserve' : 'Government District - FTC HQ'
-        copy.currentAction = copy.category.includes('Fed') ? 'Analyzing Benchmark Yield Curves' : 'Drafting Antitrust Subpoenas'
-        copy.thoughtProcess = 'Evaluating macroeconomic stability vs corporate compliance.'
-      } else {
-        copy.currentLocation = 'Capitol Townhouse'
-        copy.currentAction = 'Reviewing Economic Intelligence Briefings'
-        copy.thoughtProcess = 'Preparing for upcoming regulatory testimony.'
-      }
-      return copy
-    }
-
-    // Generic Agent Routine Rotation
-    if (rand < 0.3) {
-      copy.currentLocation = LOCATIONS_LIST[Math.floor(Math.random() * LOCATIONS_LIST.length)]
-      copy.currentAction = 'Traveling between city districts'
-      copy.thoughtProcess = 'Monitoring local commerce and evaluating new opportunities.'
-    } else if (rand < 0.7) {
-      copy.currentLocation = copy.favoriteHangout || 'Financial District'
-      copy.currentAction = 'Conducting daily operations'
-      copy.thoughtProcess = 'Executing core strategic objectives.'
-    } else {
-      copy.currentLocation = copy.homeBase || 'Private Residence'
-      copy.currentAction = 'Resting & Planning Next Move'
-      copy.thoughtProcess = 'Resting before the next trading session.'
     }
 
     return copy
@@ -122,6 +64,11 @@ export function simulateDynamicSchedules(agents, day, govState) {
 
   return {
     updatedAgents,
-    timeBlockName: currentBlockName,
+    timeBlockName: timeBlock.label,
   }
+}
+
+function normalizeBlockIndex(index) {
+  const n = Number.isFinite(index) ? Math.trunc(index) : 0
+  return ((n % TIME_BLOCKS.length) + TIME_BLOCKS.length) % TIME_BLOCKS.length
 }

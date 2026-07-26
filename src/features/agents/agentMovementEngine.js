@@ -1,24 +1,24 @@
 /**
- * Autonomous AI Agent Movement & Daily Routine Behavior Engine.
- * All 25 Finance NPCs have bespoke city-authentic schedules based on their
- * home city assignment in japanCities.js primaryResidents lists.
- * Positions are synced to the new tilemap grid (40×45 grid, 40px tiles = 1600×1800 tilemap coordinate space).
+ * Legacy Autonomous AI Agent Movement & Daily Routine Behavior Engine.
  *
- * `buildingId` on each schedule step is the authoritative position source -
- * it's a real id from FINANCE_BUILDING_DEFS (OverworldScene.js), so a
- * character whose action says they're "at the Diner" is actually standing
- * outside that building on the live map, not just narrating it while
- * physically somewhere unrelated (OverworldScene.roamerWorldPosition used
- * to only place characters proportionally within their home district band
- * from the legacy x/y below, with no connection at all to where the named
- * location in `location`/`action` actually is). Every step was re-picked
- * to land on a real building already in that character's own district - no
- * new buildings, no cross-district travel (that's a separate, larger
- * change - characters stay inside one district for now, same as before).
- * Some `location` text was renamed to match the real building's actual
- * name so the label and the standing position never disagree; legacy x/y
- * stay as an inert fallback only used if a buildingId ever fails to
- * resolve (see updateAgentPositions below).
+ * House rule: this file's `updateAgentPositions` used to be the position
+ * source OverworldScene.js's updateNamedRoamers drove sprites from (bespoke
+ * TITAN_ROUTINES schedules for these 25 titans, an id-seeded orbit for
+ * everyone else). It has been SUPERSEDED for that purpose by
+ * worldPresenceEngine.js, which resolves all 88 characters (not just these
+ * 25) from one deterministic model shared with the text modals, so a
+ * character's on-map position and their modal's location text can never
+ * contradict each other - the thing this file's positions could never
+ * guarantee for the 63 characters it had no bespoke schedule for. As of this
+ * change `updateAgentPositions` has no remaining callers anywhere in src/
+ * (verified by grep) but is kept, unremoved, because:
+ *   - TITAN_ROUTINES itself is still very much alive: characterDispositions.js
+ *     reads it for homeCity, and OverworldScene.js's homeDistrictFor() reads
+ *     it for district grouping.
+ *   - Deleting an exported function is a bigger, separate decision than the
+ *     position-source swap this comment is documenting.
+ * Positions below are in the legacy tilemap grid (40x45 grid, 40px tiles =
+ * 1600x1800 coordinate space) that predates the current 80-col mega-map.
  */
 
 export const TITAN_ROUTINES = {
@@ -315,10 +315,12 @@ export function updateAgentPositions(activeAgents, timeTick = 0) {
 
     return {
       ...agent,
-      // currentX/currentY (legacy space) are only a fallback now - the
-      // caller (OverworldScene.updateNamedRoamers) prefers interpolating
-      // between currentBuildingId/nextBuildingId's real map positions, so
-      // that "at the Diner" and standing outside the Diner actually agree.
+      // currentX/currentY (legacy space), currentBuildingId/nextBuildingId,
+      // and stepProgress are unused by any current caller now that
+      // OverworldScene.js's updateNamedRoamers reads sprite positions from
+      // worldPresenceEngine.js instead (see this file's header comment) -
+      // kept for shape/back-compat since this function has no callers to
+      // update but is not being deleted.
       currentX: Math.min(1560, Math.max(40, lerpX)),
       currentY: Math.min(1760, Math.max(40, lerpY)),
       currentAction: currentStep.action,

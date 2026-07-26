@@ -40,11 +40,6 @@ export const CHARACTER_BIOGRAPHIES = {
   huang: { age: 61, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Nvidia CEO. Transformed the company from gaming GPUs to the backbone of the AI compute revolution.' },
   son: { age: 66, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'SoftBank chairman. Lost $70B then made it back. Bet on Alibaba\'s Jack Ma with $20M, returned $60B.' },
 
-  // --- Crime Syndicate Members ---
-  capone: { age: 48, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Chicago Outfit boss. Controlled bootlegging, gambling, and brothels across the Midwest during Prohibition.' },
-  luciano: { age: 64, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Single', fidelity: 'High Romance Risk', bio: 'National Crime Commission architect. Modernized the American Mafia into a corporate structure.' },
-  blanco: { age: 43, gender: 'Female', orientation: 'Heterosexual', maritalStatus: 'Widowed', fidelity: 'High Romance Risk', bio: 'The Black Widow. Ruthless queenpin of Medellín nightlife rackets. Three husbands dead.' },
-
   // --- US Presidents & Leaders ---
   washington: { age: 67, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Founding Commander and advocate for national stability. Set the two-term precedent.' },
   lincoln: { age: 56, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Union Preserver and infrastructure champion. Abolished slavery via the Emancipation Proclamation.' },
@@ -54,27 +49,6 @@ export const CHARACTER_BIOGRAPHIES = {
   hoover: { age: 77, gender: 'Male', orientation: 'Homosexual', maritalStatus: 'Single', fidelity: 'Institution Loyal', bio: '1st FBI Director. Historically documented lifelong partnership with Clyde Tolson. Accepts male same-sex romance!' },
   powell: { age: 71, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Federal Reserve Chairman. Data-dependent monetary controller. Navigated COVID-era rate decisions.' },
   khan: { age: 35, gender: 'Female', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Dedicated Regulator', bio: 'Neo-Brandeisian FTC Chair pushing tech monopoly breakups. Yale Law graduate, aggressive antitrust enforcer.' },
-
-  // --- Crime Syndicate Members ---
-  nitti: { age: 44, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Frank Nitti — The Enforcer. Capone\'s executioner and muscle. Ran the Outfit while Capone was imprisoned.' },
-  ricca: { age: 66, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Paul Ricca — The Waiter, The Brain. Ran the Chicago Outfit for 40 years from the shadows after Capone\'s fall.' },
-  luciano: { age: 64, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Single', fidelity: 'High Romance Risk', bio: 'Lucky Luciano — architect of the National Crime Commission. Modernized the American Mafia into a corporate structure.' },
-  genovese: { age: 69, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Vito Genovese — The Don. Ruthless power broker who outmaneuvered Luciano and Frank Costello to seize the top seat.' },
-  costello: { age: 82, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Frank Costello — Prime Minister of the Underworld. Preferred diplomacy and political connections over violence.' },
-  lansky: { age: 80, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Meyer Lansky — The Mob Accountant. Claimed the Syndicate was bigger than U.S. Steel. Pioneered offshore banking for organized crime.' },
-  siegel: { age: 41, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'High Romance Risk', bio: 'Bugsy Siegel — The Flamingo visionary. Built Las Vegas\'s first luxury casino resort. Murdered before he could see it succeed.' },
-  cohen: { age: 62, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Divorced', fidelity: 'High Romance Risk', bio: 'Mickey Cohen — West Coast Capo. Controlled Los Angeles rackets. Shot 11 times, survived them all.' },
-  escobar: { age: 44, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Pablo Escobar — El Patron. Peak wealth $30 billion. Offered to pay off Colombia\'s national debt. Waged war on the Colombian state.' },
-  gaviria: { age: 40, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Gustavo Gaviria — The Strategist of Medellin. Escobar\'s cousin and operational mastermind. Killed in a police raid in 1990.' },
-  ochoa: { age: 58, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Jorge Ochoa — The Financier. Built the cartel\'s money laundering infrastructure across three continents.' },
-  osvaldo: { age: 35, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Single', fidelity: 'Syndicate Loyal', bio: 'Osvaldo Trujillo — Cartel Prince. Griselda Blanco\'s trusted lieutenant who ran the Medellín-Miami pipeline in the cocaine cowboy era.' },
-  dixon: { age: 28, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Single', fidelity: 'High Romance Risk', bio: 'Dixon Trujillo — Nightlife Capo. Ran the Griselda Empire\'s Miami club network and nightlife extortion operations.' },
-  lepke: { age: 47, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Lepke Buchalter — Industrial Extortionist. Only American mob boss executed in the electric chair. Ran Murder Inc. with cold efficiency.' },
-  anastasia: { age: 55, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Albert Anastasia — Lord High Executioner. Murder Inc. underboss who personally ordered dozens of contract killings.' },
-  weiss: { age: 38, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Single', fidelity: 'Syndicate Loyal', bio: 'Mendy Weiss — Hit Squad Leader. One of Lepke\'s top contract killers. Sent to the electric chair alongside Lepke in 1944.' },
-  rothstein: { age: 46, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'High Romance Risk', bio: 'Arnold Rothstein — The Brain. Fixed the 1919 World Series. Financier and mentor to Luciano, Lansky, and Siegel.' },
-  waxey: { age: 64, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Syndicate Loyal', bio: 'Waxey Gordon — Rum Runner. Ran massive Prohibition bootlegging networks from Canada to New York.' },
-  remus: { age: 56, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Divorced', fidelity: 'Volatile', bio: 'George Remus — Bootleg King. Defense attorney who became the nation\'s largest illegal whiskey distributor. Shot his own wife in 1927.' },
 
   // --- US Presidents ---
   fdr: { age: 63, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'High Romance Risk', bio: 'Franklin D. Roosevelt — 32nd President. New Deal architect who saved capitalism from itself with massive public works programs. Led America through WW2 from a wheelchair.' },

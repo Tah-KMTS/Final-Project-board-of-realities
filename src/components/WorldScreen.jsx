@@ -67,6 +67,21 @@ const REGION_LABELS = {
 
 const DISTRICT_BUILDING_IDS = Object.keys(DISTRICT_BUILDINGS_CONFIG)
 
+// Building ids that open an InteractiveLocationModal when the player reaches
+// their interior desk (OverworldScene.js's buildGenericInteriorZone emits
+// `interact: { type: 'building', id, npcId }` for every FINANCE building
+// except stockExchange/casino/trainStation - see this file's 'interact'
+// handler below). trainStation is special-cased by OverworldScene.js to
+// open city travel directly instead of a generic interior, so transit_hub
+// is opened from a button inside TownTravelUI, not from this map - see
+// interactiveLocations.js's house-rule comment on that location.
+const BUILDING_TO_INTERACTIVE_LOCATION = {
+  teaHouse: 'mcdonalds_diner',
+  fordRougeComplex: 'ford_factory',
+  appleHQ: 'apple_lab',
+  speakeasyHotel: 'speakeasy_club',
+}
+
 function WorldClearedModal({ blockName, allCleared, onContinue }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
@@ -220,6 +235,10 @@ export default function WorldScreen() {
           return
         }
         setActiveModal({ type: 'dominoNpc', npc: getNpc('NPC_Kaiba') })
+        return
+      }
+      if (payload.type === 'building' && BUILDING_TO_INTERACTIVE_LOCATION[payload.id]) {
+        setActiveModal({ type: 'interactiveLocation', locationId: BUILDING_TO_INTERACTIVE_LOCATION[payload.id] })
         return
       }
       setActiveModal(payload)
@@ -404,6 +423,7 @@ export default function WorldScreen() {
             bridgeRef.current.emit('cityTravel', { cityId })
             closeModal()
           }}
+          onOpenTransitShop={() => setActiveModal({ type: 'interactiveLocation', locationId: 'transit_hub' })}
         />
       )}
 

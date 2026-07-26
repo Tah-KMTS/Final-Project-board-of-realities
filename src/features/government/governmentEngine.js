@@ -104,15 +104,61 @@ export function simulateGovernmentDailyTick(currentGovState, day, cash, wantedLe
     }
   }
 
-  // 4. Crime Syndicate Daily Activity
+  // 4. Crime Syndicate Daily Heat Simulation
+  // House rule: heatLevel used to be written once at init
+  // (initializeGovernmentState) and never touched again - a decorative star
+  // rating in GovernmentModal.jsx with no gameplay effect. It now actually
+  // rises and falls every tick, driven mostly by each syndicate's own real
+  // state (their boss's aggression/extortionPower and the syndicate's
+  // dailyToll - see crimeSyndicates.js) plus the player's own wantedLevel
+  // spilling over onto every active syndicate, with a decay roll so a
+  // syndicate that isn't running hot (and isn't riding the player's heat)
+  // cools back down instead of ratcheting to max forever - there was
+  // previously no un-flee mechanism for this at all. townMigrationEngine.js
+  // reads this same heatLevel to decide when a boss/underboss/capo goes to
+  // ground and when they resurface.
   if (gov.crimeSyndicatesState) {
+    gov.crimeSyndicatesState = gov.crimeSyndicatesState.map((syndicate) => {
+      const heatBefore = syndicate.heatLevel || 0
+      const aggression = syndicate.boss?.aggression ?? 0.5
+      const extortionPower = syndicate.boss?.extortionPower ?? 2000
+
+      // 0..~0.65 from the syndicate's own real activity level.
+      const activityScore =
+        aggression * 0.35 +
+        Math.min(1, extortionPower / 5000) * 0.15 +
+        Math.min(1, syndicate.dailyToll / 2500) * 0.15
+      // 0..0.3 extra from the player's own wantedLevel spilling over - a
+      // hot player draws general law-enforcement attention onto the
+      // underworld at large, not just their own rackets.
+      const wantedSpillover = Math.min(1, (wantedLevel || 0) / 5) * 0.3
+      const riseChance = Math.max(0, Math.min(1, activityScore + wantedSpillover))
+
+      let heatLevel = heatBefore
+      if (Math.random() < riseChance) {
+        heatLevel = Math.min(2, heatBefore + 1)
+      } else if (Math.random() < 0.4) {
+        // Nothing happened worth raising heat over today - cool off.
+        heatLevel = Math.max(0, heatBefore - 1)
+      }
+
+      const status = heatLevel >= 2 ? 'Under Federal Investigation' : heatLevel === 1 ? 'On Alert' : 'Active'
+
+      return {
+        ...syndicate,
+        heatLevel,
+        status,
+        dailyRevenue: syndicate.dailyToll,
+      }
+    })
+
     const activeSyndicate = gov.crimeSyndicatesState[Math.floor(Math.random() * gov.crimeSyndicatesState.length)]
     if (activeSyndicate && Math.random() < 0.4) {
       feed.unshift({
         id: `crime_event_${day}`,
         day,
         title: `🩸 ${activeSyndicate.name} Racket Operation`,
-        text: `${activeSyndicate.boss.name} expanded turf in ${activeSyndicate.territory}, extracting $${activeSyndicate.dailyRevenue.toLocaleString()} in syndicate tolls.`,
+        text: `${activeSyndicate.boss.name} expanded turf in ${activeSyndicate.territory}, extracting $${activeSyndicate.dailyRevenue.toLocaleString()} in syndicate tolls. Heat status: ${activeSyndicate.status}.`,
       })
     }
   }

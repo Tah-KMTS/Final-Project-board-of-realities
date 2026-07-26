@@ -23,6 +23,8 @@ import { initializeAgentsState, simulateDailyAgentInteractions } from '../featur
 import { initializeGovernmentState, simulateGovernmentDailyTick, resolvePresidentialElection, triggerPresidentialElection } from '../features/government/governmentEngine'
 import { buildMasterAgentRegistry } from '../features/agents/agentRegistry'
 import { simulateDynamicSchedules } from '../features/agents/dynamicScheduleEngine'
+import { generateIntelReports } from '../features/agents/intelReports'
+import { TIME_BLOCKS } from '../features/agents/worldPresenceEngine'
 import { simulateTownMigration } from '../features/agents/townMigrationEngine'
 import { triggerButterflyEffect } from '../features/agents/butterflyEffectEngine'
 import { simulateExpandedAgenciesTick } from '../features/government/expandedAgencies'
@@ -56,6 +58,23 @@ const REACHABLE_BLOCK_IDS = ['finance']
 
 // world4.calendar: Time Block 1=Morning, 2=Afternoon, 3=Evening, 4=Night.
 // Day 1=Monday..7=Sunday. Display names live in the domino UI components.
+
+// Capital Syndicate's own clock, decoupled from world4's Domino calendar
+// above. `day` here is a private counter that only advances once its 5
+// timeBlockIndex values (see worldPresenceEngine.js's TIME_BLOCKS) have all
+// been visited - i.e. a full Morning->Midnight cycle is guaranteed to
+// complete WITHIN one worldClock.day, mirroring the same
+// advance-block/roll-day-over shape advanceTimeBlocks() already uses for
+// world4 below. It intentionally does NOT reuse the top-level `day` field
+// (which is a plain "how many times has End Day been pressed" counter that
+// every existing per-press economic system - loan interest, market tick,
+// headline roll, wanted/notoriety decay, government tick - already keys off
+// of); changing that field's cadence would ripple into all of those
+// unrelated systems. worldClock is additive and only feeds the
+// character-presence engine's day/timeBlockIndex dimensions.
+function generateRunSeed() {
+  return Math.floor(Math.random() * 0xffffffff)
+}
 
 function createDefaultState() {
   return {
@@ -99,6 +118,13 @@ function createDefaultState() {
     // per the brief's instruction to reuse the existing Wanted Level system
     // rather than build a parallel one.
     day: 1,
+    // Per-run seed for worldPresenceEngine.js: generated once here (freshly,
+    // every createDefaultState() call - i.e. every "New Game") and then
+    // persisted verbatim through saveGame/loadGame, so a loaded save keeps
+    // replaying the same characters' schedules while two separate
+    // playthroughs (two different seeds) diverge.
+    runSeed: generateRunSeed(),
+    worldClock: { day: 1, timeBlockIndex: 0 },
     newsHeadline: null,
     reputation: 50,
     shadowMonarch: { unlocked: false, used: false, conditionId: null },
@@ -900,6 +926,22 @@ export const useGameStore = create((set, get) => ({
     const recruited = state.world2.recruitedAdvisors || []
     const nextDay = state.day + 1
 
+    // Advance the character-presence clock by exactly one time block per End
+    // Day press (the only time-advancing action this world has). Wrapping
+    // Midnight -> Morning rolls worldClock.day over, so a full 5-block cycle
+    // always completes within one worldClock day instead of spanning 5
+    // presses of the (unrelated, unchanged) economic `day` counter below -
+    // see the house-rule comment above createDefaultState() for why these
+    // two counters are deliberately separate.
+    const prevClock = state.worldClock || { day: 1, timeBlockIndex: 0 }
+    let nextTimeBlockIndex = prevClock.timeBlockIndex + 1
+    let nextClockDay = prevClock.day
+    if (nextTimeBlockIndex >= TIME_BLOCKS.length) {
+      nextTimeBlockIndex = 0
+      nextClockDay += 1
+    }
+    const worldClock = { day: nextClockDay, timeBlockIndex: nextTimeBlockIndex }
+
     // Loan interest accrues once per day tick, at whatever rate the
     // player's *current* credit tier carries - a variable rate rather than
     // one locked in at borrow time, so climbing/falling reputation and
@@ -912,6 +954,7 @@ export const useGameStore = create((set, get) => ({
 
     set({
       day: nextDay,
+      worldClock,
       newsHeadline: rollHeadline(),
       player: { ...state.player, energy: state.player.maxEnergy },
       world2: { ...state.world2, loanBalance: accruedLoanBalance },
@@ -951,10 +994,30 @@ export const useGameStore = create((set, get) => ({
     if (cashDelta !== 0) get().addCash(cashDelta)
     if (wantedDelta !== 0) get().addWantedLevel(wantedDelta)
 
-    // Simulate 76-Agent Dynamic AI Routines & Locations
+    // Per-character heat for worldPresenceEngine.js's crime/fugitive logic:
+    // reuse each crime syndicate's own heatLevel (0-2, see
+    // governmentEngine.js's initializeGovernmentState) rather than inventing
+    // a parallel per-character tracker, normalized to the engine's 0..1
+    // scale. Every boss/underboss/capo inherits their syndicate's heat.
+    const heatByCharacter = {}
+    for (const syndicate of updatedGovState.crimeSyndicatesState || []) {
+      const heat = Math.max(0, Math.min(1, (syndicate.heatLevel || 0) / 2))
+      for (const role of ['boss', 'underboss', 'capo']) {
+        if (syndicate[role]?.id) heatByCharacter[syndicate[role].id] = heat
+      }
+    }
+
+    // Simulate 76-Agent Dynamic AI Routines & Locations. worldClock.day (not
+    // the economic `nextDay` above) is the day dimension fed to the presence
+    // engine - see the house-rule comment above createDefaultState().
     const masterAgents = state.world2.masterAgents || buildMasterAgentRegistry()
-    const { updatedAgents: updatedMasterAgents } = simulateDynamicSchedules(masterAgents, nextDay, updatedGovState)
-    
+    const { updatedAgents: updatedMasterAgents } = simulateDynamicSchedules(masterAgents, worldClock.day, updatedGovState, {
+      timeBlockIndex: worldClock.timeBlockIndex,
+      runSeed: state.runSeed,
+      wantedLevel: get().wantedLevel,
+      heatByCharacter,
+    })
+
     // Simulate Town Migration across 4 Japanese Cities
     const { updatedAgents: finalMigratedAgents, migrationLogs } = simulateTownMigration(
       updatedMasterAgents,
@@ -982,7 +1045,22 @@ export const useGameStore = create((set, get) => ({
     // Trigger Autonomous Capital Accumulation & Asset Purchasing
     const { updatedAgents: finalAssetAgents, assetLogs } = simulateAgentAssetPurchasing(finalButterflyAgents, nextDay)
 
+    // Street intel on characters who are lying low: the same presenceCtx is
+    // reused verbatim so the feed reports where the engine actually put them
+    // this block, rather than rolling a second, possibly-contradictory
+    // location. Characters who aren't discoverable this tick either yield a
+    // vague no-location rumor or nothing at all, which is what keeps a
+    // hiding character a hunt rather than a dead end.
+    const intelLogs = generateIntelReports([], {
+      day: worldClock.day,
+      timeBlockIndex: worldClock.timeBlockIndex,
+      runSeed: state.runSeed,
+      wantedLevel: get().wantedLevel,
+      heatByCharacter,
+    })
+
     const combinedEventLogs = [
+      ...intelLogs.map((i) => ({ id: i.id, title: i.title, text: i.text })),
       ...scotusLogs.map((s) => ({ id: s.id, title: s.title, text: s.text })),
       ...congressLogs.map((c) => ({ id: c.id, title: c.title, text: c.text })),
       ...assetLogs.map((a) => ({ id: a.id, title: '💰 Asset Acquisition', text: a.text })),
@@ -1006,6 +1084,15 @@ export const useGameStore = create((set, get) => ({
         cryptoHype: Math.max(0, Math.min(100, s.world2.cryptoHype + cryptoHypeDelta)),
       },
     }))
+  },
+
+  // Exposes the store's worldClock as the { index, key, label } shape UI
+  // code actually wants, so callers don't need to know about
+  // worldPresenceEngine.js's TIME_BLOCKS array themselves.
+  getCurrentTimeBlock: () => {
+    const worldClock = get().worldClock || { day: 1, timeBlockIndex: 0 }
+    const block = TIME_BLOCKS[worldClock.timeBlockIndex] || TIME_BLOCKS[0]
+    return { index: worldClock.timeBlockIndex, day: worldClock.day, key: block.key, label: block.label }
   },
 
   buyBondsAction: (amount) => {
@@ -1244,10 +1331,10 @@ export const useGameStore = create((set, get) => ({
 
   saveGame: () => {
     const state = get()
-    const { screen, player, inventory, cash, wantedLevel, day, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 } = state
+    const { screen, player, inventory, cash, wantedLevel, day, runSeed, worldClock, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 } = state
     localStorage.setItem(
       SAVE_KEY,
-      JSON.stringify({ screen: screen === 'world' ? 'world' : screen, player, inventory, cash, wantedLevel, day, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 })
+      JSON.stringify({ screen: screen === 'world' ? 'world' : screen, player, inventory, cash, wantedLevel, day, runSeed, worldClock, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 })
     )
   },
 

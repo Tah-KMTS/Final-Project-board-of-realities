@@ -3,7 +3,9 @@ import { useGameStore } from '../../store/useGameStore'
 import { resolvePalette } from '../characterPalettes'
 import { generateAmbientNpcs } from '../../utils/npcGenerator'
 import { getAllCharacters } from '../../features/agents/characterLookup'
-import { TITAN_ROUTINES, updateAgentPositions } from '../../features/agents/agentMovementEngine'
+import { TITAN_ROUTINES } from '../../features/agents/agentMovementEngine'
+import { TIME_BLOCKS, simulateWorldPresence } from '../../features/agents/worldPresenceEngine'
+import { CHARACTER_HOME_BUILDING_DEFS } from '../../features/world/characterHomeBuildings'
 import { SpriteActor } from '../actor'
 import { TileMover, combineDirection } from '../tileMover'
 import {
@@ -24,13 +26,17 @@ import { preloadPlayerSheet } from '../spriteGen'
 // challenges - too much going on for the generic template, same reasoning
 // as the Stock Exchange), and a generic `buildingInterior` room (see
 // INTERIOR_TEMPLATES) reused by every other building - which template a
-// given building gets is looked up from BUILDING_INTERIOR_TEMPLATE.
-// Walking up to any of the 19 buildings and
-// pressing E swaps into its interior in place (same scene, same Phaser.Game
-// instance, same technique DominoWorldScene uses for its own rooms); the
-// desk inside emits the exact same `{type:'building', id, npcId}` interact
-// payload the buildings used to emit instantly, so WorldScreen.jsx's modal
-// wiring needed zero changes.
+// given building gets is looked up from BUILDING_INTERIOR_TEMPLATE, falling
+// back to a `residence`/`hideout` template by the building's `kind` for the
+// 88 character home/hideout buildings that aren't hand-listed there (see
+// interiorTemplateFor).
+// Walking up to any of the 129 buildings (41 hand-authored + 88 character
+// homes/hideouts from characterHomeBuildings.js) and pressing E swaps into
+// its interior in place (same scene, same Phaser.Game instance, same
+// technique DominoWorldScene uses for its own rooms); the desk inside emits
+// the exact same `{type:'building', id, npcId}` interact payload the
+// buildings used to emit instantly, so WorldScreen.jsx's modal wiring
+// needed zero changes.
 // ---------------------------------------------------------------------------
 
 const TILE_SIZE = 40
@@ -52,6 +58,13 @@ const DEFAULT_SPAWN = { col: 7, row: 3 }
 // with a standalone overlap/bounds check before wiring this in, not just
 // eyeballed.
 const DISTRICT_ORDER = ['Tokyo District', 'Kyoto District', 'Osaka District', 'Sapporo District']
+
+// House rule: 2x2 character homes/hideouts packed at the same BAND_GAP=4 as
+// the hand-authored buildings below measured out to a 154-row map (verified
+// with a standalone layout script) - way too tall to be playable. Giving
+// home/hideout defs their own tighter `gap` (per-def override, see
+// layoutFinanceMap) instead keeps the map at 73 rows for the same 88 homes.
+const HOME_GAP = 2
 
 const FINANCE_BUILDING_DEFS = [
   // --- Tokyo District ---
@@ -102,11 +115,21 @@ const FINANCE_BUILDING_DEFS = [
   { id: 'sapporoBrewery', label: 'Alpine Snow Brewery', district: 'Sapporo District', color: 0x8a6a2a, width: 3, height: 2 },
   { id: 'alpineLodge', label: 'Mount Yotei Alpine Lodge', district: 'Sapporo District', color: 0x6a4a3a, width: 4, height: 3 },
   { id: 'trainStation', label: '🚆 Central Train Station', district: 'Sapporo District', color: 0x4a6fa5, width: 4, height: 2 },
+
+  // --- Character homes & hideouts (generated, see characterHomeBuildings.js) ---
+  // Appended after the 41 defs above (not interleaved) so the already-
+  // verified district layout stays first and unaffected; layoutFinanceMap
+  // packs each into its def's district band same as any other building.
+  ...CHARACTER_HOME_BUILDING_DEFS.map((d) => ({ ...d, gap: HOME_GAP })),
 ]
 
 const BAND_COL_START = 2
 const BAND_COL_END_FROM_RIGHT = 3 // BAND_COL_END = MAP_COLS - this
-const BAND_GAP = 4 // tiles between buildings, and between a band's bottom and the next band's top
+const BAND_GAP = 4 // default tiles between buildings (a def can override its own with `gap`,
+// see layoutFinanceMap), and always the row-wrap gap plus the gap between a
+// band's bottom and the next band's top - those two stay on this constant
+// regardless of which def's gap triggered the wrap, so mixing gap sizes
+// within one band can't shrink the clearance the row below still needs.
 // wall row + 3 clear buffer rows before the first band. Was 2 (wall + 1
 // buffer) until the HUD-overlap fix above needed DEFAULT_SPAWN pushed down;
 // raising this shifts every district band down by the same amount, so the
@@ -135,7 +158,7 @@ function layoutFinanceMap(mapCols) {
       const c1 = col + b.width - 1
       const r1 = row + b.height - 1
       buildings.push({ ...b, tiles: { c0, r0, c1, r1 } })
-      col += b.width + BAND_GAP
+      col += b.width + (b.gap ?? BAND_GAP)
       rowMaxHeight = Math.max(rowMaxHeight, b.height)
     }
     const bandBottom = row + rowMaxHeight - 1
@@ -157,11 +180,23 @@ function layoutFinanceMap(mapCols) {
   return { buildings, mapRows, hStreets, districtBandRows }
 }
 
-const MAP_COLS = 40
+const MAP_COLS = 80
 const { buildings: FINANCE_BUILDINGS, mapRows: MAP_ROWS, hStreets: FINANCE_H_STREETS, districtBandRows: DISTRICT_BAND_ROWS } = layoutFinanceMap(MAP_COLS)
-// Two vertical corridors: col 7 is the spawn column, col 33 is the far-side
-// expressway running from the coastal water channel to the city south gate.
-const FINANCE_V_STREETS = [7, 33]
+// Exported purely so the layout can be asserted against from outside (no
+// building overlaps, every door reachable) without a Phaser canvas - the
+// packing is generated from a 129-entry def list now, far past the point
+// where eyeballing it is meaningful. Nothing in the game reads these.
+export { FINANCE_BUILDINGS, MAP_COLS, MAP_ROWS, DISTRICT_BAND_ROWS }
+// Six vertical corridors spread evenly across the 80-wide map: col 7 is the
+// spawn column (kept - DEFAULT_SPAWN sits on it), the rest give the right
+// half of the map (which the original two-corridor [7, 33] left with no
+// north-south route once the map widened past 40 cols) the same coverage.
+// A building can still occupy one of these columns at some rows (its facade
+// just renders over the "street") - isBlockedTile treats a building's
+// footprint as solid regardless of tile type, and the BFS reachability
+// check (see verification) confirms every building door is still reachable
+// through the surrounding grass either way.
+const FINANCE_V_STREETS = [7, 20, 34, 47, 60, 73]
 // Rows 1-3 along the top edge render as water tiles for terrain variety.
 const WATER_ROWS = [1, 2, 3]
 
@@ -176,12 +211,18 @@ function financeTileType(r, c) {
 // ---------------- Building interiors ----------------
 // A single 12x9 room shape (INTERIOR_COLS/ROWS, matching DominoWorldScene's
 // own room convention) is reused for every building's interior; only the
-// palette + desk label differ per INTERIOR_TEMPLATES entry.  Crypto HQ gets
-// a template all to itself; the 4 tycoon HQs share "tycoonOffice"; Bank +
-// Real Estate Agency share "officeA"; Corporate Holdings + VC Hub share
-// "officeB"; the remaining 9 district-amenity buildings share "amenity".
-// Stock Exchange and Casino are the two exceptions - they keep bespoke rooms
-// (buildStockExchangeInteriorZone / buildCasinoInteriorZone) instead of one.
+// palette + desk label differ per INTERIOR_TEMPLATES entry. Crypto HQ gets
+// a template all to itself; the 5 tycoon HQs share "tycoonOffice"; 6
+// government/finance offices share "officeA"; 6 corporate/industrial HQs
+// share "officeB"; the remaining 21 district-amenity buildings share
+// "amenity" - all 39 hand-listed by id in BUILDING_INTERIOR_TEMPLATE below.
+// The 88 character home/hideout buildings (characterHomeBuildings.js) would
+// be silly to list by hand one at a time, so they're deliberately left out
+// of that map entirely - interiorTemplateFor() falls back to "residence" or
+// "hideout" by the building's `kind` for anything not found there. Stock
+// Exchange and Casino are the two exceptions to all of this - they keep
+// bespoke rooms (buildStockExchangeInteriorZone / buildCasinoInteriorZone)
+// instead of a template.
 const INTERIOR_COLS = 12
 const INTERIOR_ROWS = 9
 const INTERIOR_SPAWN = { col: 6, row: 5 }
@@ -197,6 +238,8 @@ const INTERIOR_TEMPLATES = {
   officeA: { floorA: 0x1e2430, floorB: 0x1a1f29, deskColor: 0x1f3a5f, deskLabel: 'Front Desk' },
   officeB: { floorA: 0x241e30, floorB: 0x1f1a29, deskColor: 0x4a3a5f, deskLabel: 'Reception Desk' },
   amenity: { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter' },
+  residence: { floorA: 0x2a3020, floorB: 0x1f2418, deskColor: 0x4a3a2a, deskLabel: 'Study' },
+  hideout: { floorA: 0x1f1418, floorB: 0x160e12, deskColor: 0x6a1f3a, deskLabel: 'Back Room' },
 }
 
 const BUILDING_INTERIOR_TEMPLATE = {
@@ -239,6 +282,19 @@ const BUILDING_INTERIOR_TEMPLATE = {
   parliament: 'amenity',
   park: 'amenity',
   temple: 'amenity',
+}
+
+// Explicit id lookup first (the 39 hand-authored entries above); falls back
+// to the building's `kind` for the 88 generated home/hideout buildings,
+// which were deliberately never added to BUILDING_INTERIOR_TEMPLATE one by
+// one (see the comment on INTERIOR_TEMPLATES above). "amenity" is the last
+// resort so this can never return undefined and crash buildGenericInteriorZone.
+function interiorTemplateFor(building) {
+  const explicitId = BUILDING_INTERIOR_TEMPLATE[building.id]
+  if (explicitId) return INTERIOR_TEMPLATES[explicitId]
+  if (building.kind === 'home') return INTERIOR_TEMPLATES.residence
+  if (building.kind === 'hideout') return INTERIOR_TEMPLATES.hideout
+  return INTERIOR_TEMPLATES.amenity
 }
 
 const ZONES = {
@@ -328,12 +384,17 @@ function drawBuildings(scene, buildings, zoneObjects) {
 
 // ---------------- named-character agent spawning ----------------
 // Every character in every roster (titans, crime syndicate, presidents, fed/
-// ftc chairmen, agency heads) walks the merged mega-map as a live agent:
-// position and current action come from agentMovementEngine each frame -
-// bespoke TITAN_ROUTINES schedules where they exist, the id-seeded orbit
-// tier otherwise - with the "thought" strings below derived from each
-// character's real roster data (platform, policy bias, syndicate territory,
-// perk, archetype) rather than a generic shared string.
+// ftc chairmen, agency heads) walks the merged mega-map as a live agent.
+// Position and current action come from worldPresenceEngine.js - the same
+// single source of truth the text modals read via dynamicScheduleEngine.js's
+// adapter - so a character's on-map position and their modal's location text
+// can never disagree (see updateNamedRoamers/refreshPresenceCache below).
+// agentMovementEngine.js's TITAN_ROUTINES is no longer a position source
+// (see that file's own header comment); homeDistrictFor below still reads it
+// purely for home-city grouping. The "thought" strings ambient (non-named)
+// wander NPCs use are still derived from each character's real roster data
+// (platform, policy bias, syndicate territory, perk, archetype) rather than
+// a generic shared string.
 
 const CITY_TO_DISTRICT = {
   tokyo: 'Tokyo District',
@@ -352,6 +413,57 @@ function homeDistrictFor(character) {
   // Presidents (Parliament Hall), Fed chairmen (Bank), SEC leaders (Stock
   // Exchange), and remaining titans all live around Tokyo's civic core.
   return 'Tokyo District'
+}
+
+// House rule: worldPresenceEngine.js only advances what block a character is
+// in when worldClock.timeBlockIndex itself advances (End Day presses) - see
+// useGameStore.js's endDay(). Sprites still need to glide continuously in
+// real time between End Day presses (freezing solid the instant a block
+// resolves would be a visible regression from the old always-drifting
+// TITAN_ROUTINES lerp), so updateNamedRoamers resolves BOTH the current
+// block's building and this-next-block's building per character and
+// interpolates between their door pixels using a real-time triangle wave
+// (0->1->0, never snapping) rather than a one-shot lerp that would arrive
+// and then sit still. This mirrors useGameStore.js's own End Day wraparound
+// math exactly so "next block" here can never disagree with what actually
+// happens when the player presses End Day.
+function nextTimeBlock(day, timeBlockIndex) {
+  let idx = timeBlockIndex + 1
+  let nextDay = day
+  if (idx >= TIME_BLOCKS.length) {
+    idx = 0
+    nextDay += 1
+  }
+  return { day: nextDay, timeBlockIndex: idx }
+}
+
+// How many agentClock units (see updateNamedRoamers - agentClock advances by
+// delta/4000 each frame) one one-way glide between two doors takes. 5 units
+// is the same pace the old TITAN_ROUTINES lerp used between schedule steps
+// (~20 real seconds), kept for continuity of feel.
+const PRESENCE_STEP_PERIOD = 5
+// How often (ms) the presence cache is force-refreshed even without a block
+// change, so a mid-block wantedLevel swing (police chase heat) is reflected
+// within a few seconds instead of only at the next End Day.
+const PRESENCE_RESOLVE_INTERVAL_MS = 2500
+
+// Deterministic per-character phase so all 88 sprites don't glide back and
+// forth in exact lockstep (same tiny hash pattern used elsewhere in this
+// codebase for id-seeded, non-Math.random spread - see agentMovementEngine's
+// hashSeed/characterDispositions's hashId).
+function presencePhaseOffset(characterId) {
+  let h = 0
+  for (let i = 0; i < characterId.length; i++) h = (h * 31 + characterId.charCodeAt(i)) >>> 0
+  return (h % 997) / 997
+}
+
+// Continuous 0->1->0 triangle wave (never jumps/snaps at the loop point) -
+// the "stepProgress" a character's sprite lerps between its current-block
+// and next-block door positions with.
+function presenceStepProgress(agentClock, phaseOffset) {
+  const x = agentClock / PRESENCE_STEP_PERIOD + phaseOffset
+  const frac = x - Math.floor(x)
+  return frac < 0.5 ? frac * 2 : (1 - frac) * 2
 }
 
 function agentAmbientActions(c) {
@@ -454,6 +566,13 @@ export default class OverworldScene extends Phaser.Scene {
     this.financeAmbientActors = []
     this.namedRoamers = []
     this.agentClock = 0
+    // Keyed by characterId -> { currentBuildingId, nextBuildingId, action },
+    // refreshed by refreshPresenceCache() on block change / throttle interval
+    // (see PRESENCE_RESOLVE_INTERVAL_MS) rather than every frame - see the
+    // house-rule comment above nextTimeBlock().
+    this.presenceCache = new Map()
+    this.presenceBlockKey = null
+    this.presenceResolveTimer = 0
   }
 
   preload() {
@@ -706,7 +825,7 @@ export default class OverworldScene extends Phaser.Scene {
 
   buildGenericInteriorZone(buildingId) {
     const building = FINANCE_BUILDINGS.find((b) => b.id === buildingId)
-    const template = INTERIOR_TEMPLATES[BUILDING_INTERIOR_TEMPLATE[buildingId]]
+    const template = interiorTemplateFor(building)
 
     drawInteriorRoom(this, this.zoneObjects, template)
 
@@ -811,28 +930,18 @@ export default class OverworldScene extends Phaser.Scene {
         actor,
         label,
         district: homeDistrictFor(character),
+        phaseOffset: presencePhaseOffset(character.id),
         currentAction: '',
         dead: false,
       }
       this.namedRoamers.push(roamer)
       this.financeNamedNpcActors[character.id] = actor
     }
+    // Spawning happens before the first updateNamedRoamers tick has anything
+    // cached, so force a synchronous resolve now rather than leaving every
+    // roamer at its (-100,-100) placeholder for one frame.
+    this.refreshPresenceCache()
     this.updateNamedRoamers(0)
-  }
-
-  // Maps the movement engine's 1600x1800 legacy per-city coordinate space
-  // into the character's home-district band on the merged mega-map: x carries
-  // over directly (both spaces are 1600px wide), y is normalized into the
-  // band's row range (staying clear of the coastal water rows up top).
-  // Fallback only - see updateNamedRoamers, which prefers real building
-  // positions via buildingDoorPixel whenever a schedule step names one.
-  roamerWorldPosition(raw, district) {
-    const band = DISTRICT_BAND_ROWS[district] || DISTRICT_BAND_ROWS['Tokyo District']
-    const topPx = Math.max(4, band.top - 1) * TILE_SIZE
-    const bottomPx = (band.bottom + 3) * TILE_SIZE
-    const y = topPx + (raw.currentY / 1800) * (bottomPx - topPx)
-    const x = Math.min((MAP_COLS - 1.5) * TILE_SIZE, Math.max(TILE_SIZE * 1.5, raw.currentX))
-    return { x, y }
   }
 
   // Real live-map pixel position just outside a building's south edge (the
@@ -848,33 +957,70 @@ export default class OverworldScene extends Phaser.Scene {
     }
   }
 
+  // Resolves every named roamer's current-block and next-block buildingId
+  // from worldPresenceEngine.js (the same single source of truth the text
+  // modals read) and caches the pair, keyed by characterId. Called on block
+  // change and on a throttle (see PRESENCE_RESOLVE_INTERVAL_MS in
+  // updateNamedRoamers) rather than every frame - resolving all 88
+  // characters twice (current + next block) is cheap at that cadence but
+  // wasteful at 60fps.
+  refreshPresenceCache() {
+    if (!this.namedRoamers.length) return
+    const store = useGameStore.getState()
+    const worldClock = store.worldClock || { day: 1, timeBlockIndex: 0 }
+    const upcoming = nextTimeBlock(worldClock.day, worldClock.timeBlockIndex)
+    const ids = this.namedRoamers.map((r) => r.agent.id)
+    const baseCtx = { runSeed: store.runSeed, wantedLevel: store.wantedLevel }
+    const currentPresence = simulateWorldPresence(ids, { ...baseCtx, day: worldClock.day, timeBlockIndex: worldClock.timeBlockIndex })
+    const nextPresence = simulateWorldPresence(ids, { ...baseCtx, day: upcoming.day, timeBlockIndex: upcoming.timeBlockIndex })
+    const cache = new Map()
+    for (let i = 0; i < ids.length; i++) {
+      cache.set(ids[i], {
+        currentBuildingId: currentPresence[i].buildingId,
+        nextBuildingId: nextPresence[i].buildingId,
+        action: currentPresence[i].action,
+      })
+    }
+    this.presenceCache = cache
+    this.presenceBlockKey = `${worldClock.day}|${worldClock.timeBlockIndex}`
+  }
+
   updateNamedRoamers(delta) {
     if (!this.namedRoamers.length) return
-    // agentClock is the engine's timeTick: schedule steps advance every 5
-    // ticks, so delta/4000 here means one routine step every ~20 seconds.
+    // agentClock now only drives the continuous door-to-door glide (see
+    // presenceStepProgress) - it no longer indexes into a schedule array,
+    // that whole position path (agentMovementEngine.updateAgentPositions) is
+    // retired in favor of worldPresenceEngine.js (see the house-rule comment
+    // above nextTimeBlock()).
     this.agentClock += delta / 4000
-    const raws = updateAgentPositions(this.namedRoamers.map((r) => r.agent), this.agentClock)
+    this.presenceResolveTimer += delta
+    const worldClock = useGameStore.getState().worldClock || { day: 1, timeBlockIndex: 0 }
+    const blockKey = `${worldClock.day}|${worldClock.timeBlockIndex}`
+    if (blockKey !== this.presenceBlockKey || this.presenceResolveTimer >= PRESENCE_RESOLVE_INTERVAL_MS) {
+      this.presenceResolveTimer = 0
+      this.refreshPresenceCache()
+    }
+
     const px = this.playerActor?.x ?? -9999
     const py = this.playerActor?.y ?? -9999
-    for (let i = 0; i < raws.length; i++) {
-      const roamer = this.namedRoamers[i]
+    for (const roamer of this.namedRoamers) {
       if (roamer.dead) continue
-      const raw = raws[i]
-      roamer.currentAction = raw.currentAction || ''
-      // A schedule step naming a real building is ground truth for where
-      // this character actually is; only fall back to the proportional
-      // legacy-space placement when no buildingId exists at all (generic
-      // wander-tier characters, who don't claim to be anywhere specific).
-      const doorA = raw.currentBuildingId ? this.buildingDoorPixel(raw.currentBuildingId) : null
-      const doorB = raw.nextBuildingId ? this.buildingDoorPixel(raw.nextBuildingId) : null
+      const presence = this.presenceCache.get(roamer.agent.id)
+      roamer.currentAction = presence?.action || ''
+      // worldPresenceEngine.js guarantees buildingId is always a real
+      // building id (home_<id> or one of the 41 hand-authored ones), so
+      // doorA/doorB should always resolve - the final else branch is
+      // defensive only, for a roster id that somehow has no disposition.
+      const doorA = presence ? this.buildingDoorPixel(presence.currentBuildingId) : null
+      const doorB = presence ? this.buildingDoorPixel(presence.nextBuildingId) : null
       let rawPos
       if (doorA && doorB) {
-        const t = raw.stepProgress ?? 0
+        const t = presenceStepProgress(this.agentClock, roamer.phaseOffset)
         rawPos = { x: doorA.x + (doorB.x - doorA.x) * t, y: doorA.y + (doorB.y - doorA.y) * t }
       } else if (doorA) {
         rawPos = doorA
       } else {
-        rawPos = this.roamerWorldPosition(raw, roamer.district)
+        rawPos = { x: roamer.actor.x, y: roamer.actor.y }
       }
       const { x, y } = this.resolveOpenPosition(rawPos.x, rawPos.y)
       const dx = x - roamer.actor.x
