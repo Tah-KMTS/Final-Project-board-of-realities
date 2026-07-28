@@ -57,7 +57,7 @@ const BUILDING_LABELS = {
   artisanShop: 'Kiyomizu Artisan Shop',
   hotel: 'Ryokan Mountain Inn',
   park: 'Serenity Park',
-  temple: 'Whispering Temple',
+  temple: 'Whispering Temple Chapel',
   // Osaka District
   casino: 'Neon Dragon Casino',
   arcade: 'Pixel Palace Arcade',

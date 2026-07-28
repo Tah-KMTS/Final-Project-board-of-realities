@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { INTERACTIVE_LOCATIONS } from './interactiveLocations'
 
-export default function InteractiveLocationModal({ locationId, onClose }) {
+export default function InteractiveLocationModal({ locationId, onClose, onAcquireVehicle }) {
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
@@ -37,6 +37,9 @@ export default function InteractiveLocationModal({ locationId, onClose }) {
     if (opt.type === 'vehicle') {
       setVehicle(opt.name, opt.speedMultiplier)
       setFeedback(`Acquired ${opt.name}! Movement speed updated.`)
+      // Tells the Phaser scene to actually spawn the car (setVehicle above
+      // only writes the store's cosmetic name/speedMultiplier fields).
+      onAcquireVehicle?.(opt)
     } else {
       setFeedback(`Purchased ${opt.name}! Express train access granted.`)
     }

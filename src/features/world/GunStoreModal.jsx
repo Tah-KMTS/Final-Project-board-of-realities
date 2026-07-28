@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { getPresidentialGunPolicy, canPurchaseLegalFirearm } from './firearmLegislationEngine'
 import { WEAPONS_DATABASE } from './toolsWeaponsCatalog'
+import { THEFT_ITEM } from '../../game/vehicleGen'
 
 export default function GunStoreModal({ onClose }) {
   const [activeTab, setActiveTab] = useState('legal') // 'legal' | 'black_market'
@@ -9,6 +10,7 @@ export default function GunStoreModal({ onClose }) {
 
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
+  const addItem = useGameStore((s) => s.addItem)
   const world2 = useGameStore((s) => s.world2)
   const hasFfl = useGameStore((s) => s.hasFfl || false)
   const buyFflLicense = useGameStore((s) => s.buyFflLicense || (() => ({ success: true })))
@@ -30,6 +32,9 @@ export default function GunStoreModal({ onClose }) {
     }
 
     addCash(-price)
+    // Weapons here are flavor purchases (no inventory effect) except the
+    // theft tool, which the Vehicle Theft flow actually checks for by id.
+    if (weapon.id === THEFT_ITEM.id) addItem(THEFT_ITEM)
     setFeedbackMsg(`🔫 LEGAL PURCHASE: Bought 1x ${weapon.name} for $${price.toFixed(2)} under ${policy.title}!`)
   }
 
@@ -41,6 +46,7 @@ export default function GunStoreModal({ onClose }) {
     }
 
     addCash(-blackMarketPrice)
+    if (weapon.id === THEFT_ITEM.id) addItem(THEFT_ITEM)
     setFeedbackMsg(`🕵️ BLACK MARKET ARMS: Bought untraceable 1x ${weapon.name} for $${blackMarketPrice.toFixed(2)} from Sal! No background check required.`)
   }
 

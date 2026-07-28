@@ -65,7 +65,7 @@ export const TITAN_ROUTINES = {
     name: 'Charlie Munger',
     homeCity: 'kyoto',
     schedule: [
-      { location: 'Whispering Temple', action: '📚 Reading Multi-Disciplinary Research', buildingId: 'temple', x: 520, y: 320 },
+      { location: 'Whispering Temple Chapel', action: '📚 Reading Multi-Disciplinary Research', buildingId: 'temple', x: 520, y: 320 },
       { location: 'Machiya Executive Estate', action: '🧠 Applying Mental Model Inversion', buildingId: 'machiyaEstate', x: 1000, y: 320 },
       { location: 'Cherry Coke Tea House', action: '☕ Discussing Philosophy with Biffle', buildingId: 'teaHouse', x: 780, y: 320 },
     ],

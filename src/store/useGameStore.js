@@ -1132,6 +1132,104 @@ export const useGameStore = create((set, get) => ({
     }))
   },
 
+  // Player-owned/drivable vehicles - separate from currentVehicle/
+  // speedMultiplier above (the pre-existing rent/buy flow's fields).
+  // Dedup by tierId so re-buying or re-stealing the same car tier is a
+  // no-op instead of cluttering the list with duplicates.
+  addOwnedVehicle: (vehicle) => {
+    const state = get()
+    const currentTransit = state.world2.transitState || initializeTransportationState()
+    const owned = currentTransit.ownedVehicles || []
+    if (owned.some((v) => v.tierId === vehicle.tierId)) return
+    set((s) => ({
+      world2: {
+        ...s.world2,
+        transitState: { ...currentTransit, ownedVehicles: [...owned, vehicle] },
+      },
+    }))
+  },
+
+  // Persists exactly where an owned vehicle was last parked (col/row), so
+  // OverworldScene.spawnWorldVehicles can put it back in that EXACT spot on
+  // the next 'overworld' load instead of an approximate "near the station"
+  // guess - reported by the user: a stolen/bought car should stay wherever
+  // it was left, not teleport, unless something else in the game actually
+  // takes it (no such mechanic exists yet, so today that means "never,
+  // until the player moves it again"). No-op if the tierId isn't owned
+  // (e.g. a stray call racing a sale/repossession that hasn't landed yet).
+  updateOwnedVehiclePosition: (tierId, col, row) => {
+    const state = get()
+    const currentTransit = state.world2.transitState || initializeTransportationState()
+    const owned = currentTransit.ownedVehicles || []
+    const idx = owned.findIndex((v) => v.tierId === tierId)
+    if (idx === -1) return
+    const updated = owned.slice()
+    updated[idx] = { ...updated[idx], col, row }
+    set((s) => ({
+      world2: {
+        ...s.world2,
+        transitState: { ...currentTransit, ownedVehicles: updated },
+      },
+    }))
+  },
+
+  setDriving: (isDriving) => {
+    const state = get()
+    const currentTransit = state.world2.transitState || initializeTransportationState()
+    set((s) => ({
+      world2: {
+        ...s.world2,
+        transitState: { ...currentTransit, isDriving },
+      },
+    }))
+  },
+
+  // Car theft: reuses executeCrime's success-roll/fail-consequence pattern
+  // (same one every other crime action in this store goes through) instead
+  // of a bespoke RNG. payout is always 0 for both methods - the reward is
+  // the car itself (addOwnedVehicle on success), not cash.
+  stealVehicle: ({ method, vehicle }) => {
+    const state = get()
+    if (method === 'equipment') {
+      // Slim Jim (THEFT_ITEM, src/game/vehicleGen.js) is a reusable tool,
+      // not a consumable - it's never removed from inventory on use, so one
+      // purchase covers every future equipment-method attempt.
+      const hasTool = state.inventory.some((i) => i.id === 'slim_jim')
+      if (!hasTool) return { success: false, reason: 'need tool' }
+      const result = get().executeCrime({
+        type: 'vehicleTheftEquipment',
+        baseSuccessChance: 0.75,
+        payout: 0,
+        notorietyIncreaseOnFail: 5,
+        wantedIncreaseOnFail: 1,
+        energyCost: 10,
+        assetSeizureOnFail: 0,
+      })
+      if (result.success) {
+        get().addOwnedVehicle(vehicle)
+        return { ...result, vehicle }
+      }
+      return result
+    }
+
+    // 'smash': smash-and-hotwire, no tool needed, meaningfully louder/
+    // hotter than the equipment method on failure.
+    const result = get().executeCrime({
+      type: 'vehicleTheftSmash',
+      baseSuccessChance: 0.45,
+      payout: 0,
+      notorietyIncreaseOnFail: 15,
+      wantedIncreaseOnFail: 3,
+      energyCost: 15,
+      assetSeizureOnFail: 0,
+    })
+    if (result.success) {
+      get().addOwnedVehicle(vehicle)
+      return { ...result, vehicle }
+    }
+    return result
+  },
+
   castPresidentialVote: (candidateId) => {
     const state = get()
     const currentGov = state.world2.governmentState || initializeGovernmentState()

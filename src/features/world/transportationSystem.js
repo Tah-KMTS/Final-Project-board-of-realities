@@ -8,6 +8,13 @@ export function initializeTransportationState() {
     speedMultiplier: 1.0,
     hasTrainPass: false,
     activeStation: 'Financial District Station',
+    // Vehicles the player actually owns/can drive - distinct from
+    // currentVehicle/speedMultiplier above (which purchaseVehicle() keeps
+    // writing for the pre-existing rent/buy flow). Populated by
+    // addOwnedVehicle() in useGameStore.js via purchase (WorldScreen's
+    // acquireVehicle bridge handler) or car theft (stealVehicle()).
+    ownedVehicles: [],
+    isDriving: false,
     transitLogs: [
       { id: 'transit_init', time: '8:00 AM', text: 'Transit system ready. Electric bicycles, cars, and express trains available.' }
     ],

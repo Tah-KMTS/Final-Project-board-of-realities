@@ -50,7 +50,7 @@ export default function TempleModal({ onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="glass-panel w-[420px] border-4 border-slate-300 bg-[#1c1d3a] p-6 font-mono text-white">
         <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Government & Cultural District</p>
-        <h2 className="mb-2 text-xl font-bold text-slate-200">Whispering Temple</h2>
+        <h2 className="mb-2 text-xl font-bold text-slate-200">Whispering Temple Chapel</h2>
         <p className="mb-4 text-xs text-gray-400">
           Incense smoke curls past old stone. Even the most ruthless traders come here to feel forgiven.
         </p>

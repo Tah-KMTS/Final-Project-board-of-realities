@@ -1,19 +1,50 @@
+import {
+  PACK_SHEET_KEYS,
+  preloadPacks,
+  drawNineSliceFacade,
+  drawPeakedCottage,
+  drawPrefabFacade,
+  drawPrefabImageFacade,
+  drawFencePen,
+  placePackProp,
+  prefabTileWorldPos,
+  preloadSereneVillageDoor,
+  USE_KENNEY_PACKS,
+} from './packs/packRender'
+import { MODERN_CITY } from './packs/modernCityTiles'
+import { TINY_TOWN } from './packs/tinyTownTiles'
+import { RPG_URBAN } from './packs/rpgUrbanTiles'
+import { PICO8_CITY } from './packs/pico8CityTiles'
+import { SERENE_VILLAGE_HOMES } from './packs/sereneVillageTiles'
+import { getAnyCharacter } from '../features/agents/characterLookup'
+
 const USE_PROCEDURAL_GRAPHICS = true;
 
-// Terrain, decoration and building rendering. Base grass/road/water tiles,
-// trees/flowers/rocks and building facades all now come from the real
-// "Cute Fantasy Free" asset pack (public/assets/cute_fantasy/...) instead of
-// being drawn procedurally - a deliberate, user-confirmed exception to this
-// project's usual "no external art assets" rule (see read_me.txt in that
-// folder for the pack's license, and spriteGen.js for the same exception
-// applied to the player/NPC sprite).
+// Terrain, decoration and building rendering, real architecture (the header
+// comment that used to live here described an unrelated, never-shipped
+// "cute_fantasy procedural replacement" plan and was stale - this replaces
+// it with what the code below actually does).
 //
-// Two procedural pieces are kept exactly as before because the pack simply
-// has no equivalent asset for them: the Tokyo "slate marble" and Kyoto
-// "cobblestone" district ground reskins (drawSlateMarbleTile /
-// drawCobblestoneTile, used only for those two cities' otherwise-grass
-// tiles), and the screen-space vignette overlay (addScreenVignette, a
-// camera-space lighting effect, not a tile/sprite).
+// Two independent, additive gates:
+// - USE_KENNEY_PACKS (packs/packRender.js) - real Kenney tile-pack art
+//   (kenney_roguelike-modern-city / kenney_tiny-town / kenney_rpg-urban-pack,
+//   catalogued in packs/modernCityTiles.js, packs/tinyTownTiles.js,
+//   packs/rpgUrbanTiles.js) for building FACADES and TREES specifically.
+//   Checked first in placeBuildingFacade/placeTree below; when it applies,
+//   procedural drawing for that one thing is skipped.
+// - USE_PROCEDURAL_GRAPHICS (this flag) - the base ground/road/water tile
+//   grid, flowers/rocks, interiors, and the Tokyo "slate marble"/Kyoto
+//   "cobblestone" district ground reskins (drawSlateMarbleTile /
+//   drawCobblestoneTile) are ALWAYS drawn this way at runtime with Phaser's
+//   Graphics API - there is no tile-pack equivalent wired in for these, and
+//   the screen-space vignette overlay (addScreenVignette) is a camera-space
+//   lighting effect, not a tile/sprite, so it isn't part of either system.
+//
+// Net effect: a building drawn via USE_KENNEY_PACKS still sits on
+// procedurally-drawn ground. Both flags are additive, not a global
+// procedural-vs-asset switch - do not "flip" USE_PROCEDURAL_GRAPHICS off
+// expecting an all-asset renderer; nothing currently replaces the ground
+// layer.
 
 export function drawSlateMarbleTile(graphics, x, y, size) {
   graphics.fillStyle(0x0a101f, 1)
@@ -82,9 +113,290 @@ export const ASSET_KEYS = {
   sereneOutside: 'serene_outside',
 }
 
+// ---------------------------------------------------------------------------
+// Habitat assets (Cute_Fantasy_Free pack) - wood-house wealth-tier variant,
+// fenced pet pens, and the small roaming-animal decoration layer. Kept as a
+// separate pack from the four Kenney sheets above (own base path, own load
+// calls) since it's used piecemeal (one prefab image, one fence spritesheet,
+// four animal spritesheets) rather than as a whole facade family.
+// ---------------------------------------------------------------------------
+const CUTE_FANTASY_BASE = '/assets/packs/Cute_Fantasy_Free'
+const CUTE_DECOR_DIR = `${CUTE_FANTASY_BASE}/Outdoor%20decoration`
+const CUTE_ANIMALS_DIR = `${CUTE_FANTASY_BASE}/Animals`
+
+export const HABITAT_ASSET_KEYS = {
+  houseWood: 'cf_house_wood_blue',
+  fences: 'cf_fences',
+  chicken: 'cf_animal_chicken',
+  cow: 'cf_animal_cow',
+  pig: 'cf_animal_pig',
+  sheep: 'cf_animal_sheep',
+}
+
+// Frame indices into the 4x4 16px Fences.png grid (frame = row*4+col) - see
+// drawFencePen's doc comment in packRender.js for how these three were
+// picked out of that sheet's actual (non-nine-slice) layout.
+const FENCE_PEN_KIT = { post: 12, hRail: 2, vRail: 4 }
+
+// Called from preloadTerrainAssets below, unconditionally (not gated behind
+// either USE_KENNEY_PACKS or USE_PROCEDURAL_GRAPHICS - this is a third,
+// independent asset source used regardless of which of those two flags is
+// set, same reasoning as preloadPacks above it).
+function preloadHabitatAssets(scene) {
+  if (!scene.textures.exists(HABITAT_ASSET_KEYS.houseWood)) {
+    scene.load.image(HABITAT_ASSET_KEYS.houseWood, `${CUTE_DECOR_DIR}/House_1_Wood_Base_Blue.png`)
+  }
+  if (!scene.textures.exists(HABITAT_ASSET_KEYS.fences)) {
+    scene.load.spritesheet(HABITAT_ASSET_KEYS.fences, `${CUTE_DECOR_DIR}/Fences.png`, { frameWidth: 16, frameHeight: 16, spacing: 0, margin: 0 })
+  }
+  // Each animal file is a confirmed clean 2x2 grid of 32px frames (a short
+  // walk cycle) - loaded as a spritesheet so a single frame can be picked
+  // for a static pose (see OverworldScene.js's AnimalActor); using it as a
+  // plain image would render all 4 poses squished into one 64x64 image.
+  const animalFrames = { frameWidth: 32, frameHeight: 32, spacing: 0, margin: 0 }
+  if (!scene.textures.exists(HABITAT_ASSET_KEYS.chicken)) scene.load.spritesheet(HABITAT_ASSET_KEYS.chicken, `${CUTE_ANIMALS_DIR}/Chicken/Chicken.png`, animalFrames)
+  if (!scene.textures.exists(HABITAT_ASSET_KEYS.cow)) scene.load.spritesheet(HABITAT_ASSET_KEYS.cow, `${CUTE_ANIMALS_DIR}/Cow/Cow.png`, animalFrames)
+  if (!scene.textures.exists(HABITAT_ASSET_KEYS.pig)) scene.load.spritesheet(HABITAT_ASSET_KEYS.pig, `${CUTE_ANIMALS_DIR}/Pig/Pig.png`, animalFrames)
+  if (!scene.textures.exists(HABITAT_ASSET_KEYS.sheep)) scene.load.spritesheet(HABITAT_ASSET_KEYS.sheep, `${CUTE_ANIMALS_DIR}/Sheep/Sheep.png`, animalFrames)
+}
+
+// Draws a perimeter-only fence rectangle (see drawFencePen in packRender.js)
+// using the Fences.png sheet - exported so OverworldScene.js's
+// spawnWealthyPetPens can drop one next to a wealthy character's home
+// without reaching into packRender.js/FENCE_PEN_KIT directly.
+export function placeFencePen(scene, x, y, wPx, hPx, TILE_SIZE) {
+  if (!scene.textures.exists(HABITAT_ASSET_KEYS.fences)) return []
+  return drawFencePen(scene, x, y, wPx, hPx, TILE_SIZE, HABITAT_ASSET_KEYS.fences, FENCE_PEN_KIT)
+}
+
+// ---------------------------------------------------------------------------
+// Kenney pack zoning (rpg-urban / roguelike-modern-city / tiny-town / pico-8-city)
+// ---------------------------------------------------------------------------
+// The packs clash tonally on purpose-built art (pastel village vs. grim
+// concrete city vs. medieval fantasy vs. tiny retro top-down), so each is
+// assigned a COHERENT ZONE / PURPOSE rather than being mixed on one structure:
+//
+//   roguelike-modern-city -> the three "city" district bands. It is the only
+//     pack with real multi-story WALL facades, so every hand-authored
+//     civic/corporate/industrial building uses it. Tokyo (luxury finance) and
+//     Sapporo (industrial/agency) take the grey concrete-and-glass family;
+//     Osaka (entertainment/crime/market) takes the grimier red brick.
+//   tiny-town -> Kyoto District (whose ground is already the JRPG cobblestone
+//     reskin, the closest existing tonal match) plus MOST of the 88 character
+//     homes/hideouts, which read as village residences rather than office
+//     towers.
+//   pico-8-city -> an ADDITIVE variety layer inside the tiny-town home bucket
+//     only (see brickOrPico8HomeKit/packFacadeFor below), not its own zone. Its buildings are
+//     flat top-down rooftops (fixed-size prefabs, not wall nine-slices - see
+//     pico8CityTiles.js), so it reads as "a different little building on the
+//     block" dropped in among the cottages rather than a clashing district.
+//     Hideouts are deliberately excluded (their brick+open-archway look is
+//     the "seedier" identity signal and shouldn't get diluted), and the
+//     billionaire stone tier is also excluded (stone is the wealth signal;
+//     the variety layer only applies inside the "everyone else" bucket).
+//   rpg-urban -> decoration only (trees/props). It has no facades at all, so
+//     it can't clash with any facade pack - it's a separate layer.
+//
+// Both modern-city families are true nine-slices (verified assembled at 2x2 /
+// 3x2 / 3x3 / 4x3); tiny-town is NOT - it has one self-contained peaked-roof
+// tile per material and only two wall registers (plain upper / baseboard
+// ground), so cottages repeat that gable per column, which reads as a village
+// terrace row. pico-8-city is NOT a nine-slice either - it's cataloged as
+// fixed-size PREFABS (drawPrefabFacade), each verified to close cleanly only
+// at its own native size (packRender.js's prefab doc explains why a prefab
+// isn't retiled to arbitrary footprints). See modernCityTiles.js /
+// tinyTownTiles.js / pico8CityTiles.js for the per-index evidence.
+const TILE_PX = 40 // world tile size these packs are scaled up to (16px art -> 2.5x; pico-8's 8px art -> 5x)
+
+const DISTRICT_FACADE = {
+  'Tokyo District': { sheetKey: PACK_SHEET_KEYS.modernCity, kit: MODERN_CITY.concreteGlass },
+  'Sapporo District': { sheetKey: PACK_SHEET_KEYS.modernCity, kit: MODERN_CITY.concreteGlass },
+  'Osaka District': { sheetKey: PACK_SHEET_KEYS.modernCity, kit: MODERN_CITY.redBrick },
+  'Kyoto District': { sheetKey: PACK_SHEET_KEYS.tinyTown, kit: null, peaked: true, cottage: 'stoneCottage' },
+}
+
+// House rule: a character's home is skinned by their real wealth rather than
+// every one of the 88 residences looking identical - stone (the grander,
+// lighter material) for the billionaire tier, brick for everyone else. The
+// building's tile rect is NOT touched by this (the verified 129-building
+// layout geometry must not change), only which material it draws with.
+// Exported so OverworldScene.js's spawnWealthyPetPens (fenced exotic-pet
+// pens for a handful of the wealthiest homes) can pick its candidates using
+// the exact same billionaire signal, rather than a second hardcoded number.
+export const WEALTH_STONE_THRESHOLD = 1_000_000_000
+
+// A third, middle wealth tier sitting between "everyone else" (brick/pico8,
+// below) and the billionaire stone tier above: characters with a real but
+// non-billionaire fortune (the $10M-$999M financial-titan band - Fed/FTC
+// chairmen, agency leaders, and low-end titans all sit under this, so they
+// stay in the brick/pico8 bucket) draw the Cute_Fantasy_Free wood house
+// instead - a distinct, comfortably-upper-middle-class silhouette that isn't
+// just another brick cottage but also isn't the billionaire's stone manor.
+// Reuses the exact same getAnyCharacter(...).netWorth signal as the stone
+// tier above (see packFacadeFor) rather than inventing a second wealth
+// source. House_1_Wood_Base_Blue.png is a single complete pre-rendered house
+// image (96x128px = 6x8 tiles), not a tileset - see drawPrefabImageFacade in
+// packRender.js for how it's centered on the home's 2x2 footprint.
+const WEALTH_WOOD_HOUSE_THRESHOLD = 10_000_000
+
+// Adapts a tinyTownTiles cottage entry (roof: single frame, wall: {upper,
+// ground}) to the generic kit shape packRender's nine-slice/cottage helpers
+// expect. The single gable frame is repeated across all roof columns (the
+// pack has no separate left/peak/right slope pieces - verified), and the
+// baseboard "ground" register is used for the bottom wall row only.
+function cottageKit(cottage, doorFrame) {
+  const { upper, ground } = cottage.wall
+  return {
+    roof: { l: cottage.roof, peak: cottage.roof, r: cottage.roof },
+    wall: { tl: upper, t: upper, tr: upper, l: upper, m: upper, r: upper, bl: ground, b: ground, br: ground },
+    window: null,
+    door: doorFrame ?? cottage.door,
+  }
+}
+
+// Deterministic per-id hash (same tiny FNV-ish/multiply-31 shape already
+// used in characterHomeBuildings.js's own hashId) - used below purely to
+// pick a stable pico8-vs-cottage variant per character so a given home
+// always renders the same way across reloads instead of re-rolling.
+function hashId(id) {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return h
+}
+
+// Homes below the billionaire/stone tier mostly keep the tiny-town brick
+// cottage, but a quarter (id-hashed, stable) draw a pico8-city prefab
+// instead - a flat-roof warehouse block or a detailed portico townhouse,
+// each in one of two color variants - and a further quarter draw a Serene
+// Village cottage prefab (see sereneVillageTiles.js) in one of three roof
+// colors. Both are purely to break up the visual monotony of ~80+
+// near-identical brick cottages sitting side by side (half the bucket still
+// stays plain brick, so brick remains the visible majority "everyone else"
+// look, not a minority option). This is an ADDITIVE variety layer only: it
+// never touches the wealth signal (stone is still exclusively the
+// billionaire tier, wood-house still exclusively the $10M-$999M tier) and
+// never applies to hideouts (see packFacadeFor). The pico8 prefabs are
+// natively 4x3/4x4 world tiles and the Serene Village cottages are natively
+// 3x4, all larger than a home's fixed 2x2 footprint - drawPrefabFacade's
+// documented house rule centers the prefab on the footprint rather than
+// distorting it, so these draw slightly oversized. That overflow was
+// checked against OverworldScene.js's actual home packing (HOME_GAP=2 tiles
+// horizontal, BAND_GAP=4 tiles between rows) and fits inside the existing
+// gaps without overlapping a neighboring building - see report for the
+// arithmetic (Serene Village's 3x4 overflows by 1 tile at the sides and 2 at
+// the top, the same safe margin already proven out by the pico8 tier).
+const PICO8_HOME_VARIANTS = [
+  PICO8_CITY.warehouse.purple,
+  PICO8_CITY.warehouse.grey,
+  PICO8_CITY.manor.purple,
+  PICO8_CITY.manor.pink,
+]
+
+const SERENE_HOME_VARIANTS = [SERENE_VILLAGE_HOMES.cottage.red, SERENE_VILLAGE_HOMES.cottage.green, SERENE_VILLAGE_HOMES.cottage.blue]
+
+function brickOrPico8HomeKit(npcId) {
+  const h = hashId(npcId || '')
+  const bucket = h % 4
+  // House rule (bug found via live introspection while wiring the Serene
+  // Village bucket below): hashId builds h with `>>> 0`, i.e. a full 32-bit
+  // UNSIGNED value, so h can exceed 2^31 and have its sign bit set. `%` on a
+  // plain positive JS number is unaffected, but `>>` first coerces its
+  // operand to a SIGNED int32 - for those large h values `h >> 2` comes out
+  // negative, and a negative array index (e.g. -1) silently resolves to
+  // `undefined` rather than throwing on its own, which then blew up one line
+  // below on `variant.door` for real npcIds (confirmed: 'yellen' and
+  // 'miller' both hash to a negative variantIdx) and would have equally
+  // broken the pico8 line beneath it for any npcId hashing the same way.
+  // `>>> 2` (unsigned shift) keeps this consistent with the unsigned value
+  // hashId actually produces - never negative, so never an invalid index.
+  if (bucket === 0) {
+    const variant = PICO8_HOME_VARIANTS[(h >>> 2) % PICO8_HOME_VARIANTS.length]
+    return { sheetKey: PACK_SHEET_KEYS.pico8City, kit: variant, prefab: true }
+  }
+  if (bucket === 1) {
+    // Serene Village cottages carry a documented door slot (see
+    // sereneVillageTiles.js) - recorded on the returned spec as `doorSlot`
+    // so buildingDoorAnimSpec below can find it without re-deriving the
+    // bucket/variant choice a second time (it just re-runs this same
+    // deterministic hash, see that function).
+    const variant = SERENE_HOME_VARIANTS[(h >>> 2) % SERENE_HOME_VARIANTS.length]
+    return {
+      sheetKey: PACK_SHEET_KEYS.sereneVillage,
+      kit: variant,
+      prefab: true,
+      doorSlot: variant?.door ? { cols: variant.cols, rows: variant.rows, col: variant.door.col, row: variant.door.row } : null,
+    }
+  }
+  return { sheetKey: PACK_SHEET_KEYS.tinyTown, kit: cottageKit(TINY_TOWN.brickCottage), peaked: true }
+}
+
+// Resolves which pack + kit a building draws with. Returns null for anything
+// that should keep the procedural facade (interior desks, unknown districts).
+function packFacadeFor(building) {
+  if (!building || typeof building !== 'object' || !building.district) return null
+
+  if (building.kind === 'home' || building.kind === 'hideout') {
+    // Hideouts use brick + the OPEN archway instead of a closed door, so a
+    // criminal's hideout reads as a seedier open doorway at a glance. Kept
+    // 100% tiny-town (no pico8 variety) so that signal stays legible.
+    if (building.kind === 'hideout') {
+      const c = TINY_TOWN.brickCottage
+      return { sheetKey: PACK_SHEET_KEYS.tinyTown, kit: cottageKit(c, c.archway), peaked: true }
+    }
+    const netWorth = getAnyCharacter(building.npcId)?.netWorth ?? 0
+    if (netWorth >= WEALTH_STONE_THRESHOLD) {
+      return { sheetKey: PACK_SHEET_KEYS.tinyTown, kit: cottageKit(TINY_TOWN.stoneCottage), peaked: true }
+    }
+    if (netWorth >= WEALTH_WOOD_HOUSE_THRESHOLD) {
+      return { prefabImage: true, imageKey: HABITAT_ASSET_KEYS.houseWood }
+    }
+    return brickOrPico8HomeKit(building.npcId)
+  }
+
+  const spec = DISTRICT_FACADE[building.district]
+  if (!spec) return null
+  if (spec.cottage) {
+    return { sheetKey: spec.sheetKey, kit: cottageKit(TINY_TOWN[spec.cottage]), peaked: true }
+  }
+  return { sheetKey: spec.sheetKey, kit: spec.kit, peaked: false }
+}
+
+// Resolves the world-pixel position of an animated-door overlay sprite for a
+// building, if (and only if) that building's facade resolved to a Serene
+// Village cottage prefab with a documented door slot (brickOrPico8HomeKit's
+// bucket 1, above) - null for every other facade family (district civic
+// buildings, hideouts, the stone/wood-house wealth tiers, brick cottages,
+// pico8 prefabs). Those all keep their door as a static frame baked into the
+// wall/prefab art with nothing overlaid on it - see OverworldScene.js's
+// drawBuildings for why the animation is scoped to just this one family.
+// Called with the SAME (x, y, w, h) already passed to placeBuildingFacade
+// for this building, so prefabTileWorldPos agrees exactly with where that
+// call actually drew the cottage.
+export function buildingDoorAnimSpec(building, x, y, w, h) {
+  const spec = packFacadeFor(building)
+  if (!spec?.doorSlot) return null
+  const { cols, rows, col, row } = spec.doorSlot
+  const pos = prefabTileWorldPos(x, y, w, h, TILE_PX, cols, rows, col, row)
+  return { x: pos.x, y: pos.y, buildingId: building.id }
+}
+
 // Call from every scene's preload() - queues the tile/decoration/building
 // images (the player sheet is preloaded separately by spriteGen.js).
 export function preloadTerrainAssets(scene) {
+  // Kenney packs load regardless of the procedural flag below - they're the
+  // facade/decoration source now, and preloading here means no scene's
+  // preload() needed changing.
+  if (USE_KENNEY_PACKS) preloadPacks(scene)
+  // Habitat assets (wood-house wealth tier, pet-pen fences, roaming animals)
+  // are a third, independent asset source - loaded unconditionally, same as
+  // preloadPacks above, regardless of which of the two flags below is set.
+  preloadHabitatAssets(scene)
+  // Serene Village's animated door strip (a separate small PNG, not part of
+  // the Serene_Village_16x16.png sheet preloadPacks already queues via
+  // PACK_SHEET_KEYS.sereneVillage) - loaded unconditionally for the same
+  // reason: it must land before OverworldScene.create()'s
+  // ensureSereneVillageDoorAnims() call regardless of either flag below.
+  preloadSereneVillageDoor(scene)
   if (USE_PROCEDURAL_GRAPHICS) return // Procedural mode: no external assets needed
   const L = scene.load
   if (!scene.textures.exists(ASSET_KEYS.tileGrass)) L.image(ASSET_KEYS.tileGrass, `${ASSET_BASE}/Tiles/Grass_Middle.png`)
@@ -182,7 +494,24 @@ const SMALL_TREE_FRAMES = [1, 2]
 const FLOWER_FRAMES = [7, 8, 9]
 const ROCK_FRAMES = [15, 16]
 
+// rpg-urban's trees come in two joined-canopy pairs (a 2x1 "big tree" whose
+// halves only read as one tree when placed together) plus single-tile bushes/
+// saplings. placePackProp's horizontal multi-tile mode keeps the pair intact -
+// placing one half alone would render a sliced tree.
+const PACK_TREE_VARIANTS = [
+  RPG_URBAN.trees.green.bigTree,
+  RPG_URBAN.trees.autumn.bigTree,
+  RPG_URBAN.trees.green.sapling,
+  RPG_URBAN.trees.autumn.sapling,
+  RPG_URBAN.trees.green.roundBush,
+  RPG_URBAN.trees.rust.treeA,
+]
+
 export function placeTree(scene, cx, cy) {
+  if (USE_KENNEY_PACKS && scene.textures.exists(PACK_SHEET_KEYS.rpgUrban)) {
+    const frames = PACK_TREE_VARIANTS[Math.floor(seededRand(cx, cy, 71) * PACK_TREE_VARIANTS.length)]
+    return placePackProp(scene, cx, cy, PACK_SHEET_KEYS.rpgUrban, frames, TILE_PX, 'x')
+  }
   if (USE_PROCEDURAL_GRAPHICS) {
     return procedural_placeTree(scene, cx, cy)
   }
@@ -225,7 +554,30 @@ export function placeCampfire(scene, cx, cy) {
 // Buildings & Structures
 // ---------------------------------------------------------------------------
 
-export function placeBuildingFacade(scene, x, y, w, h, tintColor, buildingId = '') {
+// `building` is the full building def object for overworld buildings (so the
+// pack/kit can be chosen from its district/kind/npcId - see packFacadeFor);
+// interior desk calls still pass a plain id string, which falls through to
+// the procedural facade below exactly as before.
+export function placeBuildingFacade(scene, x, y, w, h, tintColor, building = '') {
+  if (USE_KENNEY_PACKS && building && typeof building === 'object') {
+    const spec = packFacadeFor(building)
+    // prefabImage specs (the Cute_Fantasy_Free wood house) carry an imageKey
+    // instead of a sheetKey - a plain scene.load.image(), not a spritesheet -
+    // so they're checked/drawn via drawPrefabImageFacade, not the frame-index
+    // based helpers below.
+    if (spec?.prefabImage && scene.textures.exists(spec.imageKey)) {
+      const objs = drawPrefabImageFacade(scene, x, y, w, h, TILE_PX, spec.imageKey)
+      if (objs.length) return objs
+    } else if (spec && spec.sheetKey && scene.textures.exists(spec.sheetKey)) {
+      const objs = spec.prefab
+        ? drawPrefabFacade(scene, x, y, w, h, TILE_PX, spec.sheetKey, spec.kit)
+        : spec.peaked
+        ? drawPeakedCottage(scene, x, y, w, h, TILE_PX, spec.sheetKey, spec.kit)
+        : drawNineSliceFacade(scene, x, y, w, h, TILE_PX, spec.sheetKey, spec.kit)
+      if (objs.length) return objs
+    }
+  }
+  const buildingId = typeof building === 'string' ? building : building?.id || ''
   if (USE_PROCEDURAL_GRAPHICS) {
     return procedural_placeBuildingFacade(scene, x, y, w, h, tintColor, buildingId)
   }

@@ -1,3 +1,5 @@
+import { TIER_SPRITES } from '../../game/vehicleGen'
+
 // Real overworld building each location opens from - see WorldScreen.jsx's
 // BUILDING_TO_INTERACTIVE_LOCATION map, which is the other half of this
 // wiring (a building's interior-desk click routes here by id). `buildingId`
@@ -72,9 +74,13 @@ export const INTERACTIVE_LOCATIONS = [
     description: 'Central hub for express trains, electric bicycles, and luxury car rentals.',
     options: [
       { id: 'train_ticket', name: 'Express Train Pass to All Districts', cost: 20, type: 'transit' },
-      { id: 'rent_bike', name: 'Rent City Bicycle (+50% Move Speed)', cost: 15, type: 'vehicle', speedMultiplier: 1.5 },
-      { id: 'rent_sedan', name: 'Rent Executive Sedan (+100% Move Speed)', cost: 100, type: 'vehicle', speedMultiplier: 2.0 },
-      { id: 'buy_tesla', name: 'Purchase Cyber Roadster (+150% Move Speed)', cost: 5000, type: 'vehicle', speedMultiplier: 2.5 },
+      // spriteName mirrors vehicleGen.js's TIER_SPRITES keyed by this same
+      // option id, so WorldScreen's acquireVehicle bridge emit (and the
+      // Phaser scene reading it) stays in sync with the atlas frame Vehicle
+      // spawning actually uses, without a second copy of that mapping.
+      { id: 'rent_bike', name: 'Rent City Bicycle (+50% Move Speed)', cost: 15, type: 'vehicle', speedMultiplier: 1.5, spriteName: TIER_SPRITES.rent_bike.spriteName },
+      { id: 'rent_sedan', name: 'Rent Executive Sedan (+100% Move Speed)', cost: 100, type: 'vehicle', speedMultiplier: 2.0, spriteName: TIER_SPRITES.rent_sedan.spriteName },
+      { id: 'buy_tesla', name: 'Purchase Cyber Roadster (+150% Move Speed)', cost: 5000, type: 'vehicle', speedMultiplier: 2.5, spriteName: TIER_SPRITES.buy_tesla.spriteName },
     ],
   },
 ]

@@ -2,13 +2,16 @@ import Phaser from 'phaser'
 import { useGameStore } from '../../store/useGameStore'
 import { resolvePalette } from '../characterPalettes'
 import { generateAmbientNpcs } from '../../utils/npcGenerator'
-import { getAllCharacters } from '../../features/agents/characterLookup'
+import { getAllCharacters, getAnyCharacter } from '../../features/agents/characterLookup'
 import { getDisposition } from '../../features/agents/characterDispositions'
 import { TITAN_ROUTINES } from '../../features/agents/agentMovementEngine'
 import { TIME_BLOCKS, simulateWorldPresence } from '../../features/agents/worldPresenceEngine'
 import { CHARACTER_HOME_BUILDING_DEFS } from '../../features/world/characterHomeBuildings'
 import { SpriteActor } from '../actor'
+import { VehicleActor } from '../VehicleActor'
 import { TileMover, combineDirection } from '../tileMover'
+import { preloadVehicleAssets, ensurePico8CarFrames, TIER_SPRITES, npcVehicleFor, PICO8_ATLAS_KEY, pico8CarFrameFor } from '../vehicleGen'
+import { INTERACTIVE_LOCATIONS } from '../../features/world/interactiveLocations'
 import {
   buildTerrainLayer,
   placeTree,
@@ -16,8 +19,20 @@ import {
   placeRock,
   placeBuildingFacade,
   preloadTerrainAssets,
+  placeFencePen,
+  HABITAT_ASSET_KEYS,
+  WEALTH_STONE_THRESHOLD,
+  buildingDoorAnimSpec,
 } from '../tileGen'
+import {
+  SERENE_VILLAGE_DOOR_KEY,
+  SERENE_DOOR_ANIM_OPEN,
+  SERENE_DOOR_ANIM_CLOSE,
+  ensureSereneVillageDoorAnims,
+} from '../packs/packRender'
 import { preloadPlayerSheet } from '../spriteGen'
+import { buildTmxWallInteriorZone, CHAPEL_TEMPLE_ROOM, TEA_HOUSE_ROOM } from '../interiors/tmxWallInterior'
+import { preloadChapelPack } from '../packs/chapelPixelTiles'
 
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
@@ -92,7 +107,15 @@ const FINANCE_BUILDING_DEFS = [
   { id: 'artisanShop', label: 'Kiyomizu Artisan Shop', district: 'Kyoto District', color: 0x4a6a5a, width: 3, height: 2 },
   { id: 'hotel', label: 'Ryokan Mountain Inn', district: 'Kyoto District', color: 0x5a4a3a, width: 4, height: 3 },
   { id: 'park', label: 'Serenity Park', district: 'Kyoto District', color: 0x2a5f2a, width: 4, height: 2 },
-  { id: 'temple', label: 'Whispering Temple', district: 'Kyoto District', color: 0x5a5a4a, width: 4, height: 2 },
+  // Distinct indigo/violet exterior (every other Kyoto building above is a
+  // muted brown/grey/green earth-tone) so this reads as the grand chapel
+  // it now has an interior for (see buildChapelInteriorZone in this file
+  // and src/game/interiors/tmxWallInterior.js) rather than blending into
+  // the district as just another plain amenity building - reported gap:
+  // the interior existed but nothing on the map signaled it. Label now
+  // says "Chapel" outright while keeping "Whispering Temple" as the
+  // flavor name TempleModal.jsx already displays.
+  { id: 'temple', label: 'Whispering Temple Chapel', district: 'Kyoto District', color: 0x3a2a6a, width: 4, height: 2 },
 
   // --- Osaka District ---
   { id: 'casino', label: 'Neon Dragon Casino', district: 'Osaka District', color: 0x8a1f6a, width: 4, height: 3 },
@@ -208,8 +231,15 @@ export {
 // check (see verification) confirms every building door is still reachable
 // through the surrounding grass either way.
 const FINANCE_V_STREETS = [7, 20, 34, 47, 60, 73]
-// Rows 1-3 along the top edge render as water tiles for terrain variety.
-const WATER_ROWS = [1, 2, 3]
+// Rows 1-2 along the top edge render as water tiles for terrain variety.
+// Water is now impassable (isSingleTileObstacle/isBlockedTile - see there
+// for why), so this deliberately excludes row 3: DEFAULT_SPAWN.row is
+// pinned to MAP_TOP_MARGIN-1 (=3) for HUD-clearance reasons unrelated to
+// terrain (see the comment above DEFAULT_SPAWN), and that spawn tile must
+// stay walkable. Shrinking the water band by one row is the fix, not moving
+// the spawn - moving it would reopen the HUD-overlap bug that comment
+// documents.
+const WATER_ROWS = [1, 2]
 
 function financeTileType(r, c) {
   const isBorder = r === 0 || c === 0 || r === MAP_ROWS - 1 || c === MAP_COLS - 1
@@ -313,6 +343,12 @@ const ZONES = {
   stockExchangeInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   casinoInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   buildingInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  // Bespoke real-tileset rooms (see src/game/interiors/tmxWallInterior.js) -
+  // same "own room shape, own zone id" pattern as stockExchangeInterior/
+  // casinoInterior above, just variable-sized instead of reusing
+  // INTERIOR_COLS/ROWS.
+  chapelInterior: { cols: CHAPEL_TEMPLE_ROOM.cols, rows: CHAPEL_TEMPLE_ROOM.rows },
+  teaHouseInterior: { cols: TEA_HOUSE_ROOM.cols, rows: TEA_HOUSE_ROOM.rows },
 }
 
 // ---------------- shared small helpers ----------------
@@ -340,7 +376,12 @@ function terrainTileTypeAt(tile, row) {
   return 'grass'
 }
 
-function scatterEnvironment(scene, layout, buildings, count, zoneObjects) {
+// Trees and rocks are solid obstacles (their tile is added to
+// `blockedTiles`, consulted by isBlockedTile below) - flowers stay walkable
+// ground decoration, matching the usual top-down-RPG convention. Previously
+// nothing scattered here was ever registered as blocked, so the player
+// could walk straight through a tree trunk or a boulder.
+function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blockedTiles) {
   const forbidden = new Set()
   for (const b of buildings) {
     for (let r = b.tiles.r0 - 1; r <= b.tiles.r1 + 1; r++) {
@@ -354,6 +395,7 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects) {
     const cx = c * TILE_SIZE + TILE_SIZE / 2
     const cy = r * TILE_SIZE + TILE_SIZE / 2
     let objs
+    let solid = false
     const isUrban = (r >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && r <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) || (r >= DISTRICT_BAND_ROWS['Osaka District'].top - 2 && r <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 2)
     const isJRPG = (r >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && r <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2)
 
@@ -361,15 +403,32 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects) {
       // Only sparse rocks for urban marble districts
       if (Math.random() > 0.25) continue
       objs = placeRock(scene, cx, cy)
+      solid = true
     } else if (isJRPG) {
       // Kyoto: flowers (cherry blossom) dominant + rocks
       const roll = Math.random()
-      objs = roll < 0.65 ? placeFlower(scene, cx, cy) : placeRock(scene, cx, cy)
+      if (roll < 0.65) {
+        objs = placeFlower(scene, cx, cy)
+      } else {
+        objs = placeRock(scene, cx, cy)
+        solid = true
+      }
     } else {
       const roll = Math.random()
-      objs = roll < 0.45 ? placeTree(scene, cx, cy) : roll < 0.85 ? placeFlower(scene, cx, cy) : placeRock(scene, cx, cy)
+      if (roll < 0.45) {
+        objs = placeTree(scene, cx, cy)
+        solid = true
+      } else if (roll < 0.85) {
+        objs = placeFlower(scene, cx, cy)
+      } else {
+        objs = placeRock(scene, cx, cy)
+        solid = true
+      }
     }
-    if (objs) zoneObjects.push(...objs)
+    if (objs) {
+      zoneObjects.push(...objs)
+      if (solid && blockedTiles) blockedTiles.add(`${r},${c}`)
+    }
   }
 }
 
@@ -378,18 +437,42 @@ function scatterTrees(scene, layout, buildings, count, zoneObjects) {
   scatterEnvironment(scene, layout, buildings, count, 'default', zoneObjects)
 }
 
+// Animated-door scope: ONLY buildings whose facade resolved to a Serene
+// Village cottage prefab (buildingDoorAnimSpec returns non-null exclusively
+// for that family - see tileGen.js) get an overlay sprite here. That's
+// roughly a quarter of the "everyone else" wealth tier's homes (see
+// brickOrPico8HomeKit), not all 129 buildings - deliberately scoped so the
+// animation reads as "this recognizable house style has a working door"
+// rather than a uniform tic applied to every building indiscriminately
+// (district civic buildings, hideouts, and the other two home facade
+// families all keep their door as a static painted-on frame, same as
+// before this change).
 function drawBuildings(scene, buildings, zoneObjects) {
   for (const b of buildings) {
     const x = b.tiles.c0 * TILE_SIZE
     const y = b.tiles.r0 * TILE_SIZE
     const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-    zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color))
+    zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color, b))
     const label = scene.add
       .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
       .setOrigin(0.5, 1)
       .setDepth(y + h + 10)
     zoneObjects.push(label)
+
+    const doorSpec = buildingDoorAnimSpec(b, x, y, w, h)
+    if (doorSpec && scene.textures.exists(SERENE_VILLAGE_DOOR_KEY)) {
+      const doorSprite = scene.add
+        .sprite(doorSpec.x, doorSpec.y, SERENE_VILLAGE_DOOR_KEY, 0)
+        .setOrigin(0, 0)
+        .setScale(TILE_SIZE / 16)
+      // +1 over the facade's own depth (set to y+h by placeBuildingFacade)
+      // so the door sprite always draws on top of the static wall tile it's
+      // overlaying, regardless of Phaser's tie-break order for equal depths.
+      doorSprite.setDepth(y + h + 1)
+      zoneObjects.push(doorSprite)
+      scene.animatedDoors.push({ sprite: doorSprite, buildingId: doorSpec.buildingId, isOpen: false })
+    }
   }
 }
 
@@ -584,6 +667,67 @@ function wanderActor(scene, actor, delta, speed = 20) {
   actor.shadow.setDepth(actor.y - 1)
 }
 
+// ---------------------------------------------------------------------------
+// Habitat animals (Cute_Fantasy_Free Chicken/Cow/Pig/Sheep) - see
+// spawnHabitatAnimals/spawnWealthyPetPens below for where these get created.
+// AnimalActor duck-types exactly the shape wanderActor (above) expects -
+// .sprite/.shadow Phaser objects, .wanderTimer/.wanderDir state, and
+// .setMoving/.setFacing/.update methods - so animals reuse wanderActor's
+// existing collision-safe movement verbatim instead of a second movement
+// system. Each animal sheet is a confirmed clean 2x2 grid of 32px walk-cycle
+// frames (verified by cropping and viewing every cell); this renders a
+// single static frame per animal rather than wiring a second per-species
+// animation timer - "motionless but wandering" is an accepted simplification
+// for a background decoration layer, not a bug.
+// ---------------------------------------------------------------------------
+const ANIMAL_FRAME_SIZE = 32
+
+class AnimalActor {
+  constructor(scene, x, y, textureKey) {
+    this.scene = scene
+    this.shadowOffsetY = 10
+    this.shadow = scene.add.ellipse(x, y + this.shadowOffsetY, 16, 6, 0x000000, 0.3)
+    this.sprite = scene.add.image(x, y, textureKey, 0)
+    this.sprite.setScale(TILE_SIZE / ANIMAL_FRAME_SIZE)
+    this.sprite.setDepth(y)
+    this.shadow.setDepth(y - 1)
+    this.wanderTimer = 0
+    this.wanderDir = { x: 0, y: 0 }
+    this.dead = false
+  }
+
+  get x() { return this.sprite.x }
+  get y() { return this.sprite.y }
+
+  setFacing(dir) {
+    if (dir === 'left') this.sprite.setFlipX(true)
+    else if (dir === 'right') this.sprite.setFlipX(false)
+    // up/down: no distinct frames for these sheets, intentional no-op.
+  }
+
+  setMoving(_isMoving) {
+    // Static single-frame pose - no walk-cycle to toggle, see class comment.
+  }
+
+  update(_delta) {
+    this.shadow.setPosition(this.sprite.x, this.sprite.y + this.shadowOffsetY)
+    this.sprite.setDepth(this.sprite.y)
+    this.shadow.setDepth(this.sprite.y - 1)
+  }
+
+  destroy() {
+    this.sprite.destroy()
+    this.shadow.destroy()
+  }
+}
+
+const HABITAT_ANIMAL_TEXTURE_KEYS = [
+  HABITAT_ASSET_KEYS.chicken,
+  HABITAT_ASSET_KEYS.cow,
+  HABITAT_ASSET_KEYS.pig,
+  HABITAT_ASSET_KEYS.sheep,
+]
+
 // Draws a generic interior room (floor + desk + label) into `scene` using
 // the given palette, and returns the desk's pixel rect. Shared by the Stock
 // Exchange's bespoke room and every templated buildingInterior room so the
@@ -643,6 +787,31 @@ export default class OverworldScene extends Phaser.Scene {
     this.financeNamedNpcActors = {}
     this.financeAmbientActors = []
     this.namedRoamers = []
+    // Parked/atmosphere cars in the current zone (only ever populated for
+    // 'overworld' - see spawnWorldVehicles/clearZoneObjects). Each entry:
+    // { tierId, name, spriteName, speedMultiplier, scale, col, row, owned, actor }.
+    this.vehicleActors = []
+    // Set while the player is driving one of the entries above; that entry's
+    // VehicleActor is repositioned onto this.playerActor's (hidden) position
+    // every frame instead of a second movement system - see update().
+    this.drivingEntry = null
+    // '{row},{col}' keys for scattered trees/rocks (see scatterEnvironment) -
+    // rebuilt fresh each buildOverworldZone() call, consulted by
+    // isBlockedTile so the player/NPCs/vehicles can't walk or drive through
+    // them the way they could before this set existed.
+    this.blockedEnvironmentTiles = new Set()
+    // Ambient wandering habitat animals (small grass-cluster critters plus
+    // the 1-2 exotic pets inside a wealthy home's fenced pen) - see
+    // spawnHabitatAnimals/spawnWealthyPetPens. Rebuilt fresh each
+    // buildOverworldZone() call and updated every frame the same way
+    // financeAmbientActors are (see updateHabitatAnimals/update()).
+    this.habitatAnimalActors = []
+    // Animated door overlays (Serene Village cottage homes only - see
+    // drawBuildings/updateAnimatedDoors). Each entry: { sprite, buildingId,
+    // isOpen }. Rebuilt fresh each buildOverworldZone() call; the sprites
+    // themselves live in zoneObjects too and get destroyed by
+    // clearZoneObjects the normal way, this array just tracks anim state.
+    this.animatedDoors = []
     this.agentClock = 0
     // Keyed by characterId -> { currentBuildingId, nextBuildingId, action },
     // refreshed by refreshPresenceCache() on block change / throttle interval
@@ -656,10 +825,20 @@ export default class OverworldScene extends Phaser.Scene {
   preload() {
     preloadTerrainAssets(this)
     preloadPlayerSheet(this)
+    preloadVehicleAssets(this)
+    preloadChapelPack(this)
   }
 
   create() {
     useGameStore.getState().initFinanceMarket()
+    // Carves the 3 true-top-down car frames out of the pico-8-city sheet
+    // (vehicleGen.js) - must happen after preload's load.image() lands, so
+    // create() rather than preload(). Idempotent, safe on scene restart.
+    ensurePico8CarFrames(this)
+    // Registers the 'open'/'close' anims on this scene's AnimationManager -
+    // must happen after preload's load.spritesheet() lands, same reasoning
+    // as ensurePico8CarFrames above.
+    ensureSereneVillageDoorAnims(this)
 
     this.promptText = this.add
       .text(320, 460, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffe066' })
@@ -686,6 +865,15 @@ export default class OverworldScene extends Phaser.Scene {
     this.bridge?.on('ambientNpcKilled', ({ npcId }) => {
       this.removeFinanceAmbientNpc(npcId)
     })
+    // Fired by WorldScreen.jsx for both a legit transit-hub purchase and a
+    // successful theft (same event, same payload shape - see that file's
+    // handleAcquireVehicle/handleVehicleStolen). If the car already exists
+    // in the world (the common case: all 3 hub tiers and every atmosphere
+    // car are always spawned, see spawnWorldVehicles), just flip it to
+    // owned in place rather than spawning a duplicate.
+    this.bridge?.on('acquireVehicle', (vehicle) => {
+      this.onAcquireVehicle(vehicle)
+    })
 
     this.marketTimer = this.time.addEvent({
       delay: 4000,
@@ -708,6 +896,8 @@ export default class OverworldScene extends Phaser.Scene {
     if (zoneId === 'overworld') this.buildOverworldZone()
     else if (zoneId === 'stockExchangeInterior') this.buildStockExchangeInteriorZone()
     else if (zoneId === 'casinoInterior') this.buildCasinoInteriorZone()
+    else if (zoneId === 'chapelInterior') this.buildChapelInteriorZone()
+    else if (zoneId === 'teaHouseInterior') this.buildTeaHouseInteriorZone()
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
     const zone = ZONES[zoneId]
@@ -717,7 +907,17 @@ export default class OverworldScene extends Phaser.Scene {
     // gets clamped back inside that small box while walking.
     this.physics.world.setBounds(0, 0, zone.cols * TILE_SIZE, zone.rows * TILE_SIZE)
     if (teleportPlayer) {
-      const spawn = zoneId === 'overworld' ? this.overworldReturnSpawn : INTERIOR_SPAWN
+      // chapelInterior/teaHouseInterior carry their own room-specific spawn
+      // tile (their rooms aren't INTERIOR_COLS/ROWS-shaped) - every other
+      // interior still reuses the one shared INTERIOR_SPAWN.
+      const spawn =
+        zoneId === 'overworld'
+          ? this.overworldReturnSpawn
+          : zoneId === 'chapelInterior'
+            ? CHAPEL_TEMPLE_ROOM.spawn
+            : zoneId === 'teaHouseInterior'
+              ? TEA_HOUSE_ROOM.spawn
+              : INTERIOR_SPAWN
       this.tileMover.teleport(spawn.col, spawn.row)
     }
     this.cameras.main.startFollow(this.playerActor.sprite, true)
@@ -755,11 +955,34 @@ export default class OverworldScene extends Phaser.Scene {
     for (const roamer of this.namedRoamers) {
       roamer.actor.destroy()
       roamer.label.destroy()
+      if (roamer.carActor) roamer.carActor.destroy()
     }
     for (const actor of this.financeAmbientActors) actor.destroy()
+    for (const animal of this.habitatAnimalActors) animal.destroy()
+    for (const vehicle of this.vehicleActors) vehicle.actor.destroy()
     this.namedRoamers = []
     this.financeNamedNpcActors = {}
     this.financeAmbientActors = []
+    this.habitatAnimalActors = []
+    this.vehicleActors = []
+    // The sprites themselves are already destroyed above (they're in
+    // zoneObjects) - this just drops the now-stale anim-state entries.
+    this.animatedDoors = []
+    // Zone-persistence house rule: vehicles only ever live in the
+    // 'overworld' zone (interiors have their own collision and no cars), and
+    // driving never carries across a zone load - buildings/exits already
+    // call exitVehicle() first (see triggerInteraction), this is just the
+    // safety net for any path that doesn't (e.g. the trainStation/
+    // teleportToCity city-travel shortcuts). Owned vehicles aren't lost -
+    // spawnWorldVehicles respawns every store-owned tier near the station
+    // when 'overworld' loads back in.
+    if (this.drivingEntry) {
+      this.drivingEntry = null
+      this.tileMover.stepDurationMs = 160
+      this.playerActor.sprite.setVisible(true)
+      this.playerActor.shadow.setVisible(true)
+      useGameStore.getState().setDriving(false)
+    }
   }
 
   buildOverworldZone() {
@@ -774,18 +997,33 @@ export default class OverworldScene extends Phaser.Scene {
     this.zoneObjects.push(terrainLayer)
 
     // City-specific environment scatter
-    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, 80, this.zoneObjects)
+    this.blockedEnvironmentTiles = new Set()
+    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, 80, this.zoneObjects, this.blockedEnvironmentTiles)
 
     drawBuildings(this, FINANCE_BUILDINGS, this.zoneObjects)
+
+    // Small, bounded "wealth flex" pens (a handful of the richest homes get a
+    // fenced-in exotic pet) and the general ambient-animal habitat clusters -
+    // both after drawBuildings so FINANCE_BUILDINGS' final tile rects exist,
+    // and after scatterEnvironment above so blockedEnvironmentTiles is
+    // populated for the "near a tree" placement bias / pen-fence collision.
+    this.spawnWealthyPetPens()
+    this.spawnHabitatAnimals()
 
     // City-specific landmark buildings overlay (now District-specific)
     this.drawCityLandmarkOverlay()
 
     this.spawnNamedRoamers()
     this.spawnFinanceAmbientNpcs()
+    // Building interaction zones (this.zones) have to exist BEFORE vehicles
+    // spawn - adjacentOpenTiles below checks candidate tiles against them so
+    // a parked car never lands inside a building's own (padded) interact
+    // rect, which would make the car unreachable (its zone always loses to
+    // the building's in updateNearbyZone's static-zone-first check).
+    this.buildOverworldZones()
+    this.spawnWorldVehicles()
 
     this.regionLabel.setText('Capital Syndicate Mega-Map')
-    this.buildOverworldZones()
   }
 
   drawCityLandmarkOverlay() {
@@ -926,9 +1164,34 @@ export default class OverworldScene extends Phaser.Scene {
     ]
   }
 
+  // Real tile-based rooms built from the chapel pack's Walls_Interior
+  // tileset via the generic buildTmxWallInteriorZone builder (see
+  // src/game/interiors/tmxWallInterior.js) - the `temple` building
+  // (Whispering Temple) gets the actual chapel interior; `teaHouse` reuses
+  // the exact same wall/floor tileset in a much smaller room, proving it's
+  // genuinely general-purpose rather than chapel-only. Both keep their
+  // existing building id in the desk zone so TempleModal / DistrictBuildingModal
+  // routing in WorldScreen.jsx (which key off that id, not npcId) is untouched.
+  buildChapelInteriorZone() {
+    const { zones, blockedTiles } = buildTmxWallInteriorZone(this, CHAPEL_TEMPLE_ROOM, this.zoneObjects, Phaser, TILE_SIZE)
+    this.interiorBlockedTiles = blockedTiles
+    this.zones = zones
+  }
+
+  buildTeaHouseInteriorZone() {
+    const { zones, blockedTiles } = buildTmxWallInteriorZone(this, TEA_HOUSE_ROOM, this.zoneObjects, Phaser, TILE_SIZE)
+    this.interiorBlockedTiles = blockedTiles
+    this.zones = zones
+  }
+
   // ---------------- collision ----------------
 
   isBlockedTile(col, row) {
+    if (this.currentZoneId === 'chapelInterior' || this.currentZoneId === 'teaHouseInterior') {
+      const zone = ZONES[this.currentZoneId]
+      if (col < 0 || col >= zone.cols || row < 0 || row >= zone.rows) return true
+      return this.interiorBlockedTiles?.has(`${col},${row}`) ?? false
+    }
     if (
       this.currentZoneId === 'stockExchangeInterior' ||
       this.currentZoneId === 'casinoInterior' ||
@@ -943,6 +1206,15 @@ export default class OverworldScene extends Phaser.Scene {
     }
     if (col < 0 || col >= MAP_COLS || row < 0 || row >= MAP_ROWS) return true
     if (this.financeLayout[row][col] === 'wall') return true
+    // Water (isSingleTileObstacle) was rendered as a distinct tile type
+    // (financeTileType/WATER_ROWS) but never actually stopped anyone - the
+    // player, NPCs, and vehicles could all walk/drive straight across the
+    // coastal rows. No swimming/boat mechanic exists, so treat it as fully
+    // impassable, same as a wall. A parked/idle vehicle blocks its own tile
+    // too (excluding whichever entry is currently being driven - that one's
+    // position just mirrors the player's own already-validated TileMover
+    // position, not a second body that could collide with it).
+    if (this.isSingleTileObstacle(col, row)) return true
     for (const b of FINANCE_BUILDINGS) {
       if (col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1) return true
     }
@@ -957,6 +1229,23 @@ export default class OverworldScene extends Phaser.Scene {
   // stand/walk through it. This snaps a candidate world position out to
   // just past whichever padded building edge it's closest to, so buildings
   // read as solid for them too without needing full pathfinding.
+  // A single tile (not a whole building rect) is solid for a continuously-
+  // moving actor: a scattered tree/rock, a water tile (see isBlockedTile -
+  // no swimming/boat mechanic exists), or a parked vehicle that isn't the
+  // one currently being driven. Shared by resolveOpenPosition below instead
+  // of duplicating the same nearest-edge push-out three times.
+  isSingleTileObstacle(col, row) {
+    if (this.blockedEnvironmentTiles?.has(`${row},${col}`)) return true
+    if (this.financeLayout?.[row]?.[col] === 'water') return true
+    if (this.vehicleActors) {
+      for (const v of this.vehicleActors) {
+        if (v === this.drivingEntry) continue
+        if (v.col === col && v.row === row) return true
+      }
+    }
+    return false
+  }
+
   resolveOpenPosition(x, y) {
     if (this.currentZoneId !== 'overworld') return { x, y, blocked: false }
     const col = Math.floor(x / TILE_SIZE)
@@ -964,6 +1253,26 @@ export default class OverworldScene extends Phaser.Scene {
     const building = FINANCE_BUILDINGS.find(
       (b) => col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1
     )
+    // Same nearest-edge push-out as the building case below, just against a
+    // single tile's bounds instead of a building rect.
+    if (!building && this.isSingleTileObstacle(col, row)) {
+      const pad = TILE_SIZE * 0.5
+      const left = col * TILE_SIZE - pad
+      const right = (col + 1) * TILE_SIZE + pad
+      const top = row * TILE_SIZE - pad
+      const bottom = (row + 1) * TILE_SIZE + pad
+      const tileEdges = [
+        { side: 'left', d: x - left },
+        { side: 'right', d: right - x },
+        { side: 'top', d: y - top },
+        { side: 'bottom', d: bottom - y },
+      ].sort((a, b) => a.d - b.d)
+      const closestTileEdge = tileEdges[0].side
+      if (closestTileEdge === 'left') return { x: left, y, blocked: true }
+      if (closestTileEdge === 'right') return { x: right, y, blocked: true }
+      if (closestTileEdge === 'top') return { x, y: top, blocked: true }
+      return { x, y: bottom, blocked: true }
+    }
     if (!building) return { x, y, blocked: false }
     const pad = TILE_SIZE * 0.7
     const left = building.tiles.c0 * TILE_SIZE - pad
@@ -1121,6 +1430,33 @@ export default class OverworldScene extends Phaser.Scene {
         else roamer.actor.setFacing(dy > 0 ? 'down' : 'up')
       }
       roamer.actor.update(delta)
+
+      // Titans/socialites (npcVehicleFor - same gating that decides who can
+      // OWN a car, see vehicleGen.js) render as their car while actually
+      // travelling door-to-door (currentBuildingId !== nextBuildingId) -
+      // reusing (x,y), the exact post-resolveOpenPosition point the walking
+      // sprite above already got pushed out of building footprints to, so a
+      // driving NPC is never worse-guarded than a walking one (see this
+      // file's own house-rule comment on that ~12.4% lerp-clips-corners rough
+      // edge - not attempting to fix it here, just not bypassing its guard).
+      // Milling in place (doorA===doorB) shows the walking sprite instead -
+      // a character standing at their own door should read as a person, not
+      // a parked car mid-pavement.
+      const vehicleSpec = npcVehicleFor(roamer.character)
+      const travelling = Boolean(doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId)
+      if (vehicleSpec && travelling) {
+        if (!roamer.carActor) roamer.carActor = new VehicleActor(this, x, y, { spriteName: vehicleSpec.spriteName, scale: vehicleSpec.scale, atlasKey: vehicleSpec.atlasKey })
+        roamer.carActor.setPosition(x, y)
+        roamer.carActor.faceVector(dx, dy)
+        roamer.carActor.setVisible(true)
+        roamer.actor.sprite.setVisible(false)
+        roamer.actor.shadow.setVisible(false)
+      } else {
+        if (roamer.carActor) roamer.carActor.setVisible(false)
+        roamer.actor.sprite.setVisible(true)
+        roamer.actor.shadow.setVisible(true)
+      }
+
       // Name floats above the sprite; the agent's current "thought" appears
       // once the player is close enough to read it.
       const near = Phaser.Math.Distance.Between(px, py, x, y) < 180
@@ -1143,6 +1479,7 @@ export default class OverworldScene extends Phaser.Scene {
       roamer.dead = true
       roamer.actor.sprite.setVisible(false)
       roamer.actor.shadow.setVisible(false)
+      if (roamer.carActor) roamer.carActor.setVisible(false)
       roamer.label.setVisible(false)
     }
   }
@@ -1167,6 +1504,548 @@ export default class OverworldScene extends Phaser.Scene {
       actor.dead = false
       return actor
     })
+  }
+
+  // ---------------- habitat animals ----------------
+  // Small, bounded ambient decoration - a handful of grass-cluster critters
+  // (this method) plus a few fenced "wealth flex" exotic pets
+  // (spawnWealthyPetPens below). Both create AnimalActor instances and push
+  // them into this.habitatAnimalActors, updated every frame by
+  // updateHabitatAnimals via the shared wanderActor() function - not a
+  // second movement system.
+
+  // Roughly 2-3 small clusters of 2-4 animals each, biased toward landing
+  // near an existing scattered tree/rock (blockedEnvironmentTiles, populated
+  // by scatterEnvironment just before this runs - see buildOverworldZone) so
+  // they read as loitering near a landmark rather than scattered uniformly
+  // across the whole map; falls back to any open grass tile if no
+  // tree/rock-adjacent spot is found within the try budget.
+  spawnHabitatAnimals() {
+    const treeTiles = []
+    for (const key of this.blockedEnvironmentTiles) {
+      const [r, c] = key.split(',').map(Number)
+      treeTiles.push({ r, c })
+    }
+
+    const clusterCount = 2 + Math.floor(Math.random() * 2) // 2-3 clusters
+    for (let cluster = 0; cluster < clusterCount; cluster++) {
+      let anchor = null
+      for (let tries = 0; tries < 40 && !anchor; tries++) {
+        let r
+        let c
+        if (treeTiles.length && Math.random() < 0.7) {
+          const t = treeTiles[Math.floor(Math.random() * treeTiles.length)]
+          r = t.r + Math.floor(Math.random() * 5) - 2 // +/- 2 tiles of a tree/rock
+          c = t.c + Math.floor(Math.random() * 5) - 2
+        } else {
+          r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6)) // skip the coastal water channel
+          c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
+        }
+        if (r < 1 || r >= MAP_ROWS - 1 || c < 1 || c >= MAP_COLS - 1) continue
+        if (this.financeLayout[r]?.[c] !== 'grass') continue
+        if (this.isBlockedTile(c, r)) continue
+        anchor = { r, c }
+      }
+      if (!anchor) continue
+
+      const size = 2 + Math.floor(Math.random() * 3) // 2-4 animals per cluster
+      for (let i = 0; i < size; i++) {
+        let spot = null
+        for (let tries = 0; tries < 15 && !spot; tries++) {
+          const rr = anchor.r + Math.floor(Math.random() * 3) - 1
+          const cc = anchor.c + Math.floor(Math.random() * 3) - 1
+          if (rr < 1 || rr >= MAP_ROWS - 1 || cc < 1 || cc >= MAP_COLS - 1) continue
+          if (this.financeLayout[rr]?.[cc] !== 'grass') continue
+          if (this.isBlockedTile(cc, rr)) continue
+          spot = { r: rr, c: cc }
+        }
+        if (!spot) continue
+        const textureKey = HABITAT_ANIMAL_TEXTURE_KEYS[Math.floor(Math.random() * HABITAT_ANIMAL_TEXTURE_KEYS.length)]
+        const animal = new AnimalActor(this, spot.c * TILE_SIZE + TILE_SIZE / 2, spot.r * TILE_SIZE + TILE_SIZE / 2, textureKey)
+        this.habitatAnimalActors.push(animal)
+      }
+    }
+  }
+
+  // First open (grass, not a building/tree/rock/other-reserved-cell) WxH
+  // rectangle found among a handful of fixed offsets adjacent to `home`'s
+  // footprint (below/above/right/left, each tried at two alignments) -
+  // simpler than a full ring search since pen placement is low-stakes (skip
+  // the character entirely if nothing fits, per the project brief). Mirrors
+  // the forbidden-zone style scatterEnvironment/adjacentOpenTiles already use
+  // in this file, just for a multi-tile rect instead of single tiles.
+  findPenSpot(home, w, h, buildingTileSet, usedPenTiles) {
+    const { c0: hc0, r0: hr0, c1: hc1, r1: hr1 } = home.tiles
+    const candidates = [
+      { c0: hc0, r0: hr1 + 1 }, // below, left-aligned
+      { c0: hc1 - w + 1, r0: hr1 + 1 }, // below, right-aligned
+      { c0: hc0, r0: hr0 - h }, // above, left-aligned
+      { c0: hc1 - w + 1, r0: hr0 - h }, // above, right-aligned
+      { c0: hc1 + 1, r0: hr0 }, // right, top-aligned
+      { c0: hc1 + 1, r0: hr1 - h + 1 }, // right, bottom-aligned
+      { c0: hc0 - w, r0: hr0 }, // left, top-aligned
+      { c0: hc0 - w, r0: hr1 - h + 1 }, // left, bottom-aligned
+    ]
+    for (const { c0, r0 } of candidates) {
+      if (c0 < 1 || r0 < 1 || c0 + w - 1 >= MAP_COLS - 1 || r0 + h - 1 >= MAP_ROWS - 1) continue
+      let ok = true
+      for (let r = r0; r < r0 + h && ok; r++) {
+        for (let c = c0; c < c0 + w && ok; c++) {
+          const key = `${r},${c}`
+          if (this.financeLayout[r]?.[c] !== 'grass') ok = false
+          else if (buildingTileSet.has(key)) ok = false
+          else if (usedPenTiles.has(key)) ok = false
+          else if (this.blockedEnvironmentTiles.has(key)) ok = false
+        }
+      }
+      if (ok) return { c0, r0 }
+    }
+    return null
+  }
+
+  // The "exotic pets as a wealth flex" detail: a small, fixed number of the
+  // wealthiest homes (by the SAME billionaire signal tileGen.js's
+  // packFacadeFor uses for the stone-cottage tier - see WEALTH_STONE_THRESHOLD)
+  // get a small fenced pen next to their home with 1-2 animals wandering only
+  // inside it. Deliberately capped at PET_PEN_COUNT - this is flavor for a
+  // handful of the richest characters, not a mechanic for all 88 homes.
+  spawnWealthyPetPens() {
+    const PET_PEN_COUNT = 5
+    const PET_PEN_W = 4
+    const PET_PEN_H = 4
+
+    const wealthyHomes = FINANCE_BUILDINGS.filter((b) => b.kind === 'home')
+      .map((b) => ({ building: b, netWorth: getAnyCharacter(b.npcId)?.netWorth ?? 0 }))
+      .filter((h) => h.netWorth >= WEALTH_STONE_THRESHOLD)
+      .sort((a, b) => b.netWorth - a.netWorth)
+      .slice(0, PET_PEN_COUNT)
+
+    const buildingTileSet = new Set()
+    for (const b of FINANCE_BUILDINGS) {
+      for (let r = b.tiles.r0; r <= b.tiles.r1; r++) {
+        for (let c = b.tiles.c0; c <= b.tiles.c1; c++) buildingTileSet.add(`${r},${c}`)
+      }
+    }
+    const usedPenTiles = new Set()
+
+    for (const { building: home } of wealthyHomes) {
+      const spot = this.findPenSpot(home, PET_PEN_W, PET_PEN_H, buildingTileSet, usedPenTiles)
+      if (!spot) continue // low-stakes decoration - skip rather than force an overlap
+      const { c0, r0 } = spot
+      const px = c0 * TILE_SIZE
+      const py = r0 * TILE_SIZE
+      const fenceObjs = placeFencePen(this, px, py, PET_PEN_W * TILE_SIZE, PET_PEN_H * TILE_SIZE, TILE_SIZE)
+      this.zoneObjects.push(...fenceObjs)
+
+      // Perimeter fence cells read as solid exactly like a scattered
+      // tree/rock (see scatterEnvironment/blockedEnvironmentTiles), reusing
+      // isBlockedTile/resolveOpenPosition's existing collision path instead
+      // of a new one - this is also what keeps the pen's animals contained
+      // without a separate pen-bounds check.
+      for (let c = c0; c < c0 + PET_PEN_W; c++) {
+        this.blockedEnvironmentTiles.add(`${r0},${c}`)
+        this.blockedEnvironmentTiles.add(`${r0 + PET_PEN_H - 1},${c}`)
+        usedPenTiles.add(`${r0},${c}`)
+        usedPenTiles.add(`${r0 + PET_PEN_H - 1},${c}`)
+      }
+      for (let r = r0; r < r0 + PET_PEN_H; r++) {
+        this.blockedEnvironmentTiles.add(`${r},${c0}`)
+        this.blockedEnvironmentTiles.add(`${r},${c0 + PET_PEN_W - 1}`)
+        usedPenTiles.add(`${r},${c0}`)
+        usedPenTiles.add(`${r},${c0 + PET_PEN_W - 1}`)
+      }
+
+      const interior = []
+      for (let r = r0 + 1; r < r0 + PET_PEN_H - 1; r++) {
+        for (let c = c0 + 1; c < c0 + PET_PEN_W - 1; c++) {
+          interior.push({ r, c })
+          usedPenTiles.add(`${r},${c}`) // reserve interior too, so other pens/clusters skip it
+        }
+      }
+      const animalCount = Math.min(interior.length, 1 + Math.floor(Math.random() * 2)) // 1-2
+      for (let i = 0; i < animalCount; i++) {
+        const idx = Math.floor(Math.random() * interior.length)
+        const { r, c } = interior.splice(idx, 1)[0]
+        const textureKey = HABITAT_ANIMAL_TEXTURE_KEYS[Math.floor(Math.random() * HABITAT_ANIMAL_TEXTURE_KEYS.length)]
+        const animal = new AnimalActor(this, c * TILE_SIZE + TILE_SIZE / 2, r * TILE_SIZE + TILE_SIZE / 2, textureKey)
+        this.habitatAnimalActors.push(animal)
+      }
+    }
+  }
+
+  // Reuses wanderActor verbatim (see updateAllAmbientNpcs below for the
+  // identical pattern with financeAmbientActors) for the free movement, then
+  // adds the one check wanderActor/resolveOpenPosition don't do themselves:
+  // resolveOpenPosition only stops actors at solid obstacles (buildings,
+  // scattered trees/rocks, and now pen fences), not by terrain TYPE, so an
+  // animal could otherwise wander from grass onto a path/water tile. If the
+  // post-wander tile isn't grass, the move is reverted and the wander timer
+  // is reset so a new (hopefully open) direction gets picked next tick -
+  // exactly the same "blocked" recovery wanderActor already uses for walls.
+  updateHabitatAnimals(delta) {
+    for (const animal of this.habitatAnimalActors) {
+      const prevX = animal.x
+      const prevY = animal.y
+      wanderActor(this, animal, delta, 16)
+      const col = Math.floor(animal.x / TILE_SIZE)
+      const row = Math.floor(animal.y / TILE_SIZE)
+      if (this.financeLayout[row]?.[col] !== 'grass') {
+        animal.sprite.setPosition(prevX, prevY)
+        animal.wanderTimer = 0
+      }
+    }
+  }
+
+  // ---------------- vehicles ----------------
+  // Real, walk-up-and-press-E world objects (drive-if-owned, steal-if-not) -
+  // not a second collision/movement system, see enterVehicle/exitVehicle and
+  // the driving branch in update(). Only ever built for the 'overworld' zone
+  // (see clearZoneObjects/buildOverworldZone).
+
+  // First `count` open tiles (per isBlockedTile - the same authority the
+  // player's own TileMover uses) found by scanning outward ring-by-ring from
+  // `building`'s footprint, skipping any tile another vehicle already
+  // occupies AND any tile still inside some building's own (padded)
+  // interaction rect (this.zones, built before this ever runs - see
+  // buildOverworldZone). That second check matters even though ring 1 is
+  // already outside `building`'s own footprint: this.zones rects are padded
+  // by TILE_SIZE/2 past the footprint (see buildOverworldZones), so a tile
+  // one step out can still have its pixel center inside that padded rect -
+  // and a car parked there would be permanently unreachable, since
+  // updateNearbyZone tests static (building) zones before vehicle zones.
+  // Rings widen (rather than a fixed 1-tile ring) so this keeps searching
+  // past the padding instead of returning fewer than `count` tiles. Never
+  // hardcoded: the finance map's building layout is itself generated (see
+  // layoutFinanceMap), so a fixed offset could land inside a footprint, a
+  // wall, or another building's rect the moment the roster changes.
+  // True if the tile's pixel center falls inside ANY building's interaction
+  // rect (this.zones - padded TILE_SIZE/2 past the footprint, see
+  // buildOverworldZones). A vehicle parked there would be permanently
+  // unreachable: updateNearbyZone tests static (building) zones before
+  // vehicle zones, so the building always wins the interaction. Requires
+  // this.zones to already be built (buildOverworldZone calls
+  // buildOverworldZones() before spawning any vehicle - see that method).
+  isInsideAnyBuildingZone(col, row) {
+    const px = col * TILE_SIZE + TILE_SIZE / 2
+    const py = row * TILE_SIZE + TILE_SIZE / 2
+    return this.zones.some((z) => z.type === 'building' && Phaser.Geom.Rectangle.Contains(z.rect, px, py))
+  }
+
+  // First `count` open tiles (per isBlockedTile - the same authority the
+  // player's own TileMover uses) found by scanning outward ring-by-ring from
+  // `building`'s footprint, skipping any tile another vehicle already
+  // occupies AND any tile isInsideAnyBuildingZone (see that method - matters
+  // even though ring 1 is already outside `building`'s own footprint,
+  // because zone rects are padded past it and a neighboring building's rect
+  // can also reach in). Rings widen (rather than stopping at a fixed 1-tile
+  // ring) so this keeps searching past the padding instead of silently
+  // returning fewer than `count` tiles. Never hardcoded: the finance map's
+  // building layout is itself generated (see layoutFinanceMap), so a fixed
+  // offset could land inside a footprint, a wall, or another building's rect
+  // the moment the roster changes.
+  adjacentOpenTiles(building, count) {
+    const tiles = []
+    const occupied = new Set(this.vehicleActors.map((v) => `${v.col},${v.row}`))
+    const { c0, r0, c1, r1 } = building.tiles
+    const MAX_RING = 6
+    for (let ring = 1; ring <= MAX_RING && tiles.length < count; ring++) {
+      for (let r = r0 - ring; r <= r1 + ring && tiles.length < count; r++) {
+        for (let c = c0 - ring; c <= c1 + ring && tiles.length < count; c++) {
+          const onRing = r === r0 - ring || r === r1 + ring || c === c0 - ring || c === c1 + ring
+          if (!onRing) continue
+          const key = `${c},${r}`
+          if (occupied.has(key)) continue
+          if (this.isBlockedTile(c, r)) continue
+          if (this.isInsideAnyBuildingZone(c, r)) continue
+          tiles.push({ col: c, row: r })
+        }
+      }
+    }
+    return tiles
+  }
+
+  spawnVehicleEntry({ tierId, name, spriteName, speedMultiplier, scale, col, row, owned, atlasKey }) {
+    const { x, y } = this.tileMover.tileCenter(col, row)
+    const actor = new VehicleActor(this, x, y, { spriteName, scale, atlasKey })
+    const entry = { tierId, name, spriteName, speedMultiplier, scale, col, row, owned, atlasKey, actor }
+    this.vehicleActors.push(entry)
+    return entry
+  }
+
+  spawnWorldVehicles() {
+    const owned = useGameStore.getState().world2.transitState?.ownedVehicles || []
+    const isOwned = (tierId) => owned.some((v) => v.tierId === tierId)
+    // Restores an OWNED vehicle to the exact tile it was last parked at
+    // (see updateOwnedVehiclePosition, called from exitVehicle/
+    // onAcquireVehicle below) instead of its default fixed/random slot -
+    // reported by the user: "if i stole or buy it and i enter the house
+    // when i came out, the car disappear, it should stay there". House
+    // rule found while fixing this: EVERY vehicle tierId that can ever be
+    // `owned` is unconditionally re-spawned by one of the three blocks
+    // below on every 'overworld' load (that's how they show up as theft/
+    // rent targets before being owned at all) - so "respawn near the
+    // station" was never actually a fallback for an uncovered case, it was
+    // silently overriding this exact spot on every single zone reload.
+    // Falls back to `fallbackTile` only when there's no stored position
+    // yet (never parked since being acquired) or the stored tile is no
+    // longer valid (e.g. something else now occupies it).
+    const restoredTile = (tierId, fallbackTile) => {
+      const record = owned.find((v) => v.tierId === tierId)
+      if (
+        record &&
+        Number.isFinite(record.col) &&
+        Number.isFinite(record.row) &&
+        !this.isBlockedTile(record.col, record.row) &&
+        !this.isInsideAnyBuildingZone(record.col, record.row)
+      ) {
+        return { col: record.col, row: record.row }
+      }
+      return fallbackTile
+    }
+
+    // The 3 transit-hub tiers double as theft targets before purchase and as
+    // the player's own car once bought (see interactiveLocations.js's
+    // transit_hub options - reused directly rather than re-declaring the
+    // same name/speedMultiplier/spriteName here).
+    const trainStation = FINANCE_BUILDINGS.find((b) => b.id === 'trainStation')
+    const hubTiers = INTERACTIVE_LOCATIONS.find((l) => l.id === 'transit_hub').options.filter((o) => o.type === 'vehicle')
+    if (trainStation) {
+      const hubTiles = this.adjacentOpenTiles(trainStation, hubTiers.length)
+      hubTiers.forEach((opt, i) => {
+        const fallbackTile = hubTiles[i]
+        if (!fallbackTile) return
+        const owns = isOwned(opt.id)
+        const tile = owns ? restoredTile(opt.id, fallbackTile) : fallbackTile
+        this.spawnVehicleEntry({
+          tierId: opt.id,
+          name: opt.name,
+          spriteName: opt.spriteName,
+          speedMultiplier: opt.speedMultiplier,
+          scale: TIER_SPRITES[opt.id]?.scale ?? 1,
+          atlasKey: TIER_SPRITES[opt.id]?.atlasKey,
+          col: tile.col,
+          row: tile.row,
+          owned: owns,
+        })
+      })
+    }
+
+    // Atmosphere: a police cruiser outside the FBI HQ. Every atmosphere
+    // vehicle is stealable/driveable (see `owned` below), so - same as the
+    // rent/buy hub tiers and every NPC car - it needs a real top-down
+    // sprite, not the old illustrated side-view atlas: that assumption
+    // ("atmosphere cars don't rotate during normal play") was the actual
+    // bug behind the reported "flying car" - anything the player can drive
+    // rotates. tierId is still the flavor name (`atmo_police`) even though
+    // the sprite is now one of the 3 shared pico8 colors - see
+    // pico8CarFrameFor's header comment.
+    const fbiHQ = FINANCE_BUILDINGS.find((b) => b.id === 'fbiHQ')
+    const policeFallback = fbiHQ ? this.adjacentOpenTiles(fbiHQ, 1)[0] : null
+    if (policeFallback) {
+      const ownsPolice = isOwned('atmo_police')
+      const tile = ownsPolice ? restoredTile('atmo_police', policeFallback) : policeFallback
+      this.spawnVehicleEntry({
+        tierId: 'atmo_police',
+        name: 'Police Cruiser',
+        spriteName: pico8CarFrameFor('atmo_police'),
+        atlasKey: PICO8_ATLAS_KEY,
+        speedMultiplier: 2.0,
+        scale: 1, // absolute size now comes from VehicleActor's uniform-width scaling, see that file
+        col: tile.col,
+        row: tile.row,
+        owned: ownsPolice,
+      })
+    }
+
+    // Atmosphere: an ambulance plus a handful of street traffic, scattered
+    // onto open street-column/random-row tiles - same bounded random-retry
+    // shape spawnFinanceAmbientNpcs() uses for ambient people, checked
+    // against isBlockedTile (buildings are a much bigger footprint to dodge
+    // than the grass/path tile-type check that function uses). `flavor`
+    // names/tierIds the old illustrated-atlas filenames (ambulance/taxi/
+    // van/suv/sedan_blue) for display/identity only now - the actual
+    // sprite is a pico8CarFrameFor pick, same top-down-sprite fix as the
+    // police cruiser above. An OWNED entry skips the random hunt entirely
+    // and goes straight to restoredTile (falling back to a random tile only
+    // if it has no valid stored position yet) - see restoredTile's header.
+    const streetPool = ['ambulance.png', 'taxi.png', 'van.png', 'suv.png', 'sedan_blue.png']
+    let spawned = 0
+    let attempts = 0
+    while (spawned < streetPool.length && attempts < 200) {
+      attempts++
+      const flavor = streetPool[spawned]
+      const tierId = `atmo_${flavor.replace('.png', '')}`
+      const owns = isOwned(tierId)
+      let tile = null
+      if (owns) {
+        const restored = restoredTile(tierId, null)
+        if (restored && !this.vehicleActors.some((v) => v.col === restored.col && v.row === restored.row)) {
+          tile = restored
+        }
+      }
+      if (!tile) {
+        const c = FINANCE_V_STREETS[Math.floor(Math.random() * FINANCE_V_STREETS.length)]
+        const r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6))
+        if (this.isBlockedTile(c, r)) continue
+        if (this.isInsideAnyBuildingZone(c, r)) continue
+        if (this.vehicleActors.some((v) => v.col === c && v.row === r)) continue
+        tile = { col: c, row: r }
+      }
+      this.spawnVehicleEntry({
+        tierId,
+        name: flavor === 'ambulance.png' ? 'Ambulance' : `Parked ${flavor.replace('.png', '')}`,
+        spriteName: pico8CarFrameFor(tierId),
+        atlasKey: PICO8_ATLAS_KEY,
+        speedMultiplier: 2.0,
+        scale: 1, // absolute size now comes from VehicleActor's uniform-width scaling, see that file
+        col: tile.col,
+        row: tile.row,
+        owned: owns,
+      })
+      spawned++
+    }
+
+    // Defensive-only fallback below: every tierId that can ever be `owned`
+    // is already unconditionally spawned by the three blocks above (that's
+    // how they show up as theft/rent targets before being owned at all),
+    // so in the current vehicle roster this loop's dedup check always
+    // finds an existing entry and skips - it's a no-op safety net for a
+    // hypothetical future owned-vehicle type that ISN'T also an always-on
+    // theft/rent target, not the mechanism actually restoring position
+    // (see restoredTile above for that).
+    if (trainStation) {
+      const stationFallback = this.adjacentOpenTiles(trainStation, owned.length)
+      let idx = 0
+      for (const v of owned) {
+        if (this.vehicleActors.some((e) => e.tierId === v.tierId)) continue
+        const tile = restoredTile(v.tierId, stationFallback[idx++])
+        if (!tile) continue
+        this.spawnVehicleEntry({
+          tierId: v.tierId,
+          name: v.name,
+          spriteName: v.spriteName,
+          speedMultiplier: v.speedMultiplier,
+          scale: TIER_SPRITES[v.tierId]?.scale ?? 1,
+          // Prefer TIER_SPRITES (the 2 purchasable hub tiers) so their
+          // behavior is unchanged; atmosphere tierIds have no TIER_SPRITES
+          // entry at all, so they fall back to whatever atlasKey got
+          // captured on the record itself (see the vehicleTheft emit in
+          // triggerInteraction and onAcquireVehicle below) - without this
+          // fallback every restored atmosphere vehicle silently reverted to
+          // the old illustrated atlas on the very next zone reload, even
+          // after the initial-spawn fix above.
+          atlasKey: TIER_SPRITES[v.tierId]?.atlasKey ?? v.atlasKey,
+          col: tile.col,
+          row: tile.row,
+          owned: true,
+        })
+      }
+    }
+  }
+
+  onAcquireVehicle(vehicle) {
+    const existing = this.vehicleActors.find((v) => v.tierId === vehicle.tierId)
+    if (existing) {
+      existing.owned = true
+      // Captures the theft/purchase-moment position immediately, in case
+      // the player never actually drives it (walks away on foot) before
+      // the zone reloads - exitVehicle() covers the "drove it, then
+      // parked" case, this covers "never drove it at all".
+      useGameStore.getState().updateOwnedVehiclePosition(existing.tierId, existing.col, existing.row)
+      return
+    }
+    // Not currently in the world (e.g. bought/stolen, then the overworld got
+    // unloaded before this event's listener ran) - store still has it, so
+    // spawnWorldVehicles will place it at its last known spot (or near the
+    // station if it's never been parked yet) next time 'overworld' loads
+    // (see that method's zone-persistence fallback). Nothing to spawn right
+    // now if we're not even in that zone.
+    if (this.currentZoneId !== 'overworld') return
+    const trainStation = FINANCE_BUILDINGS.find((b) => b.id === 'trainStation')
+    const tile = trainStation ? this.adjacentOpenTiles(trainStation, 1)[0] : null
+    if (!tile) return
+    this.spawnVehicleEntry({
+      tierId: vehicle.tierId,
+      name: vehicle.name,
+      spriteName: vehicle.spriteName,
+      speedMultiplier: vehicle.speedMultiplier,
+      scale: TIER_SPRITES[vehicle.tierId]?.scale ?? 1,
+      // See spawnWorldVehicles' zone-persistence fallback for why this
+      // needs the `?? vehicle.atlasKey` fallback: atmosphere tierIds have
+      // no TIER_SPRITES entry.
+      atlasKey: TIER_SPRITES[vehicle.tierId]?.atlasKey ?? vehicle.atlasKey,
+      col: tile.col,
+      row: tile.row,
+      owned: true,
+    })
+    useGameStore.getState().updateOwnedVehiclePosition(vehicle.tierId, tile.col, tile.row)
+  }
+
+  // House rule: this threshold can't reuse the 30px the roamer/ambient-NPC
+  // checks use - those actors drift continuously at sub-tile positions, so
+  // 30px genuinely means "close by". Cars sit dead-center on a tile
+  // (TileMover grid-locks the player the same way), so the player's own
+  // tile and an orthogonally-adjacent tile's car are EXACTLY 40px apart
+  // (TILE_SIZE) - 30 would never fire from a neighboring tile at all, only
+  // when standing on the car's own tile. 46 clears the orthogonal case (40)
+  // with a little slack while still rejecting a diagonal neighbor (~56.6,
+  // one tile further out than intended) and a 2-tiles-away car (80).
+  findNearbyVehicle() {
+    const px = this.playerActor.x
+    const py = this.playerActor.y
+    return this.vehicleActors.find((v) => Phaser.Math.Distance.Between(px, py, v.actor.x, v.actor.y) < 46)
+  }
+
+  // First open (isBlockedTile-checked) tile among the 8 neighbors of
+  // (col,row), nearest-first by the same fixed scan order every call - used
+  // to place the player on foot next to the car they just parked. Falls
+  // back to the car's own tile if every neighbor is blocked (e.g. parked in
+  // a tight gap) rather than failing to exit at all.
+  findOpenNeighborTile(col, row) {
+    const offsets = [
+      [0, 1], [0, -1], [1, 0], [-1, 0],
+      [1, 1], [1, -1], [-1, 1], [-1, -1],
+    ]
+    for (const [dc, dr] of offsets) {
+      const c = col + dc
+      const r = row + dr
+      if (!this.isBlockedTile(c, r)) return { col: c, row: r }
+    }
+    return { col, row }
+  }
+
+  enterVehicle(entry) {
+    this.drivingEntry = entry
+    this.playerActor.sprite.setVisible(false)
+    this.playerActor.shadow.setVisible(false)
+    this.tileMover.stepDurationMs = Math.round(160 / entry.speedMultiplier)
+    // Avoids a one-frame snap-rotation from stale prev-position on the first
+    // driving frame (see the faceVector call in update()).
+    this._prevDriveX = this.playerActor.x
+    this._prevDriveY = this.playerActor.y
+    useGameStore.getState().setDriving(true)
+  }
+
+  exitVehicle() {
+    const entry = this.drivingEntry
+    if (!entry) return
+    this.drivingEntry = null
+    this.tileMover.stepDurationMs = 160
+    useGameStore.getState().setDriving(false)
+    const parkedCol = this.tileMover.col
+    const parkedRow = this.tileMover.row
+    entry.col = parkedCol
+    entry.row = parkedRow
+    // Persists the exact parked tile so spawnWorldVehicles can restore it
+    // here (not "near the station") the next time this zone loads - see
+    // that method's zone-persistence fallback.
+    useGameStore.getState().updateOwnedVehiclePosition(entry.tierId, parkedCol, parkedRow)
+    const { x, y } = this.tileMover.tileCenter(parkedCol, parkedRow)
+    entry.actor.setPosition(x, y)
+    const neighbor = this.findOpenNeighborTile(parkedCol, parkedRow)
+    this.tileMover.teleport(neighbor.col, neighbor.row)
+    this.playerActor.sprite.setVisible(true)
+    this.playerActor.shadow.setVisible(true)
   }
 
   // ---------------- player / zones ----------------
@@ -1254,11 +2133,43 @@ export default class OverworldScene extends Phaser.Scene {
   updateNearbyZone() {
     const px = this.playerActor.x
     const py = this.playerActor.y
-    const staticZone = this.zones.find((z) => Phaser.Geom.Rectangle.Contains(z.rect, px, py))
-    const namedRoamer = !staticZone && this.currentZoneId === 'overworld' ? this.findNearbyNamedRoamer() : null
-    const financeAmbient = !staticZone && !namedRoamer ? this.findNearbyFinanceAmbientNpc() : null
 
-    if (staticZone) {
+    // While driving, only a building entrance (auto-exits the car, see
+    // triggerInteraction) or exiting the car itself are on offer - talking
+    // to a roamer/ambient NPC from inside a moving car doesn't make sense,
+    // and re-triggering the SAME parked car you're sitting in as a theft
+    // target doesn't either (see findNearbyVehicle - skipped entirely below).
+    if (this.drivingEntry) {
+      const staticZone = this.zones.find((z) => Phaser.Geom.Rectangle.Contains(z.rect, px, py))
+      if (staticZone) {
+        this.nearbyZone = staticZone
+        const verb = staticZone.type === 'building' ? 'enter' : null
+        this.promptText.setText(verb ? `Press E to ${verb} ${staticZone.label}` : `Press E: ${staticZone.label}`)
+      } else {
+        this.nearbyZone = { type: 'vehicleExit' }
+        this.promptText.setText(`Press E to exit ${this.drivingEntry.name}`)
+      }
+      return
+    }
+
+    // House rule: a vehicle the player is right on top of/next to wins over
+    // an enclosing building zone. spawnWorldVehicles/adjacentOpenTiles
+    // already keep every spawned car clear of every building's (padded)
+    // rect, so this branch shouldn't fire in the normal case - it's a second
+    // line of defense so a car can never become silently unreachable just
+    // because it ended up inside a building's interaction footprint (a
+    // building zone always wins a Phaser.Geom.Rectangle.Contains tie
+    // otherwise, since it's tested first below). Building priority is
+    // unchanged when no vehicle is nearby.
+    const vehicle = this.currentZoneId === 'overworld' ? this.findNearbyVehicle() : null
+    const staticZone = !vehicle ? this.zones.find((z) => Phaser.Geom.Rectangle.Contains(z.rect, px, py)) : null
+    const namedRoamer = !staticZone && !vehicle && this.currentZoneId === 'overworld' ? this.findNearbyNamedRoamer() : null
+    const financeAmbient = !staticZone && !vehicle && !namedRoamer ? this.findNearbyFinanceAmbientNpc() : null
+
+    if (vehicle) {
+      this.nearbyZone = { type: 'vehicle', vehicle }
+      this.promptText.setText(vehicle.owned ? `Press E to drive ${vehicle.name}` : `Press E to steal ${vehicle.name}`)
+    } else if (staticZone) {
       this.nearbyZone = staticZone
       const verb = staticZone.type === 'building' ? 'enter' : null
       this.promptText.setText(verb ? `Press E to ${verb} ${staticZone.label}` : `Press E: ${staticZone.label}`)
@@ -1276,8 +2187,68 @@ export default class OverworldScene extends Phaser.Scene {
     }
   }
 
+  // Plays a Serene Village home's door 'open'/'close' animation on building-
+  // entry proximity, reusing the SAME check that already drives the
+  // "Press E to enter" prompt (this.nearbyZone, set by updateNearbyZone just
+  // above) instead of a second independent distance check - the door opens
+  // the instant the prompt appears and closes the instant it moves off this
+  // building (whether the player walked away or onto a different zone
+  // entirely), so the two always agree. Cheap no-op when animatedDoors is
+  // empty (every zone except 'overworld', and most of 'overworld' too, since
+  // only a fraction of homes get this facade - see drawBuildings).
+  updateAnimatedDoors() {
+    if (!this.animatedDoors.length) return
+    const nearbyBuildingId = this.nearbyZone?.type === 'building' ? this.nearbyZone.id : null
+    for (const door of this.animatedDoors) {
+      const shouldBeOpen = door.buildingId === nearbyBuildingId
+      if (shouldBeOpen && !door.isOpen) {
+        door.isOpen = true
+        door.sprite.anims.play(SERENE_DOOR_ANIM_OPEN, true)
+      } else if (!shouldBeOpen && door.isOpen) {
+        door.isOpen = false
+        door.sprite.anims.play(SERENE_DOOR_ANIM_CLOSE, true)
+      }
+    }
+  }
+
   triggerInteraction(zone) {
     if (!this.bridge || this.interactionLocked) return
+    if (zone.type === 'vehicle') {
+      if (zone.vehicle.owned) {
+        this.enterVehicle(zone.vehicle)
+      } else {
+        this.pauseForModal()
+        this.bridge.emit('interact', {
+          type: 'vehicleTheft',
+          vehicle: {
+            tierId: zone.vehicle.tierId,
+            name: zone.vehicle.name,
+            spriteName: zone.vehicle.spriteName,
+            speedMultiplier: zone.vehicle.speedMultiplier,
+            // Without this, the store's ownedVehicles record for a stolen
+            // atmosphere vehicle had no atlasKey at all, so
+            // spawnWorldVehicles' zone-persistence fallback (TIER_SPRITES
+            // has no atmo_* entry) would fall back to VehicleActor's
+            // illustrated-atlas default the moment the live scene entry
+            // was destroyed by a zone change - i.e. the "flying car" bug
+            // would come right back on the very next building the player
+            // entered while driving a stolen car.
+            atlasKey: zone.vehicle.atlasKey,
+          },
+        })
+      }
+      return
+    }
+    if (zone.type === 'vehicleExit') {
+      this.exitVehicle()
+      return
+    }
+    // Entering a building/interior, or exiting one, while driving would
+    // otherwise leave the player "in a car" inside a room that has no car
+    // collision for it - park it right at the threshold first.
+    if (this.drivingEntry && (zone.type === 'building' || zone.type === 'exit')) {
+      this.exitVehicle()
+    }
     if (zone.type === 'exit') {
       this.loadZone('overworld')
       return
@@ -1308,6 +2279,14 @@ export default class OverworldScene extends Phaser.Scene {
       this.overworldReturnSpawn = {
         col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
         row: building.tiles.r1 + 1,
+      }
+      if (zone.id === 'temple') {
+        this.loadZone('chapelInterior')
+        return
+      }
+      if (zone.id === 'teaHouse') {
+        this.loadZone('teaHouseInterior')
+        return
       }
       this.currentInteriorBuildingId = zone.id
       this.loadZone('buildingInterior')
@@ -1342,12 +2321,29 @@ export default class OverworldScene extends Phaser.Scene {
     const inputDir = combineDirection(horiz, vert)
 
     this.tileMover.update(delta, this.interactionLocked ? null : inputDir)
+
+    // Driving: the SAME TileMover/isBlockedTile pipeline above just moved
+    // this.playerActor (hidden - see enterVehicle); mirror that position onto
+    // the vehicle's sprite instead of running a second movement system, and
+    // face it along the actual per-frame travel vector so it reads correctly
+    // on diagonals too (faceVector, not the 4-cardinal setFacing).
+    if (this.drivingEntry) {
+      const dx = this.playerActor.x - this._prevDriveX
+      const dy = this.playerActor.y - this._prevDriveY
+      this.drivingEntry.actor.setPosition(this.playerActor.x, this.playerActor.y)
+      this.drivingEntry.actor.faceVector(dx, dy)
+    }
+    this._prevDriveX = this.playerActor.x
+    this._prevDriveY = this.playerActor.y
+
     this.updateAllAmbientNpcs(delta)
+    this.updateHabitatAnimals(delta)
     if (this.currentZoneId === 'overworld') this.updateNamedRoamers(delta)
 
     if (this.interactionLocked) return
 
     this.updateNearbyZone()
+    this.updateAnimatedDoors()
 
     if (this.currentZoneId === 'overworld') {
       const row = Math.floor(this.playerActor.y / TILE_SIZE)

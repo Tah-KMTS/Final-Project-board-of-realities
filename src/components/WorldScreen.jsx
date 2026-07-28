@@ -32,6 +32,7 @@ import EssentialBuildingModal from '../features/world/EssentialBuildingModal'
 import BuildingInteriorModal from '../features/world/BuildingInteriorModal'
 import NpcLootModal from '../features/world/NpcLootModal'
 import GunStoreModal from '../features/world/GunStoreModal'
+import VehicleTheftModal from '../features/world/VehicleTheftModal'
 import NarcoticsTradeModal from '../features/world/NarcoticsTradeModal'
 import SyndicateOperationsModal from '../features/world/SyndicateOperationsModal'
 import HitmanContractModal from '../features/world/HitmanContractModal'
@@ -122,6 +123,7 @@ export default function WorldScreen() {
   const clearWorld3 = useGameStore((s) => s.clearWorld3)
   const world3 = useGameStore((s) => s.world3)
   const world4 = useGameStore((s) => s.world4)
+  const addOwnedVehicle = useGameStore((s) => s.addOwnedVehicle)
 
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
@@ -310,6 +312,27 @@ export default function WorldScreen() {
     bridgeRef.current.emit('ambientNpcKilled', { npcId })
   }
 
+  // Bridges a transit_hub purchase (InteractiveLocationModal's
+  // handleVehicleSelect, which already deducted cash and called setVehicle)
+  // into an actual spawned, drivable car - addOwnedVehicle makes it
+  // player-owned in the store, then 'acquireVehicle' tells the Phaser scene
+  // to spawn it. opt.spriteName is interactiveLocations.js's copy of
+  // vehicleGen.js's TIER_SPRITES[opt.id].spriteName.
+  const handleAcquireVehicle = (opt) => {
+    const vehicle = { tierId: opt.id, name: opt.name, spriteName: opt.spriteName, speedMultiplier: opt.speedMultiplier }
+    addOwnedVehicle(vehicle)
+    bridgeRef.current.emit('acquireVehicle', vehicle)
+  }
+
+  // Car theft success handler - VehicleTheftModal already resolved
+  // stealVehicle() (which itself calls addOwnedVehicle on success); this
+  // just tells the Phaser scene to make the stolen car drivable, reusing
+  // the same 'acquireVehicle' event a legitimate purchase emits so the
+  // scene only needs one spawn handler for both paths.
+  const handleVehicleStolen = (vehicle) => {
+    bridgeRef.current.emit('acquireVehicle', vehicle)
+  }
+
   return (
     <div className="flex h-full w-full flex-col items-center gap-4 bg-[#0f1020] p-4 font-mono text-white">
       <div className="flex w-full max-w-[640px] flex-wrap items-center justify-between gap-2 border-2 border-gray-700 bg-[#1c1d3a] px-4 py-2 text-sm">
@@ -414,7 +437,14 @@ export default function WorldScreen() {
       {activeModal?.type === 'syndicateOperations' && <SyndicateOperationsModal onClose={closeModal} />}
       {activeModal?.type === 'hitmanContract' && <HitmanContractModal onClose={closeModal} />}
       {activeModal?.type === 'interactiveLocation' && (
-        <InteractiveLocationModal locationId={activeModal.locationId || 'mcdonalds_diner'} onClose={closeModal} />
+        <InteractiveLocationModal
+          locationId={activeModal.locationId || 'mcdonalds_diner'}
+          onClose={closeModal}
+          onAcquireVehicle={handleAcquireVehicle}
+        />
+      )}
+      {activeModal?.type === 'vehicleTheft' && (
+        <VehicleTheftModal vehicle={activeModal.vehicle} onClose={closeModal} onStolen={handleVehicleStolen} />
       )}
       {activeModal?.type === 'townTravel' && (
         <TownTravelUI
