@@ -4,12 +4,24 @@
 // saves a PNG so it can actually be LOOKED AT. Serves the pack assets over
 // vite preview so the paths match the real app.
 import { readFileSync } from 'fs'
+// Usage (from the repo root):
+//   npx vite preview --port 4173
+//   node production/renderChapelMap.mjs <baseUrl> <out.png> [mapModule]
+// mapModule defaults to the interior map; pass
+// src/game/packs/chapelExteriorMap.js (or any module exporting the same three
+// names) to verify a different map.
+import { pathToFileURL } from 'url'
+import path from 'path'
 import puppeteer from 'puppeteer'
-import { CHAPEL_MAP, CHAPEL_MAP_TILESETS, CHAPEL_MAP_LAYERS } from '../../../../../../Desktop/Sasin/2026-07 Class 17 Generative AI and Social Media/Lecture 01/Claude/Final-Project-board-of-realities/src/game/packs/chapelInteriorMap.js'
 
 const BASE = process.argv[2] // e.g. http://localhost:4173
 const OUT = process.argv[3]
+const MODULE = process.argv[4] || 'src/game/packs/chapelInteriorMap.js'
 const SCALE = 3 // upscale so pixel art is legible in the saved PNG
+
+const { CHAPEL_MAP, CHAPEL_MAP_TILESETS, CHAPEL_MAP_LAYERS } = await import(
+  pathToFileURL(path.resolve(MODULE)).href
+)
 
 const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] })
 const page = await browser.newPage()
