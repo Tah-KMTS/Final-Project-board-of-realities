@@ -79,44 +79,28 @@ export const GRASS_TYPES = new Set(['grass', 'slate', 'cobblestone'])
 
 // Overlays real grass/path tiles onto `baseLayer` (the procedural Graphics
 // pass) and returns a Container holding both.
-// PERFORMANCE: the ground is baked into a small number of RenderTextures
-// instead of one Game Object per tile (~10,700 of them at 160x67, each with
-// its own transform, cull check and render entry).
+// PERFORMANCE - READ BEFORE OPTIMISING THIS. It is one Game Object per tile
+// (~10,700 at 160x67) and that IS the main cost on this map. Two attempts to
+// batch it have been made and BOTH were reverted after breaking the ground:
 //
-// It is CHUNKED, and that is the whole trick. A single full-map texture would
-// be 6400x2680px here, past the 4096px max texture size plenty of GPUs report
-// - that was tried, silently failed to render, and left the ground blank.
-// Chunking at CHUNK_PX keeps every surface inside the limit at any map size,
-// so this is correct and batched rather than one at the expense of the other.
-const CHUNK_PX = 2048
-
+//   1. One full-map RenderTexture: 6400x2680px, past the 4096px max texture
+//      size plenty of GPUs report. Silently rendered nothing.
+//   2. RenderTextures chunked at 2048px: still rendered the ground wrong in
+//      part of the map. Cause not established - it was written and shipped
+//      without ever being run, which is why it failed twice.
+//
+// Both were reasoned about rather than observed. Do NOT attempt a third
+// rewrite from inspection alone: run the game, confirm the ground renders,
+// and profile to see whether this is even the bottleneck before changing it.
+// A Blitter or a real TilemapLayer is the likeliest correct answer (neither
+// has a single-surface size limit), but it needs verifying in a running
+// scene, not in a build log.
 export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, tileTypeAt) {
   const scale = tileSize / 16
   const container = scene.add.container(0, 0)
   container.setDepth(baseLayer.depth ?? 0)
   container.add(baseLayer)
 
-
-  const wPx = cols * tileSize
-  const hPx = rows * tileSize
-  const chunksX = Math.ceil(wPx / CHUNK_PX)
-  const chunksY = Math.ceil(hPx / CHUNK_PX)
-  const chunks = []
-  for (let cy = 0; cy < chunksY; cy++) {
-    for (let cx = 0; cx < chunksX; cx++) {
-      const ox = cx * CHUNK_PX
-      const oy = cy * CHUNK_PX
-      const rt = scene.add
-        .renderTexture(ox, oy, Math.min(CHUNK_PX, wPx - ox), Math.min(CHUNK_PX, hPx - oy))
-        .setOrigin(0, 0)
-      chunks.push({ rt, ox, oy })
-      container.add(rt)
-    }
-  }
-  const chunkAt = (x, y) => chunks[Math.floor(y / CHUNK_PX) * chunksX + Math.floor(x / CHUNK_PX)]
-
-  // One reusable off-display-list image, re-textured and stamped per tile.
-  const stamp = scene.make.image({ key: CUTE_TERRAIN_KEYS.grass, add: false }).setOrigin(0, 0).setScale(scale)
 
   const isPath = (r, c) => {
     if (r < 0 || c < 0 || r >= rows || c >= cols) return false
@@ -131,14 +115,14 @@ export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, 
       if (!isGrass && type !== 'path') continue
       const x = c * tileSize
       const y = r * tileSize
-      if (isGrass) stamp.setTexture(CUTE_TERRAIN_KEYS.grass)
-      else stamp.setTexture(CUTE_TERRAIN_KEYS.pathEdges, pathFrame(isPath, r, c))
-      const chunk = chunkAt(x, y)
-      if (chunk) chunk.rt.draw(stamp, x - chunk.ox, y - chunk.oy)
+      const img = isGrass
+        ? scene.add.image(x, y, CUTE_TERRAIN_KEYS.grass)
+        : scene.add.image(x, y, CUTE_TERRAIN_KEYS.pathEdges, pathFrame(isPath, r, c))
+      img.setOrigin(0, 0).setScale(scale)
+      container.add(img)
     }
   }
 
-  stamp.destroy()
   return container
 }
 
