@@ -129,19 +129,56 @@ in full detail there since the image files aren't in the downloaded pack).
 
 1. **The room's stepped/gothic wall silhouette - deferred twice now, do it
    this round if at all feasible.** Reference shows narrower walls at the
-   altar end, wider at the pew end, matching the exterior roofline. Currently
-   `isWall()` is a plain rectangle (`col === 0 || col === 16 || row === 0 ||
-   row === 21`). This needs to become a per-row (or per-region) shape
-   function. The risk flagged by the last round: several furniture blocks
-   currently sit near the border columns that would become wall under a
-   stepped shape, and reworking this touches their placement too. Suggested
-   approach: define the new shape FIRST as a simple data table (e.g. an array
-   of `{rowStart, rowEnd, colMin, colMax}` bands), redraw ONLY the walls
-   against it, render and view that in isolation before touching any
-   furniture placement, THEN move any furniture that now falls in a wall
-   band. Don't attempt this as one big simultaneous change - do the shape,
-   verify it renders and stays reachable (re-run BFS), then adjust furniture
-   as a clearly separate step.
+   altar end (top, low row numbers), wider at the pew end (bottom, high row
+   numbers), matching the exterior roofline. Currently `isWall()` is a plain
+   rectangle (`col === 0 || col === 16 || row === 0 || row === 21`), room is
+   17 cols x 22 rows.
+
+   **Exact current furniture column usage per row band, read directly from
+   `CHAPEL_TEMPLE_ROOM.blocks`/`.sprites` in `tmxWallInterior.js` (lines
+   ~343-407) so the next session doesn't have to re-derive this:**
+   - Row 1 (top windows/alcoves): blocks start at col 3, 4, 5, 7, 10, 12, 13
+     - `windowAccentColumn()`/`alcoveFaceBlock()`/`dragonMedallionBlock()`
+       widths aren't confirmed from position alone, check their cell-array
+       widths in `chapelPixelTiles.js` before picking a boundary, but the
+       rightmost visible start col is 13, so a wall boundary tighter than
+       roughly col 2 / col 14 for this row band is the risk zone.
+   - Rows 3, 9: candelabra columns at col 1 and col 15 (`candelabraColumn()`)
+     - these are the OUTERMOST placed content in the whole room after the
+       col 0/16 border itself - any stepped narrowing that affects rows 3 or
+       9 must not clip col 1 or col 15.
+   - Rows 7-9 (second-tier windows/monks): col 4, 10 (`dragonMedallionBlock`
+     at row 7), cols 5,6,10,11 (monks at row 9).
+   - Rows 12-16 (statues/pews/vases): col 1 and col 12 (statue blocks,
+     4-wide native = cols 1-4 and 12-15, but rendered at `scale: 0.5` per
+     the code comment - the VISUAL footprint shrinks but check whether the
+     collision footprint referenced in that comment, "collapsed to match
+     the shrunk visual bounds," actually frees up cols 3-4/13-14 for a
+     narrower wall here, or if it's still anchored at the original col 1/12
+     origin), cols 5,10 (pews/vases).
+   - Rows 4-19, cols 7-9: carpet aisle (center, unaffected by any side-wall
+     change).
+   - Row 6, col 8: priest (center, unaffected).
+   - **Practical read of the above:** the row band that could most safely
+     get a narrower wall without moving anything is roughly rows 1, 4-6
+     (top/altar area, nothing currently placed outside cols 3-13ish there)
+     - candelabra at rows 3 and 9 are the hard constraint pinning col 1/15
+       as the minimum width for THOSE specific rows. A shape that's
+       narrower only where rows 1/4-6 don't overlap rows 3/9 (i.e. actually
+       just row 1 and rows 4-6, stepping back out to full width by row 7)
+       would be the lowest-risk version - still a visible step, still
+       requires zero furniture moves, but modest. Widening the narrow band
+       to also cover rows 7-9 would require moving the row-7
+       `dragonMedallionBlock` and row-9 monks/candelabra inward first.
+
+   Suggested approach either way: define the new shape as a simple data
+   table (e.g. an array of `{rowStart, rowEnd, colMin, colMax}` bands),
+   redraw ONLY the walls against it, render and view that in isolation
+   before touching any furniture, THEN move anything that now falls in a
+   wall band as a clearly separate step. Re-run BFS reachability after the
+   wall change specifically (before any furniture adjustment) so a wall-only
+   regression is never bundled with a furniture-move regression - if
+   something breaks, this keeps it obvious which change caused it.
 2. **Statue collision footprint is still a rectangular approximation** of an
    irregular silhouette (noted honestly in the code comment) - lower
    priority than the wall shape, only worth polishing if there's a
