@@ -1888,6 +1888,37 @@ export default class OverworldScene extends Phaser.Scene {
     return entry
   }
 
+  // Vehicles belong on the road. The atmosphere "street pool" already picked
+  // street columns, but the transit-hub and police vehicles were placed with
+  // adjacentOpenTiles() next to their building, which is grass - that's why
+  // cars were sitting on lawns beside the shops.
+  isRoadTile(col, row) {
+    return FINANCE_V_STREETS.includes(col) || FINANCE_H_STREETS.includes(row)
+  }
+
+  // Nearest free road tile to (col,row), searched as expanding square rings so
+  // a vehicle still parks near the building it belongs to - just on the road
+  // rather than on the grass. `taken` covers tiles claimed earlier in the same
+  // spawn pass, which aren't in vehicleActors yet.
+  nearestRoadTile(col, row, taken = []) {
+    for (let radius = 0; radius <= 24; radius++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        for (let dr = -radius; dr <= radius; dr++) {
+          if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue
+          const c = col + dc
+          const r = row + dr
+          if (c < 1 || r < 1 || c >= MAP_COLS - 1 || r >= MAP_ROWS - 1) continue
+          if (!this.isRoadTile(c, r)) continue
+          if (this.isBlockedTile(c, r)) continue
+          if (taken.some((t) => t.col === c && t.row === r)) continue
+          if (this.vehicleActors?.some((v) => v.col === c && v.row === r)) continue
+          return { col: c, row: r }
+        }
+      }
+    }
+    return null
+  }
+
   spawnWorldVehicles() {
     const owned = useGameStore.getState().world2.transitState?.ownedVehicles || []
     const isOwned = (tierId) => owned.some((v) => v.tierId === tierId)
@@ -1927,9 +1958,14 @@ export default class OverworldScene extends Phaser.Scene {
     const hubTiers = INTERACTIVE_LOCATIONS.find((l) => l.id === 'transit_hub').options.filter((o) => o.type === 'vehicle')
     if (trainStation) {
       const hubTiles = this.adjacentOpenTiles(trainStation, hubTiers.length)
+      const claimed = []
       hubTiers.forEach((opt, i) => {
-        const fallbackTile = hubTiles[i]
-        if (!fallbackTile) return
+        const near = hubTiles[i]
+        if (!near) return
+        // Park it on the nearest road tile instead of whatever open ground
+        // happened to be adjacent to the station.
+        const fallbackTile = this.nearestRoadTile(near.col, near.row, claimed) ?? near
+        claimed.push(fallbackTile)
         const owns = isOwned(opt.id)
         const tile = owns ? restoredTile(opt.id, fallbackTile) : fallbackTile
         this.spawnVehicleEntry({
@@ -1956,7 +1992,10 @@ export default class OverworldScene extends Phaser.Scene {
     // the sprite is now one of the 3 shared pico8 colors - see
     // pico8CarFrameFor's header comment.
     const fbiHQ = FINANCE_BUILDINGS.find((b) => b.id === 'fbiHQ')
-    const policeFallback = fbiHQ ? this.adjacentOpenTiles(fbiHQ, 1)[0] : null
+    const policeNear = fbiHQ ? this.adjacentOpenTiles(fbiHQ, 1)[0] : null
+    const policeFallback = policeNear
+      ? (this.nearestRoadTile(policeNear.col, policeNear.row) ?? policeNear)
+      : null
     if (policeFallback) {
       const ownsPolice = isOwned('atmo_police')
       const tile = ownsPolice ? restoredTile('atmo_police', policeFallback) : policeFallback
