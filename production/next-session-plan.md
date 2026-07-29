@@ -116,6 +116,41 @@ Requirements, in the human's own framing:
    with the dragon, 16x14 tiles) directly on the map** - this resolves the
    "double exterior" problem below, since there'll be room for it.
 
+### DECISIONS ALREADY MADE (don't re-litigate, the human delegated these)
+
+- **Ground/terrain tileset: `Cute_Fantasy_Free`.** It is the style of the
+  reference picture and it has the complete terrain set needed for a real
+  road network, confirmed on disk under `Cute_Fantasy_Free/Tiles/`:
+  `Grass_Middle.png` (16x16), `Path_Middle.png` (16x16),
+  `Path_Tile.png` (48x96 - an autotile block, i.e. the road EDGE/corner
+  pieces, which is what makes roads look connected rather than painted on),
+  `Water_Tile.png` (48x96), `FarmLand_Tile.png` (48x48).
+  The human explicitly said theme clashes are fine ("they can simply be
+  different part of town") - so `Harvest Sumer Free Ver. Pack` (tilesets/
+  Set 1.0-1.2, plus Vegetation/Trees 3.png) and `Pixel 16 v2 village free`
+  (one 282x276 sheet) are both available for OTHER districts if a second
+  look is wanted. **Consistency within a district matters more than
+  consistency across the map** - that's the human's stated priority.
+- **Map size: widen `MAP_COLS` from 80 to ~160, and let rows follow.**
+  Important: `MAP_ROWS` is NOT a constant - `layoutFinanceMap(MAP_COLS)`
+  packs the buildings and RETURNS `mapRows` (OverworldScene.js ~line 209).
+  So the map already auto-sizes vertically; only the width is a free
+  parameter. 129 building defs (41 explicit + the character homes from
+  `characterHomeBuildings.js`) currently pack into 80 cols with a 388-tile
+  explicit footprint. Scaling buildings up (~2x linear = ~4x area) plus
+  wider roads plus the 16x14 chapel needs roughly 4x the area, hence ~2x
+  the width with rows growing to match. Tune from there rather than
+  treating 160 as sacred.
+
+### THE VERIFICATION HARNESS ALREADY EXISTS - USE IT
+
+OverworldScene.js exports its layout output specifically so it can be
+asserted against **without a Phaser canvas** (see the comment above the
+`export {` near line 210: "no building overlaps, every door reachable...
+Nothing in the game reads these"). This is the check to run after every
+step below - it is far cheaper than rendering, and building overlap is
+exactly the failure mode this overhaul risks.
+
 **Sequencing advice (this is a big change - do not do it in one commit):**
 - Step 1: expand map dimensions and regenerate the ground layer with a real
   road network + grass areas. Verify nothing spawns inside a wall and every
