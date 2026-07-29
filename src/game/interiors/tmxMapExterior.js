@@ -39,6 +39,16 @@ export function preloadChapelExterior(scene) {
 // walls off the whole courtyard.
 const SOLID_LAYERS = new Set(['House', 'Fence', 'Graves', 'Wings', 'Dragon_body_head'])
 
+// The authored Fence layer runs unbroken across cols 8-21 on rows 16-17 -
+// the ornate gate in the middle is drawn with fence tiles too, so blocking
+// the whole layer sealed the courtyard and made the chapel door impossible
+// to reach (reported as "we can't enter the door"). These two columns are
+// the gate opening, directly below the chapel's own doors; they stay drawn
+// but don't block, so the gate reads as standing open.
+const GATE_COLS = new Set([14, 15])
+const GATE_ROWS = new Set([16, 17])
+const isGateOpening = (col, row) => GATE_COLS.has(col) && GATE_ROWS.has(row)
+
 export const CHAPEL_EXTERIOR_ROOM = {
   cols: CHAPEL_MAP.cols, // 30
   rows: CHAPEL_MAP.rows, // 22
@@ -48,10 +58,13 @@ export const CHAPEL_EXTERIOR_ROOM = {
   spawn: { col: 15, row: 20 },
   // Leaving from the southern edge returns to the overworld.
   exitRect: { c0: 12, r0: 21, c1: 18, r1: 21 },
-  // The chapel's arched double doors, at the base of the House layer. The
-  // player stands in front (row 18) and presses E - the door tiles
-  // themselves are solid, same as any building facade.
-  doorRect: { c0: 13, r0: 16, c1: 16, r1: 17 },
+  // The chapel's arched double doors are the bottom row of the House layer
+  // (row 15; House spans cols 11-18, so the doors are the centre pair).
+  // Walking north through the gate opening puts the player on row 16,
+  // directly below them - the door tiles themselves stay solid, same as any
+  // building facade. An earlier version put this rect on rows 16-17, which
+  // is the fence, not the door.
+  doorRect: { c0: 14, r0: 15, c1: 15, r1: 15 },
 }
 
 export function buildChapelExteriorZone(scene, zoneObjects, Phaser, TILE_SIZE) {
@@ -69,7 +82,9 @@ export function buildChapelExteriorZone(scene, zoneObjects, Phaser, TILE_SIZE) {
       if (flags & 1) img.setFlipX(true)
       if (flags & 2) img.setFlipY(true)
       zoneObjects.push(img)
-      if (blocks) blockedTiles.add(`${col},${row}`)
+      if (blocks && !(layer.name === 'Fence' && isGateOpening(col, row))) {
+        blockedTiles.add(`${col},${row}`)
+      }
     }
   })
 
