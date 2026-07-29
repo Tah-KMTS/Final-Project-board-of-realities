@@ -1367,6 +1367,36 @@ export default class OverworldScene extends Phaser.Scene {
     for (const b of FINANCE_BUILDINGS) {
       if (col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1) return true
     }
+    // Driving-only rules. Kept separate from the checks above so walking is
+    // completely unaffected: on foot the player may still cross grass and
+    // brush past people, which is what you'd expect.
+    if (this.drivingEntry) {
+      // Cars belong on the road. Without this they drove over lawns, gardens
+      // and the chapel courtyard's grass.
+      if (!this.isRoadTile(col, row)) return true
+      // ...and can't drive through people or livestock. Vehicles and
+      // buildings were already solid via isSingleTileObstacle/FINANCE_
+      // BUILDINGS above; these two were not.
+      if (this.isOccupiedByCreature(col, row)) return true
+    }
+    return false
+  }
+
+  // True if a named roamer or a habitat animal is standing on this tile.
+  // Both move continuously in world pixels, so their tile is derived rather
+  // than stored.
+  isOccupiedByCreature(col, row) {
+    const onTile = (x, y) => Math.floor(x / TILE_SIZE) === col && Math.floor(y / TILE_SIZE) === row
+    if (this.namedRoamers) {
+      for (const roamer of this.namedRoamers) {
+        if (roamer.actor && onTile(roamer.actor.x, roamer.actor.y)) return true
+      }
+    }
+    if (this.habitatAnimalActors) {
+      for (const animal of this.habitatAnimalActors) {
+        if (onTile(animal.x, animal.y)) return true
+      }
+    }
     return false
   }
 
