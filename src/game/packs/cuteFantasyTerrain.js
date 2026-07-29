@@ -102,6 +102,29 @@ export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, 
   container.add(baseLayer)
 
 
+  // Grass is a SINGLE repeated tile, so it does not need one Game Object per
+  // cell. Each row's grass is emitted as a few TileSprites - one per
+  // contiguous RUN of grass columns - which the renderer repeats internally.
+  // That covers exactly the grass tiles and nothing else, so the water band
+  // and the wall border still show through from the layer underneath (a
+  // single full-map TileSprite was tried and painted over both).
+  //
+  // Why not a RenderTexture: attempted three times and verified broken on
+  // screen each time via production/probeGame.mjs. In Phaser 4 the
+  // RenderTexture is an Image wrapping a DynamicTexture; rt.beginDraw and
+  // rt.batchDraw do not exist, and both rt.draw() and rt.texture.draw()
+  // silently leave the surface empty. This achieves the same object-count win
+  // with an API that demonstrably works.
+  const emitGrassRun = (row, colStart, colEnd) => {
+    const w = (colEnd - colStart + 1) * tileSize
+    const ts = scene.add
+      .tileSprite(colStart * tileSize, row * tileSize, w, tileSize, CUTE_TERRAIN_KEYS.grass)
+      .setOrigin(0, 0)
+    ts.tileScaleX = scale
+    ts.tileScaleY = scale
+    container.add(ts)
+  }
+
   const isPath = (r, c) => {
     if (r < 0 || c < 0 || r >= rows || c >= cols) return false
     const t = tileTypeAt(r, c)
@@ -109,15 +132,23 @@ export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, 
   }
 
   for (let r = 0; r < rows; r++) {
+    // Collapse this row's grass into runs before drawing anything else.
+    let runStart = -1
+    for (let c = 0; c <= cols; c++) {
+      const isGrassCell = c < cols && GRASS_TYPES.has(tileTypeAt(r, c))
+      if (isGrassCell && runStart < 0) runStart = c
+      else if (!isGrassCell && runStart >= 0) {
+        emitGrassRun(r, runStart, c - 1)
+        runStart = -1
+      }
+    }
     for (let c = 0; c < cols; c++) {
       const type = tileTypeAt(r, c)
-      const isGrass = GRASS_TYPES.has(type)
-      if (!isGrass && type !== 'path') continue
+      // Grass is already covered by the runs emitted above.
+      if (type !== 'path') continue
       const x = c * tileSize
       const y = r * tileSize
-      const img = isGrass
-        ? scene.add.image(x, y, CUTE_TERRAIN_KEYS.grass)
-        : scene.add.image(x, y, CUTE_TERRAIN_KEYS.pathEdges, pathFrame(isPath, r, c))
+      const img = scene.add.image(x, y, CUTE_TERRAIN_KEYS.pathEdges, pathFrame(isPath, r, c))
       img.setOrigin(0, 0).setScale(scale)
       container.add(img)
     }
