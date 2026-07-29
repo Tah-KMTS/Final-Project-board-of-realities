@@ -1,5 +1,5 @@
 import { VEHICLE_ATLAS_KEY } from './vehicleGen'
-import { hasTopDownArt, topDownKey, headingFor } from './packs/topDownVehicles'
+import { hasTopDownArt, topDownKey, headingFor, VEHICLE_BODY_W } from './packs/topDownVehicles'
 
 // House rule: this file used to be a fully procedural (Phaser Graphics)
 // vehicle class (VEHICLE_TYPES + hand-drawn car/train shapes) from a prior
@@ -85,7 +85,11 @@ export class VehicleActor {
     // reads it straight from the atlas/texture) - dividing the uniform
     // target by it is what makes every vehicle land at the same on-screen
     // width regardless of how big its source art actually is.
-    const uniformScale = UNIFORM_VEHICLE_WIDTH / this.sprite.width
+    // For per-heading art the frame is mostly transparent padding, so the
+    // frame width is the wrong yardstick - use the measured body width so
+    // these land at the same on-screen size as every other vehicle.
+    const sizingWidth = this.topDownTier ? VEHICLE_BODY_W : this.sprite.width
+    const uniformScale = UNIFORM_VEHICLE_WIDTH / sizingWidth
     this.sprite.setScale(uniformScale * scale)
     // CORRECTED: this used to be `displayHeight * 0.4`, which pushed the
     // shadow ~40% of the car's length below the car - in a top-down view that

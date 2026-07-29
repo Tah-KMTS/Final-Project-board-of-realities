@@ -21,6 +21,15 @@
 // currently asks for; wiring it later needs no new files.
 const PACK_DIR = '/assets/packs/TopDown%20Vehicles%20v1.17'
 
+// The car BODY inside the 100x100 frame, not the frame itself. Measured, not
+// guessed: a north-facing sedan's opaque pixels span 38x65, an east-facing one
+// 83x40 (alpha-scanned from the real PNGs). The frame is mostly padding, so
+// scaling by frame width made cars render at 38 * (40/100) = 15px instead of
+// the intended 40 - reported as "car size is too small".
+// 38 is the body's NARROW axis, which is consistent across headings; scaling
+// off the long axis instead would make cars change size as they turned.
+export const VEHICLE_BODY_W = 38
+
 export const VEHICLE_FRAME_W = 100
 export const VEHICLE_FRAME_H = 100
 
