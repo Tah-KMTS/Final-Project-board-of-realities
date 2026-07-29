@@ -1688,12 +1688,16 @@ export default class OverworldScene extends Phaser.Scene {
       // Milling in place (doorA===doorB) shows the walking sprite instead -
       // a character standing at their own door should read as a person, not
       // a parked car mid-pavement.
-      // A car-owning NPC's car is PARKED at their house, not driven. It used
-      // to be teleported onto the roamer while they were between buildings,
-      // which drove it straight over lawns - and since these live on the
-      // roamer rather than in vehicleActors, the road invariant never saw
-      // them. Parked at home is both the intended look and off-road by
-      // design, so it is deliberately exempt from the road rule.
+      // Car-owning NPCs DO drive - but only on the road, same rule the player
+      // gets. Previously the car was teleported onto the roamer for the whole
+      // journey, and roamers walk straight lines between buildings, so it was
+      // driven over lawns. These live on the roamer rather than in
+      // vehicleActors, which is why the road invariant never caught them.
+      //
+      // Now: the car is created parked in front of the owner's house and
+      // returns there whenever they aren't driving it. It only follows them
+      // while they are travelling AND standing on a road tile, so it is never
+      // seen off-road under its own power.
       const vehicleSpec = npcVehicleFor(roamer.character)
       if (vehicleSpec && !roamer.carActor && !roamer.carParkFailed) {
         const homeDef = getHomeBuildingDef(roamer.character.id)
@@ -1701,21 +1705,35 @@ export default class OverworldScene extends Phaser.Scene {
         if (home) {
           const col = Math.round((home.tiles.c0 + home.tiles.c1) / 2)
           const row = home.tiles.r1 + 1 // the strip directly in front of the house
-          roamer.carActor = new VehicleActor(
-            this,
-            col * TILE_SIZE + TILE_SIZE / 2,
-            row * TILE_SIZE + TILE_SIZE / 2,
-            { spriteName: vehicleSpec.spriteName, scale: vehicleSpec.scale, atlasKey: vehicleSpec.atlasKey }
-          )
+          roamer.carPark = { x: col * TILE_SIZE + TILE_SIZE / 2, y: row * TILE_SIZE + TILE_SIZE / 2 }
+          roamer.carActor = new VehicleActor(this, roamer.carPark.x, roamer.carPark.y, {
+            spriteName: vehicleSpec.spriteName,
+            scale: vehicleSpec.scale,
+            atlasKey: vehicleSpec.atlasKey,
+          })
           roamer.carActor.faceVector(0, 1) // nose out toward the street
         } else {
           roamer.carParkFailed = true // no home building; don't retry every frame
         }
       }
-      // The NPC always walks now, so they stay visible whether or not they
-      // own a car.
-      roamer.actor.sprite.setVisible(true)
-      roamer.actor.shadow.setVisible(true)
+
+      const travelling = Boolean(doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId)
+      const onRoad = this.isRoadTile(Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE))
+      const driving = Boolean(roamer.carActor && travelling && onRoad)
+      if (roamer.carActor) {
+        if (driving) {
+          roamer.carActor.setPosition(x, y)
+          roamer.carActor.faceVector(dx, dy)
+        } else if (roamer.carPark) {
+          // Back on the driveway the moment they step off the road.
+          roamer.carActor.setPosition(roamer.carPark.x, roamer.carPark.y)
+          roamer.carActor.faceVector(0, 1)
+        }
+        roamer.carActor.setVisible(true)
+      }
+      // Hidden only while actually behind the wheel.
+      roamer.actor.sprite.setVisible(!driving)
+      roamer.actor.shadow.setVisible(!driving)
 
       // Name floats above the sprite; the agent's current "thought" appears
       // once the player is close enough to read it.
