@@ -487,16 +487,31 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
     const isUrban = (r >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && r <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) || (r >= DISTRICT_BAND_ROWS['Osaka District'].top - 2 && r <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 2)
     const isJRPG = (r >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && r <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2)
 
+    // Rebalanced with the grass ground: previously the urban bands dropped
+    // 75% of attempts and then only ever placed rocks, and Kyoto placed no
+    // trees at all. That was tuned for the old dark marble/cobblestone
+    // ground - on grass it just read as empty lawn. Every band now grows
+    // trees; the districts keep their character through the MIX, not through
+    // having no vegetation.
     if (isUrban) {
-      // Only sparse rocks for urban marble districts
-      if (Math.random() > 0.25) continue
-      objs = placeRock(scene, cx, cy)
-      solid = true
-    } else if (isJRPG) {
-      // Kyoto: flowers (cherry blossom) dominant + rocks
       const roll = Math.random()
-      if (roll < 0.65) {
+      if (roll < 0.4) {
+        objs = placeTree(scene, cx, cy)
+        solid = true
+      } else if (roll < 0.7) {
+        objs = placeRock(scene, cx, cy)
+        solid = true
+      } else {
         objs = placeFlower(scene, cx, cy)
+      }
+    } else if (isJRPG) {
+      // Kyoto: cherry blossom still dominant, but with real trees among it.
+      const roll = Math.random()
+      if (roll < 0.45) {
+        objs = placeFlower(scene, cx, cy)
+      } else if (roll < 0.8) {
+        objs = placeTree(scene, cx, cy)
+        solid = true
       } else {
         objs = placeRock(scene, cx, cy)
         solid = true
@@ -1954,6 +1969,14 @@ export default class OverworldScene extends Phaser.Scene {
         record &&
         Number.isFinite(record.col) &&
         Number.isFinite(record.row) &&
+        // Stored positions outlive the map. Anything saved before the map
+        // was widened (or parked on what is now grass) has to be rejected,
+        // or a car reappears sitting on a lawn forever.
+        record.col > 0 &&
+        record.row > 0 &&
+        record.col < MAP_COLS - 1 &&
+        record.row < MAP_ROWS - 1 &&
+        this.isRoadTile(record.col, record.row) &&
         !this.isBlockedTile(record.col, record.row) &&
         !this.isInsideAnyBuildingZone(record.col, record.row)
       ) {
