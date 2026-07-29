@@ -35,7 +35,7 @@ import { buildTmxWallInteriorZone, TEA_HOUSE_ROOM } from '../interiors/tmxWallIn
 import { buildChapelMapZone, preloadChapelMap, CHAPEL_ROOM } from '../interiors/tmxMapInterior'
 import { buildChapelExteriorZone, preloadChapelExterior, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
-import { preloadCuteTerrain, GRASS_TYPES } from '../packs/cuteFantasyTerrain'
+import { preloadCuteTerrain, preloadCuteTrees, GRASS_TYPES } from '../packs/cuteFantasyTerrain'
 
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
@@ -465,7 +465,7 @@ function terrainTileTypeAt(tile, row) {
 // map area so widening the map doesn't silently thin the vegetation out:
 // the previous flat 80 was tuned for an 80-wide map and left the 160-wide
 // one looking bare.
-const ENVIRONMENT_SCATTER_ATTEMPTS = Math.round((MAP_COLS * MAP_ROWS) / 24)
+const ENVIRONMENT_SCATTER_ATTEMPTS = Math.round((MAP_COLS * MAP_ROWS) / 6)
 
 function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blockedTiles) {
   const forbidden = new Set()
@@ -498,10 +498,10 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
     // having no vegetation.
     if (isUrban) {
       const roll = Math.random()
-      if (roll < 0.4) {
+      if (roll < 0.55) {
         objs = placeTree(scene, cx, cy)
         solid = true
-      } else if (roll < 0.7) {
+      } else if (roll < 0.72) {
         objs = placeRock(scene, cx, cy)
         solid = true
       } else {
@@ -510,9 +510,9 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
     } else if (isJRPG) {
       // Kyoto: cherry blossom still dominant, but with real trees among it.
       const roll = Math.random()
-      if (roll < 0.45) {
+      if (roll < 0.35) {
         objs = placeFlower(scene, cx, cy)
-      } else if (roll < 0.8) {
+      } else if (roll < 0.85) {
         objs = placeTree(scene, cx, cy)
         solid = true
       } else {
@@ -936,6 +936,7 @@ export default class OverworldScene extends Phaser.Scene {
     preloadChapelMap(this)
     preloadChapelExterior(this)
     preloadCuteTerrain(this)
+    preloadCuteTrees(this)
   }
 
   create() {

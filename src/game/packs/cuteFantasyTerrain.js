@@ -108,3 +108,52 @@ export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, 
 
   return container
 }
+
+// ---------------------------------------------------------------------------
+// Trees. The reference picture the human keeps comparing against IS this pack,
+// but trees were still coming from kenney_rpg-urban-pack, whose "tree" is a
+// single 16px tile - at 40px tiles that renders as a small canopy blob sitting
+// on what reads as a crate, nothing like the reference's full oaks. These are
+// the pack's own trees, drawn at their real size.
+export const CUTE_TREE_KEYS = { oak: 'cuteOakTree', oakSmall: 'cuteOakTreeSmall' }
+
+// Oak_Tree.png is one 64x80 tree. Oak_Tree_Small.png is 96x48 = three 32x48
+// saplings/bushes.
+const OAK = { w: 64, h: 80 }
+const OAK_SMALL = { w: 32, h: 48, count: 3 }
+
+export function preloadCuteTrees(scene) {
+  const dir = '/assets/packs/Cute_Fantasy_Free/Outdoor%20decoration'
+  if (!scene.textures.exists(CUTE_TREE_KEYS.oak)) {
+    scene.load.image(CUTE_TREE_KEYS.oak, `${dir}/Oak_Tree.png`)
+  }
+  if (!scene.textures.exists(CUTE_TREE_KEYS.oakSmall)) {
+    scene.load.spritesheet(CUTE_TREE_KEYS.oakSmall, `${dir}/Oak_Tree_Small.png`, {
+      frameWidth: OAK_SMALL.w,
+      frameHeight: OAK_SMALL.h,
+    })
+  }
+}
+
+export function cuteTreesReady(scene) {
+  return scene.textures.exists(CUTE_TREE_KEYS.oak) && scene.textures.exists(CUTE_TREE_KEYS.oakSmall)
+}
+
+// Draws a tree centred on (cx, cy) with its TRUNK at that point - origin
+// (0.5, 0.9) rather than centre, so the canopy rises above the tile the tree
+// occupies the way the reference does, instead of the tile bisecting it.
+// `rand` is the caller's deterministic 0..1 roll so scatter stays reproducible.
+export function drawCuteTree(scene, cx, cy, tileSize, rand = Math.random()) {
+  const big = rand < 0.62
+  const key = big ? CUTE_TREE_KEYS.oak : CUTE_TREE_KEYS.oakSmall
+  const frame = big ? undefined : Math.floor(rand * 1000) % OAK_SMALL.count
+  // Scale so a big oak spans ~2 tiles wide, matching the reference's
+  // tree-to-house proportions rather than the old one-tile blob.
+  const scale = big ? (tileSize * 2) / OAK.w : (tileSize * 1.1) / OAK_SMALL.w
+  const img =
+    frame === undefined
+      ? scene.add.image(cx, cy, key)
+      : scene.add.image(cx, cy, key, frame)
+  img.setOrigin(0.5, 0.9).setScale(scale).setDepth(cy)
+  return [img]
+}

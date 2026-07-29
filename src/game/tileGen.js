@@ -17,7 +17,7 @@ import { RPG_URBAN } from './packs/rpgUrbanTiles'
 import { PICO8_CITY } from './packs/pico8CityTiles'
 import { SERENE_VILLAGE_HOMES } from './packs/sereneVillageTiles'
 import { getAnyCharacter } from '../features/agents/characterLookup'
-import { cuteTerrainReady, buildCuteTerrainOverlay } from './packs/cuteFantasyTerrain'
+import { cuteTerrainReady, buildCuteTerrainOverlay, cuteTreesReady, drawCuteTree } from './packs/cuteFantasyTerrain'
 import { chapelFacadeReady, drawChapelExteriorFacade, CHAPEL_FACADE_TILES } from './interiors/tmxMapExterior'
 
 const USE_PROCEDURAL_GRAPHICS = true;
@@ -526,6 +526,11 @@ const PACK_TREE_VARIANTS = [
 ]
 
 export function placeTree(scene, cx, cy) {
+  // Cute Fantasy's own oaks first - this pack is what the reference picture
+  // shows, and rpg-urban's one-tile tree below never resembled it.
+  if (cuteTreesReady(scene)) {
+    return drawCuteTree(scene, cx, cy, TILE_PX, seededRand(cx, cy, 71))
+  }
   if (USE_KENNEY_PACKS && scene.textures.exists(PACK_SHEET_KEYS.rpgUrban)) {
     const frames = PACK_TREE_VARIANTS[Math.floor(seededRand(cx, cy, 71) * PACK_TREE_VARIANTS.length)]
     return placePackProp(scene, cx, cy, PACK_SHEET_KEYS.rpgUrban, frames, TILE_PX, 'x')
