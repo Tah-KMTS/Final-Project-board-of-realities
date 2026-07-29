@@ -87,7 +87,54 @@ complaint) - safe to build on top of, not to re-litigate:
   never ships. Not a real bug, don't re-investigate unless new evidence
   suggests otherwise.
 
-## PRIORITY 1 (top of next session) - Finish polishing the chapel INTERIOR, then and only then the exterior
+## PRIORITY 0 - THE "DOUBLE EXTERIOR" (next thing to do, reported by the human)
+
+The chapel currently has **two different exteriors**, which is wrong:
+1. The overworld map draws the `temple` building with a generic facade (a
+   Serene-Village-style building) via `placeBuildingFacade`.
+2. The courtyard zone (`chapelExterior`) draws the pack's real authored
+   chapel.
+
+The human wants **one** exterior - the authored one - shown on the map,
+replacing the generic house facade.
+
+**Why it wasn't done in the session that found it:** the authored chapel
+building art (House + Wings + Dragon_body_head layers) is **16x14 tiles**.
+The `temple` building def in `OverworldScene.js` (~line 119) is
+`width: 4, height: 2`. Drawing 16x14 at native scale on a 4x2 footprint
+overflows by ~12 tiles in both axes and would sit on top of neighbouring
+Kyoto District buildings. Doing it properly means enlarging the footprint
+in the def and letting `layoutFinanceMap` repack the district - which can
+shift or overlap every other building in it. That needed a verification
+pass there wasn't capacity for, and guessing at it would break the map.
+
+**Suggested approach:**
+1. Bump the `temple` def to roughly `width: 16, height: 14`.
+2. Re-run the layout and **check the whole Kyoto District for overlaps and
+   for buildings pushed off-map** before looking at anything else. The
+   packer honours `gap`, so the risk is displacement, not overlap per se.
+3. Only then add the facade renderer: a function in
+   `src/game/interiors/tmxMapExterior.js` that draws the House/Wings/
+   Dragon_body_head layers (cols 6-21, rows 2-15, 248 tiles) at the
+   building's footprint, called from `placeBuildingFacade` when
+   `building.id === 'temple'`. The tilesets are already preloaded in the
+   overworld via `preloadChapelExterior`, so no new loading is needed.
+4. Decide what the courtyard zone becomes. If the full courtyard is on the
+   map, `chapelExterior` is redundant and the temple should route straight
+   to `chapelInterior` again (revert the `target` routing added for it).
+   If only the building goes on the map, keep the courtyard.
+
+**Also outstanding on the chapel door (asked for, not delivered):** the
+human wants a door open/close animation when entering. **The pack ships no
+door-open art** - checked, there is no door/gate asset and Exterior.tmx's
+152 animation entries are all dragon-wing frames. So this cannot be done
+from pack art alone. Options: reuse the existing animated-door system
+(`buildingDoorAnimSpec` in `tileGen.js`, currently scoped to Serene Village
+cottage prefabs) if its door frames are acceptable stylistically, or do a
+short fade on the door tiles as the zone transitions (a transition effect
+rather than invented art). Ask which - don't fabricate chapel door frames.
+
+## PRIORITY 1 - Finish polishing the chapel INTERIOR, then and only then the exterior
 
 > ## ⚠️ SUPERSEDED - READ THIS BEFORE ANYTHING ELSE IN THIS SECTION
 >
