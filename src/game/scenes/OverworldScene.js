@@ -2204,6 +2204,23 @@ export default class OverworldScene extends Phaser.Scene {
         })
       }
     }
+
+    // Final invariant: no vehicle ends up off the road, whichever of the
+    // blocks above placed it. Each of them has its own tile-picking rule
+    // (hub = nearest kerb, police = nearest kerb, street pool = a random
+    // street column, owned = a restored position) and a car was still
+    // turning up on grass, so rather than keep auditing four code paths
+    // this enforces the rule once, at the end, where it can't be missed.
+    for (const v of this.vehicleActors) {
+      if (this.isRoadTile(v.col, v.row)) continue
+      const snapped = this.nearestRoadTile(v.col, v.row, this.vehicleActors.map((o) => ({ col: o.col, row: o.row })))
+      if (!snapped) continue
+      v.col = snapped.col
+      v.row = snapped.row
+      const { x, y } = this.tileMover.tileCenter(snapped.col, snapped.row)
+      v.actor.setPosition(x, y)
+      if (v.owned) useGameStore.getState().updateOwnedVehiclePosition(v.tierId, snapped.col, snapped.row)
+    }
   }
 
   onAcquireVehicle(vehicle) {
