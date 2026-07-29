@@ -89,12 +89,55 @@ complaint) - safe to build on top of, not to re-litigate:
 
 ## PRIORITY 1 (top of next session) - Finish polishing the chapel INTERIOR, then and only then the exterior
 
-**Status: substantially rebuilt and much improved (commit `5d64638`,
-`git log` for the full message), four iterations deep, human has seen and
-responded to real renders each time (not just structural claims). This is
-NOT the same broken state described further down this doc's revision
-history - do not re-read this as "still totally broken," read the current
-code and the human's actual most recent feedback below instead.**
+> ## ⚠️ SUPERSEDED - READ THIS BEFORE ANYTHING ELSE IN THIS SECTION
+>
+> **The hand-placed-room approach described in the rest of this section was
+> abandoned and replaced. Do not resume it.**
+>
+> The chapel pack ships `Tiled_files/Interior.tmx` - **the artist's own
+> composition of the exact image we were using as the reference**. Five
+> rounds were spent hand-guessing furniture positions and sprite crops to
+> approximate a layout that was sitting in the pack as data the whole time.
+>
+> The chapel now renders that file directly:
+> - `src/game/packs/chapelInteriorMap.js` - generated extraction (1076
+>   tiles, 21 layers, 21 tilesets). Regenerate with
+>   `production/parseInteriorTmx.cjs`; do not hand-edit.
+> - `src/game/interiors/tmxMapInterior.js` - draws it, owns collision and
+>   the spawn/exit/desk zones (the only invented data - the authored map is
+>   a display scene with no door).
+> - `production/renderChapelMap.mjs` - render harness. **Verified: 1076/1076
+>   tiles drawn, every tileset at expected dimensions, output compared
+>   against the reference and matches.**
+>
+> Root causes this exposed, all of which the hand-built room got wrong:
+> - Authored room is **22x17**; the hand-built one was 17x22, transposed.
+> - Characters are **multi-tile compositions** (priest 2x3, parishioners
+>   2x2), not single sprite frames - that is why they rendered as busts
+>   with no legs.
+> - The map's tilesets are the images in **`Tiled_files/`**, which are
+>   different files from the same-named ones in **`PNG/`**
+>   (`Walls_Interior.png` is 160x496 there vs 160x528 in `PNG/`). The old
+>   code loaded the `PNG/` copies, silently mis-cropping everything.
+> - The priest is drawn from `Priest_speech.png` (the arms-out pose); the
+>   old code used that file as *wall alcove decoration* instead.
+>
+> `tmxWallInterior.js` and `chapelPixelTiles.js` are still live - `teaHouse`
+> uses them, and that's the case they're still right for (no authored map to
+> copy). Don't delete them; don't extend them for the chapel.
+>
+> **Known remaining issue, not yet fixed:** the player sprite comes from a
+> different pack at a different scale (~35x64px) than this pack's characters
+> (a 2x2-tile parishioner is 80x80px at TILE_SIZE 40, the priest 80x120).
+> So the player will read as noticeably smaller than the congregation. The
+> room can't be rescaled without breaking tile-aligned movement, so the
+> options are scaling the player sprite up inside this zone, or accepting a
+> cross-pack style difference. **Needs a human decision - ask, don't guess.**
+>
+> Everything below this box is retained as history of how the old approach
+> failed. It is NOT a to-do list any more.
+
+**Status (historical - describes the superseded hand-placed room):**
 
 Do this work directly in `src/game/interiors/tmxWallInterior.js`
 (`CHAPEL_TEMPLE_ROOM`, currently 17 cols x 22 rows) and
