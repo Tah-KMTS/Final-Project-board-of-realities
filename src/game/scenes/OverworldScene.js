@@ -6,7 +6,7 @@ import { getAllCharacters, getAnyCharacter } from '../../features/agents/charact
 import { getDisposition } from '../../features/agents/characterDispositions'
 import { TITAN_ROUTINES } from '../../features/agents/agentMovementEngine'
 import { TIME_BLOCKS, simulateWorldPresence } from '../../features/agents/worldPresenceEngine'
-import { CHARACTER_HOME_BUILDING_DEFS } from '../../features/world/characterHomeBuildings'
+import { CHARACTER_HOME_BUILDING_DEFS, getHomeBuildingDef } from '../../features/world/characterHomeBuildings'
 import { SpriteActor } from '../actor'
 import { VehicleActor } from '../VehicleActor'
 import { TileMover, combineDirection } from '../tileMover'
@@ -473,6 +473,11 @@ function buildLayout(tileTypeFn, cols, rows) {
 // Footprint-relative solid tiles for the chapel courtyard drawn on the map.
 // Computed once - it's pure data derived from the authored .tmx.
 const TEMPLE_SOLID_OFFSETS = chapelFacadeSolidOffsets()
+
+// Footprint-relative rect of the chapel's own doors (House layer spans cols
+// 11-18 and ends at row 15, so the doors are the centre pair) plus the tile
+// below them, which is where the player stands to use them.
+const CHAPEL_DOOR_OFFSET = { col: 14, row: 15, width: 2, height: 2 }
 
 function terrainTileTypeAt(tile, row) {
   if (tile === 'water') return 'water'
@@ -1683,20 +1688,34 @@ export default class OverworldScene extends Phaser.Scene {
       // Milling in place (doorA===doorB) shows the walking sprite instead -
       // a character standing at their own door should read as a person, not
       // a parked car mid-pavement.
+      // A car-owning NPC's car is PARKED at their house, not driven. It used
+      // to be teleported onto the roamer while they were between buildings,
+      // which drove it straight over lawns - and since these live on the
+      // roamer rather than in vehicleActors, the road invariant never saw
+      // them. Parked at home is both the intended look and off-road by
+      // design, so it is deliberately exempt from the road rule.
       const vehicleSpec = npcVehicleFor(roamer.character)
-      const travelling = Boolean(doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId)
-      if (vehicleSpec && travelling) {
-        if (!roamer.carActor) roamer.carActor = new VehicleActor(this, x, y, { spriteName: vehicleSpec.spriteName, scale: vehicleSpec.scale, atlasKey: vehicleSpec.atlasKey })
-        roamer.carActor.setPosition(x, y)
-        roamer.carActor.faceVector(dx, dy)
-        roamer.carActor.setVisible(true)
-        roamer.actor.sprite.setVisible(false)
-        roamer.actor.shadow.setVisible(false)
-      } else {
-        if (roamer.carActor) roamer.carActor.setVisible(false)
-        roamer.actor.sprite.setVisible(true)
-        roamer.actor.shadow.setVisible(true)
+      if (vehicleSpec && !roamer.carActor && !roamer.carParkFailed) {
+        const homeDef = getHomeBuildingDef(roamer.character.id)
+        const home = homeDef ? FINANCE_BUILDINGS.find((b) => b.id === homeDef.id) : null
+        if (home) {
+          const col = Math.round((home.tiles.c0 + home.tiles.c1) / 2)
+          const row = home.tiles.r1 + 1 // the strip directly in front of the house
+          roamer.carActor = new VehicleActor(
+            this,
+            col * TILE_SIZE + TILE_SIZE / 2,
+            row * TILE_SIZE + TILE_SIZE / 2,
+            { spriteName: vehicleSpec.spriteName, scale: vehicleSpec.scale, atlasKey: vehicleSpec.atlasKey }
+          )
+          roamer.carActor.faceVector(0, 1) // nose out toward the street
+        } else {
+          roamer.carParkFailed = true // no home building; don't retry every frame
+        }
       }
+      // The NPC always walks now, so they stay visible whether or not they
+      // own a car.
+      roamer.actor.sprite.setVisible(true)
+      roamer.actor.shadow.setVisible(true)
 
       // Name floats above the sprite; the agent's current "thought" appears
       // once the player is close enough to read it.
@@ -2377,12 +2396,25 @@ export default class OverworldScene extends Phaser.Scene {
       uid: i,
       label: b.label,
       npcId: b.npcId,
-      rect: new Phaser.Geom.Rectangle(
-        b.tiles.c0 * TILE_SIZE - pad,
-        b.tiles.r0 * TILE_SIZE - pad,
-        (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE + TILE_SIZE,
-        (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE + TILE_SIZE
-      ),
+      // The chapel's footprint is the whole 30x22 courtyard, so the usual
+      // whole-footprint rect would offer "press E to enter" while the player
+      // is out among the graves. It gets a rect around its actual doors
+      // instead (CHAPEL_DOOR_OFFSET, the centre pair of the House layer's
+      // bottom row) so entering happens where the doors are.
+      rect:
+        b.id === 'temple'
+          ? new Phaser.Geom.Rectangle(
+              (b.tiles.c0 + CHAPEL_DOOR_OFFSET.col) * TILE_SIZE - pad,
+              (b.tiles.r0 + CHAPEL_DOOR_OFFSET.row) * TILE_SIZE - pad,
+              CHAPEL_DOOR_OFFSET.width * TILE_SIZE + TILE_SIZE,
+              CHAPEL_DOOR_OFFSET.height * TILE_SIZE + TILE_SIZE
+            )
+          : new Phaser.Geom.Rectangle(
+              b.tiles.c0 * TILE_SIZE - pad,
+              b.tiles.r0 * TILE_SIZE - pad,
+              (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE + TILE_SIZE,
+              (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE + TILE_SIZE
+            ),
     }))
   }
 
