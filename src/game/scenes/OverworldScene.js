@@ -1760,55 +1760,73 @@ export default class OverworldScene extends Phaser.Scene {
         // at - so the car is always somewhere plausible and the person is
         // always visible unless they are actually behind the wheel.
         if (!travelling) {
-          // Arrived: park at the kerb nearest the building they're at now.
-          // This is what makes the car follow them between destinations
-          // instead of living permanently at their house.
-          const here = presence?.currentBuildingId
-            ? FINANCE_BUILDINGS.find((b) => b.id === presence.currentBuildingId)
-            : null
-          if (here) {
-            const spot = this.nearestRoadTile(
-              Math.round((here.tiles.c0 + here.tiles.c1) / 2),
-              here.tiles.r1 + 1
-            )
-            if (spot) {
-              roamer.carPark = {
-                x: spot.col * TILE_SIZE + TILE_SIZE / 2,
-                y: spot.row * TILE_SIZE + TILE_SIZE / 2,
+          // Arrived: park at the kerb nearest this building - but resolve the
+          // spot ONCE per arrival, not every frame.
+          //
+          // Recomputing per frame was the "cars blinking" bug: nearestRoadTile
+          // skips tiles other vehicles occupy, so as cars moved it kept
+          // returning a DIFFERENT tile and the car teleported between them
+          // every frame. It also caused the overlaps - two cars resolved in
+          // the same frame could both be handed the same tile before either
+          // had registered on it. Caching by building id fixes both: the
+          // chosen tile is written to carEntry immediately, so every other
+          // car's search treats it as taken from then on.
+          const hereId = presence?.currentBuildingId ?? null
+          if (hereId !== roamer.carParkedFor) {
+            const here = hereId ? FINANCE_BUILDINGS.find((b) => b.id === hereId) : null
+            if (here) {
+              const spot = this.nearestRoadTile(
+                Math.round((here.tiles.c0 + here.tiles.c1) / 2),
+                here.tiles.r1 + 1
+              )
+              if (spot) {
+                roamer.carPark = {
+                  x: spot.col * TILE_SIZE + TILE_SIZE / 2,
+                  y: spot.row * TILE_SIZE + TILE_SIZE / 2,
+                  col: spot.col,
+                  row: spot.row,
+                }
+                if (roamer.carEntry) {
+                  roamer.carEntry.col = spot.col
+                  roamer.carEntry.row = spot.row
+                }
+                roamer.carParkedFor = hereId
               }
-              if (roamer.carEntry) {
-                roamer.carEntry.col = spot.col
-                roamer.carEntry.row = spot.row
-              }
+            } else {
+              roamer.carParkedFor = hereId
             }
           }
           roamer.inCar = false
+          roamer.offRoadFrames = 0
         }
 
         const onRoad = this.isRoadTile(Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE))
         if (roamer.inCar) {
-          // Step off the road and they get out rather than drive over grass.
-          if (!onRoad) roamer.inCar = false
-          else {
+          // Leaving the car needs the NPC to be off-road for a sustained
+          // stretch, not a single frame. Walking along a tile boundary flips
+          // onRoad on and off constantly, and reacting to that instantly made
+          // the car flicker between the driver and its parking space.
+          roamer.offRoadFrames = onRoad ? 0 : (roamer.offRoadFrames || 0) + 1
+          if (roamer.offRoadFrames > 20) {
+            roamer.inCar = false
+            roamer.offRoadFrames = 0
+          } else {
             roamer.carActor.setPosition(x, y)
             roamer.carActor.faceVector(dx, dy)
           }
         }
-        if (!roamer.inCar) {
-          if (roamer.carPark) {
+        if (!roamer.inCar && roamer.carPark) {
+          // Only touch the car when it isn't already parked where it belongs.
+          if (roamer.carActor.x !== roamer.carPark.x || roamer.carActor.y !== roamer.carPark.y) {
             roamer.carActor.setPosition(roamer.carPark.x, roamer.carPark.y)
-            this.orientParked(
-              roamer.carActor,
-              Math.floor(roamer.carPark.x / TILE_SIZE),
-              Math.floor(roamer.carPark.y / TILE_SIZE)
-            )
+            this.orientParked(roamer.carActor, roamer.carPark.col, roamer.carPark.row)
           }
-          // Getting in: they have to actually reach the car, and be starting
-          // a journey, and be on the road with it.
           const atCar =
-            roamer.carPark &&
             Phaser.Math.Distance.Between(x, y, roamer.carPark.x, roamer.carPark.y) < TILE_SIZE * 1.2
-          if (travelling && onRoad && atCar) roamer.inCar = true
+          if (travelling && onRoad && atCar) {
+            roamer.inCar = true
+            roamer.offRoadFrames = 0
+          }
         }
         roamer.carActor.setVisible(true)
       }
