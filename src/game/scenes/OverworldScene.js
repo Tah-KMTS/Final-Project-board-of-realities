@@ -1190,6 +1190,26 @@ export default class OverworldScene extends Phaser.Scene {
     this.zones = zones
   }
 
+  // Short camera fade around a zone change, used for the chapel's nested
+  // doors (courtyard <-> interior) so walking through reads as a door
+  // opening rather than an instant cut. Deliberately NOT an animated door
+  // sprite: the chapel pack ships no door-open art at all (no door/gate
+  // asset, and Exterior.tmx's animation entries are all dragon wings), so
+  // a real open/close would mean fabricating frames that don't exist.
+  // `zoneTransitioning` guards against a second trigger landing mid-fade,
+  // which would otherwise queue two loadZone calls.
+  transitionToZone(zoneId, duration = 160) {
+    if (this.zoneTransitioning) return
+    this.zoneTransitioning = true
+    const cam = this.cameras.main
+    cam.fadeOut(duration, 0, 0, 0)
+    cam.once('camerafadeoutcomplete', () => {
+      this.loadZone(zoneId)
+      cam.fadeIn(duration, 0, 0, 0)
+      this.zoneTransitioning = false
+    })
+  }
+
   buildChapelExteriorZone() {
     const { zones, blockedTiles } = buildChapelExteriorZone(this, this.zoneObjects, Phaser, TILE_SIZE)
     this.interiorBlockedTiles = blockedTiles
@@ -2275,7 +2295,13 @@ export default class OverworldScene extends Phaser.Scene {
       // `target` lets an exit lead somewhere other than the overworld - the
       // chapel is nested (interior -> courtyard -> overworld). Absent target
       // keeps every pre-existing exit behaving exactly as before.
-      this.loadZone(zone.target || 'overworld')
+      const target = zone.target || 'overworld'
+      const CHAPEL_ZONES = ['chapelInterior', 'chapelExterior']
+      if (CHAPEL_ZONES.includes(target) || CHAPEL_ZONES.includes(this.currentZoneId)) {
+        this.transitionToZone(target)
+      } else {
+        this.loadZone(target)
+      }
       return
     }
     if (zone.type === 'building') {
@@ -2306,7 +2332,7 @@ export default class OverworldScene extends Phaser.Scene {
         row: building.tiles.r1 + 1,
       }
       if (zone.id === 'temple') {
-        this.loadZone('chapelExterior')
+        this.transitionToZone('chapelExterior')
         return
       }
       if (zone.id === 'teaHouse') {
