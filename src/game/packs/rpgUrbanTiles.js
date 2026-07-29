@@ -44,17 +44,24 @@ export const RPG_URBAN = {
   },
 
   trees: {
-    // Two color palettes each contain a matching 2-tile-wide "big tree" (canopy spans both
-    // tiles, single trunk implied under the pair) plus standalone round-bush/sapling singles.
-    // The third palette has two independent single-tile trees instead of a joined big tree.
+    // CORRECTED: the first two palettes were documented here as having a
+    // 2-tile-wide "big tree" whose canopy spanned both tiles. That was wrong.
+    // Checked against the pack's own per-tile PNGs (Tiles/tile_0259.png,
+    // tile_0260.png, tile_0286.png, tile_0287.png): each of those four frames
+    // is a COMPLETE little tree on its own - canopy plus trunk - so the four
+    // are simply two single-tile tree variants per palette, exactly like the
+    // rust palette below. Placing any of them as a "pair" draws two trees in
+    // adjacent tiles, not one wide tree.
     green: {
-      bigTree: [259, 260], // MULTI-TILE 2x1: left=259 (c16,r9), right=260 (c17,r9) — place as a pair
+      treeA: 259, // single tile, teal tree (c16,r9)
+      treeB: 260, // single tile, teal tree variant (c17,r9)
       roundBush: 264, // single tile, teal round bush (c21,r9)
       sapling: 265, // single tile, small teal pine (c22,r9)
       forestClump: [261, 262, 263], // MULTI-TILE 3x1 (c18-20,r9): jagged connected canopy mass; likely meant as a wide background clump, not a single prop — use as a joined trio only
     },
     autumn: {
-      bigTree: [286, 287], // MULTI-TILE 2x1: left=286 (c16,r10), right=287 (c17,r10) — place as a pair
+      treeA: 286, // single tile, orange tree (c16,r10)
+      treeB: 287, // single tile, orange tree variant (c17,r10)
       roundBush: 291, // single tile, orange round bush (c21,r10)
       sapling: 292, // single tile, small orange pine (c22,r10)
       forestClump: [288, 289, 290], // MULTI-TILE 3x1 (c18-20,r10), same caveat as green.forestClump

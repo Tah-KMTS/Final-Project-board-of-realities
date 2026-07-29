@@ -494,17 +494,25 @@ const SMALL_TREE_FRAMES = [1, 2]
 const FLOWER_FRAMES = [7, 8, 9]
 const ROCK_FRAMES = [15, 16]
 
-// rpg-urban's trees come in two joined-canopy pairs (a 2x1 "big tree" whose
-// halves only read as one tree when placed together) plus single-tile bushes/
-// saplings. placePackProp's horizontal multi-tile mode keeps the pair intact -
-// placing one half alone would render a sliced tree.
+// CORRECTED: these were previously placed as joined 2x1 "big tree" pairs, on
+// the catalog's claim that each pair's canopy spanned both tiles. It doesn't -
+// frames 259/260 (and 286/287) are each a COMPLETE little tree, canopy and
+// trunk, verified by viewing the pack's own per-tile PNGs (Tiles/tile_0259.png
+// etc). Placing them as a pair therefore drew TWO trees jammed into adjacent
+// tiles, spilling half a tile outside the tile that owns them - which is what
+// read as trees looking doubled-up and clipped, and why only one of the two
+// tiles ever blocked movement.
+// Every entry here is now a single self-contained tile.
 const PACK_TREE_VARIANTS = [
-  RPG_URBAN.trees.green.bigTree,
-  RPG_URBAN.trees.autumn.bigTree,
+  RPG_URBAN.trees.green.treeA,
+  RPG_URBAN.trees.green.treeB,
+  RPG_URBAN.trees.autumn.treeA,
+  RPG_URBAN.trees.autumn.treeB,
   RPG_URBAN.trees.green.sapling,
   RPG_URBAN.trees.autumn.sapling,
   RPG_URBAN.trees.green.roundBush,
   RPG_URBAN.trees.rust.treeA,
+  RPG_URBAN.trees.rust.treeB,
 ]
 
 export function placeTree(scene, cx, cy) {
