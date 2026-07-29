@@ -31,7 +31,8 @@ import {
   ensureSereneVillageDoorAnims,
 } from '../packs/packRender'
 import { preloadPlayerSheet } from '../spriteGen'
-import { buildTmxWallInteriorZone, CHAPEL_TEMPLE_ROOM, TEA_HOUSE_ROOM } from '../interiors/tmxWallInterior'
+import { buildTmxWallInteriorZone, TEA_HOUSE_ROOM } from '../interiors/tmxWallInterior'
+import { buildChapelMapZone, preloadChapelMap, CHAPEL_ROOM } from '../interiors/tmxMapInterior'
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
 
 // ---------------------------------------------------------------------------
@@ -347,7 +348,7 @@ const ZONES = {
   // same "own room shape, own zone id" pattern as stockExchangeInterior/
   // casinoInterior above, just variable-sized instead of reusing
   // INTERIOR_COLS/ROWS.
-  chapelInterior: { cols: CHAPEL_TEMPLE_ROOM.cols, rows: CHAPEL_TEMPLE_ROOM.rows },
+  chapelInterior: { cols: CHAPEL_ROOM.cols, rows: CHAPEL_ROOM.rows },
   teaHouseInterior: { cols: TEA_HOUSE_ROOM.cols, rows: TEA_HOUSE_ROOM.rows },
 }
 
@@ -827,6 +828,7 @@ export default class OverworldScene extends Phaser.Scene {
     preloadPlayerSheet(this)
     preloadVehicleAssets(this)
     preloadChapelPack(this)
+    preloadChapelMap(this)
   }
 
   create() {
@@ -914,7 +916,7 @@ export default class OverworldScene extends Phaser.Scene {
         zoneId === 'overworld'
           ? this.overworldReturnSpawn
           : zoneId === 'chapelInterior'
-            ? CHAPEL_TEMPLE_ROOM.spawn
+            ? CHAPEL_ROOM.spawn
             : zoneId === 'teaHouseInterior'
               ? TEA_HOUSE_ROOM.spawn
               : INTERIOR_SPAWN
@@ -1172,8 +1174,12 @@ export default class OverworldScene extends Phaser.Scene {
   // genuinely general-purpose rather than chapel-only. Both keep their
   // existing building id in the desk zone so TempleModal / DistrictBuildingModal
   // routing in WorldScreen.jsx (which key off that id, not npcId) is untouched.
+  // The chapel now renders the pack's OWN authored room (Interior.tmx via
+  // tmxMapInterior.js) rather than a hand-placed approximation of it - see
+  // that file's header for why. teaHouse still uses the hand-placed builder,
+  // which remains the right tool for rooms with no authored map to copy.
   buildChapelInteriorZone() {
-    const { zones, blockedTiles } = buildTmxWallInteriorZone(this, CHAPEL_TEMPLE_ROOM, this.zoneObjects, Phaser, TILE_SIZE)
+    const { zones, blockedTiles } = buildChapelMapZone(this, this.zoneObjects, Phaser, TILE_SIZE)
     this.interiorBlockedTiles = blockedTiles
     this.zones = zones
   }
