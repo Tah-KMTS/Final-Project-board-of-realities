@@ -1753,20 +1753,64 @@ export default class OverworldScene extends Phaser.Scene {
         roamer.carEntry && (roamer.carEntry.owned || this.drivingEntry === roamer.carEntry)
       )
       const travelling = Boolean(doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId)
-      const onRoad = this.isRoadTile(Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE))
-      const driving = Boolean(roamer.carActor && travelling && onRoad && !takenByPlayer)
+
       if (roamer.carActor && !takenByPlayer) {
-        if (driving) {
-          roamer.carActor.setPosition(x, y)
-          roamer.carActor.faceVector(dx, dy)
-        } else if (roamer.carPark) {
-          // Back on the driveway the moment they step off the road.
-          roamer.carActor.setPosition(roamer.carPark.x, roamer.carPark.y)
-          roamer.carActor.faceVector(0, 1)
+        // An NPC does not TURN INTO a car. They walk to where it is parked,
+        // get in, drive, and park it again at whatever building they arrive
+        // at - so the car is always somewhere plausible and the person is
+        // always visible unless they are actually behind the wheel.
+        if (!travelling) {
+          // Arrived: park at the kerb nearest the building they're at now.
+          // This is what makes the car follow them between destinations
+          // instead of living permanently at their house.
+          const here = presence?.currentBuildingId
+            ? FINANCE_BUILDINGS.find((b) => b.id === presence.currentBuildingId)
+            : null
+          if (here) {
+            const spot = this.nearestRoadTile(
+              Math.round((here.tiles.c0 + here.tiles.c1) / 2),
+              here.tiles.r1 + 1
+            )
+            if (spot) {
+              roamer.carPark = {
+                x: spot.col * TILE_SIZE + TILE_SIZE / 2,
+                y: spot.row * TILE_SIZE + TILE_SIZE / 2,
+              }
+              if (roamer.carEntry) {
+                roamer.carEntry.col = spot.col
+                roamer.carEntry.row = spot.row
+              }
+            }
+          }
+          roamer.inCar = false
+        }
+
+        const onRoad = this.isRoadTile(Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE))
+        if (roamer.inCar) {
+          // Step off the road and they get out rather than drive over grass.
+          if (!onRoad) roamer.inCar = false
+          else {
+            roamer.carActor.setPosition(x, y)
+            roamer.carActor.faceVector(dx, dy)
+          }
+        }
+        if (!roamer.inCar) {
+          if (roamer.carPark) {
+            roamer.carActor.setPosition(roamer.carPark.x, roamer.carPark.y)
+            roamer.carActor.faceVector(0, 1)
+          }
+          // Getting in: they have to actually reach the car, and be starting
+          // a journey, and be on the road with it.
+          const atCar =
+            roamer.carPark &&
+            Phaser.Math.Distance.Between(x, y, roamer.carPark.x, roamer.carPark.y) < TILE_SIZE * 1.2
+          if (travelling && onRoad && atCar) roamer.inCar = true
         }
         roamer.carActor.setVisible(true)
       }
+
       // Hidden only while actually behind the wheel.
+      const driving = Boolean(roamer.inCar && !takenByPlayer)
       roamer.actor.sprite.setVisible(!driving)
       roamer.actor.shadow.setVisible(!driving)
 
