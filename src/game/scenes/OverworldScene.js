@@ -162,7 +162,49 @@ const BAND_GAP = 4 // default tiles between buildings (a def can override its ow
 // already-verified column/gap layout below is untouched, just offset.
 const MAP_TOP_MARGIN = 4
 
+// STEP 1 of the map coherence overhaul (production/next-session-plan.md).
+//
+// The problem this fixes: FINANCE_V_STREETS used to be a hardcoded list of
+// single columns ([7, 20, 34, 47, 60, 73]) that layoutFinanceMap knew nothing
+// about, so buildings were packed straight over them and their facades drew
+// on top of the road - the "building is built on the road" the human
+// reported. Streets were also 1 tile wide, too narrow to read as roads or to
+// drive on.
+//
+// Now: street columns are DERIVED from the map width, streets are
+// STREET_WIDTH tiles wide, and the packer treats them as reserved - it skips
+// a building past any street block it would overlap.
+const STREET_WIDTH = 3
+const V_STREET_SPACING = 26 // gap between street blocks; must exceed the widest building
+const V_STREET_FIRST_COL = 6
+
+function verticalStreetColumns(mapCols) {
+  const cols = []
+  for (let start = V_STREET_FIRST_COL; start + STREET_WIDTH - 1 < mapCols - 1; start += V_STREET_SPACING) {
+    for (let d = 0; d < STREET_WIDTH; d++) cols.push(start + d)
+  }
+  return cols
+}
+
+// Smallest column >= `col` where a `width`-wide building clears every street
+// block, or null if it can't fit before `bandColEnd` (caller then wraps to a
+// new row). V_STREET_SPACING guarantees the gaps between streets are wider
+// than any building, so wrapping always eventually succeeds.
+function firstColumnClearOfStreets(col, width, streetCols, bandColEnd) {
+  let c = col
+  while (c + width - 1 <= bandColEnd) {
+    let hit = -1
+    for (let x = c; x <= c + width - 1; x++) {
+      if (streetCols.includes(x)) { hit = x; break }
+    }
+    if (hit === -1) return c
+    c = hit + 1
+  }
+  return null
+}
+
 function layoutFinanceMap(mapCols) {
+  const streetCols = verticalStreetColumns(mapCols)
   const bandColEnd = mapCols - BAND_COL_END_FROM_RIGHT
   const buildings = []
   const districtBandRows = {}
@@ -179,6 +221,17 @@ function layoutFinanceMap(mapCols) {
         row += rowMaxHeight + BAND_GAP
         rowMaxHeight = 0
       }
+      // Reserve the vertical streets: shift right past any street block this
+      // building would straddle, wrapping to the next row if it no longer
+      // fits on this one.
+      let clear = firstColumnClearOfStreets(col, b.width, streetCols, bandColEnd)
+      if (clear === null) {
+        col = BAND_COL_START
+        row += rowMaxHeight + BAND_GAP
+        rowMaxHeight = 0
+        clear = firstColumnClearOfStreets(col, b.width, streetCols, bandColEnd)
+      }
+      col = clear
       const c0 = col
       const r0 = row
       const c1 = col + b.width - 1
@@ -196,24 +249,40 @@ function layoutFinanceMap(mapCols) {
 
   // One horizontal street laid across the middle of the grass gap between
   // each pair of adjacent bands.
+  // Flat list of every street ROW (not just the centre line) so existing
+  // consumers keep working with plain .includes(r) / random indexing, while
+  // the street is now STREET_WIDTH tiles tall. Clamped into the grass gap so
+  // a street never touches a band's buildings.
   const hStreets = []
   for (let i = 0; i < DISTRICT_ORDER.length - 1; i++) {
     const gapTop = districtBandRows[DISTRICT_ORDER[i]].bottom + 1
     const gapBottom = districtBandRows[DISTRICT_ORDER[i + 1]].top - 1
-    hStreets.push(Math.round((gapTop + gapBottom) / 2))
+    const centre = Math.round((gapTop + gapBottom) / 2)
+    const half = Math.floor(STREET_WIDTH / 2)
+    for (let r = centre - half; r <= centre - half + STREET_WIDTH - 1; r++) {
+      if (r >= gapTop && r <= gapBottom) hStreets.push(r)
+    }
   }
 
-  return { buildings, mapRows, hStreets, districtBandRows }
+  return { buildings, mapRows, hStreets, districtBandRows, vStreets: streetCols }
 }
 
-const MAP_COLS = 80
-const { buildings: FINANCE_BUILDINGS, mapRows: MAP_ROWS, hStreets: FINANCE_H_STREETS, districtBandRows: DISTRICT_BAND_ROWS } = layoutFinanceMap(MAP_COLS)
+const MAP_COLS = 160
+const {
+  buildings: FINANCE_BUILDINGS,
+  mapRows: MAP_ROWS,
+  hStreets: FINANCE_H_STREETS,
+  districtBandRows: DISTRICT_BAND_ROWS,
+  vStreets: FINANCE_V_STREETS,
+} = layoutFinanceMap(MAP_COLS)
 // Exported purely so the layout can be asserted against from outside (no
 // building overlaps, every door reachable) without a Phaser canvas - the
 // packing is generated from a 129-entry def list now, far past the point
 // where eyeballing it is meaningful. Nothing in the game reads these.
 export {
   FINANCE_BUILDINGS,
+  FINANCE_V_STREETS,
+  FINANCE_H_STREETS,
   MAP_COLS,
   MAP_ROWS,
   DISTRICT_BAND_ROWS,
@@ -223,16 +292,19 @@ export {
   idleDriftOffset,
   IDLE_DRIFT_RADIUS_BY_TIER,
 }
-// Six vertical corridors spread evenly across the 80-wide map: col 7 is the
+// (Historical note: this used to describe six hand-picked corridors on an
+// 80-wide map. Street columns are now derived from the map width by
+// verticalStreetColumns() and reserved by the packer - see the comment above
+// layoutFinanceMap. Kept only for the DEFAULT_SPAWN detail below.)
+// Six vertical corridors spread evenly across the map: col 7 is the
 // spawn column (kept - DEFAULT_SPAWN sits on it), the rest give the right
 // half of the map (which the original two-corridor [7, 33] left with no
 // north-south route once the map widened past 40 cols) the same coverage.
-// A building can still occupy one of these columns at some rows (its facade
-// just renders over the "street") - isBlockedTile treats a building's
-// footprint as solid regardless of tile type, and the BFS reachability
-// check (see verification) confirms every building door is still reachable
-// through the surrounding grass either way.
-const FINANCE_V_STREETS = [7, 20, 34, 47, 60, 73]
+// FINANCE_V_STREETS is now derived by layoutFinanceMap (see above) rather
+// than hardcoded here. The old comment at this spot said a building "can
+// still occupy one of these columns... its facade just renders over the
+// street" - that was the bug, not an acceptable trade-off, and the packer
+// now reserves street columns instead.
 // Rows 1-2 along the top edge render as water tiles for terrain variety.
 // Water is now impassable (isSingleTileObstacle/isBlockedTile - see there
 // for why), so this deliberately excludes row 3: DEFAULT_SPAWN.row is
