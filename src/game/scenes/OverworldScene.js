@@ -1706,8 +1706,13 @@ export default class OverworldScene extends Phaser.Scene {
         const home = homeDef ? FINANCE_BUILDINGS.find((b) => b.id === homeDef.id) : null
         if (home) {
           const col = Math.round((home.tiles.c0 + home.tiles.c1) / 2)
-          const row = home.tiles.r1 + 1 // the strip directly in front of the house
-          roamer.carPark = { x: col * TILE_SIZE + TILE_SIZE / 2, y: row * TILE_SIZE + TILE_SIZE / 2 }
+          const frontRow = home.tiles.r1 + 1
+          // Park at the KERB nearest the house rather than on the lawn in
+          // front of it - nearestRoadTile already prefers kerb tiles over the
+          // driving lane, so this reuses the same rule the player's vehicles
+          // get instead of inventing a second one.
+          const spot = this.nearestRoadTile(col, frontRow) ?? { col, row: frontRow }
+          roamer.carPark = { x: spot.col * TILE_SIZE + TILE_SIZE / 2, y: spot.row * TILE_SIZE + TILE_SIZE / 2 }
           // Deterministic per-character pick so a given NPC always has the
           // same car. `>>> 0` not `>>` - a signed shift yields a negative
           // index for about half of all ids.
@@ -1720,15 +1725,37 @@ export default class OverworldScene extends Phaser.Scene {
             tierId: NPC_VEHICLE_TIERS[hash % NPC_VEHICLE_TIERS.length],
           })
           roamer.carActor.faceVector(0, 1) // nose out toward the street
+          // Register it as a real vehicle so it can be walked up to, stolen
+          // and driven like any other parked car. Without this it was just
+          // scenery - findNearbyVehicle only ever searched vehicleActors.
+          roamer.carEntry = {
+            tierId: `npc_${roamer.character.id}`,
+            name: `${roamer.character.name}'s car`,
+            spriteName: vehicleSpec.spriteName,
+            atlasKey: vehicleSpec.atlasKey,
+            speedMultiplier: 1.8,
+            scale: vehicleSpec.scale ?? 1,
+            col: spot.col,
+            row: spot.row,
+            owned: false,
+            actor: roamer.carActor,
+          }
+          this.vehicleActors.push(roamer.carEntry)
         } else {
           roamer.carParkFailed = true // no home building; don't retry every frame
         }
       }
 
+      // Once the player steals or is driving it, the NPC no longer controls
+      // the car - otherwise the roamer would keep teleporting it back and
+      // fight the player for its position.
+      const takenByPlayer = Boolean(
+        roamer.carEntry && (roamer.carEntry.owned || this.drivingEntry === roamer.carEntry)
+      )
       const travelling = Boolean(doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId)
       const onRoad = this.isRoadTile(Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE))
-      const driving = Boolean(roamer.carActor && travelling && onRoad)
-      if (roamer.carActor) {
+      const driving = Boolean(roamer.carActor && travelling && onRoad && !takenByPlayer)
+      if (roamer.carActor && !takenByPlayer) {
         if (driving) {
           roamer.carActor.setPosition(x, y)
           roamer.carActor.faceVector(dx, dy)
