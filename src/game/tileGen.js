@@ -17,6 +17,7 @@ import { RPG_URBAN } from './packs/rpgUrbanTiles'
 import { PICO8_CITY } from './packs/pico8CityTiles'
 import { SERENE_VILLAGE_HOMES } from './packs/sereneVillageTiles'
 import { getAnyCharacter } from '../features/agents/characterLookup'
+import { cuteTerrainReady, buildCuteTerrainOverlay } from './packs/cuteFantasyTerrain'
 
 const USE_PROCEDURAL_GRAPHICS = true;
 
@@ -465,7 +466,15 @@ function ensureTerrainAtlas(scene) {
 
 export function buildTerrainLayer(scene, cols, rows, tileSize, tileTypeAt) {
   if (USE_PROCEDURAL_GRAPHICS) {
-    return procedural_buildTerrainLayer(scene, cols, rows, tileSize, tileTypeAt)
+    const base = procedural_buildTerrainLayer(scene, cols, rows, tileSize, tileTypeAt)
+    // Map coherence overhaul step 2: if the Cute Fantasy ground tiles loaded,
+    // overlay real grass/road art on top of the procedural pass. The base
+    // layer still draws (and still owns water/wall/slate/cobblestone), so
+    // this degrades cleanly to the old look if the textures are missing.
+    if (cuteTerrainReady(scene)) {
+      return buildCuteTerrainOverlay(scene, base, cols, rows, tileSize, tileTypeAt)
+    }
+    return base
   }
   const data = []
   for (let r = 0; r < rows; r++) {

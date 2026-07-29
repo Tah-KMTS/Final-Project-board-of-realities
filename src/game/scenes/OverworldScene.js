@@ -35,6 +35,7 @@ import { buildTmxWallInteriorZone, TEA_HOUSE_ROOM } from '../interiors/tmxWallIn
 import { buildChapelMapZone, preloadChapelMap, CHAPEL_ROOM } from '../interiors/tmxMapInterior'
 import { buildChapelExteriorZone, preloadChapelExterior, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
+import { preloadCuteTerrain } from '../packs/cuteFantasyTerrain'
 
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
@@ -904,6 +905,7 @@ export default class OverworldScene extends Phaser.Scene {
     preloadChapelPack(this)
     preloadChapelMap(this)
     preloadChapelExterior(this)
+    preloadCuteTerrain(this)
   }
 
   create() {
