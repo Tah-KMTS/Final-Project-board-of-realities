@@ -28,3 +28,11 @@ __pycache__/
 *.njsproj
 *.sln
 *.sw?
+
+# Raw asset packs kept locally but never committed - too large, and the game
+# only needs the trimmed subsets checked in beside them.
+# TopDown Vehicles is 26,776 PNGs; public/assets/packs/topdown-vehicles/ holds
+# the 88 sheets actually used (see src/game/packs/topDownVehicles.js).
+public/assets/packs/TopDown Vehicles v1.17/
+public/assets/packs/Harvest Sumer Free Ver. Pack/
+public/assets/packs/Pixel 16 v2 village free/

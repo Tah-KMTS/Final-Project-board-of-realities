@@ -19,7 +19,15 @@
 // House rule: only frame 0 of each heading is used right now - a static car
 // per direction. The other 11 frames are a driving animation that nothing
 // currently asks for; wiring it later needs no new files.
-const PACK_DIR = '/assets/packs/TopDown%20Vehicles%20v1.17'
+// Points at a TRIMMED copy of TopDown Vehicles v1.17, not the raw pack. The
+// original is 26,776 PNGs (every type, every colour, every animation frame,
+// plus SEPARATED/ duplicates of all of it) - far too much to commit. The
+// trimmed folder holds only what this file actually references: the 8
+// MOVE/<DIRECTION>/*-sheet.png files for each type/colour in VEHICLE_ART.
+// 88 files, ~4.3MB, so a fresh clone runs without the raw pack present.
+// Regenerate it by copying those same paths out of the original if a new
+// vehicle type or colour is added below.
+const PACK_DIR = '/assets/packs/topdown-vehicles'
 
 // The car BODY inside the 100x100 frame, not the frame itself. Measured, not
 // guessed: a north-facing sedan's opaque pixels span 38x65, an east-facing one
