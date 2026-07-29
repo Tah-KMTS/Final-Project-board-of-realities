@@ -79,11 +79,21 @@ export const GRASS_TYPES = new Set(['grass', 'slate', 'cobblestone'])
 
 // Overlays real grass/path tiles onto `baseLayer` (the procedural Graphics
 // pass) and returns a Container holding both.
+// PERFORMANCE: this used to add one Game Object per tile - about 10,700 of
+// them on a 160x67 map, each carrying its own transform, cull check and
+// render entry, and all rebuilt on every zone load. They are now stamped once
+// into a single RenderTexture, so the scene keeps ONE object instead. The
+// output is pixel-identical; only the object count changes.
 export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, tileTypeAt) {
   const scale = tileSize / 16
   const container = scene.add.container(0, 0)
   container.setDepth(baseLayer.depth ?? 0)
   container.add(baseLayer)
+
+  const rt = scene.add.renderTexture(0, 0, cols * tileSize, rows * tileSize).setOrigin(0, 0)
+  // A reusable stamp: moved, re-framed and drawn per tile, then discarded.
+  // Never added to the display list, so it costs nothing at render time.
+  const stamp = scene.make.image({ key: CUTE_TERRAIN_KEYS.grass, add: false }).setOrigin(0, 0).setScale(scale)
 
   const isPath = (r, c) => {
     if (r < 0 || c < 0 || r >= rows || c >= cols) return false
@@ -98,14 +108,14 @@ export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, 
       if (!isGrass && type !== 'path') continue
       const x = c * tileSize
       const y = r * tileSize
-      const img = isGrass
-        ? scene.add.image(x, y, CUTE_TERRAIN_KEYS.grass)
-        : scene.add.image(x, y, CUTE_TERRAIN_KEYS.pathEdges, pathFrame(isPath, r, c))
-      img.setOrigin(0, 0).setScale(scale)
-      container.add(img)
+      if (isGrass) stamp.setTexture(CUTE_TERRAIN_KEYS.grass)
+      else stamp.setTexture(CUTE_TERRAIN_KEYS.pathEdges, pathFrame(isPath, r, c))
+      rt.draw(stamp, x, y)
     }
   }
 
+  stamp.destroy()
+  container.add(rt)
   return container
 }
 

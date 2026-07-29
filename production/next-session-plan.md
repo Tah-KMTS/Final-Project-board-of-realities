@@ -567,3 +567,40 @@ and genuinely have zero progress:
 No commit, no push without explicit go-ahead - the human decides when to
 commit accumulated work. Don't touch anything under `public/assets/packs/`
 (read-only source material). No new npm dependencies.
+
+## TOPDOWN VEHICLES v1.17 - SURVEY DONE, SWAP NOT STARTED
+
+Everything below is measured from the files on disk, so the next session
+doesn't need to re-derive it.
+
+Layout: `public/assets/packs/TopDown Vehicles v1.17/<TYPE> TOPDOWN/<Colour>/`
+23 vehicle types (SEDAN, TAXI, POLICE, AMBULANCE, VAN, SUV, BUS, LIMO,
+PICKUP, MUSCLECAR, SUPERCAR, ...), 8 colours each (Black, Blue, Brown,
+Green, Magenta, Red, White, Yellow).
+
+Per colour folder there are two packed sheets and a SEPARATED/ folder:
+- `<Colour>_<TYPE>_CLEAN_8D_000-sheet.png` - **300x300**, a 3x3 grid of
+  **100x100** frames = 9 cells, 8 used (one per compass heading, 9th blank).
+- `<Colour>_<TYPE>_CLEAN_All_000-sheet.png` - **700x700**, a 7x7 grid of
+  **100x100** frames = 49 cells, **48 used** (confirmed: SEPARATED/ holds
+  exactly 48 files). That's a full rotation in 7.5-degree steps.
+- `MOVE/<DIRECTION>/` holds per-heading animation strips (EAST, NORTH,
+  NORTHEAST, ... 8 folders) if driving animation is ever wanted.
+
+**Why this pack fixes the perspective problem:** heading becomes a FRAME
+CHOICE, not a sprite rotation. VehicleActor currently rotates one sprite
+(`angleForVector` -> `sprite.rotation`), which is why the art kept reading
+as the wrong perspective. With the 48-frame sheet:
+`frame = Math.round(angleDegrees / 7.5) % 48`.
+
+**The one thing NOT yet verified, and it must be before writing code:**
+which frame index corresponds to which heading, and which way the rotation
+runs (clockwise vs counter-clockwise, and where 0 points). Guessing this
+gives cars that face consistently but wrongly - the exact failure mode that
+wasted rounds on the chapel. Verify by rendering the 48 frames in a grid
+with their indices and LOOKING at it (production/renderChapelMap.mjs is a
+working template for that kind of throwaway harness).
+
+**Do NOT copy the whole pack into the build** - it is 26,776 PNGs. Pick the
+types/colours actually used and copy only those packed `-sheet.png` files.
+Frames are 100x100, so at UNIFORM_VEHICLE_WIDTH=40 the scale is 0.4.
