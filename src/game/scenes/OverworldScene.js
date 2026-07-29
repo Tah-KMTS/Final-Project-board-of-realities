@@ -1777,7 +1777,9 @@ export default class OverworldScene extends Phaser.Scene {
             if (here) {
               const spot = this.nearestRoadTile(
                 Math.round((here.tiles.c0 + here.tiles.c1) / 2),
-                here.tiles.r1 + 1
+                here.tiles.r1 + 1,
+                [],
+                roamer.carEntry
               )
               if (spot) {
                 roamer.carPark = {
@@ -2200,7 +2202,24 @@ export default class OverworldScene extends Phaser.Scene {
     actor.faceVector(dx, dy)
   }
 
-  nearestRoadTile(col, row, taken = []) {
+  // A parked car is about 87px long against 40px tiles, so two cars on
+  // ADJACENT tiles still overlap even though their tiles differ - which is
+  // why "no vehicle on this exact tile" was not enough to stop them sitting
+  // on top of each other. Centres need roughly a car's length between them.
+  CAR_TILE_GAP = 2
+
+  // True if any vehicle (or already-claimed spot) is close enough that a car
+  // parked here would visually overlap it.
+  // `ignore` is the vehicle being placed. Without it a car re-parking would
+  // reject every spot near its own current position, since it is itself in
+  // vehicleActors.
+  vehicleTooClose(c, r, taken, ignore = null) {
+    const near = (o) => Math.abs(o.col - c) <= this.CAR_TILE_GAP && Math.abs(o.row - r) <= this.CAR_TILE_GAP
+    if (taken.some(near)) return true
+    return Boolean(this.vehicleActors?.some((v) => v !== ignore && near(v)))
+  }
+
+  nearestRoadTile(col, row, taken = [], ignore = null) {
     // Two passes: kerb tiles first, then any road tile as a fallback so a
     // vehicle still spawns if every kerb nearby is taken.
     for (const kerbOnly of [true, false]) {
@@ -2214,8 +2233,7 @@ export default class OverworldScene extends Phaser.Scene {
           if (!this.isRoadTile(c, r)) continue
           if (kerbOnly && !this.isKerbTile(c, r)) continue
           if (this.isBlockedTile(c, r)) continue
-          if (taken.some((t) => t.col === c && t.row === r)) continue
-          if (this.vehicleActors?.some((v) => v.col === c && v.row === r)) continue
+          if (this.vehicleTooClose(c, r, taken, ignore)) continue
           return { col: c, row: r }
         }
       }
@@ -2348,7 +2366,7 @@ export default class OverworldScene extends Phaser.Scene {
       for (const c of FINANCE_V_STREETS) {
         if (!this.isKerbTile(c, r)) continue
         if (this.isBlockedTile(c, r)) continue
-        if (this.vehicleActors.some((v) => v.col === c && v.row === r)) continue
+        if (this.vehicleTooClose(c, r, [])) continue
         kerbCandidates.push({ col: c, row: r })
       }
     }
@@ -2387,7 +2405,7 @@ export default class OverworldScene extends Phaser.Scene {
     // this enforces the rule once, at the end, where it can't be missed.
     for (const v of this.vehicleActors) {
       if (this.isRoadTile(v.col, v.row)) continue
-      const snapped = this.nearestRoadTile(v.col, v.row, this.vehicleActors.map((o) => ({ col: o.col, row: o.row })))
+      const snapped = this.nearestRoadTile(v.col, v.row, [], v)
       if (!snapped) continue
       v.col = snapped.col
       v.row = snapped.row
