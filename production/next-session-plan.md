@@ -14,29 +14,31 @@ commit is already pushed, so the rollback point is always available via
 
 ## THE ONE CRITICAL LESSON FROM THIS SESSION - READ FIRST
 
-**Structural/count verification is not visual verification, and this session
-learned that the hard way.** The chapel interior was reported "verified" with
-very convincing evidence - exact `zoneObjectsCount` matches between a
-standalone script and the live scene, BFS reachability proofs, a full
-zone-round-trip test with zero exceptions. All of that was true. The room
-still rendered as a scattered mess of disconnected red tile fragments on a
-black void, with random loot props (a skull, a trophy, a hammer) sitting on
-benches instead of seated characters - nothing like a coherent room, let alone
-the reference image. **Passing counts and having no exceptions thrown proves
-internal self-consistency, not that the output looks like anything.** This
-environment cannot reliably capture live screenshots (confirmed multiple times,
-by multiple agents AND by the human's own primary session directly - the
-Browser preview pane does not composite frames here, screenshots time out
-universally, not just for one automation approach). Given that hard
-constraint, the only reliable path to visual correctness this session found is:
-**the human plays the actual game and reports what they see, with real
-screenshots pasted into chat**, which the orchestrating session CAN view (image
-files/pasted images work fine via the Read-equivalent path - it's live browser
-rendering specifically that's broken). Budget for this: don't call ANY visual
-integration "done" until the human has actually looked at it, no matter how
-good the structural evidence is. Say so explicitly in every report ("verified
-structurally, NOT visually confirmed") rather than letting confident-sounding
-counts imply more than they prove.
+**Structural/count verification is not visual verification.** The chapel
+interior was originally reported "verified" via exact `zoneObjectsCount`
+matches, BFS reachability, zero exceptions - all true, and the room still
+rendered as scattered tile fragments on a black void with random props
+instead of people. Passing counts proves internal self-consistency, not that
+the output looks like anything. Don't call visual work "done" on structural
+evidence alone - say "ready for confirmation" instead, every time.
+
+**Update - a real fix for this WAS found, use it as the default now:** the
+interactive Browser preview pane cannot composite frames in this environment
+(confirmed dead end, don't retry it) - but a **Vite dev server + `puppeteer`
+(already a project devDependency, no new deps) screenshotting the canvas
+directly via CDP, inside a temporary throwaway harness, works.** This is how
+all 4 chapel iterations below actually got real pixel evidence: build a small
+script that starts the dev server, drives the actual `buildTmxWallInteriorZone`
+(or whatever real code path) inside a headless Chromium tab, screenshots the
+canvas, saves a PNG, then **view that PNG yourself** before claiming anything
+about how it looks. Clean up the harness script when done (keep the repo's
+`git status` limited to real source changes) but **save the final PNG
+somewhere durable** (this session used
+`<scratchpad>/chapel/chapel_v1..v4.png`) and hand the exact path back up so it
+can be sent to the human directly via a file-send tool - that's faster and
+more reliable than asking the human to boot the game themselves first, though
+the human's own live-game confirmation is still the final word once they get
+to it.
 
 ## STATUS: what's actually done and confirmed good (don't redo)
 
@@ -81,71 +83,92 @@ complaint) - safe to build on top of, not to re-litigate:
   never ships. Not a real bug, don't re-investigate unless new evidence
   suggests otherwise.
 
-## PRIORITY 1 (top of next session) - Rebuild the chapel interior for real
+## PRIORITY 1 (top of next session) - Finish polishing the chapel INTERIOR, then and only then the exterior
 
-**The human's own words, with a screenshot of the actual result:** *"whispering
-temple look nothing like the reference picture i showed you both interior and
-exterior."*
+**Status: substantially rebuilt and much improved (commit `5d64638`,
+`git log` for the full message), four iterations deep, human has seen and
+responded to real renders each time (not just structural claims). This is
+NOT the same broken state described further down this doc's revision
+history - do not re-read this as "still totally broken," read the current
+code and the human's actual most recent feedback below instead.**
 
-What the screenshot actually shows: a black background with scattered,
-disconnected red rectangular tile fragments (no coherent wall/floor
-structure), a single white ghost/bride statue (this ONE element from the
-reference DID land), a blue-robed figure and two smaller brown-robed figures
-near an altar-like table, three pairs of plain brown benches down the sides -
-each bench has a random unrelated prop sitting on it (a hammer, a skull, an
-orange fruit-like object, a trophy, a dark orb, a white urn) instead of a
-seated character, and two small pale crescent shapes on the side walls. No
-center aisle, no stained glass windows, no dragon statue, benches aren't
-populated with seated Parishioner sprites, walls don't read as walls.
+Do this work directly in `src/game/interiors/tmxWallInterior.js`
+(`CHAPEL_TEMPLE_ROOM`, currently 17 cols x 22 rows) and
+`src/game/packs/chapelPixelTiles.js`. **Read the "Known gaps vs. the
+reference" comment block directly above `CHAPEL_TEMPLE_ROOM` in
+`tmxWallInterior.js` first** - it is a precise, current, honestly-written
+list of every remaining known gap, written by the agent that did the last
+fix pass, not stale documentation. `production/chapel-reference.md` remains
+the authoritative visual target (the pack's own marketing images, described
+in full detail there since the image files aren't in the downloaded pack).
 
-**The original reference image** (described in full since it can't be
-re-attached here, but was given directly to a previous round of this session):
-a grand chapel interior, a blue-lit carpet aisle running down the center,
-pews FULL of many different seated parishioners (visibly different
-colors/species) on both sides facing an altar, a robed priest standing at an
-ornate altar under a large red dragon-motif banner, tall arched stained-glass
-windows along the side walls, lit candelabras between the windows, a ghostly
-bride-like statue flanking one side of the altar and a large blue dragon
-statue flanking the other, and two small figures visible in wall alcoves
-above the altar.
+**The human's last two rounds of feedback, in order:**
+1. First pass ("v2"): "still doesn't look like the picture... the tile looks
+   different, the layout is different, person was split in half... the color
+   scheme is different" - all four of these were root-caused and fixed (see
+   commit `5d64638`'s message for the specific bugs: transparent floor tiles,
+   a statue crop that discarded half the art, a portrait crop that only
+   grabbed half its width, a rug stuck on one frame instead of the pack's
+   real 8-frame sequence, a "flower vase" that was actually cropping a
+   necklace icon).
+2. Second pass ("v4", latest): "scale it properly because be aware of the
+   other person in the game... interior is much better but not quite there
+   yet... the rug on the floor feels wrong... amongst other things." Scale
+   was recalibrated against the player's real on-screen size (~35x64px,
+   verify this yourself from `src/game/spriteGen.js`/`playerSpriteArt.js`
+   rather than trusting this number blindly - it was independently
+   re-derived and confirmed once already, but re-derive again if anything
+   about the player sprite has changed). The rug bug (single repeated frame)
+   was found and fixed. **No response yet from the human on whether v4 is
+   good enough** - if you're picking this up fresh, treat v4
+   (`chapel_v4.png`, may or may not still exist depending on scratchpad
+   cleanup - regenerate via the render harness if not) as your current
+   baseline, not confirmed-final.
 
-**What to actually do:**
-1. Re-read `src/game/interiors/tmxWallInterior.js` and
-   `src/game/packs/chapelPixelTiles.js` (the two files from earlier this
-   session) in full. Given the visual result, treat their catalogued frame
-   indices as UNVERIFIED despite prior claims of visual confirmation - the
-   assemble-and-render step that would have caught "this renders as scattered
-   fragments, not a wall" either wasn't actually done, or wasn't looked at
-   carefully. Redo that check: actually assemble a test region and view the
-   PNG before trusting any index.
-2. The floor/wall background is the first thing to fix - right now there
-   appears to be NO wall/floor tile layer rendering at all (black void), only
-   floating decoration on top of nothing. Check whether the TMX parsing logic
-   is actually placing `Walls_Interior.png` wall/floor tiles per-cell, or only
-   placing furniture/prop objects and skipping the base layer entirely - the
-   evidence strongly suggests the latter.
-3. The pews need actual seated character sprites (the pack's `Parishioner1-11`
-   variants, per the original catalog) at the bench positions, not props. If
-   props ended up on the pews instead of characters, that's a data/wiring
-   mixup worth finding directly (did prop placement and parishioner placement
-   get swapped, or did parishioner placement never get wired at all and
-   something else filled those tiles instead?).
-4. Add the missing reference elements if the pack actually has the assets for
-   them (stained glass windows, the dragon statue as the SECOND flanking
-   figure - the pack's `Dragon_body/head/tail/wing_animation.png` files exist
-   and were catalogued as available; a carpet-aisle floor accent - the prior
-   report mentioned a `carpetTile()` existing in the catalog but never wired
-   into the per-cell floor loop, which is a likely quick win). If a specific
-   reference element genuinely has no matching asset in the pack, say so
-   honestly rather than fabricating a tile index - this project's established
-   convention throughout this session is to admit a gap rather than guess.
-5. **Do not mark this done on structural counts alone.** Get the human to
-   look at it again before calling it finished this time.
-6. Also check: the interior's on-screen title reads "Whispering Temple" in
-   the human's screenshot, not "Whispering Temple Chapel" as the exterior
-   building def was supposedly relabeled to - if the interior's region label
-   is a separate string that didn't get updated to match, fix that
-   consistency gap too.
+**Concrete remaining gaps to close, in the order they're likely to matter most:**
+
+1. **The room's stepped/gothic wall silhouette - deferred twice now, do it
+   this round if at all feasible.** Reference shows narrower walls at the
+   altar end, wider at the pew end, matching the exterior roofline. Currently
+   `isWall()` is a plain rectangle (`col === 0 || col === 16 || row === 0 ||
+   row === 21`). This needs to become a per-row (or per-region) shape
+   function. The risk flagged by the last round: several furniture blocks
+   currently sit near the border columns that would become wall under a
+   stepped shape, and reworking this touches their placement too. Suggested
+   approach: define the new shape FIRST as a simple data table (e.g. an array
+   of `{rowStart, rowEnd, colMin, colMax}` bands), redraw ONLY the walls
+   against it, render and view that in isolation before touching any
+   furniture placement, THEN move any furniture that now falls in a wall
+   band. Don't attempt this as one big simultaneous change - do the shape,
+   verify it renders and stays reachable (re-run BFS), then adjust furniture
+   as a clearly separate step.
+2. **Statue collision footprint is still a rectangular approximation** of an
+   irregular silhouette (noted honestly in the code comment) - lower
+   priority than the wall shape, only worth polishing if there's a
+   noticeable "bumping an invisible wall" issue once a human actually walks
+   around in there.
+3. **Alcove portraits, lower-window arch accents, priest pose** - all three
+   are pack-asset-availability gaps (the pack doesn't have the specific
+   variant needed), not code bugs. Don't force a fabricated fix - either
+   accept these as permanent limitations of this specific asset pack, or
+   spend a little time checking whether ANY other already-integrated pack
+   (Cute Fantasy, Serene Village, etc.) happens to have a usable substitute
+   before giving up on them.
+4. **Get fresh human confirmation on the CURRENT state before doing more
+   speculative polish** - if you land any fix, produce a new render, show
+   it, and wait for actual feedback rather than guessing at further gaps
+   the human hasn't mentioned.
+
+**Only once the human confirms the interior is genuinely good** (not just
+"better"), move to the exterior. That work is unstarted but well-scoped
+already: `Tiled_files/Exterior.tmx` (~92KB) has exactly the layers described
+in `production/chapel-reference.md`'s exterior section (`House`, `Fence`,
+`Graves`, `Flowers`, `Wings`, `Dragon_body_head`, `Grass_Walls`/
+`Grass_details`, `Floor`/`Floor_details`, across 7 tilesets, one with 1225
+tiles) - the same TMX-parsing approach used for the interior should work,
+but parsing 9 layers/7 tilesets and assembling a 3/4-angle illustrated scene
+(dragon draped over the roof, graveyard, wrought-iron fence) is a
+substantial task on its own. Don't rush it in alongside interior polish.
 
 ## PRIORITY 2 - Trees rendering incomplete
 
