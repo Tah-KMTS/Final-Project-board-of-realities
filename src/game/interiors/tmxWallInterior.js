@@ -295,8 +295,23 @@ export function buildTmxWallInteriorZone(scene, spec, zoneObjects, Phaser, TILE_
 //     arch windows; only the top-center window gets that treatment (now 2
 //     accents per side) - the two lower windows still stand alone, to keep
 //     an already-dense layout legible.
-//   - The priest reference pose is arms-out preaching; this pack's Priest
-//     sheet only has the idle-front frame used elsewhere, not that pose.
+//   - CORRECTED: an earlier version of this list claimed "this pack's Priest
+//     sheet only has the idle-front frame, not [the arms-out preaching]
+//     pose." That was wrong - it was written from the one sheet already
+//     wired up (Priest_Idle_front.png) without listing the pack's Priest
+//     folder. The pack DOES ship the pose:
+//     PNG/Animation_packed/Priest/Priest_speech.png, 128x144 = 4 cols x 3
+//     rows @32x48 (same 32x48 cell size as the idle sheet already used by
+//     priestIdleFrame(), so it slices with the identical convention), plus
+//     Priest_making_spell.png (96x96) and Priest_Walk_*.png. Not yet wired
+//     in only because picking WHICH of the 12 frames is the arms-out one
+//     needs a look at the rendered frames, not because the art is missing.
+//     Note the file name collision to avoid confusion: PNG/Animation/
+//     Priest_speech.png (192x96, a 16px tile grid) is a DIFFERENT file,
+//     already used here as the wall-alcove portrait via CHAPEL_KEYS
+//     .alcoveFace - which is also why both alcoves show the same face (see
+//     the alcove gap above): that "portrait" is a tile-scale crop of this
+//     same priest-speech art, not a separate set of saint portraits.
 //   - The reference's room silhouette is a stepped gothic shape (narrower at
 //     the altar end, wider at the pew end), matching the exterior roofline.
 //     This room is still a plain rectangle - reworking isWall() into a

@@ -191,14 +191,43 @@ in full detail there since the image files aren't in the downloaded pack).
    priority than the wall shape, only worth polishing if there's a
    noticeable "bumping an invisible wall" issue once a human actually walks
    around in there.
-3. **Alcove portraits, lower-window arch accents, priest pose** - all three
-   are pack-asset-availability gaps (the pack doesn't have the specific
-   variant needed), not code bugs. Don't force a fabricated fix - either
-   accept these as permanent limitations of this specific asset pack, or
-   spend a little time checking whether ANY other already-integrated pack
-   (Cute Fantasy, Serene Village, etc.) happens to have a usable substitute
-   before giving up on them.
-4. **Get fresh human confirmation on the CURRENT state before doing more
+3. **Priest arms-out preaching pose - NOT a pack gap, this was checked and
+   the art EXISTS. Highest-value quick win left on the interior.** The
+   earlier "the pack only has the idle frame" claim was wrong; it was
+   written without listing the pack's Priest folder. Verified on disk:
+   - `PNG/Animation_packed/Priest/Priest_speech.png` - **128x144 = 4 cols x
+     3 rows @32x48**, i.e. the SAME 32x48 cell size as
+     `Priest_Idle_front.png` (96x144, 3x3) that `priestIdleFrame()` already
+     slices, so it wires up with the identical convention: add a
+     `PRIEST_SPEECH` entry next to `PRIEST_IDLE` in `chapelPixelTiles.js`
+     and a `priestSpeechFrame()` next to `priestIdleFrame()`, then swap the
+     `col: 8, row: 6` sprite in `CHAPEL_TEMPLE_ROOM` to use it.
+   - Also available if useful: `Priest_making_spell.png` (96x96) and the
+     four `Priest_Walk_*.png` sheets.
+   - **The one unknown**: which of the 12 frames in the speech sheet is the
+     arms-out pose. Frame 0 is the natural first guess but is unverified -
+     the sheet was viewed only as a whole thumbnail, where individual frame
+     poses aren't distinguishable. Render the frames and look before
+     committing to an index; this is exactly the kind of thing that has
+     been silently wrong before.
+   - **Watch the file-name collision**: `PNG/Animation/Priest_speech.png`
+     (192x96, a 16px tile grid) is a DIFFERENT file, already wired as
+     `CHAPEL_KEYS.alcoveFace`. Don't confuse the two paths.
+4. **Alcove portrait variety - root cause now known, and it's not simply
+   "the pack lacks portraits."** The alcove "portrait" is a tile-scale crop
+   of `PNG/Animation/Priest_speech.png` - i.e. it is the priest's own face
+   art reused as wall decoration (that's how the pack's authored map uses
+   it too). That's why every column showed "the same portrait": they're all
+   frames of one character, not a set of saint portraits. So the reference's
+   distinct green-haired/auburn-haired alcove figures genuinely aren't in
+   this pack - but the 11 Parishioner sheets ARE 11 visibly distinct
+   characters, and are a plausible substitute source for two different
+   alcove faces if a tile-scale crop of one reads acceptably. Worth a look
+   before accepting this as permanent.
+5. **Lower-window arch accents** - still a genuine pack/layout gap (the
+   accents exist, they're just omitted on the two lower windows to keep an
+   already-dense layout legible). Lowest priority of the three.
+6. **Get fresh human confirmation on the CURRENT state before doing more
    speculative polish** - if you land any fix, produce a new render, show
    it, and wait for actual feedback rather than guessing at further gaps
    the human hasn't mentioned.
