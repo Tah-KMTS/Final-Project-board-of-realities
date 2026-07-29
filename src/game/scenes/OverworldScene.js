@@ -33,7 +33,7 @@ import {
 import { preloadPlayerSheet } from '../spriteGen'
 import { buildTmxWallInteriorZone, TEA_HOUSE_ROOM } from '../interiors/tmxWallInterior'
 import { buildChapelMapZone, preloadChapelMap, CHAPEL_ROOM } from '../interiors/tmxMapInterior'
-import { buildChapelExteriorZone, preloadChapelExterior, updateChapelGate, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
+import { buildChapelExteriorZone, preloadChapelExterior, updateChapelGate, chapelFacadeSolidOffsets, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
 import { preloadCuteTerrain, preloadCuteTrees, GRASS_TYPES } from '../packs/cuteFantasyTerrain'
 
@@ -470,6 +470,10 @@ function buildLayout(tileTypeFn, cols, rows) {
 // 'path' and 'water' render the same everywhere; 'grass' cells get a
 // per-district ground reskin (Tokyo slate marble, Kyoto cobblestone, everyone
 // else plain grass); border 'wall' cells are the same everywhere too.
+// Footprint-relative solid tiles for the chapel courtyard drawn on the map.
+// Computed once - it's pure data derived from the authored .tmx.
+const TEMPLE_SOLID_OFFSETS = chapelFacadeSolidOffsets()
+
 function terrainTileTypeAt(tile, row) {
   if (tile === 'water') return 'water'
   if (tile === 'path') return 'path'
@@ -1402,7 +1406,18 @@ export default class OverworldScene extends Phaser.Scene {
     // position, not a second body that could collide with it).
     if (this.isSingleTileObstacle(col, row)) return true
     for (const b of FINANCE_BUILDINGS) {
-      if (col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1) return true
+      if (col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1) {
+        // The chapel draws a whole authored courtyard, most of which is
+        // walkable ground. Blocking its footprint rect like a normal
+        // building walled the courtyard off entirely, so it uses the
+        // authored per-tile collision instead - same rules as the
+        // standalone zone, gate opening included.
+        if (b.id === 'temple') {
+          if (TEMPLE_SOLID_OFFSETS.has(`${col - b.tiles.c0},${row - b.tiles.r0}`)) return true
+          continue
+        }
+        return true
+      }
     }
     // Driving-only rules. Kept separate from the checks above so walking is
     // completely unaffected: on foot the player may still cross grass and

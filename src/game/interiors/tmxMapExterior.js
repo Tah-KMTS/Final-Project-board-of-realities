@@ -209,3 +209,23 @@ export function drawChapelExteriorFacade(scene, x, y, tileSize) {
   })
   return objects
 }
+
+// Per-tile collision for the courtyard as drawn on the OVERWORLD.
+//
+// Buildings normally block their whole footprint rect, which for a 30x22
+// chapel meant the entire courtyard was a wall - the player could only stand
+// outside and press E, never walk in and look at it. This returns the set of
+// footprint-relative "dc,dr" tiles that are actually solid, reusing the same
+// SOLID_LAYERS and gate-opening rules the standalone zone uses, so what you
+// can walk through is identical in both places.
+export function chapelFacadeSolidOffsets() {
+  const solid = new Set()
+  for (const layer of CHAPEL_MAP_LAYERS) {
+    if (!SOLID_LAYERS.has(layer.name)) continue
+    for (const [col, row] of layer.tiles) {
+      if (layer.name === 'Fence' && isGateOpening(col, row)) continue
+      solid.add(`${col},${row}`)
+    }
+  }
+  return solid
+}
