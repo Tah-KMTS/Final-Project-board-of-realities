@@ -1724,7 +1724,7 @@ export default class OverworldScene extends Phaser.Scene {
             atlasKey: vehicleSpec.atlasKey,
             tierId: NPC_VEHICLE_TIERS[hash % NPC_VEHICLE_TIERS.length],
           })
-          roamer.carActor.faceVector(0, 1) // nose out toward the street
+          this.orientParked(roamer.carActor, spot.col, spot.row) // lie along the road
           // Register it as a real vehicle so it can be walked up to, stolen
           // and driven like any other parked car. Without this it was just
           // scenery - findNearbyVehicle only ever searched vehicleActors.
@@ -1797,7 +1797,11 @@ export default class OverworldScene extends Phaser.Scene {
         if (!roamer.inCar) {
           if (roamer.carPark) {
             roamer.carActor.setPosition(roamer.carPark.x, roamer.carPark.y)
-            roamer.carActor.faceVector(0, 1)
+            this.orientParked(
+              roamer.carActor,
+              Math.floor(roamer.carPark.x / TILE_SIZE),
+              Math.floor(roamer.carPark.y / TILE_SIZE)
+            )
           }
           // Getting in: they have to actually reach the car, and be starting
           // a journey, and be on the road with it.
@@ -2124,6 +2128,7 @@ export default class OverworldScene extends Phaser.Scene {
   spawnVehicleEntry({ tierId, name, spriteName, speedMultiplier, scale, col, row, owned, atlasKey }) {
     const { x, y } = this.tileMover.tileCenter(col, row)
     const actor = new VehicleActor(this, x, y, { spriteName, scale, atlasKey, tierId })
+    this.orientParked(actor, col, row)
     const entry = { tierId, name, spriteName, speedMultiplier, scale, col, row, owned, atlasKey, actor }
     this.vehicleActors.push(entry)
     return entry
@@ -2159,6 +2164,22 @@ export default class OverworldScene extends Phaser.Scene {
     // returned true for any column here, which is why cars still parked
     // across the middle of east-west roads.
     return !(FINANCE_H_STREETS.includes(row - 1) && FINANCE_H_STREETS.includes(row + 1))
+  }
+
+  // A parked car should lie ALONG the road, not across it. A car is roughly
+  // one tile wide but two long, so parking it nose-to-kerb on an east-west
+  // street pushes its whole length into the driving lanes. Vertical streets
+  // want a north/south car; horizontal streets want an east/west one.
+  parkedFacing(col, row) {
+    if (FINANCE_V_STREETS.includes(col)) return [0, 1] // along a north-south street
+    if (FINANCE_H_STREETS.includes(row)) return [1, 0] // along an east-west street
+    return [0, 1]
+  }
+
+  // Points an idle vehicle along whichever road it is parked on.
+  orientParked(actor, col, row) {
+    const [dx, dy] = this.parkedFacing(col, row)
+    actor.faceVector(dx, dy)
   }
 
   nearestRoadTile(col, row, taken = []) {
