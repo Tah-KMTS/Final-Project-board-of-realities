@@ -2172,11 +2172,24 @@ export default class OverworldScene extends Phaser.Scene {
     // and goes straight to restoredTile (falling back to a random tile only
     // if it has no valid stored position yet) - see restoredTile's header.
     const streetPool = ['ambulance.png', 'taxi.png', 'van.png', 'suv.png', 'sedan_blue.png']
-    let spawned = 0
-    let attempts = 0
-    while (spawned < streetPool.length && attempts < 200) {
-      attempts++
-      const flavor = streetPool[spawned]
+    // Was: pick a random street column and a random row, up to 200 tries.
+    // With the wider street spacing there are far fewer road tiles, so those
+    // tries kept landing on blocked ground and the loop gave up early - which
+    // is why several atmosphere cars stopped appearing at all. Enumerate the
+    // actual free kerb tiles instead, so every vehicle in the pool gets one
+    // as long as one exists.
+    const kerbCandidates = []
+    for (let r = 4; r < MAP_ROWS - 2; r++) {
+      for (const c of FINANCE_V_STREETS) {
+        if (!this.isKerbTile(c, r)) continue
+        if (this.isBlockedTile(c, r)) continue
+        if (this.vehicleActors.some((v) => v.col === c && v.row === r)) continue
+        kerbCandidates.push({ col: c, row: r })
+      }
+    }
+    // Deterministic spread rather than clustering at the top of the map.
+    const stride = Math.max(1, Math.floor(kerbCandidates.length / (streetPool.length + 1)))
+    streetPool.forEach((flavor, i) => {
       const tierId = `atmo_${flavor.replace('.png', '')}`
       const owns = isOwned(tierId)
       let tile = null
@@ -2186,64 +2199,20 @@ export default class OverworldScene extends Phaser.Scene {
           tile = restored
         }
       }
-      if (!tile) {
-        const c = FINANCE_V_STREETS[Math.floor(Math.random() * FINANCE_V_STREETS.length)]
-        const r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6))
-        if (this.isBlockedTile(c, r)) continue
-        if (this.isInsideAnyBuildingZone(c, r)) continue
-        if (this.vehicleActors.some((v) => v.col === c && v.row === r)) continue
-        tile = { col: c, row: r }
-      }
+      if (!tile) tile = kerbCandidates[(i + 1) * stride] ?? kerbCandidates[i]
+      if (!tile) return
       this.spawnVehicleEntry({
         tierId,
-        name: flavor === 'ambulance.png' ? 'Ambulance' : `Parked ${flavor.replace('.png', '')}`,
+        name: `Parked ${flavor.replace('.png', '').replace('_', ' ')}`,
         spriteName: pico8CarFrameFor(tierId),
         atlasKey: PICO8_ATLAS_KEY,
-        speedMultiplier: 2.0,
-        scale: 1, // absolute size now comes from VehicleActor's uniform-width scaling, see that file
+        speedMultiplier: 1.8,
+        scale: 1,
         col: tile.col,
         row: tile.row,
         owned: owns,
       })
-      spawned++
-    }
-
-    // Defensive-only fallback below: every tierId that can ever be `owned`
-    // is already unconditionally spawned by the three blocks above (that's
-    // how they show up as theft/rent targets before being owned at all),
-    // so in the current vehicle roster this loop's dedup check always
-    // finds an existing entry and skips - it's a no-op safety net for a
-    // hypothetical future owned-vehicle type that ISN'T also an always-on
-    // theft/rent target, not the mechanism actually restoring position
-    // (see restoredTile above for that).
-    if (trainStation) {
-      const stationFallback = this.adjacentOpenTiles(trainStation, owned.length)
-      let idx = 0
-      for (const v of owned) {
-        if (this.vehicleActors.some((e) => e.tierId === v.tierId)) continue
-        const tile = restoredTile(v.tierId, stationFallback[idx++])
-        if (!tile) continue
-        this.spawnVehicleEntry({
-          tierId: v.tierId,
-          name: v.name,
-          spriteName: v.spriteName,
-          speedMultiplier: v.speedMultiplier,
-          scale: TIER_SPRITES[v.tierId]?.scale ?? 1,
-          // Prefer TIER_SPRITES (the 2 purchasable hub tiers) so their
-          // behavior is unchanged; atmosphere tierIds have no TIER_SPRITES
-          // entry at all, so they fall back to whatever atlasKey got
-          // captured on the record itself (see the vehicleTheft emit in
-          // triggerInteraction and onAcquireVehicle below) - without this
-          // fallback every restored atmosphere vehicle silently reverted to
-          // the old illustrated atlas on the very next zone reload, even
-          // after the initial-spawn fix above.
-          atlasKey: TIER_SPRITES[v.tierId]?.atlasKey ?? v.atlasKey,
-          col: tile.col,
-          row: tile.row,
-          owned: true,
-        })
-      }
-    }
+    })
 
     // Final invariant: no vehicle ends up off the road, whichever of the
     // blocks above placed it. Each of them has its own tile-picking rule
@@ -2642,7 +2611,7 @@ export default class OverworldScene extends Phaser.Scene {
     this.playerActor.shadow.setDepth(this.playerActor.y - 1)
 
     // Courtyard gate swings open as the player walks up to it.
-    if (this.currentZoneId === 'chapelExterior') {
+    if (this.currentZoneId === 'chapelExterior' || this.currentZoneId === 'overworld') {
       updateChapelGate(this, this.playerActor.x, this.playerActor.y, TILE_SIZE)
     }
 

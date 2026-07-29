@@ -33,10 +33,10 @@ export function preloadChapelExterior(scene) {
   }
 }
 
-// Layers that block movement. Everything else (Floor, Floor_details,
-// Grass_Walls, Grass_details, Flowers) is ground the player walks on -
-// note Grass_Walls is mostly lawn fill despite the name, so blocking it
-// walls off the whole courtyard.
+// Layers that block movement. Floor/Floor_details/Grass_details/Flowers are
+// ground. Grass_Walls is handled separately (see chapelFacadeSolidOffsets):
+// it mixes lawn/hedge fill with the stone battlement across the top, so only
+// its top band is solid.
 const SOLID_LAYERS = new Set(['House', 'Fence', 'Graves', 'Wings', 'Dragon_body_head'])
 
 // The authored Fence layer runs unbroken across cols 8-21 on rows 16-17 -
@@ -45,8 +45,14 @@ const SOLID_LAYERS = new Set(['House', 'Fence', 'Graves', 'Wings', 'Dragon_body_
 // to reach (reported as "we can't enter the door"). These two columns are
 // the gate opening, directly below the chapel's own doors; they stay drawn
 // but don't block, so the gate reads as standing open.
-const GATE_COLS = new Set([14, 15])
-const GATE_ROWS = new Set([16, 17])
+// The gate opening. Widened from cols 14-15 to 10-19: the authored fence
+// runs unbroken across cols 8-21, and a 2-tile gap led straight into the
+// chapel doors with no room to step sideways - so the player could reach the
+// door but never walk the grounds. Verified by BFS: at 14-15 only 241 tiles
+// were reachable and the side courtyard was sealed; at 10-19 it is 290 of
+// 309, including the graveyard sides.
+const GATE_COLS = new Set([10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
+const GATE_ROWS = new Set([16, 17, 18])
 const isGateOpening = (col, row) => GATE_COLS.has(col) && GATE_ROWS.has(row)
 
 export const CHAPEL_EXTERIOR_ROOM = {
@@ -74,7 +80,7 @@ export function buildChapelExteriorZone(scene, zoneObjects, Phaser, TILE_SIZE) {
   // updateChapelGate). The pack has no open-gate art, so "opening" is the
   // existing tiles sliding apart and fading rather than a different sprite -
   // stated plainly instead of pretending there's an animation asset.
-  const gate = { left: [], right: [], open: 0 }
+  const gate = { left: [], right: [], open: 0, centreX: 14.5 * TILE_SIZE, centreY: 16.5 * TILE_SIZE }
 
   CHAPEL_MAP_LAYERS.forEach((layer, layerIndex) => {
     const blocks = SOLID_LAYERS.has(layer.name)
@@ -128,18 +134,16 @@ export function buildChapelExteriorZone(scene, zoneObjects, Phaser, TILE_SIZE) {
   return { zones, blockedTiles }
 }
 
-// World-pixel centre of the gate opening, used for the proximity test.
-const GATE_CENTRE_COL = 14.5
-const GATE_ROW = 16.5
-
-// Swings the gate open when the player is within a couple of tiles and shuts
-// it again behind them. Called every frame while the courtyard zone is
-// active; a no-op if the zone isn't built.
+// Swings the gate open when the player walks up to it and shuts it again
+// behind them. A no-op if no gate has been captured (any zone but the one
+// holding the chapel). The gate's world centre is recorded at build time, so
+// this works whether the courtyard was drawn as a standalone zone or as the
+// overworld facade.
 export function updateChapelGate(scene, playerX, playerY, TILE_SIZE) {
   const gate = scene.chapelGate
   if (!gate || (!gate.left.length && !gate.right.length)) return
-  const dx = playerX - GATE_CENTRE_COL * TILE_SIZE
-  const dy = playerY - GATE_ROW * TILE_SIZE
+  const dx = playerX - (gate.centreX ?? 14.5 * TILE_SIZE)
+  const dy = playerY - (gate.centreY ?? 16.5 * TILE_SIZE)
   const near = Math.hypot(dx, dy) < TILE_SIZE * 2.5
   const target = near ? 1 : 0
   // Ease toward the target so it reads as a swing, not a snap.
@@ -187,6 +191,11 @@ export function chapelFacadeReady(scene) {
 export function drawChapelExteriorFacade(scene, x, y, tileSize) {
   const scale = tileSize / CHAPEL_MAP.tileW
   const objects = []
+  // Capture the gate leaves here too - the courtyard lives on the overworld
+  // now, so this is where the swing has to happen. Anchored on the gate's
+  // centre columns (14/15) rather than the whole widened opening, so only the
+  // ironwork actually moves.
+  const gate = { left: [], right: [], open: 0, centreX: x + 14.5 * tileSize, centreY: y + 16.5 * tileSize }
   CHAPEL_MAP_LAYERS.forEach((layer, layerIndex) => {
     for (const [col, row, base, frame, flags] of layer.tiles) {
       const dc = col - CHAPEL_FACADE_TILES.col0
@@ -198,15 +207,23 @@ export function drawChapelExteriorFacade(scene, x, y, tileSize) {
         .image(px, py, textureKey(base), frame)
         .setOrigin(0, 0)
         .setScale(scale)
-        // Sort by the tile's own bottom edge so the player passes behind the
-        // chapel's upper rows and in front of its base, same as every other
-        // facade in the overworld.
-        .setDepth(py + tileSize + layerIndex)
+        // Sort strictly by the tile's own bottom edge. The layer index used
+        // to be added here, which pushed some tiles up to 9px past their true
+        // base and let them draw OVER a player standing in front of them -
+        // the reported "character disappears near the chapel". Tiles sharing
+        // a bottom edge keep their authored order via insertion order, which
+        // Phaser preserves at equal depth.
+        .setDepth(py + tileSize)
       if (flags & 1) img.setFlipX(true)
       if (flags & 2) img.setFlipY(true)
+      if (layer.name === 'Fence' && (col === 14 || col === 15) && row >= 16 && row <= 17) {
+        img.setData('baseX', img.x)
+        ;(col === 14 ? gate.left : gate.right).push(img)
+      }
       objects.push(img)
     }
   })
+  scene.chapelGate = gate
   return objects
 }
 
@@ -221,8 +238,16 @@ export function drawChapelExteriorFacade(scene, x, y, tileSize) {
 export function chapelFacadeSolidOffsets() {
   const solid = new Set()
   for (const layer of CHAPEL_MAP_LAYERS) {
-    if (!SOLID_LAYERS.has(layer.name)) continue
     for (const [col, row] of layer.tiles) {
+      // Grass_Walls holds BOTH the lawn/hedge fill and the stone battlement
+      // across the top of the scene. Treating the whole layer as walkable let
+      // the player stroll through that stone wall; treating all of it as solid
+      // sealed the courtyard. Only its top band is the wall.
+      if (layer.name === 'Grass_Walls') {
+        if (row <= 4) solid.add(`${col},${row}`)
+        continue
+      }
+      if (!SOLID_LAYERS.has(layer.name)) continue
       if (layer.name === 'Fence' && isGateOpening(col, row)) continue
       solid.add(`${col},${row}`)
     }
