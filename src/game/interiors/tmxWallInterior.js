@@ -16,15 +16,52 @@ import {
   wallFrame,
   floorFrame,
   altarBlock,
-  statuesBlock,
+  brideStatueBlock,
+  dragonStatueBlock,
   candelabraColumn,
   benchRow,
   plantNarrowBlock,
-  alcoveFaceColumn,
+  alcoveFaceBlock,
   priestIdleFrame,
   monkPrayFrame,
   parishionerFrame,
+  dragonMedallionBlock,
+  windowAccentColumn,
+  carpetFrame,
+  CHAPEL_PARISHIONER_IDS,
 } from '../packs/chapelPixelTiles'
+
+// A run of carpet cells down one aisle column, `height` tiles tall, using
+// the pack's real 8-frame vertical runner sequence (cap / glow-band / shaft
+// / base, repeating every 8 tiles for longer aisles) instead of one frame
+// repeated - see chapelPixelTiles.carpetFrame's comment for why that was the
+// "rug feels wrong" bug. `colParity` (0 or 1) picks which of the runner's
+// two real columns this aisle column uses.
+function carpetRun(height, colParity) {
+  const cells = []
+  for (let r = 0; r < height; r++) {
+    const { key, frame } = carpetFrame(colParity, r)
+    cells.push({ dc: 0, dr: r, key, frame })
+  }
+  return cells
+}
+
+// Fills a bench row's seats with parishioner sprites - one distinct
+// species/color per seat, cycling through every variant the pack ships
+// (CHAPEL_PARISHIONER_IDS, 11 total) so the pews read as "full of many
+// different parishioners" per the reference, instead of one lone sprite on
+// an otherwise-empty 3-seat bench. targetHeight 44 is calibrated against the
+// player's real on-screen size (44x80 native frame x 0.8 scale = 35x64px,
+// see spriteGen.js/playerSpriteArt.js) - seated congregants read shorter
+// than a standing adult, but shouldn't look like toys next to the player.
+function pewSeats(startCol, row, count, flipX, idOffset) {
+  const seats = []
+  for (let i = 0; i < count; i++) {
+    const id = CHAPEL_PARISHIONER_IDS[(idOffset + i) % CHAPEL_PARISHIONER_IDS.length]
+    seats.push({ col: startCol + i, row, ...parishionerFrame(id), targetHeight: 44, blocking: false, flipX })
+  }
+  return seats
+}
 
 const CHAPEL_NATIVE_TILE = 16
 
@@ -88,7 +125,7 @@ export function buildTmxWallInteriorZone(scene, spec, zoneObjects, Phaser, TILE_
         zoneObjects.push(img)
         blockedTiles.add(`${col},${row}`)
       } else {
-        const f = floorFrame((row + col) % 2 === 0)
+        const f = floorFrame(col, row)
         const img = scene.add.image(px, py, f.key, f.frame).setOrigin(0, 0).setScale(scale).setDepth(-1000)
         zoneObjects.push(img)
       }
@@ -97,22 +134,43 @@ export function buildTmxWallInteriorZone(scene, spec, zoneObjects, Phaser, TILE_
 
   // ---- furniture blocks ------------------------------------------------------
   for (const block of spec.blocks || []) {
+    // Optional per-block visual scale (default 1 - unchanged for every
+    // existing block). Added specifically to let a block render SMALLER
+    // than its native tile-grid footprint without leaving gaps between its
+    // cells: cell spacing is compacted by the same factor as the image
+    // scale, around the block's own (col,row) anchor, rather than each cell
+    // staying pinned to its full-size tile position. Collision still uses
+    // the ORIGINAL integer col/row per cell (not the shrunk visual
+    // position) - simpler than fractional-tile blocking, at the cost of a
+    // blocked-but-visually-empty margin around a shrunk block. Introduced
+    // to calibrate the chapel statues against the player's real on-screen
+    // size (see CHAPEL_TEMPLE_ROOM's comment) after they rendered far
+    // larger than a person at native scale.
+    const blockScale = block.scale ?? 1
     for (const cell of block.cells) {
-      const col = block.col + cell.dc
-      const row = block.row + cell.dr
-      const px = col * TILE_SIZE
-      const py = row * TILE_SIZE
+      const px = block.col * TILE_SIZE + cell.dc * TILE_SIZE * blockScale
+      const py = block.row * TILE_SIZE + cell.dr * TILE_SIZE * blockScale
       // Only animated cells (candelabra flicker) need a Sprite - plain
       // Image game objects don't have .play()/an anims component at all,
       // so using add.image() unconditionally here threw
       // "img.play is not a function" the moment a candelabra was drawn.
       const animKey = cell.animFrames ? ensureFlickerAnim(scene, cell.key, cell.animFrames) : null
       const img = animKey
-        ? scene.add.sprite(px, py, cell.key, cell.frame).setOrigin(0, 0).setScale(scale).setDepth(py + 1)
-        : scene.add.image(px, py, cell.key, cell.frame).setOrigin(0, 0).setScale(scale).setDepth(py + 1)
+        ? scene.add.sprite(px, py, cell.key, cell.frame).setOrigin(0, 0).setScale(scale * blockScale).setDepth(py + 1)
+        : scene.add.image(px, py, cell.key, cell.frame).setOrigin(0, 0).setScale(scale * blockScale).setDepth(py + 1)
       zoneObjects.push(img)
       if (animKey) img.play(animKey)
-      if (block.blocking) blockedTiles.add(`${col},${row}`)
+      if (block.blocking) {
+        // Collapse the collision footprint onto the SHRUNK visual bounds
+        // (floor(dc*blockScale)) rather than the original unscaled grid -
+        // at blockScale 1 this is a no-op (dc===floor(dc*1)); at 0.5 it
+        // avoids blocking a footprint twice the size of what's actually
+        // drawn, which would read as bumping into an invisible wall well
+        // past the visible edge of a shrunk statue.
+        const bc = block.col + Math.floor(cell.dc * blockScale)
+        const br = block.row + Math.floor(cell.dr * blockScale)
+        blockedTiles.add(`${bc},${br}`)
+      }
     }
   }
 
@@ -174,64 +232,178 @@ export function buildTmxWallInteriorZone(scene, spec, zoneObjects, Phaser, TILE_
 // the desk zone below still emits {type:'building', id:'temple'} exactly
 // like the old generic room did.
 //
-// Layout (15 cols x 14 rows, room-local, north=altar/statues, south=door):
-//   rows 0/13, cols 0/14        - border walls
-//   altar (2x2)  cols 6-7  rows 1-2   - the far end of the nave
-//   statues (4x3) cols 5-8 rows 3-5   - bride+dragon pair, right behind the
-//                                       altar (kept as ONE unit - see
-//                                       chapelPixelTiles.js's statuesBlock
-//                                       header for why it isn't split)
-//   priest + 2 monks            row 6, cols 6-8 - facing the nave, standing
-//                                (non-blocking) right where the deskZone
-//                                below lets the player interact
-//   alcove faces                cols 2 & 12, rows 1-3 (wall-mounted, non-
-//                                blocking - "small figures in wall alcoves")
-//   candelabra columns           cols 1 & 13, rows 2-4 and 7-9 (flickering,
-//                                see chapelPixelTiles.candelabraColumn)
-//   pew blocks (parishioners)   cols 2-4 and 10-12, rows 7-9 (solid - real
-//                                churches don't let you walk through pews
-//                                either)
-//   plants                      cols 2 & 12, rows 11-12 (entrance accents)
-// The center aisle (cols 6-8) is kept clear from row 6 down to the exit so
-// the player can always walk from the door up to the priest.
+// REBUILT A SECOND TIME this round. The first rebuild fixed a black-void/
+// broken-tile rendering bug and was structurally sound, but the human then
+// compared it directly against the ACTUAL reference image (an external
+// marketing composite, not shipped in the pack - see
+// production/chapel-reference.md for the full precise description written
+// while that image was still visible) and it still didn't match: wrong
+// palette, wrong layout, and a distinct "person split in half" bug the first
+// rebuild didn't cover. This version targets chapel-reference.md directly:
+//   - Palette: floor/walls were a flat near-black fill (confirmed-opaque,
+//     but the wrong color family). Re-scanned the full 33-row tileset
+//     looking specifically for cool blue-grey, found a real match at rows
+//     28-32 - see chapelPixelTiles.wallFrame()/floorFrame() comments.
+//   - "Split in half": alcoveFaceColumn() cropped 1 column x 3 rows from a
+//     sheet where the actual character art is 2 columns wide - literally
+//     grabbing only the left half of the portrait every time. Fixed as
+//     alcoveFaceBlock() (2x2). Every other character/statue crop
+//     (statuesBlock, priestIdleFrame, monkPrayFrame, parishionerFrame) was
+//     re-checked by rendering each one at full size and none of the others
+//     show this problem.
+//   - Layout: chapel-reference.md places the bride/dragon statues flanking
+//     the PEW blocks, not the altar; wants 4 monks (2 per side) rather than
+//     2; and a second, lower tier of two more dragon-medallion windows below
+//     the single top-center one. All three are reflected below.
+//   - The statue pair itself was ALSO wrong the first pass at this: placing
+//     statuesBlock() (bride+dragon together) on BOTH flanks drew both
+//     figures twice - confirmed by rendering it, not assumed. Split into
+//     brideStatueBlock()/dragonStatueBlock() (4x5 each, chapelPixelTiles.js)
+//     so the west side is bride-only and the east side is dragon-only,
+//     matching "LEFT: bride... RIGHT: dragon... mirroring" from the
+//     reference. Room narrowed from 25 to 17 cols accordingly (4-wide
+//     statues, not 8-wide).
+//
+// REVISED A THIRD TIME after the human's next look ("much better but not
+// quite there yet"): three more concrete fixes, all confirmed by rendering
+// and comparing again rather than assumed fixed:
+//   - Scale: everything in this room was sized independently of the actual
+//     player, who renders at a measured ~35x64px on screen (44x80 native
+//     frame x 0.8 scale - see playerSpriteArt.js). The statues at native
+//     tile-scale were 160x200px / 160x200px - two and a half times the
+//     player's HEIGHT alone, let alone how oversized that reads next to a
+//     person. Added `block.scale` support to buildTmxWallInteriorZone (see
+//     above) and set it to 0.5 for both statues (now ~80x100px, ~1.5x
+//     player height - a tall statue, not a kaiju). Priest/monk/parishioner
+//     targetHeight values were bumped similarly against the same 64px
+//     reference (see the sprite list below).
+//   - The "rug": chapelPixelTiles.carpetFrame() replaced carpetTile() - the
+//     old version repeated one frame (the runner's top cap) for the whole
+//     aisle, which is what read as "wrong" rather than as the reference's
+//     "glowing blue light-strip." The real asset is an 8-frame runner with
+//     a bright cross-band partway down; the aisle now cycles through the
+//     real sequence.
+//   - plantNarrowBlock() was found to be cropping a necklace-pendant icon
+//     instead of the actual flower-vase art during a fresh full read-through
+//     of chapel-reference.md against the render (not a named complaint,
+//     found by re-checking everything) - fixed in chapelPixelTiles.js.
+// Known gaps vs. the reference, stated honestly rather than faked:
+//   - The reference's distinct green-haired/auburn-haired alcove portraits
+//     don't appear to exist in this pack (every column of the source sheet
+//     showed the same portrait) - both alcove positions reuse one portrait.
+//   - The reference shows each lower-tier window flanked by pairs of thin
+//     arch windows; only the top-center window gets that treatment (now 2
+//     accents per side) - the two lower windows still stand alone, to keep
+//     an already-dense layout legible.
+//   - The priest reference pose is arms-out preaching; this pack's Priest
+//     sheet only has the idle-front frame used elsewhere, not that pose.
+//   - The reference's room silhouette is a stepped gothic shape (narrower at
+//     the altar end, wider at the pew end), matching the exterior roofline.
+//     This room is still a plain rectangle - reworking isWall() into a
+//     stepped shape touches every other element's column placement (several
+//     currently sit right at the border columns that would become wall),
+//     and was judged too likely to introduce a new reachability or
+//     collision bug to do carefully in this pass. Flagging honestly rather
+//     than attempting a rushed version.
+//   - The statues' collision footprint is collapsed to match the shrunk
+//     visual bounds (floor(dc*blockScale) - see buildTmxWallInteriorZone),
+//     not left at the full original 4x5 grid, but it's still a rectangular
+//     approximation of an irregular statue silhouette, so the player may
+//     bump an invisible wall slightly past the visible edge in places.
+//
+// Layout (17 cols x 22 rows, room-local, north=altar, south=door):
+//   cols 1-4 / 12-15   statue columns (west=bride, east=dragon), rows 12-16,
+//                       drawn at half scale (see block.scale note above)
+//   cols 5-6 / 10-11   pew columns (2 seats wide), rows 12-14
+//   cols 7-9           center aisle/nave (altar, carpet, exit all live here)
+//   rows 1-3           top-center window + 2 flanking accents per side +
+//                       alcove faces
+//   rows 4-5           altar
+//   row 6              priest
+//   rows 7-9           second-tier windows (west cols4-6, east cols10-12)
+//   row 9              4 monks (2 inner-left cols5-6, 2 inner-right 10-11)
+//   row 15             flower vase at the south end of each pew block (see
+//                       known-gaps note above for why there's no north one)
+//   rows 12-14         pews, every one of the 12 seats filled with a
+//                       distinct parishioner (matches the reference's "~12
+//                       total, visibly varied species" count)
+//   rows 4-19, cols 7-9   carpet aisle, cycling the pack's real 8-frame
+//                       runner sequence (the reference's glowing blue
+//                       light-strip down the center)
 export const CHAPEL_TEMPLE_ROOM = {
-  cols: 15,
-  rows: 14,
-  regionLabel: 'Whispering Temple',
-  spawn: { col: 7, row: 9 },
-  exitRect: { c0: 6, r0: 11, c1: 8, r1: 12 },
-  deskZone: { id: 'temple', label: 'Whispering Temple', c0: 6, r0: 6, c1: 8, r1: 6 },
+  cols: 17,
+  rows: 22,
+  regionLabel: 'Whispering Temple Chapel',
+  spawn: { col: 8, row: 20 },
+  exitRect: { c0: 7, r0: 19, c1: 9, r1: 20 },
+  deskZone: { id: 'temple', label: 'Whispering Temple Chapel', c0: 5, r0: 6, c1: 11, r1: 6 },
   isWall(col, row) {
-    return col === 0 || col === 14 || row === 0 || row === 13
+    return col === 0 || col === 16 || row === 0 || row === 21
   },
   blocks: [
-    { col: 6, row: 1, cells: altarBlock(), blocking: true },
-    { col: 5, row: 3, cells: statuesBlock(), blocking: true },
-    { col: 2, row: 1, cells: alcoveFaceColumn(), blocking: false },
-    { col: 12, row: 1, cells: alcoveFaceColumn(), blocking: false },
-    { col: 1, row: 2, cells: candelabraColumn(), blocking: true },
-    { col: 13, row: 2, cells: candelabraColumn(), blocking: true },
-    { col: 1, row: 7, cells: candelabraColumn(), blocking: true },
-    { col: 13, row: 7, cells: candelabraColumn(), blocking: true },
-    { col: 2, row: 7, cells: benchRow(3), blocking: true },
-    { col: 2, row: 8, cells: benchRow(3), blocking: true },
-    { col: 2, row: 9, cells: benchRow(3), blocking: true },
-    { col: 10, row: 7, cells: benchRow(3), blocking: true },
-    { col: 10, row: 8, cells: benchRow(3), blocking: true },
-    { col: 10, row: 9, cells: benchRow(3), blocking: true },
-    { col: 2, row: 11, cells: plantNarrowBlock(), blocking: true },
-    { col: 12, row: 11, cells: plantNarrowBlock(), blocking: true },
+    // carpet aisle first so later furniture (the altar) wins equal-depth
+    // ties. colParity 0/1/0 spreads the real 2-wide runner asset across the
+    // 3-wide aisle (see chapelPixelTiles.carpetFrame) - a minor seam at the
+    // repeat, but a real multi-frame runner instead of one tile repeated.
+    { col: 7, row: 4, cells: carpetRun(16, 0), blocking: false },
+    { col: 8, row: 4, cells: carpetRun(16, 1), blocking: false },
+    { col: 9, row: 4, cells: carpetRun(16, 0), blocking: false },
+    { col: 7, row: 1, cells: dragonMedallionBlock(), blocking: false },
+    { col: 3, row: 1, cells: windowAccentColumn(), blocking: false },
+    { col: 4, row: 1, cells: windowAccentColumn(), blocking: false },
+    { col: 12, row: 1, cells: windowAccentColumn(), blocking: false },
+    { col: 13, row: 1, cells: windowAccentColumn(), blocking: false },
+    { col: 5, row: 1, cells: alcoveFaceBlock(), blocking: false },
+    { col: 10, row: 1, cells: alcoveFaceBlock(), blocking: false },
+    { col: 7, row: 4, cells: altarBlock(), blocking: true },
+    { col: 4, row: 7, cells: dragonMedallionBlock(), blocking: false },
+    { col: 10, row: 7, cells: dragonMedallionBlock(), blocking: false },
+    { col: 1, row: 3, cells: candelabraColumn(), blocking: true },
+    { col: 15, row: 3, cells: candelabraColumn(), blocking: true },
+    { col: 1, row: 9, cells: candelabraColumn(), blocking: true },
+    { col: 15, row: 9, cells: candelabraColumn(), blocking: true },
+    // Statues shrunk to half native tile-scale (scale: 0.5) so they read as
+    // "tall statue" rather than "3x the player's height" - calibrated
+    // against the player's real on-screen size (35x64px, see
+    // playerSpriteArt.js's PLAYER_ART_FRAME_W/H * PLAYER_ART_SCALE): at
+    // native scale the 4x5 block renders 160x200px; at 0.5 it's 80x100px,
+    // about 1.5x the player's height, which reads as an imposing but not
+    // absurd statue next to a person. See buildTmxWallInteriorZone's
+    // `block.scale` support above.
+    { col: 1, row: 12, cells: brideStatueBlock(), blocking: true, scale: 0.5 },
+    { col: 12, row: 12, cells: dragonStatueBlock(), blocking: true, scale: 0.5 },
+    // Only one vase per pew block (south/entrance end) - the reference asks
+    // for vases at both ends, but the north end of each pew block is
+    // already occupied by the second-tier window and the 4 monks with no
+    // 3-tall gap left to fit one without overlapping them.
+    { col: 5, row: 15, cells: plantNarrowBlock(0), blocking: true },
+    { col: 10, row: 15, cells: plantNarrowBlock(2), blocking: true },
+    { col: 5, row: 12, cells: benchRow(2), blocking: true },
+    { col: 5, row: 13, cells: benchRow(2), blocking: true },
+    { col: 5, row: 14, cells: benchRow(2), blocking: true },
+    { col: 10, row: 12, cells: benchRow(2), blocking: true },
+    { col: 10, row: 13, cells: benchRow(2), blocking: true },
+    { col: 10, row: 14, cells: benchRow(2), blocking: true },
   ],
   sprites: [
-    { col: 7, row: 6, ...priestIdleFrame(), targetHeight: 56, blocking: false },
-    { col: 6, row: 6, ...monkPrayFrame(1), targetHeight: 40, blocking: false },
-    { col: 8, row: 6, ...monkPrayFrame(2), targetHeight: 40, blocking: false },
-    { col: 3, row: 7, ...parishionerFrame(1), targetHeight: 36, blocking: false },
-    { col: 3, row: 8, ...parishionerFrame(3), targetHeight: 36, blocking: false },
-    { col: 3, row: 9, ...parishionerFrame(5), targetHeight: 36, blocking: false },
-    { col: 11, row: 7, ...parishionerFrame(2), targetHeight: 36, blocking: false, flipX: true },
-    { col: 11, row: 8, ...parishionerFrame(4), targetHeight: 36, blocking: false, flipX: true },
-    { col: 11, row: 9, ...parishionerFrame(6), targetHeight: 36, blocking: false, flipX: true },
+    // targetHeight values calibrated against the player's real on-screen
+    // height (~64px, see the statue comment above for the exact source
+    // numbers) rather than picked to merely look OK in isolation: priest
+    // close to full adult height (arms-out preaching pose unavailable in
+    // this pack, see known-gaps note above), monks slightly shorter for
+    // their bowed-head stance, parishioners shorter still since they're
+    // seated (see pewSeats()).
+    { col: 8, row: 6, ...priestIdleFrame(), targetHeight: 60, blocking: false },
+    { col: 5, row: 9, ...monkPrayFrame(1), targetHeight: 52, blocking: false },
+    { col: 6, row: 9, ...monkPrayFrame(2), targetHeight: 52, blocking: false },
+    { col: 10, row: 9, ...monkPrayFrame(3), targetHeight: 52, blocking: false },
+    { col: 11, row: 9, ...monkPrayFrame(4), targetHeight: 52, blocking: false },
+    ...pewSeats(5, 12, 2, false, 0),
+    ...pewSeats(5, 13, 2, false, 2),
+    ...pewSeats(5, 14, 2, false, 4),
+    ...pewSeats(10, 12, 2, true, 6),
+    ...pewSeats(10, 13, 2, true, 8),
+    ...pewSeats(10, 14, 2, true, 10),
   ],
 }
 
