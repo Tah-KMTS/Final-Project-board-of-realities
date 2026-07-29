@@ -75,7 +75,7 @@ function pathFrame(isPath, r, c) {
 // props on common grass, roads doing the structuring) and the human's stated
 // priority is a coherent map over per-district tinting. District identity can
 // come back through props/decor in a later step if it's wanted.
-const GRASS_TYPES = new Set(['grass', 'slate', 'cobblestone'])
+export const GRASS_TYPES = new Set(['grass', 'slate', 'cobblestone'])
 
 // Overlays real grass/path tiles onto `baseLayer` (the procedural Graphics
 // pass) and returns a Container holding both.

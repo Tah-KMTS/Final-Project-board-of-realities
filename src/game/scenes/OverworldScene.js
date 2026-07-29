@@ -35,7 +35,7 @@ import { buildTmxWallInteriorZone, TEA_HOUSE_ROOM } from '../interiors/tmxWallIn
 import { buildChapelMapZone, preloadChapelMap, CHAPEL_ROOM } from '../interiors/tmxMapInterior'
 import { buildChapelExteriorZone, preloadChapelExterior, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
-import { preloadCuteTerrain } from '../packs/cuteFantasyTerrain'
+import { preloadCuteTerrain, GRASS_TYPES } from '../packs/cuteFantasyTerrain'
 
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
@@ -457,6 +457,13 @@ function terrainTileTypeAt(tile, row) {
 // ground decoration, matching the usual top-down-RPG convention. Previously
 // nothing scattered here was ever registered as blocked, so the player
 // could walk straight through a tree trunk or a boulder.
+// Scatter ATTEMPTS (not placements - most rolls are rejected for landing on
+// a road, a building's 1-tile margin, or a non-grass type). Scaled off the
+// map area so widening the map doesn't silently thin the vegetation out:
+// the previous flat 80 was tuned for an 80-wide map and left the 160-wide
+// one looking bare.
+const ENVIRONMENT_SCATTER_ATTEMPTS = Math.round((MAP_COLS * MAP_ROWS) / 24)
+
 function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blockedTiles) {
   const forbidden = new Set()
   for (const b of buildings) {
@@ -467,7 +474,12 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
   for (let i = 0; i < count; i++) {
     const r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6)) // skip water rows at top
     const c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
-    if (layout[r][c] !== 'grass' || forbidden.has(`${r},${c}`)) continue
+    // Map overhaul step 3: props go on anything that RENDERS as grass, not
+    // just the literal 'grass' type. The district bands are 'slate'/
+    // 'cobblestone' in the layout but now draw as grass (see
+    // cuteFantasyTerrain's GRASS_TYPES), so restricting to 'grass' left every
+    // district as bare lawn with no vegetation at all.
+    if (!GRASS_TYPES.has(layout[r][c]) || forbidden.has(`${r},${c}`)) continue
     const cx = c * TILE_SIZE + TILE_SIZE / 2
     const cy = r * TILE_SIZE + TILE_SIZE / 2
     let objs
@@ -1080,7 +1092,7 @@ export default class OverworldScene extends Phaser.Scene {
 
     // City-specific environment scatter
     this.blockedEnvironmentTiles = new Set()
-    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, 80, this.zoneObjects, this.blockedEnvironmentTiles)
+    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, ENVIRONMENT_SCATTER_ATTEMPTS, this.zoneObjects, this.blockedEnvironmentTiles)
 
     drawBuildings(this, FINANCE_BUILDINGS, this.zoneObjects)
 
