@@ -87,7 +87,70 @@ complaint) - safe to build on top of, not to re-litigate:
   never ships. Not a real bug, don't re-investigate unless new evidence
   suggests otherwise.
 
-## PRIORITY 0 - THE "DOUBLE EXTERIOR" (next thing to do, reported by the human)
+## PRIORITY 00 - MAP COHERENCE OVERHAUL (the human's current top ask)
+
+**This supersedes the double-exterior item below - that becomes a sub-step
+of this, because expanding the map is what makes room for the 16x14 chapel.**
+
+The human's words: the map "is a bit of a mess... the building is built on
+the road and everything is inconsistent". They want a **coherent map like
+the reference picture** (a Cute-Fantasy-style top-down scene: dirt road
+running between plots, a house sitting properly on grass beside the road
+with a hedge border, trees clustered on the grass, fences along the edges).
+**Keep every existing element - this is a layout and graphics change, not a
+content cull.**
+
+Requirements, in the human's own framing:
+1. **Roads properly connected to buildings.** No building sitting on top of
+   a road. Buildings front onto a road the way the reference shows.
+2. **Trees only where there's grass** (and grass should exist - right now
+   the ground is largely undifferentiated).
+3. **Expand the map** as much as needed to accommodate all of this. Map
+   size is currently `MAP_COLS`/`MAP_ROWS` per scene (KyotoScene.js uses
+   40x50; check OverworldScene's own values).
+4. **Scale all buildings properly**, like the reference - the current
+   facades are small and read as flat tiles rather than buildings.
+5. **Widen the roads** so cars fit and read correctly.
+6. **Cars must only drive on roads.** They currently drive anywhere.
+7. Once the map is expanded, **place the authored chapel exterior (the one
+   with the dragon, 16x14 tiles) directly on the map** - this resolves the
+   "double exterior" problem below, since there'll be room for it.
+
+**Sequencing advice (this is a big change - do not do it in one commit):**
+- Step 1: expand map dimensions and regenerate the ground layer with a real
+  road network + grass areas. Verify nothing spawns inside a wall and every
+  district is still reachable (BFS, same as the chapel work).
+- Step 2: re-place buildings against the new road network, one district at
+  a time, checking for overlaps after each.
+- Step 3: scatter trees/props onto grass only.
+- Step 4: drop the chapel exterior in.
+- Step 5: constrain vehicle pathing to road tiles.
+Commit after each step; each is independently verifiable.
+
+## PRIORITY 000 - VEHICLES (explicitly flagged as later agenda, but grouped here)
+
+1. **Vehicles pass through everything.** They must collide with buildings,
+   people, other vehicles, and animals. Currently none of that is checked -
+   see `isSingleTileObstacle` in OverworldScene.js for the existing
+   player-side obstacle helper, which is the natural thing to extend.
+   NOTE the previous session fixed vehicles *looking* like they fly (the
+   shadow offset in `VehicleActor.js`); this is a separate, unfixed issue.
+2. **Switch to `TopDown Vehicles v1.17`** (already on disk at
+   `public/assets/packs/TopDown Vehicles v1.17`). Surveyed: **26,776 PNGs**,
+   organised as one folder per vehicle type (AMBULANCE, BOX TRUCK, BUS,
+   ...) and, for most types, a colour subfolder (Black/Blue/Brown/Green/
+   Magenta/Red/White/Yellow).
+   **Why this pack is the right call:** each type has an `ALL DIRECTION`
+   folder containing pre-rendered frames for every heading (both a packed
+   `-sheet.png` and a `SEPARATED/` folder of individual frames). That means
+   heading can be selected by **picking the frame**, instead of rotating a
+   single sprite - which is the underlying reason the old art kept reading
+   as wrong-perspective. Prefer the packed `-sheet.png` files and slice
+   them, rather than loading thousands of separate PNGs.
+   **Do NOT copy the whole pack into the build** - 26k files. Pick the
+   handful of types/colours actually used and copy only those.
+
+## PRIORITY 0 - THE "DOUBLE EXTERIOR" (now a sub-step of the map overhaul above)
 
 The chapel currently has **two different exteriors**, which is wrong:
 1. The overworld map draws the `temple` building with a generic facade (a
