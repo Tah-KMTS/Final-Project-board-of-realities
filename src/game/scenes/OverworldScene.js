@@ -209,6 +209,16 @@ function firstColumnClearOfStreets(col, width, streetCols, bandColEnd) {
 
 function layoutFinanceMap(mapCols) {
   const streetCols = verticalStreetColumns(mapCols)
+  // Facade ART is allowed to overflow its footprint (prefab facades draw
+  // taller/wider than the tiles they own - see packRender), so a building
+  // whose footprint merely touches a street still LOOKS like it's built on
+  // the road. Reserving one extra column either side of every street block
+  // keeps that overhang off the tarmac. Packing-only: these margin columns
+  // are ordinary grass, not road.
+  const reservedCols = []
+  for (const c of streetCols) {
+    reservedCols.push(c - 1, c, c + 1)
+  }
   const bandColEnd = mapCols - BAND_COL_END_FROM_RIGHT
   const buildings = []
   const districtBandRows = {}
@@ -228,12 +238,12 @@ function layoutFinanceMap(mapCols) {
       // Reserve the vertical streets: shift right past any street block this
       // building would straddle, wrapping to the next row if it no longer
       // fits on this one.
-      let clear = firstColumnClearOfStreets(col, b.width, streetCols, bandColEnd)
+      let clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
       if (clear === null) {
         col = BAND_COL_START
         row += rowMaxHeight + BAND_GAP
         rowMaxHeight = 0
-        clear = firstColumnClearOfStreets(col, b.width, streetCols, bandColEnd)
+        clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
       }
       col = clear
       const c0 = col
@@ -465,7 +475,7 @@ function terrainTileTypeAt(tile, row) {
 // map area so widening the map doesn't silently thin the vegetation out:
 // the previous flat 80 was tuned for an 80-wide map and left the 160-wide
 // one looking bare.
-const ENVIRONMENT_SCATTER_ATTEMPTS = Math.round((MAP_COLS * MAP_ROWS) / 6)
+const ENVIRONMENT_SCATTER_ATTEMPTS = Math.round((MAP_COLS * MAP_ROWS) / 9)
 
 function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blockedTiles) {
   const forbidden = new Set()
@@ -487,6 +497,7 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
     const cy = r * TILE_SIZE + TILE_SIZE / 2
     let objs
     let solid = false
+    let isTree = false
     const isUrban = (r >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && r <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) || (r >= DISTRICT_BAND_ROWS['Osaka District'].top - 2 && r <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 2)
     const isJRPG = (r >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && r <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2)
 
@@ -501,6 +512,7 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
       if (roll < 0.55) {
         objs = placeTree(scene, cx, cy)
         solid = true
+        isTree = true
       } else if (roll < 0.72) {
         objs = placeRock(scene, cx, cy)
         solid = true
@@ -515,6 +527,7 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
       } else if (roll < 0.85) {
         objs = placeTree(scene, cx, cy)
         solid = true
+        isTree = true
       } else {
         objs = placeRock(scene, cx, cy)
         solid = true
@@ -524,6 +537,7 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
       if (roll < 0.45) {
         objs = placeTree(scene, cx, cy)
         solid = true
+        isTree = true
       } else if (roll < 0.85) {
         objs = placeFlower(scene, cx, cy)
       } else {
@@ -533,7 +547,14 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
     }
     if (objs) {
       zoneObjects.push(...objs)
-      if (solid && blockedTiles) blockedTiles.add(`${r},${c}`)
+      if (solid && blockedTiles) {
+        blockedTiles.add(`${r},${c}`)
+        // A Cute Fantasy oak is ~2 tiles tall: the trunk sits on (r,c) and
+        // the canopy rises into the tile ABOVE it. Blocking only the trunk
+        // let people stand inside the leaves, which read as walking through
+        // the tree. Rocks/flowers are one tile and keep the old behaviour.
+        if (isTree && r > 0) blockedTiles.add(`${r - 1},${c}`)
+      }
     }
   }
 }
@@ -1963,7 +1984,21 @@ export default class OverworldScene extends Phaser.Scene {
   // a vehicle still parks near the building it belongs to - just on the road
   // rather than on the grass. `taken` covers tiles claimed earlier in the same
   // spawn pass, which aren't in vehicleActors yet.
+  // A 3-wide street's middle column is the driving lane; the two outer
+  // columns are the kerb. Parking in the middle blocked the road entirely
+  // (vehicles are solid), so a parked car goes to the kerb.
+  isKerbTile(col, row) {
+    if (!this.isRoadTile(col, row)) return false
+    if (!FINANCE_V_STREETS.includes(col)) return true // horizontal street: any column is fine
+    const left = FINANCE_V_STREETS.includes(col - 1)
+    const right = FINANCE_V_STREETS.includes(col + 1)
+    return !(left && right) // middle of a 3-wide block has road on both sides
+  }
+
   nearestRoadTile(col, row, taken = []) {
+    // Two passes: kerb tiles first, then any road tile as a fallback so a
+    // vehicle still spawns if every kerb nearby is taken.
+    for (const kerbOnly of [true, false]) {
     for (let radius = 0; radius <= 24; radius++) {
       for (let dc = -radius; dc <= radius; dc++) {
         for (let dr = -radius; dr <= radius; dr++) {
@@ -1972,12 +2007,14 @@ export default class OverworldScene extends Phaser.Scene {
           const r = row + dr
           if (c < 1 || r < 1 || c >= MAP_COLS - 1 || r >= MAP_ROWS - 1) continue
           if (!this.isRoadTile(c, r)) continue
+          if (kerbOnly && !this.isKerbTile(c, r)) continue
           if (this.isBlockedTile(c, r)) continue
           if (taken.some((t) => t.col === c && t.row === r)) continue
           if (this.vehicleActors?.some((v) => v.col === c && v.row === r)) continue
           return { col: c, row: r }
         }
       }
+    }
     }
     return null
   }
