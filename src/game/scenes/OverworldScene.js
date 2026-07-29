@@ -121,7 +121,7 @@ const FINANCE_BUILDING_DEFS = [
   // 16x14 matches the authored chapel art exactly (House/Wings/Dragon layers,
   // cols 6-21 x rows 2-15 of Exterior.tmx) so the facade fills its footprint
   // with no overflow onto neighbours - see drawChapelExteriorFacade.
-  { id: 'temple', label: 'Whispering Temple Chapel', district: 'Kyoto District', color: 0x3a2a6a, width: 16, height: 14 },
+  { id: 'temple', label: 'Whispering Temple Chapel', district: 'Kyoto District', color: 0x3a2a6a, width: 30, height: 22 },
 
   // --- Osaka District ---
   { id: 'casino', label: 'Neon Dragon Casino', district: 'Osaka District', color: 0x8a1f6a, width: 4, height: 3 },
@@ -179,7 +179,13 @@ const MAP_TOP_MARGIN = 4
 // STREET_WIDTH tiles wide, and the packer treats them as reserved - it skips
 // a building past any street block it would overlap.
 const STREET_WIDTH = 3
-const V_STREET_SPACING = 26 // gap between street blocks; must exceed the widest building
+// Distance between street-block starts. The clear gap is
+// V_STREET_SPACING - STREET_WIDTH, and that gap MUST exceed the widest
+// building plus its 1-tile art margin on each side, or that building can
+// never be placed. Raised from 26 when the chapel grew to 30 tiles wide:
+// 26 left a 23-column gap, the packer could not fit it anywhere, and it
+// came out with null coordinates. checkMapLayout.mjs catches this.
+const V_STREET_SPACING = 38
 const V_STREET_FIRST_COL = 6
 
 function verticalStreetColumns(mapCols) {
@@ -244,6 +250,16 @@ function layoutFinanceMap(mapCols) {
         row += rowMaxHeight + BAND_GAP
         rowMaxHeight = 0
         clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
+      }
+      if (clear === null) {
+        // Unreachable while V_STREET_SPACING is wide enough for the widest
+        // building (see its comment). Failing loudly beats silently writing
+        // null tile coords, which is what produced a building at column
+        // `null` when the chapel outgrew the street spacing.
+        throw new Error(
+          `layoutFinanceMap: "${b.label ?? b.id}" is ${b.width} tiles wide and cannot fit between vertical streets ` +
+            `(clear gap is ${V_STREET_SPACING - STREET_WIDTH} columns). Raise V_STREET_SPACING.`
+        )
       }
       col = clear
       const c0 = col
@@ -1989,10 +2005,19 @@ export default class OverworldScene extends Phaser.Scene {
   // (vehicles are solid), so a parked car goes to the kerb.
   isKerbTile(col, row) {
     if (!this.isRoadTile(col, row)) return false
-    if (!FINANCE_V_STREETS.includes(col)) return true // horizontal street: any column is fine
-    const left = FINANCE_V_STREETS.includes(col - 1)
-    const right = FINANCE_V_STREETS.includes(col + 1)
-    return !(left && right) // middle of a 3-wide block has road on both sides
+    const onV = FINANCE_V_STREETS.includes(col)
+    const onH = FINANCE_H_STREETS.includes(row)
+    // Never park in a crossroads - it blocks both directions at once.
+    if (onV && onH) return false
+    if (onV) {
+      // Kerb = the outer columns of the 3-wide block; the middle column has
+      // road on both sides and is the driving lane.
+      return !(FINANCE_V_STREETS.includes(col - 1) && FINANCE_V_STREETS.includes(col + 1))
+    }
+    // Horizontal street: the same rule, but on ROWS. The previous version
+    // returned true for any column here, which is why cars still parked
+    // across the middle of east-west roads.
+    return !(FINANCE_H_STREETS.includes(row - 1) && FINANCE_H_STREETS.includes(row + 1))
   }
 
   nearestRoadTile(col, row, taken = []) {
@@ -2570,7 +2595,7 @@ export default class OverworldScene extends Phaser.Scene {
         row: building.tiles.r1 + 1,
       }
       if (zone.id === 'temple') {
-        this.transitionToZone('chapelExterior')
+        this.transitionToZone('chapelInterior')
         return
       }
       if (zone.id === 'teaHouse') {

@@ -170,8 +170,12 @@ export function updateChapelGate(scene, playerX, playerY, TILE_SIZE) {
 // authored map, i.e. 16x14 tiles, which is why the `temple` building def is
 // sized 16x14: the art fits its footprint exactly with no overflow onto
 // neighbours.
-const FACADE_LAYERS = new Set(['House', 'Wings', 'Dragon_body_head'])
-export const CHAPEL_FACADE_TILES = { cols: 16, rows: 14, col0: 6, row0: 2 }
+// The whole authored scene now goes on the map - graveyard, flower plots,
+// hedges, wrought-iron fence and gate included - because the human wants the
+// courtyard visible in the world rather than hidden behind a zone load. So
+// there is no layer filter any more, and the footprint is the full 30x22
+// authored map rather than just the building's 16x14.
+export const CHAPEL_FACADE_TILES = { cols: CHAPEL_MAP.cols, rows: CHAPEL_MAP.rows, col0: 0, row0: 0 }
 
 export function chapelFacadeReady(scene) {
   return Object.keys(CHAPEL_MAP_TILESETS).every((base) => scene.textures.exists(textureKey(base)))
@@ -184,7 +188,6 @@ export function drawChapelExteriorFacade(scene, x, y, tileSize) {
   const scale = tileSize / CHAPEL_MAP.tileW
   const objects = []
   CHAPEL_MAP_LAYERS.forEach((layer, layerIndex) => {
-    if (!FACADE_LAYERS.has(layer.name)) return
     for (const [col, row, base, frame, flags] of layer.tiles) {
       const dc = col - CHAPEL_FACADE_TILES.col0
       const dr = row - CHAPEL_FACADE_TILES.row0

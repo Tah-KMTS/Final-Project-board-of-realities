@@ -86,12 +86,16 @@ export function ensurePico8CarFrames(scene) {
 // shared UNIFORM_VEHICLE_WIDTH target, which is what actually fixed the
 // "some vehicles are too small" report (hand-picked scales per tier is
 // exactly how that inconsistency happened in the first place).
-// rent_bike stays on the old illustrated atlas: bikes are small enough on
+// rent_bike REMOVED - the bicycle read as a stray motorcycle parked on the
+// road and was cut from the transit hub's options (interactiveLocations.js).
+// Its TIER_SPRITES entry is gone with it; nothing spawns or restores it now.
+// The note that used to be here explained why it kept the old illustrated
+// atlas, which no longer applies.
+// (historical) bikes were small enough on
 // screen that the side-view/rotation mismatch is far less noticeable than on
 // a car, and the pico-8 pack has no bike sprite to replace it with (not
 // re-litigated further - see file header for why cars specifically moved).
 export const TIER_SPRITES = {
-  rent_bike: { spriteName: 'cycle.png', atlasKey: VEHICLE_ATLAS_KEY },
   rent_sedan: { spriteName: 'car_pink', atlasKey: PICO8_ATLAS_KEY },
   buy_tesla: { spriteName: 'car_red', atlasKey: PICO8_ATLAS_KEY },
 }

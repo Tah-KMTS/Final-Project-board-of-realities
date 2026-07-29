@@ -78,7 +78,6 @@ export const INTERACTIVE_LOCATIONS = [
       // option id, so WorldScreen's acquireVehicle bridge emit (and the
       // Phaser scene reading it) stays in sync with the atlas frame Vehicle
       // spawning actually uses, without a second copy of that mapping.
-      { id: 'rent_bike', name: 'Rent City Bicycle (+50% Move Speed)', cost: 15, type: 'vehicle', speedMultiplier: 1.5, spriteName: TIER_SPRITES.rent_bike.spriteName },
       { id: 'rent_sedan', name: 'Rent Executive Sedan (+100% Move Speed)', cost: 100, type: 'vehicle', speedMultiplier: 2.0, spriteName: TIER_SPRITES.rent_sedan.spriteName },
       { id: 'buy_tesla', name: 'Purchase Cyber Roadster (+150% Move Speed)', cost: 5000, type: 'vehicle', speedMultiplier: 2.5, spriteName: TIER_SPRITES.buy_tesla.spriteName },
     ],
