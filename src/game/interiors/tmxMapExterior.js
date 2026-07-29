@@ -70,6 +70,11 @@ export const CHAPEL_EXTERIOR_ROOM = {
 export function buildChapelExteriorZone(scene, zoneObjects, Phaser, TILE_SIZE) {
   const blockedTiles = new Set()
   const scale = TILE_SIZE / CHAPEL_MAP.tileW
+  // Gate leaves, captured so they can swing open as the player walks up (see
+  // updateChapelGate). The pack has no open-gate art, so "opening" is the
+  // existing tiles sliding apart and fading rather than a different sprite -
+  // stated plainly instead of pretending there's an animation asset.
+  const gate = { left: [], right: [], open: 0 }
 
   CHAPEL_MAP_LAYERS.forEach((layer, layerIndex) => {
     const blocks = SOLID_LAYERS.has(layer.name)
@@ -82,6 +87,10 @@ export function buildChapelExteriorZone(scene, zoneObjects, Phaser, TILE_SIZE) {
       if (flags & 1) img.setFlipX(true)
       if (flags & 2) img.setFlipY(true)
       zoneObjects.push(img)
+      if (layer.name === 'Fence' && isGateOpening(col, row)) {
+        img.setData('baseX', img.x)
+        ;(col === 14 ? gate.left : gate.right).push(img)
+      }
       if (blocks && !(layer.name === 'Fence' && isGateOpening(col, row))) {
         blockedTiles.add(`${col},${row}`)
       }
@@ -114,8 +123,37 @@ export function buildChapelExteriorZone(scene, zoneObjects, Phaser, TILE_SIZE) {
   ]
 
   scene.regionLabel.setText(CHAPEL_EXTERIOR_ROOM.regionLabel)
+  scene.chapelGate = gate
 
   return { zones, blockedTiles }
+}
+
+// World-pixel centre of the gate opening, used for the proximity test.
+const GATE_CENTRE_COL = 14.5
+const GATE_ROW = 16.5
+
+// Swings the gate open when the player is within a couple of tiles and shuts
+// it again behind them. Called every frame while the courtyard zone is
+// active; a no-op if the zone isn't built.
+export function updateChapelGate(scene, playerX, playerY, TILE_SIZE) {
+  const gate = scene.chapelGate
+  if (!gate || (!gate.left.length && !gate.right.length)) return
+  const dx = playerX - GATE_CENTRE_COL * TILE_SIZE
+  const dy = playerY - GATE_ROW * TILE_SIZE
+  const near = Math.hypot(dx, dy) < TILE_SIZE * 2.5
+  const target = near ? 1 : 0
+  // Ease toward the target so it reads as a swing, not a snap.
+  gate.open += (target - gate.open) * 0.18
+  if (Math.abs(gate.open) < 0.001) gate.open = 0
+  const shift = gate.open * TILE_SIZE * 0.8
+  for (const img of gate.left) {
+    img.x = img.getData('baseX') - shift
+    img.setAlpha(1 - gate.open * 0.55)
+  }
+  for (const img of gate.right) {
+    img.x = img.getData('baseX') + shift
+    img.setAlpha(1 - gate.open * 0.55)
+  }
 }
 
 // ---------------------------------------------------------------------------

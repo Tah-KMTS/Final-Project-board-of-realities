@@ -33,7 +33,7 @@ import {
 import { preloadPlayerSheet } from '../spriteGen'
 import { buildTmxWallInteriorZone, TEA_HOUSE_ROOM } from '../interiors/tmxWallInterior'
 import { buildChapelMapZone, preloadChapelMap, CHAPEL_ROOM } from '../interiors/tmxMapInterior'
-import { buildChapelExteriorZone, preloadChapelExterior, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
+import { buildChapelExteriorZone, preloadChapelExterior, updateChapelGate, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
 import { preloadCuteTerrain, preloadCuteTrees, GRASS_TYPES } from '../packs/cuteFantasyTerrain'
 
@@ -1316,6 +1316,8 @@ export default class OverworldScene extends Phaser.Scene {
   }
 
   buildChapelExteriorZone() {
+    this.chapelGate = null
+
     const { zones, blockedTiles } = buildChapelExteriorZone(this, this.zoneObjects, Phaser, TILE_SIZE)
     this.interiorBlockedTiles = blockedTiles
     this.zones = zones
@@ -2484,7 +2486,7 @@ export default class OverworldScene extends Phaser.Scene {
         row: building.tiles.r1 + 1,
       }
       if (zone.id === 'temple') {
-        this.transitionToZone('chapelInterior')
+        this.transitionToZone('chapelExterior')
         return
       }
       if (zone.id === 'teaHouse') {
@@ -2514,6 +2516,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.tileMover.locked = this.interactionLocked
     this.playerActor.sprite.setDepth(this.playerActor.y)
     this.playerActor.shadow.setDepth(this.playerActor.y - 1)
+
+    // Courtyard gate swings open as the player walks up to it.
+    if (this.currentZoneId === 'chapelExterior') {
+      updateChapelGate(this, this.playerActor.x, this.playerActor.y, TILE_SIZE)
+    }
 
     let horiz = null
     if (this.cursors.left.isDown || this.wasd.A.isDown) horiz = 'left'

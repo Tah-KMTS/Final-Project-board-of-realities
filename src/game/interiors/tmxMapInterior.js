@@ -100,12 +100,13 @@ export function buildChapelMapZone(scene, zoneObjects, Phaser, TILE_SIZE) {
     },
     {
       type: 'exit',
-      id: 'toOverworld',
-      // The overworld now draws the authored chapel itself (map overhaul
-      // step 4), so there is no separate courtyard to step back into - the
-      // player walks straight out to the street.
-      target: 'overworld',
-      label: 'Exit to Capital Syndicate',
+      id: 'toChapelExterior',
+      // The courtyard is back in the chain, so leaving the chapel puts the
+      // player in front of its doors inside the fence - not out on the
+      // street. The overworld facade and this courtyard are the same
+      // authored building at two distances, not two rival exteriors.
+      target: 'chapelExterior',
+      label: 'Back to the courtyard',
       rect: new Phaser.Geom.Rectangle(
         CHAPEL_ROOM.exitRect.c0 * TILE_SIZE,
         CHAPEL_ROOM.exitRect.r0 * TILE_SIZE,
