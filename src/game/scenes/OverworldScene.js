@@ -573,7 +573,17 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
         // the canopy rises into the tile ABOVE it. Blocking only the trunk
         // let people stand inside the leaves, which read as walking through
         // the tree. Rocks/flowers are one tile and keep the old behaviour.
-        if (isTree && r > 0) blockedTiles.add(`${r - 1},${c}`)
+        //
+        // The canopy tile is only blocked if it is ordinary ground. Trees
+        // themselves only land on grass, but the tile ABOVE one can be a
+        // ROAD - and since vehicles are now road-locked, blocking it would
+        // sever the road network and strand cars with no visible cause. The
+        // spawn tile is excluded for the same class of reason.
+        const canopyType = r > 0 ? layout[r - 1][c] : null
+        const canopyIsSpawn = r - 1 === DEFAULT_SPAWN.row && c === DEFAULT_SPAWN.col
+        if (isTree && r > 0 && GRASS_TYPES.has(canopyType) && !canopyIsSpawn) {
+          blockedTiles.add(`${r - 1},${c}`)
+        }
       }
     }
   }

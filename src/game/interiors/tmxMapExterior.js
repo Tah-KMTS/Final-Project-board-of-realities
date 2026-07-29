@@ -179,6 +179,9 @@ export function updateChapelGate(scene, playerX, playerY, TILE_SIZE) {
 // courtyard visible in the world rather than hidden behind a zone load. So
 // there is no layer filter any more, and the footprint is the full 30x22
 // authored map rather than just the building's 16x14.
+// Layers the player walks on, drawn beneath them rather than y-sorted.
+const GROUND_LAYERS = new Set(['Floor', 'Floor_details', 'Grass_Walls', 'Grass_details', 'Flowers'])
+
 export const CHAPEL_FACADE_TILES = { cols: CHAPEL_MAP.cols, rows: CHAPEL_MAP.rows, col0: 0, row0: 0 }
 
 export function chapelFacadeReady(scene) {
@@ -203,17 +206,20 @@ export function drawChapelExteriorFacade(scene, x, y, tileSize) {
       if (dc < 0 || dr < 0 || dc >= CHAPEL_FACADE_TILES.cols || dr >= CHAPEL_FACADE_TILES.rows) continue
       const px = x + dc * tileSize
       const py = y + dr * tileSize
+      // GROUND layers are things the player stands ON, so they must always
+      // draw beneath them. Depth-sorting those by their bottom edge ties with
+      // the player's own depth (which is their world y) and, at equal depth,
+      // Phaser falls back to insertion order - which could hide the player
+      // standing on the courtyard paving. A small positive depth keeps them
+      // above the terrain layer (depth 0) and below any player position.
+      // Structural layers still y-sort, so the player passes behind the
+      // chapel's upper rows and in front of its base.
+      const isGround = GROUND_LAYERS.has(layer.name)
       const img = scene.add
         .image(px, py, textureKey(base), frame)
         .setOrigin(0, 0)
         .setScale(scale)
-        // Sort strictly by the tile's own bottom edge. The layer index used
-        // to be added here, which pushed some tiles up to 9px past their true
-        // base and let them draw OVER a player standing in front of them -
-        // the reported "character disappears near the chapel". Tiles sharing
-        // a bottom edge keep their authored order via insertion order, which
-        // Phaser preserves at equal depth.
-        .setDepth(py + tileSize)
+        .setDepth(isGround ? 1 + layerIndex : py + tileSize)
       if (flags & 1) img.setFlipX(true)
       if (flags & 2) img.setFlipY(true)
       if (layer.name === 'Fence' && (col === 14 || col === 15) && row >= 16 && row <= 17) {
