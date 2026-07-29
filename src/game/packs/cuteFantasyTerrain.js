@@ -64,6 +64,19 @@ function pathFrame(isPath, r, c) {
   return row * PATH_TILE_COLS + col
 }
 
+// Ground types that should render as grass. 'slate' (Tokyo) and 'cobblestone'
+// (Kyoto) are the per-district ground reskins; before this they were the only
+// thing still drawn as flat procedural blocks, which is why most of the map
+// stayed dark after the first pass of this overlay while only the roads and
+// their immediate borders looked right.
+//
+// Deliberate call: districts no longer differ by GROUND COLOUR, they differ by
+// what's built on them. That's what the reference picture does (buildings and
+// props on common grass, roads doing the structuring) and the human's stated
+// priority is a coherent map over per-district tinting. District identity can
+// come back through props/decor in a later step if it's wanted.
+const GRASS_TYPES = new Set(['grass', 'slate', 'cobblestone'])
+
 // Overlays real grass/path tiles onto `baseLayer` (the procedural Graphics
 // pass) and returns a Container holding both.
 export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, tileTypeAt) {
@@ -81,13 +94,13 @@ export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const type = tileTypeAt(r, c)
-      if (type !== 'grass' && type !== 'path') continue
+      const isGrass = GRASS_TYPES.has(type)
+      if (!isGrass && type !== 'path') continue
       const x = c * tileSize
       const y = r * tileSize
-      const img =
-        type === 'grass'
-          ? scene.add.image(x, y, CUTE_TERRAIN_KEYS.grass)
-          : scene.add.image(x, y, CUTE_TERRAIN_KEYS.pathEdges, pathFrame(isPath, r, c))
+      const img = isGrass
+        ? scene.add.image(x, y, CUTE_TERRAIN_KEYS.grass)
+        : scene.add.image(x, y, CUTE_TERRAIN_KEYS.pathEdges, pathFrame(isPath, r, c))
       img.setOrigin(0, 0).setScale(scale)
       container.add(img)
     }
