@@ -79,10 +79,23 @@ export class VehicleActor {
     // width regardless of how big its source art actually is.
     const uniformScale = UNIFORM_VEHICLE_WIDTH / this.sprite.width
     this.sprite.setScale(uniformScale * scale)
-    // Shadow sits a bit below the sprite's own center, scaled to how tall
-    // the sprite actually renders (varies per vehicle frame).
-    this.shadowOffsetY = this.sprite.displayHeight * 0.4
+    // CORRECTED: this used to be `displayHeight * 0.4`, which pushed the
+    // shadow ~40% of the car's length below the car - in a top-down view that
+    // reads as the car hovering well above its own shadow, which is what kept
+    // being reported as vehicles "still looking like they're flying" even
+    // after the source art was switched to genuinely top-down frames. Looking
+    // straight down, a grounded object's contact shadow is directly beneath
+    // it; the 2px is just enough separation to read as contact rather than
+    // as the shadow being part of the sprite.
+    this.shadowOffsetY = 2
     this.shadow.setPosition(x, y + this.shadowOffsetY)
+    // Sized off the uniform vehicle width rather than the frame's own
+    // width/height so it stays correct at every heading: the sprite rotates
+    // but this ellipse doesn't, and displayWidth/displayHeight are not
+    // rotation-aware, so a footprint-shaped shadow would visibly disagree
+    // with the car whenever it turned 90 degrees.
+    const shadowSize = UNIFORM_VEHICLE_WIDTH * 0.8
+    this.shadow.setSize(shadowSize, shadowSize * 0.55)
 
     this.labelObject = null
     if (label) {
