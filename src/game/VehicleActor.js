@@ -1,4 +1,5 @@
 import { VEHICLE_ATLAS_KEY } from './vehicleGen'
+import { hasTopDownArt, topDownKey, headingFor } from './packs/topDownVehicles'
 
 // House rule: this file used to be a fully procedural (Phaser Graphics)
 // vehicle class (VEHICLE_TYPES + hand-drawn car/train shapes) from a prior
@@ -61,10 +62,15 @@ export class VehicleActor {
    *   auto-computed uniform-width scale (default 1 = no adjustment) - it no
    *   longer sets the absolute scale directly, see UNIFORM_VEHICLE_WIDTH.
    */
-  constructor(scene, x, y, { spriteName, scale = 1, label, atlasKey = VEHICLE_ATLAS_KEY } = {}) {
+  constructor(scene, x, y, { spriteName, scale = 1, label, atlasKey = VEHICLE_ATLAS_KEY, tierId } = {}) {
     this.scene = scene
     this.spriteName = spriteName
     this.angle = 0
+    // TopDown Vehicles v1.17 ships a separately drawn sprite per compass
+    // heading. When art exists for this tier, heading becomes a texture swap
+    // and the sprite is never rotated - see topDownVehicles.js for why
+    // rotating a single drawing could never look right.
+    this.topDownTier = hasTopDownArt(scene, tierId) ? tierId : null
 
     // Created before the sprite so it renders underneath (same-depth
     // objects draw in insertion order in Phaser), mirroring SpriteActor
@@ -72,7 +78,9 @@ export class VehicleActor {
     // back-compat, but callers now mostly pass PICO8_ATLAS_KEY (vehicleGen.js)
     // for anything that actually rotates - see that file's header comment.
     this.shadow = scene.add.ellipse(x, y, 20, 8, 0x000000, 0.35)
-    this.sprite = scene.add.sprite(x, y, atlasKey, spriteName)
+    this.sprite = this.topDownTier
+      ? scene.add.sprite(x, y, topDownKey(this.topDownTier, 'NORTH'), 0)
+      : scene.add.sprite(x, y, atlasKey, spriteName)
     // this.sprite.width is the frame's native, unscaled pixel width (Phaser
     // reads it straight from the atlas/texture) - dividing the uniform
     // target by it is what makes every vehicle land at the same on-screen
@@ -133,6 +141,10 @@ export class VehicleActor {
   setFacing(dir) {
     const vector = DIR_VECTORS[dir]
     if (!vector) return
+    if (this.topDownTier) {
+      this.sprite.setTexture(topDownKey(this.topDownTier, headingFor(vector[0], vector[1])), 0)
+      return
+    }
     this.angle = angleForVector(vector[0], vector[1])
     this.sprite.setRotation(this.angle)
   }
@@ -140,7 +152,12 @@ export class VehicleActor {
   // Smooth rotation from a raw travel vector (e.g. diagonal movement steps),
   // used while actively driving instead of snapping to the 4 cardinals.
   faceVector(dx, dy) {
-    if (dx === 0 && dy === 0) return // idle: hold last angle
+    if (dx === 0 && dy === 0) return // idle: hold last heading
+    if (this.topDownTier) {
+      // Swap to the sprite drawn for this heading; rotation stays 0.
+      this.sprite.setTexture(topDownKey(this.topDownTier, headingFor(dx, dy)), 0)
+      return
+    }
     this.angle = angleForVector(dx, dy)
     this.sprite.setRotation(this.angle)
   }

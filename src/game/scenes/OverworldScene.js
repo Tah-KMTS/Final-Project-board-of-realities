@@ -36,6 +36,7 @@ import { buildChapelMapZone, preloadChapelMap, CHAPEL_ROOM } from '../interiors/
 import { buildChapelExteriorZone, preloadChapelExterior, updateChapelGate, chapelFacadeSolidOffsets, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
 import { preloadCuteTerrain, preloadCuteTrees, GRASS_TYPES } from '../packs/cuteFantasyTerrain'
+import { preloadTopDownVehicles, NPC_VEHICLE_TIERS } from '../packs/topDownVehicles'
 
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
@@ -993,6 +994,7 @@ export default class OverworldScene extends Phaser.Scene {
     preloadChapelExterior(this)
     preloadCuteTerrain(this)
     preloadCuteTrees(this)
+    preloadTopDownVehicles(this)
   }
 
   create() {
@@ -1706,10 +1708,16 @@ export default class OverworldScene extends Phaser.Scene {
           const col = Math.round((home.tiles.c0 + home.tiles.c1) / 2)
           const row = home.tiles.r1 + 1 // the strip directly in front of the house
           roamer.carPark = { x: col * TILE_SIZE + TILE_SIZE / 2, y: row * TILE_SIZE + TILE_SIZE / 2 }
+          // Deterministic per-character pick so a given NPC always has the
+          // same car. `>>> 0` not `>>` - a signed shift yields a negative
+          // index for about half of all ids.
+          let hash = 0
+          for (const ch of roamer.character.id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
           roamer.carActor = new VehicleActor(this, roamer.carPark.x, roamer.carPark.y, {
             spriteName: vehicleSpec.spriteName,
             scale: vehicleSpec.scale,
             atlasKey: vehicleSpec.atlasKey,
+            tierId: NPC_VEHICLE_TIERS[hash % NPC_VEHICLE_TIERS.length],
           })
           roamer.carActor.faceVector(0, 1) // nose out toward the street
         } else {
@@ -2044,7 +2052,7 @@ export default class OverworldScene extends Phaser.Scene {
 
   spawnVehicleEntry({ tierId, name, spriteName, speedMultiplier, scale, col, row, owned, atlasKey }) {
     const { x, y } = this.tileMover.tileCenter(col, row)
-    const actor = new VehicleActor(this, x, y, { spriteName, scale, atlasKey })
+    const actor = new VehicleActor(this, x, y, { spriteName, scale, atlasKey, tierId })
     const entry = { tierId, name, spriteName, speedMultiplier, scale, col, row, owned, atlasKey, actor }
     this.vehicleActors.push(entry)
     return entry
