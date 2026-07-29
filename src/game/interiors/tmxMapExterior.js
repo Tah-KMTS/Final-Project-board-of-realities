@@ -117,3 +117,54 @@ export function buildChapelExteriorZone(scene, zoneObjects, Phaser, TILE_SIZE) {
 
   return { zones, blockedTiles }
 }
+
+// ---------------------------------------------------------------------------
+// Overworld facade (map coherence overhaul step 4)
+//
+// Resolves the "double exterior" the human reported: the map used to draw the
+// temple with a generic Serene-Village-style facade while the real authored
+// chapel lived only inside a separate courtyard zone. Now the map draws the
+// authored chapel itself, so there is exactly one chapel exterior.
+//
+// Only the building layers are drawn - House, Wings, Dragon_body_head - not
+// the courtyard's ground, graves or fence, which belong to the standalone
+// zone. Those three layers occupy exactly cols 6-21 x rows 2-15 of the
+// authored map, i.e. 16x14 tiles, which is why the `temple` building def is
+// sized 16x14: the art fits its footprint exactly with no overflow onto
+// neighbours.
+const FACADE_LAYERS = new Set(['House', 'Wings', 'Dragon_body_head'])
+export const CHAPEL_FACADE_TILES = { cols: 16, rows: 14, col0: 6, row0: 2 }
+
+export function chapelFacadeReady(scene) {
+  return Object.keys(CHAPEL_MAP_TILESETS).every((base) => scene.textures.exists(textureKey(base)))
+}
+
+// Draws the chapel building at (x, y) in world pixels. Returns the created
+// images so the caller can push them into zoneObjects, matching what
+// placeBuildingFacade's other branches return.
+export function drawChapelExteriorFacade(scene, x, y, tileSize) {
+  const scale = tileSize / CHAPEL_MAP.tileW
+  const objects = []
+  CHAPEL_MAP_LAYERS.forEach((layer, layerIndex) => {
+    if (!FACADE_LAYERS.has(layer.name)) return
+    for (const [col, row, base, frame, flags] of layer.tiles) {
+      const dc = col - CHAPEL_FACADE_TILES.col0
+      const dr = row - CHAPEL_FACADE_TILES.row0
+      if (dc < 0 || dr < 0 || dc >= CHAPEL_FACADE_TILES.cols || dr >= CHAPEL_FACADE_TILES.rows) continue
+      const px = x + dc * tileSize
+      const py = y + dr * tileSize
+      const img = scene.add
+        .image(px, py, textureKey(base), frame)
+        .setOrigin(0, 0)
+        .setScale(scale)
+        // Sort by the tile's own bottom edge so the player passes behind the
+        // chapel's upper rows and in front of its base, same as every other
+        // facade in the overworld.
+        .setDepth(py + tileSize + layerIndex)
+      if (flags & 1) img.setFlipX(true)
+      if (flags & 2) img.setFlipY(true)
+      objects.push(img)
+    }
+  })
+  return objects
+}

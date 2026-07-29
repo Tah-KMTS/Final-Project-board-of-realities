@@ -18,6 +18,7 @@ import { PICO8_CITY } from './packs/pico8CityTiles'
 import { SERENE_VILLAGE_HOMES } from './packs/sereneVillageTiles'
 import { getAnyCharacter } from '../features/agents/characterLookup'
 import { cuteTerrainReady, buildCuteTerrainOverlay } from './packs/cuteFantasyTerrain'
+import { chapelFacadeReady, drawChapelExteriorFacade, CHAPEL_FACADE_TILES } from './interiors/tmxMapExterior'
 
 const USE_PROCEDURAL_GRAPHICS = true;
 
@@ -576,6 +577,16 @@ export function placeCampfire(scene, cx, cy) {
 // interior desk calls still pass a plain id string, which falls through to
 // the procedural facade below exactly as before.
 export function placeBuildingFacade(scene, x, y, w, h, tintColor, building = '') {
+  // Map coherence overhaul step 4: the temple draws the pack's OWN authored
+  // chapel instead of a generic facade, so the map and the chapel's own art
+  // are the same building (the human's "double exterior" report). Its def is
+  // sized 16x14 to match the art exactly - see drawChapelExteriorFacade.
+  if (building && building.id === 'temple' && chapelFacadeReady(scene)) {
+    // w is the footprint in pixels and the def is CHAPEL_FACADE_TILES.cols
+    // wide, so this recovers the scene's tile size without importing it.
+    return drawChapelExteriorFacade(scene, x, y, w / CHAPEL_FACADE_TILES.cols)
+  }
+
   if (USE_KENNEY_PACKS && building && typeof building === 'object') {
     const spec = packFacadeFor(building)
     // prefabImage specs (the Cute_Fantasy_Free wood house) carry an imageKey

@@ -118,7 +118,10 @@ const FINANCE_BUILDING_DEFS = [
   // the interior existed but nothing on the map signaled it. Label now
   // says "Chapel" outright while keeping "Whispering Temple" as the
   // flavor name TempleModal.jsx already displays.
-  { id: 'temple', label: 'Whispering Temple Chapel', district: 'Kyoto District', color: 0x3a2a6a, width: 4, height: 2 },
+  // 16x14 matches the authored chapel art exactly (House/Wings/Dragon layers,
+  // cols 6-21 x rows 2-15 of Exterior.tmx) so the facade fills its footprint
+  // with no overflow onto neighbours - see drawChapelExteriorFacade.
+  { id: 'temple', label: 'Whispering Temple Chapel', district: 'Kyoto District', color: 0x3a2a6a, width: 16, height: 14 },
 
   // --- Osaka District ---
   { id: 'casino', label: 'Neon Dragon Casino', district: 'Osaka District', color: 0x8a1f6a, width: 4, height: 3 },
@@ -2480,7 +2483,7 @@ export default class OverworldScene extends Phaser.Scene {
         row: building.tiles.r1 + 1,
       }
       if (zone.id === 'temple') {
-        this.transitionToZone('chapelExterior')
+        this.transitionToZone('chapelInterior')
         return
       }
       if (zone.id === 'teaHouse') {
