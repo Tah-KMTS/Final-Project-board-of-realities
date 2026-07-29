@@ -75,7 +75,11 @@ complaint) - safe to build on top of, not to re-litigate:
   distinct from a generic Kyoto building. **Only the INTERIOR'S CONTENTS are
   broken (see below) - the wiring/plumbing around it is fine.**
 - Baseline to preserve: `npm run build` passes, `npm run lint` is
-  **37 warnings, 0 errors**. Don't increase it.
+  **36 warnings, 0 errors** (re-measured directly:
+  `npm run lint 2>&1 | grep -c "warning eslint"`. This doc previously said
+  37; that was off by one. 0 errors is the part that actually matters -
+  treat the warning count as "don't let it climb," not as a precise
+  contract). Don't increase it.
 - Double-canvas "ghosting" concern from earlier: investigated and ruled out -
   confirmed via an actual production build (`npm run build && npm run
   preview`, or `vite preview`) that exactly one canvas renders; the two seen
@@ -276,9 +280,29 @@ and genuinely have zero progress:
    slots (sword/book/crown icons with counts), a "Location discovered"
    banner with sword-flourish dividers, and a "Continue / New game / Options"
    menu list. The game's current UI (`NamedNpcModal.jsx` and friends) uses
-   flat Tailwind borders/colors, not this pack at all yet. Survey the pack's
-   actual folder structure first (not done yet this session) before planning
-   the integration.
+   flat Tailwind borders/colors, not this pack at all yet.
+
+   **Pack structure - surveyed and measured directly this round, so this
+   step is already done:** `public/assets/packs/kenney_fantasy-ui-borders/`
+   has `PNG/Default/` and `PNG/Double/` (two border weights), each with the
+   same six subfolders, plus a `Vector/` folder (SVG sources, ignore for
+   now). Per weight: `Border/`, `Panel/`, `Transparent border/`,
+   `Transparent center/` are **32 numbered variants each**
+   (`panel-000..031.png` / `panel-border-000..031.png`), and `Divider/` +
+   `Divider Fade/` are **6 each**. Measured sizes: Default panels/borders
+   are **48x48**, Double panels are **96x96**, dividers are **96x22**.
+   - The 48x48/96x96 panel squares are almost certainly **nine-slice**
+     source art (that's the standard Kenney UI convention and matches the
+     "ornate carved corners, tileable edges" look of the reference) - but
+     confirm the corner/edge inset by looking at one before writing slice
+     numbers, don't assume 16px thirds.
+   - Because this is plain PNG UI art (not a tilemap), the natural
+     integration is **CSS `border-image` on the existing React/Tailwind
+     modals**, NOT the Phaser renderer - much less invasive than routing UI
+     through the game canvas. Start with one modal as a proof
+     (`NamedNpcModal.jsx`), get confirmation, then generalize.
+   - 32 variants is a lot; pick 2-3 (one neutral panel, one "important"
+     panel, one divider) rather than exposing all of them.
 2. **`Modern_Interiors_Free_v2.2`** - real furniture (beds, tables, chairs)
    for building interiors, with a personality tie-in: "if character persona
    likes to sit down and read a book, here are the resources that can make
@@ -297,6 +321,37 @@ and genuinely have zero progress:
    overlap with a SEPARATE handoff already given to a different collaborator
    in this repo - see `production/handoff-interiors.txt` - worth checking
    whether that work has progressed and coordinating rather than duplicating.
+
+   **Pack structure - surveyed and measured directly this round:** the real
+   content is under `public/assets/packs/Modern_Interiors_Free_v2.2/Modern
+   tiles_Free/`. It ships 16x16, 32x32 and 48x48 variants of the same art -
+   **use the 16x16 set**, it matches every other pack already integrated
+   here (chapel-pixel- and the Kenney packs are all 16px native, scaled by
+   `TILE_SIZE/16`, see `tmxWallInterior.js`'s `tileScale()`).
+   - `Interiors_free/16x16/Interiors_free_16x16.png` - **256x1424 = 16 cols
+     x 89 rows** @16px. This is the furniture sheet (beds/tables/chairs/
+     shelves/appliances). 89 rows is large; expect to hand-curate a small
+     catalog of named multi-tile blocks from it, exactly like
+     `chapelPixelTiles.js` does - same convention, don't invent a new one.
+   - `Interiors_free/16x16/Room_Builder_free_16x16.png` - **272x368 = 17
+     cols x 23 rows** @16px. Floors/walls/doors/windows, i.e. the
+     counterpart to the chapel's `Walls_Interior.png`. This is what would
+     feed a `buildTmxWallInteriorZone` room spec for a modern interior.
+   - `Characters_free/` - **4 characters: Adam, Alex, Amelia, Bob**, each
+     with 8 sheets. Cell size is **16x32** (not 16x16 - characters are two
+     tiles tall). Full sheet `Adam_16x16.png` is 384x224 = 24 cols x 7
+     rows; the single-action sheets (`_idle_anim_`, `_run_`, `_phone_`,
+     `_sit_`, `_sit2_`, `_sit3_`) are 384x32 = 24 cols x 1 row.
+   - **Directly relevant to the "sit down and read" persona idea: the sit
+     art already exists** - three sit variants per character
+     (`_sit_`/`_sit2_`/`_sit3_`), plus a `_phone_` sheet. So the sit
+     mechanic is a code/state question, not an art-availability question.
+     Note there's no explicit "reading a book" sheet among the 8; the sit
+     poses are the closest match, so either use one of those or say plainly
+     that the exact reading pose isn't in the free pack.
+   - Caveat: this is the FREE version (v2.2) of a larger paid pack. If
+     something the design calls for seems missing, it's likely genuinely
+     absent rather than mis-indexed - check before assuming a crop bug.
 3. **Character animation variety** - several newly-added packs include
    characters with real multi-action animation (chapel-pixel-'s
    Priest/Monk/Parishioner idle/walk/pray/speech sprites, Cute Fantasy's
@@ -308,7 +363,7 @@ and genuinely have zero progress:
 
 ## Verification bar (unchanged from the rest of this session)
 
-- `npm run build` passes, lint stays at 37 warnings / 0 errors.
+- `npm run build` passes, lint stays at 36 warnings / 0 errors.
 - Real rendered/assembled evidence for any tile-index or multi-tile-assembly
   claim - and per the lesson at the top of this doc, that means an actual
   viewed image, not just a passing count.
