@@ -33,6 +33,7 @@ import {
 import { preloadPlayerSheet } from '../spriteGen'
 import { buildTmxWallInteriorZone, TEA_HOUSE_ROOM } from '../interiors/tmxWallInterior'
 import { buildChapelMapZone, preloadChapelMap, CHAPEL_ROOM } from '../interiors/tmxMapInterior'
+import { buildChapelExteriorZone, preloadChapelExterior, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
 
 // ---------------------------------------------------------------------------
@@ -349,6 +350,7 @@ const ZONES = {
   // casinoInterior above, just variable-sized instead of reusing
   // INTERIOR_COLS/ROWS.
   chapelInterior: { cols: CHAPEL_ROOM.cols, rows: CHAPEL_ROOM.rows },
+  chapelExterior: { cols: CHAPEL_EXTERIOR_ROOM.cols, rows: CHAPEL_EXTERIOR_ROOM.rows },
   teaHouseInterior: { cols: TEA_HOUSE_ROOM.cols, rows: TEA_HOUSE_ROOM.rows },
 }
 
@@ -829,6 +831,7 @@ export default class OverworldScene extends Phaser.Scene {
     preloadVehicleAssets(this)
     preloadChapelPack(this)
     preloadChapelMap(this)
+    preloadChapelExterior(this)
   }
 
   create() {
@@ -899,6 +902,7 @@ export default class OverworldScene extends Phaser.Scene {
     else if (zoneId === 'stockExchangeInterior') this.buildStockExchangeInteriorZone()
     else if (zoneId === 'casinoInterior') this.buildCasinoInteriorZone()
     else if (zoneId === 'chapelInterior') this.buildChapelInteriorZone()
+    else if (zoneId === 'chapelExterior') this.buildChapelExteriorZone()
     else if (zoneId === 'teaHouseInterior') this.buildTeaHouseInteriorZone()
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
@@ -917,6 +921,8 @@ export default class OverworldScene extends Phaser.Scene {
           ? this.overworldReturnSpawn
           : zoneId === 'chapelInterior'
             ? CHAPEL_ROOM.spawn
+            : zoneId === 'chapelExterior'
+              ? CHAPEL_EXTERIOR_ROOM.spawn
             : zoneId === 'teaHouseInterior'
               ? TEA_HOUSE_ROOM.spawn
               : INTERIOR_SPAWN
@@ -1184,6 +1190,12 @@ export default class OverworldScene extends Phaser.Scene {
     this.zones = zones
   }
 
+  buildChapelExteriorZone() {
+    const { zones, blockedTiles } = buildChapelExteriorZone(this, this.zoneObjects, Phaser, TILE_SIZE)
+    this.interiorBlockedTiles = blockedTiles
+    this.zones = zones
+  }
+
   buildTeaHouseInteriorZone() {
     const { zones, blockedTiles } = buildTmxWallInteriorZone(this, TEA_HOUSE_ROOM, this.zoneObjects, Phaser, TILE_SIZE)
     this.interiorBlockedTiles = blockedTiles
@@ -1193,7 +1205,11 @@ export default class OverworldScene extends Phaser.Scene {
   // ---------------- collision ----------------
 
   isBlockedTile(col, row) {
-    if (this.currentZoneId === 'chapelInterior' || this.currentZoneId === 'teaHouseInterior') {
+    if (
+      this.currentZoneId === 'chapelInterior' ||
+      this.currentZoneId === 'chapelExterior' ||
+      this.currentZoneId === 'teaHouseInterior'
+    ) {
       const zone = ZONES[this.currentZoneId]
       if (col < 0 || col >= zone.cols || row < 0 || row >= zone.rows) return true
       return this.interiorBlockedTiles?.has(`${col},${row}`) ?? false
@@ -2256,7 +2272,10 @@ export default class OverworldScene extends Phaser.Scene {
       this.exitVehicle()
     }
     if (zone.type === 'exit') {
-      this.loadZone('overworld')
+      // `target` lets an exit lead somewhere other than the overworld - the
+      // chapel is nested (interior -> courtyard -> overworld). Absent target
+      // keeps every pre-existing exit behaving exactly as before.
+      this.loadZone(zone.target || 'overworld')
       return
     }
     if (zone.type === 'building') {
@@ -2287,7 +2306,7 @@ export default class OverworldScene extends Phaser.Scene {
         row: building.tiles.r1 + 1,
       }
       if (zone.id === 'temple') {
-        this.loadZone('chapelInterior')
+        this.loadZone('chapelExterior')
         return
       }
       if (zone.id === 'teaHouse') {
