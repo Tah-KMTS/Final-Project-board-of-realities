@@ -36,9 +36,9 @@ export const TIME_BLOCKS = [
 const BUILDING_LABELS = {
   // Tokyo District
   stockExchange: 'Tokyo Stock Exchange',
-  buffettHQ: 'Biffle Tower',
+  buffettHQ: 'Buffett Tower',
   vanderbiltHQ: 'Vanderbilt Rail Co.',
-  muskHQ: 'Rusk Industries',
+  muskHQ: 'Musk Industries',
   howardMarksHQ: 'Oaktree Cycle Capital',
   appleHQ: 'Apple Glass HQ',
   cryptoExchange: 'Crypto HQ',

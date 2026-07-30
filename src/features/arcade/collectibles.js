@@ -17,10 +17,10 @@ export const RARITY_TIERS = [
 export const GOOD_GRAB_WEIGHTS = { common: 25, uncommon: 35, rare: 28, legendary: 12 }
 
 const NAMES_BY_TIER = {
-  common: ['Nug Buddy', 'Static Bun', 'Grumble Pup', 'Lil Smog', 'Doodle Fang'],
-  uncommon: ['Moonlit Nug', 'Chrome Bun', 'Glitch Pup', 'Neon Smog', 'Velvet Fang'],
-  rare: ['Prismatic Nug', 'Void Bun', 'Thunder Pup', 'Aurora Smog', 'Obsidian Fang'],
-  legendary: ['Celestial Nug (1/1 Foil)', 'Singularity Bun (1/1 Foil)', "Dragon's Fang (1/1 Foil)"],
+  common: ['Nug Buddy', 'Static Bun', 'Grumble Pup', 'Lil Smog', 'Doodle Huang'],
+  uncommon: ['Moonlit Nug', 'Chrome Bun', 'Glitch Pup', 'Neon Smog', 'Velvet Huang'],
+  rare: ['Prismatic Nug', 'Void Bun', 'Thunder Pup', 'Aurora Smog', 'Obsidian Huang'],
+  legendary: ['Celestial Nug (1/1 Foil)', 'Singularity Bun (1/1 Foil)', "Dragon's Huang (1/1 Foil)"],
 }
 
 function pick(arr) {

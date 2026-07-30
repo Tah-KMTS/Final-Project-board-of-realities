@@ -123,7 +123,7 @@ export const INTERIOR_BUILDINGS_CATALOG = {
         id: 'main_lobby',
         name: '🤖 Automated Robot Assembly Line',
         coordinates: { x: 0, y: 0 },
-        npc: { name: 'Elan Rusk', title: 'CEO & Chief Engineer' },
+        npc: { name: 'Elon Musk', title: 'CEO & Chief Engineer' },
         equipment: [
           { id: 'welding_arm', name: 'Laser Robotic Welding Arm', effect: '+15% Manufacturing Production Yield', coordinates: { x: 5, y: 5 } },
         ],

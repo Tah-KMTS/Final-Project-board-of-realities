@@ -29,20 +29,20 @@ export const TITAN_ROUTINES = {
     schedule: [
       { location: 'Apple Glass Campus', action: '🍎 Perfecting the Next Design Language', buildingId: 'appleHQ', x: 320, y: 1360 },
       { location: 'Tokyo Stock Exchange', action: '📈 Reviewing Apple Share Buyback Program', buildingId: 'stockExchange', x: 840, y: 320 },
-      { location: 'Rusk Industries', action: '🤝 Meeting Rusk on AI Chip Supply Chain', buildingId: 'muskHQ', x: 1240, y: 1400 },
+      { location: 'Musk Industries', action: '🤝 Meeting Musk on AI Chip Supply Chain', buildingId: 'muskHQ', x: 1240, y: 1400 },
     ],
   },
   musk: {
-    name: 'Elan Rusk',
+    name: 'Elon Musk',
     homeCity: 'tokyo',
     schedule: [
-      { location: 'Rusk Industries', action: '🤖 Inspecting Robotic Assembly Lines', buildingId: 'muskHQ', x: 1160, y: 1400 },
-      { location: 'Rusk Industries', action: '🚀 Testing Starship Propulsion Burns', buildingId: 'muskHQ', x: 1400, y: 1440 },
+      { location: 'Musk Industries', action: '🤖 Inspecting Robotic Assembly Lines', buildingId: 'muskHQ', x: 1160, y: 1400 },
+      { location: 'Musk Industries', action: '🚀 Testing Starship Propulsion Burns', buildingId: 'muskHQ', x: 1400, y: 1440 },
       { location: 'Apple Glass Campus', action: '📱 Negotiating AI Chip Silicon Patents', buildingId: 'appleHQ', x: 400, y: 1360 },
     ],
   },
   huang: {
-    name: 'Jensen Fang',
+    name: 'Jensen Huang',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '📊 Pitching H100 GPU Cluster Order', buildingId: 'stockExchange', x: 800, y: 320 },
@@ -53,7 +53,7 @@ export const TITAN_ROUTINES = {
 
   // Kyoto — HD-2D JRPG Shinto Pagoda District
   buffett: {
-    name: 'Warren Biffle',
+    name: 'Warren Buffett',
     homeCity: 'kyoto',
     schedule: [
       { location: 'Machiya Executive Estate', action: '📈 Auditing Value Stock Balance Sheets', buildingId: 'machiyaEstate', x: 440, y: 320 },
@@ -67,7 +67,7 @@ export const TITAN_ROUTINES = {
     schedule: [
       { location: 'Whispering Temple Chapel', action: '📚 Reading Multi-Disciplinary Research', buildingId: 'temple', x: 520, y: 320 },
       { location: 'Machiya Executive Estate', action: '🧠 Applying Mental Model Inversion', buildingId: 'machiyaEstate', x: 1000, y: 320 },
-      { location: 'Cherry Coke Tea House', action: '☕ Discussing Philosophy with Biffle', buildingId: 'teaHouse', x: 780, y: 320 },
+      { location: 'Cherry Coke Tea House', action: '☕ Discussing Philosophy with Buffett', buildingId: 'teaHouse', x: 780, y: 320 },
     ],
   },
   graham: {
@@ -76,7 +76,7 @@ export const TITAN_ROUTINES = {
     schedule: [
       { location: 'Zen Rock Garden', action: '📖 Writing Security Analysis Appendix', buildingId: 'zenGarden', x: 460, y: 320 },
       { location: 'Ryokan Mountain Inn', action: '💰 Scanning for Net-Net Opportunities', buildingId: 'hotel', x: 1160, y: 720 },
-      { location: 'Cherry Coke Tea House', action: '📊 Tutoring Young Biffle on Margins', buildingId: 'teaHouse', x: 820, y: 320 },
+      { location: 'Cherry Coke Tea House', action: '📊 Tutoring Young Buffett on Margins', buildingId: 'teaHouse', x: 820, y: 320 },
     ],
   },
   templeton: {
@@ -109,7 +109,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   soros: {
-    name: 'George Zoros',
+    name: 'George Soros',
     homeCity: 'osaka',
     schedule: [
       { location: 'Black Market', action: '💴 Shorting the Japanese Yen', buildingId: 'blackMarket', x: 960, y: 1040 },
@@ -165,7 +165,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   gates: {
-    name: 'Will Gatling',
+    name: 'Bill Gates',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '💻 Pitching MS Office Enterprise Deals', buildingId: 'stockExchange', x: 820, y: 320 },
@@ -174,25 +174,25 @@ export const TITAN_ROUTINES = {
     ],
   },
   bezos: {
-    name: 'Geoff Bezel',
+    name: 'Jeff Bezos',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '📦 Announcing AWS Cloud Expansion', buildingId: 'stockExchange', x: 840, y: 320 },
-      { location: 'Rusk Industries', action: '🤖 Testing Amazon Delivery Drones', buildingId: 'muskHQ', x: 1180, y: 1400 },
+      { location: 'Musk Industries', action: '🤖 Testing Amazon Delivery Drones', buildingId: 'muskHQ', x: 1180, y: 1400 },
       { location: 'Bank & Realty Office', action: '💰 Reviewing Prime Credit Card Float', buildingId: 'bank', x: 1400, y: 1000 },
     ],
   },
   son: {
-    name: 'Masatoshi Ren',
+    name: 'Masayoshi Son',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '📱 Pitching SoftBank Vision Fund II', buildingId: 'stockExchange', x: 830, y: 320 },
       { location: 'Apple Glass Campus', action: '💡 Scouting AI Startup Founders', buildingId: 'appleHQ', x: 336, y: 1360 },
-      { location: 'Rusk Industries', action: '🚀 Co-Investing SpaceX Series Round', buildingId: 'muskHQ', x: 1170, y: 1400 },
+      { location: 'Musk Industries', action: '🚀 Co-Investing SpaceX Series Round', buildingId: 'muskHQ', x: 1170, y: 1400 },
     ],
   },
   icahn: {
-    name: 'Karl Eikahn',
+    name: 'Carl Icahn',
     homeCity: 'tokyo',
     schedule: [
       { location: 'Tokyo Stock Exchange', action: '⚔️ Filing Hostile Takeover Prospectus', buildingId: 'stockExchange', x: 844, y: 320 },
@@ -201,7 +201,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   dalio: {
-    name: 'Ray Daglio',
+    name: 'Ray Dalio',
     homeCity: 'kyoto',
     schedule: [
       { location: 'Machiya Executive Estate', action: '🌦️ Calibrating All-Weather Portfolio', buildingId: 'machiyaEstate', x: 456, y: 320 },
@@ -219,7 +219,7 @@ export const TITAN_ROUTINES = {
     ],
   },
   lynch: {
-    name: 'Peter Vance',
+    name: 'Peter Lynch',
     homeCity: 'kyoto',
     schedule: [
       { location: 'Cherry Coke Tea House', action: '☕ Spotting Consumer Trend Opportunities', buildingId: 'teaHouse', x: 810, y: 320 },

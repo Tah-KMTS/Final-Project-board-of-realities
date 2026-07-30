@@ -7,8 +7,8 @@ import { FINANCE_NPCS } from '../finance/financeNpcs'
  */
 export function initializeGovernmentState() {
   const currentPresident = PRESIDENTS_ROSTER[0] // George Washington
-  const currentFed = FED_CHAIRMEN_ROSTER[4] // Jerome Powers
-  const currentFtc = FTC_CHAIRMEN_ROSTER[0] // Lena Cannon
+  const currentFed = FED_CHAIRMEN_ROSTER[4] // Jerome Powell
+  const currentFtc = FTC_CHAIRMEN_ROSTER[0] // Lina Khan
 
   return {
     president: currentPresident,

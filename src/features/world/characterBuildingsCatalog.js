@@ -5,7 +5,7 @@
 export const CHARACTER_BUILDINGS_CATALOG = [
   {
     ownerId: 'buffett',
-    ownerName: 'Warren Biffle',
+    ownerName: 'Warren Buffett',
     buildingName: 'Berkshire Hathaway Financial Tower & Cherry Coke Diner',
     city: 'Kyoto',
     coordinates: { x: 10, y: 20 },
@@ -27,7 +27,7 @@ export const CHARACTER_BUILDINGS_CATALOG = [
   },
   {
     ownerId: 'musk',
-    ownerName: 'Elan Rusk',
+    ownerName: 'Elon Musk',
     buildingName: 'Giga Factory & SpaceX Starbase Launchpad',
     city: 'Tokyo',
     coordinates: { x: 20, y: 30 },
@@ -93,7 +93,7 @@ export const CHARACTER_BUILDINGS_CATALOG = [
   },
   {
     ownerId: 'powell',
-    ownerName: 'Jerome Powers',
+    ownerName: 'Jerome Powell',
     buildingName: 'Federal Reserve Gold & Reserve Depository HQ',
     city: 'Tokyo',
     coordinates: { x: 50, y: 60 },

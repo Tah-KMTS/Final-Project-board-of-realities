@@ -21,12 +21,12 @@ export const CHARACTER_BIOGRAPHIES = {
   walker: { age: 51, gender: 'Female', orientation: 'Heterosexual', maritalStatus: 'Divorced', fidelity: 'Strictly Faithful', bio: 'First self-made female millionaire in American history. Built a door-to-door haircare empire from a scalp treatment she developed for her own hair loss, and trained thousands of Black women as sales agents.' },
 
   // --- Value Investors ---
-  graham: { age: 72, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'High Romance Risk', bio: 'Father of value investing. Authored Security Analysis and The Intelligent Investor. Biffle\'s mentor.' },
+  graham: { age: 72, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'High Romance Risk', bio: 'Father of value investing. Authored Security Analysis and The Intelligent Investor. Buffett\'s mentor.' },
   livermore: { age: 63, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Divorced', fidelity: 'High Romance Risk', bio: 'Greatest bear trader in history. Made and lost four fortunes. Predicted the 1929 crash and shorted it for $100M.' },
   templeton: { age: 95, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Widowed', fidelity: 'Strictly Faithful', bio: 'Global contrarian investor. Bought European stocks during WWII, achieved 20-year fund returns of 13.8%/yr.' },
   buffett: { age: 93, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Oracle of Omaha. Prefers value investing and simple living. Loves Cherry Coke and McDonald\'s breakfasts.' },
   howardmarks: { age: 79, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Oaktree Capital co-founder and philosopher of market cycles. Turned memo-writing about risk and psychology into a Wall Street art form.' },
-  munger: { age: 99, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Biffle\'s right hand. Polymath who applied multi-disciplinary mental models to investing.' },
+  munger: { age: 99, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Buffett\'s right hand. Polymath who applied multi-disciplinary mental models to investing.' },
   lynch: { age: 79, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Fidelity Magellan fund manager. Achieved 29.2%/yr returns over 13 years. Famous for "invest in what you know".' },
 
   // --- Macro Speculators ---
@@ -37,7 +37,7 @@ export const CHARACTER_BIOGRAPHIES = {
 
   // --- Tech Disruptors ---
   jobs: { age: 56, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'High Loyalty', bio: 'Design visionary and Apple co-founder. Obsessed with perfection at the intersection of liberal arts and technology.' },
-  gates: { age: 68, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Divorced', fidelity: 'Strictly Faithful', bio: 'Software co-founder. Built the world\'s dominant OS software business. Now runs the Gatling Foundation.' },
+  gates: { age: 68, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Divorced', fidelity: 'Strictly Faithful', bio: 'Software co-founder. Built the world\'s dominant OS software business. Now runs the Gates Foundation.' },
   bezos: { age: 60, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Divorced', fidelity: 'High Romance Risk', bio: 'Amazon founder. Invented AWS cloud computing and same-day delivery. Space tourism via Blue Origin.' },
   musk: { age: 52, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Divorced', fidelity: 'Ambitious / Flirtatious', bio: 'Engineering mogul and Tesla/SpaceX architect. Aims to make humanity multi-planetary by 2050.' },
   huang: { age: 61, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Nvidia CEO. Transformed the company from gaming GPUs to the backbone of the AI compute revolution.' },

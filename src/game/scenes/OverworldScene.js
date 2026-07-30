@@ -89,9 +89,9 @@ const HOME_GAP = 2
 const FINANCE_BUILDING_DEFS = [
   // --- Tokyo District ---
   { id: 'stockExchange', label: 'Tokyo Stock Exchange', district: 'Tokyo District', color: 0x1f5f3a, width: 3, height: 3 },
-  { id: 'buffettHQ', label: 'Biffle Tower', district: 'Tokyo District', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
+  { id: 'buffettHQ', label: 'Buffett Tower', district: 'Tokyo District', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
   { id: 'vanderbiltHQ', label: 'Vanderbilt Rail Co.', district: 'Tokyo District', color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
-  { id: 'muskHQ', label: 'Rusk Industries', district: 'Tokyo District', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
+  { id: 'muskHQ', label: 'Musk Industries', district: 'Tokyo District', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
   { id: 'howardMarksHQ', label: 'Oaktree Cycle Capital', district: 'Tokyo District', color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
   { id: 'appleHQ', label: 'Apple Glass HQ', district: 'Tokyo District', color: 0xc0c0c0, width: 4, height: 3, npcId: 'jobs' },
   { id: 'cryptoExchange', label: 'Crypto HQ', district: 'Tokyo District', color: 0x8a5a1f, width: 4, height: 3 },

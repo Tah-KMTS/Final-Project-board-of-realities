@@ -22,9 +22,9 @@ const TOKYO_BUILDINGS = [
   // corporate HQ (private companies aren't government buildings just
   // because they used to share a row with Parliament/FTC/Fed).
   { id: 'stockExchange',  label: 'Tokyo Stock Exchange',     district: 'Financial',  color: 0x1f5f3a, width: 3, height: 3 },
-  { id: 'buffettHQ',      label: 'Biffle Tower',             district: 'Financial',  color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
+  { id: 'buffettHQ',      label: 'Buffett Tower',             district: 'Financial',  color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
   { id: 'vanderbiltHQ',   label: 'Vanderbilt Rail Co.',      district: 'Financial',  color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
-  { id: 'muskHQ',         label: 'Rusk Industries',          district: 'Financial',  color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
+  { id: 'muskHQ',         label: 'Musk Industries',          district: 'Financial',  color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
   { id: 'howardMarksHQ',  label: 'Oaktree Cycle Capital',    district: 'Financial',  color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
   { id: 'cryptoExchange', label: 'Crypto HQ',                district: 'Financial',  color: 0x8a5a1f, width: 4, height: 3 },
   { id: 'corporateOffice', label: 'Corporate Holdings',      district: 'Financial',  color: 0x4a3a5f, width: 4, height: 3 },

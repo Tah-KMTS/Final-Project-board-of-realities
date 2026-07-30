@@ -11,11 +11,11 @@ export const JAPAN_CITIES = [
     landmarks: [
       { id: 'tokyo_se', name: 'Tokyo Stock Exchange', type: 'financial', coordinates: { x: 110, y: 110 } },
       { id: 'apple_glass_hq', name: 'Apple Unibody Glass Headquarters', type: 'character_built', owner: 'Steve Jobs', coordinates: { x: 120, y: 120 } },
-      { id: 'giga_factory_tokyo', name: 'Giga Factory & SpaceX Launchpad', type: 'character_built', owner: 'Elan Rusk', coordinates: { x: 130, y: 130 } },
-      { id: 'fed_hq', name: 'Federal Reserve Central Bank HQ', type: 'government_agency', head: 'Jerome Powers', coordinates: { x: 140, y: 140 } },
-      { id: 'ftc_hq', name: 'FTC Antitrust Hearing Commission', type: 'government_agency', head: 'Lena Cannon', coordinates: { x: 150, y: 150 } },
+      { id: 'giga_factory_tokyo', name: 'Giga Factory & SpaceX Launchpad', type: 'character_built', owner: 'Elon Musk', coordinates: { x: 130, y: 130 } },
+      { id: 'fed_hq', name: 'Federal Reserve Central Bank HQ', type: 'government_agency', head: 'Jerome Powell', coordinates: { x: 140, y: 140 } },
+      { id: 'ftc_hq', name: 'FTC Antitrust Hearing Commission', type: 'government_agency', head: 'Lina Khan', coordinates: { x: 150, y: 150 } },
     ],
-    primaryResidents: ['Steve Jobs', 'Elan Rusk', 'Jensen Fang', 'Jerome Powers', 'Lena Cannon', 'Gary Gensler'],
+    primaryResidents: ['Steve Jobs', 'Elon Musk', 'Jensen Huang', 'Jerome Powell', 'Lina Khan', 'Gary Gensler'],
   },
   {
     id: 'kyoto',
@@ -25,12 +25,12 @@ export const JAPAN_CITIES = [
     topography: 'Valley Surrounded by Higashiyama & Arashiyama Mountain Ranges',
     naturalFeatures: ['Kamo River', 'Lake Biwa Channel', 'Bamboo Forests'],
     landmarks: [
-      { id: 'berkshire_tower', name: 'Berkshire Hathaway Financial Tower', type: 'character_built', owner: 'Warren Biffle', coordinates: { x: 210, y: 210 } },
+      { id: 'berkshire_tower', name: 'Berkshire Hathaway Financial Tower', type: 'character_built', owner: 'Warren Buffett', coordinates: { x: 210, y: 210 } },
       { id: 'cherry_tea_house', name: "Cherry Coke Tea House & Diner", type: 'cultural', coordinates: { x: 220, y: 220 } },
       { id: 'irs_hq', name: 'IRS Internal Revenue Building', type: 'government_agency', head: 'Mortimer Caplin', coordinates: { x: 230, y: 230 } },
       { id: 'machiya_estate', name: 'Traditional Machiya Executive Estate', type: 'residence', coordinates: { x: 240, y: 240 } },
     ],
-    primaryResidents: ['Warren Biffle', 'Mortimer Caplin', 'Thomas Jefferson', 'George Washington'],
+    primaryResidents: ['Warren Buffett', 'Mortimer Caplin', 'Thomas Jefferson', 'George Washington'],
   },
   {
     id: 'osaka',
@@ -45,7 +45,7 @@ export const JAPAN_CITIES = [
       { id: 'dotonbori_arcade', name: 'Dotonbori Commercial Merchant Arcade', type: 'commercial', coordinates: { x: 330, y: 330 } },
       { id: 'dock_vaults', name: 'Osaka Dock Underground Vaults', type: 'syndicate', coordinates: { x: 340, y: 340 } },
     ],
-    primaryResidents: ['Al Capone', 'Lucky Luciano', 'J. Edgar Hoover', 'Jesse Livermore', 'George Zoros'],
+    primaryResidents: ['Al Capone', 'Lucky Luciano', 'J. Edgar Hoover', 'Jesse Livermore', 'George Soros'],
   },
   {
     id: 'sapporo',

@@ -89,7 +89,7 @@ export const BUILDING_VISUAL_PROFILES = {
   berkshire_pavilion: {
     heightCategory: 'SHINTO_PAGODA',
     floors: 4,
-    facade: 'HD-2D Cel-Shaded Dark Wood & Gold Leaf Financial Pavilion (Warren Biffle HQ)',
+    facade: 'HD-2D Cel-Shaded Dark Wood & Gold Leaf Financial Pavilion (Warren Buffett HQ)',
     colorHex: '#eab308',
     coordinates: { x: 0, y: 0 },
   },
@@ -111,7 +111,7 @@ export const BUILDING_VISUAL_PROFILES = {
   giga_factory_spire: {
     heightCategory: 'LUXURY_TOWER',
     floors: 18,
-    facade: 'Brushed Titanium Assembly Complex & Rocket Gantry Spire (Elan Rusk HQ)',
+    facade: 'Brushed Titanium Assembly Complex & Rocket Gantry Spire (Elon Musk HQ)',
     colorHex: '#38bdf8',
     coordinates: { x: 0, y: 0 },
   },

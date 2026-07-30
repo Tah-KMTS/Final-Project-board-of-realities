@@ -24,7 +24,7 @@ export function triggerButterflyEffect(triggerEvent, agents, day) {
         butterflyLogs.push({
           id: `butterfly_${day}_${copy.id}`,
           day,
-          text: `🦋 Fed Rate Hike Butterfly Effect: ${copy.name || 'Elan Rusk'} pivoted capital into automated robot R&D.`,
+          text: `🦋 Fed Rate Hike Butterfly Effect: ${copy.name || 'Elon Musk'} pivoted capital into automated robot R&D.`,
         })
       }
     }
@@ -41,14 +41,14 @@ export function triggerButterflyEffect(triggerEvent, agents, day) {
       }
     }
 
-    // 3. Warren Biffle Stock Buy Butterfly Effect
+    // 3. Warren Buffett Stock Buy Butterfly Effect
     if (triggerEvent.type === 'BUFFETT_BUY') {
       if (copy.id === 'soros' || copy.id === 'livermore') {
-        copy.thoughtProcess = 'Biffle acquired value stake; initiating short-squeeze position.'
+        copy.thoughtProcess = 'Buffett acquired value stake; initiating short-squeeze position.'
         butterflyLogs.push({
           id: `butterfly_${day}_${copy.id}`,
           day,
-          text: `🦋 Biffle Acquisition Butterfly Effect: ${copy.name} initiated short-squeeze options trading.`,
+          text: `🦋 Buffett Acquisition Butterfly Effect: ${copy.name} initiated short-squeeze options trading.`,
         })
       }
     }
