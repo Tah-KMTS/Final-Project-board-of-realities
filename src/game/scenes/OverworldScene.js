@@ -1687,12 +1687,20 @@ export default class OverworldScene extends Phaser.Scene {
               : null
           roamer.routeFor = presence.nextBuildingId
           roamer.driveU = 0
+          roamer.carRest = null
         }
         const pick = roamer.carPark
         const drop = roamer.dropOff
         if (pick && drop) {
           const t2 = presenceStepProgress(this.agentClock, roamer.phaseOffset)
           const seg = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u })
+          // Where the car rests while the NPC is on foot. Before the drive
+          // that's the pickup kerb; after it, the DROP-OFF. It used to always
+          // be the pickup, so at the end of a journey the car teleported all
+          // the way back to where it started - the person appeared at the
+          // destination and the car vanished, which is what read as a person
+          // and a car transforming into each other.
+          roamer.carRest = t2 < 0.2 ? pick : drop
           if (t2 < 0.2) rawPos = seg(doorA, pick, t2 / 0.2)
           else if (t2 < 0.8) {
             // Follow the road polyline, not a straight line - the straight
@@ -1869,6 +1877,7 @@ export default class OverworldScene extends Phaser.Scene {
           }
           roamer.inCar = false
           roamer.offRoadFrames = 0
+          roamer.carRest = null
         }
 
         // inCar is decided by the route phase computed earlier in this loop,
@@ -1878,10 +1887,10 @@ export default class OverworldScene extends Phaser.Scene {
           roamer.carActor.setPosition(x, y)
           roamer.carActor.faceVector(dx, dy)
         } else if (roamer.carPark) {
-          // Parked. On arrival the !travelling branch above has already moved
-          // carPark to the destination's kerb, which is where the drive ended,
-          // so this single target covers both ends of the journey.
-          const target = roamer.carPark
+          // Parked. carRest tracks the current leg (pickup before the drive,
+          // drop-off after); carPark is the fallback once the journey is over
+          // and the !travelling branch has re-parked it.
+          const target = roamer.carRest ?? roamer.carPark
           if (roamer.carActor.x !== target.x || roamer.carActor.y !== target.y) {
             roamer.carActor.setPosition(target.x, target.y)
             this.orientParked(
