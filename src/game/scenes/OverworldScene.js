@@ -2298,6 +2298,27 @@ export default class OverworldScene extends Phaser.Scene {
     return best ?? row
   }
 
+  // Middle column of the 3-wide street block nearest `col` - the DRIVING
+  // lane. Cars park on the outer (kerb) columns, so routing along a kerb put
+  // moving traffic straight into the parked cars: with the yield rule added,
+  // every car stopped permanently behind a parked one and nothing drove at
+  // all. Driving down the middle keeps the two apart.
+  drivingLaneCol(col) {
+    const near = this.nearestVStreetCol(col)
+    for (const cand of [near, near - 1, near + 1]) {
+      if (FINANCE_V_STREETS.includes(cand - 1) && FINANCE_V_STREETS.includes(cand + 1)) return cand
+    }
+    return near
+  }
+
+  drivingLaneRow(row) {
+    const near = this.nearestHStreetRow(row)
+    for (const cand of [near, near - 1, near + 1]) {
+      if (FINANCE_H_STREETS.includes(cand - 1) && FINANCE_H_STREETS.includes(cand + 1)) return cand
+    }
+    return near
+  }
+
   // Waypoints for driving from tile P to tile D along roads only. A straight
   // line between two kerbs cuts across grass, because the road network is a
   // grid - this walks it properly: north-south along the pickup's street, east
@@ -2305,9 +2326,9 @@ export default class OverworldScene extends Phaser.Scene {
   // Returns world-pixel centres.
   roadRouteWaypoints(pCol, pRow, dCol, dRow) {
     const centre = (c, r) => ({ x: c * TILE_SIZE + TILE_SIZE / 2, y: r * TILE_SIZE + TILE_SIZE / 2 })
-    const pv = this.nearestVStreetCol(pCol)
-    const dv = this.nearestVStreetCol(dCol)
-    const cross = this.nearestHStreetRow(Math.round((pRow + dRow) / 2))
+    const pv = this.drivingLaneCol(pCol)
+    const dv = this.drivingLaneCol(dCol)
+    const cross = this.drivingLaneRow(Math.round((pRow + dRow) / 2))
     const pts = [centre(pCol, pRow)]
     if (pv !== pCol) pts.push(centre(pv, pRow)) // sidle onto the north-south street
     pts.push(centre(pv, cross)) // drive it to the cross-street
@@ -2332,8 +2353,13 @@ export default class OverworldScene extends Phaser.Scene {
       const oy = v.actor.y - pos.y
       const dist = Math.hypot(ox, oy)
       if (dist > TILE_SIZE * 1.6 || dist < 0.0001) continue
-      // Ahead = positive projection onto the travel direction.
-      if ((ox * ux + oy * uy) / dist > 0.5) return true
+      const along = ox * ux + oy * uy
+      if (along <= 0) continue // behind us
+      // Must also be roughly IN the lane, not merely nearby - a car parked at
+      // the kerb is beside the driving lane, and braking for it would stall
+      // traffic permanently.
+      const lateral = Math.abs(ox * -uy + oy * ux)
+      if (lateral < TILE_SIZE * 0.7) return true
     }
     return false
   }
