@@ -80,6 +80,26 @@ export const CHARACTER_BIOGRAPHIES = {
   majoras: { age: 56, gender: 'Female', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Deborah Platt Majoras — Merger Retrospective Chair. Led Google-DoubleClick merger review. Established behavioral consent decree template for Big Tech.' },
   leibowitz: { age: 63, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Jon Leibowitz — Pharma and Pay-For-Delay Enforcer. Took on pharmaceutical companies for illegally blocking generic drug competition.' },
   pitofsky: { age: 76, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Robert Pitofsky — Vertical Monopoly Squeezer. Georgetown Law professor who balanced consumer welfare with broader democratic market concerns.' },
+
+  // --- Regulatory & Cabinet Leaders (SEC / FBI / IRS / DOD / EPA) ---
+  // Added to close a gap: these nine had no entry at all, so
+  // getCharacterBiography() fell through to its default, which hardcodes
+  // gender 'Male' and the filler bio "Prominent figure in the Capital
+  // Syndicate." They read as male by accident rather than by data. All nine
+  // are in fact historically male, so the counts don't move - but they are
+  // now stated rather than defaulted, and carry real biographies.
+  //
+  // `age` follows the file's existing convention: age at death for historical
+  // figures, approximate current age for the living.
+  kennedy_sec: { age: 81, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'High Romance Risk', bio: 'First Chairman of the SEC (1934-35). A speculator who had profited from the very pool operations he was appointed to outlaw - FDR reportedly picked him to "set a thief to catch a thief." Patriarch of the Kennedy political dynasty.' },
+  douglas_sec: { age: 81, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'High Romance Risk', bio: 'SEC Chairman (1937-39) who forced the New York Stock Exchange to accept federal oversight after the Whitney embezzlement scandal. Went on to serve 36 years on the Supreme Court, the longest tenure in its history.' },
+  levitt_sec: { age: 93, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Longest-serving SEC Chairman (1993-2001). Campaigned against auditor conflicts of interest and pushed through Regulation FD, ending selective disclosure of material information to favoured analysts.' },
+  mueller: { age: 80, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'FBI Director for twelve years (2001-2013), taking office a week before 9/11 and rebuilding the Bureau around counterterrorism. A decorated Marine officer in Vietnam. Later Special Counsel investigating Russian election interference.' },
+  caplin: { age: 103, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'IRS Commissioner under Kennedy (1961-64). Introduced computerised processing and the taxpayer identification number. Landed at Normandy as a beachmaster before a long career as a tax law professor.' },
+  andrews: { age: 84, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'IRS Commissioner under Eisenhower (1953-55), brought in to clean up a service mired in corruption scandals. Resigned and then ran for president in 1956 on a platform of abolishing the income tax he had collected.' },
+  mcnamara: { age: 93, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'High Loyalty', bio: 'Secretary of Defense (1961-68) and architect of the statistical management style applied to the Vietnam War. Previously the first president of Ford from outside the family; afterwards ran the World Bank for thirteen years.' },
+  marshall: { age: 78, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'Army Chief of Staff through the Second World War, later Secretary of State and Secretary of Defense. Authored the European Recovery Program that carries his name and won the Nobel Peace Prize for it in 1953.' },
+  ruckelshaus: { age: 87, gender: 'Male', orientation: 'Heterosexual', maritalStatus: 'Married', fidelity: 'Strictly Faithful', bio: 'First Administrator of the EPA (1970-73), who banned DDT and built the agency from nothing. As Deputy Attorney General he resigned rather than fire the Watergate special prosecutor - the Saturday Night Massacre. Recalled to lead the EPA again in 1983.' },
 }
 
 import { getSyndicateMember } from '../../data/syndicate'
