@@ -24,17 +24,23 @@ export const TIME_BLOCKS = [
   { key: 'midnight', label: 'Midnight (12:00 AM)' },
 ]
 
-// House rule: the 41 non-home building labels live in FINANCE_BUILDING_DEFS
+// House rule: the 10 non-home building labels live in FINANCE_BUILDING_DEFS
 // inside src/game/scenes/OverworldScene.js, which imports Phaser and cannot
 // load in plain Node (this engine has to run there too, for tests and for
 // any future server-side use). characterDispositions.js already hand-copies
 // that file's building *ids* for the same reason (see its own house-rule
-// comment); this is the matching hand-copy of their *labels*, kept in the
-// same district grouping so the two lists are easy to diff against each
-// other and against OverworldScene.js by eye. If a building is ever added,
-// renamed, or removed there, mirror the change in both places.
+// comment); this is the matching hand-copy of their *labels*. If a building
+// is ever added, renamed, or removed there, mirror the change in both places.
+// Map overhaul Phase 4 trimmed this from 31 entries down to 10, matching the
+// spec's 14-main-building-category trim (see the header comment above
+// FINANCE_BUILDING_DEFS in OverworldScene.js) - industrialZone replaces the
+// 5 former single-tenant industrialist/regulator HQs it absorbed
+// (fordRougeComplex/carnegieSteelMill/standardOilRefinery/pentagonDodHQ/
+// epaHQ), and every other deleted id (parliament/hotel/park/dockVaults/
+// teaHouse/machiyaEstate/zenGarden/silkMarket/sakeBrewery/artisanShop/
+// dotonboriArcade/fishMarket/takoyakiStand/sapporoBrewery/alpineLodge/
+// corporateOffice/vcHub) has no replacement - the buildings are simply gone.
 const BUILDING_LABELS = {
-  // Tokyo District
   stockExchange: 'Tokyo Stock Exchange',
   // Phase 2 consolidation: businessCenter/underworld/governmentBuilding
   // replace the 13 single-tenant building ids they absorbed (see the
@@ -42,36 +48,13 @@ const BUILDING_LABELS = {
   // REAL_BUILDING_IDS) - mirror any future FINANCE_BUILDING_DEFS change here.
   businessCenter: 'Capital Business Center',
   governmentBuilding: 'Federal Government Building',
-  corporateOffice: 'Corporate Holdings',
-  vcHub: 'Venture Capital Hub',
   bank: 'Bank & Realty Office',
   realEstateAgency: 'Real Estate Agency',
-  parliament: 'Parliament Hall',
-  // Kyoto District
-  teaHouse: 'Cherry Coke Tea House',
-  machiyaEstate: 'Machiya Executive Estate',
-  zenGarden: 'Zen Rock Garden',
-  silkMarket: 'Silk & Kimono Market',
-  sakeBrewery: 'Fushimi Sake Brewery',
-  artisanShop: 'Kiyomizu Artisan Shop',
-  hotel: 'Ryokan Mountain Inn',
-  park: 'Serenity Park',
   temple: 'Whispering Temple Chapel',
-  // Osaka District
   casino: 'Neon Dragon Casino',
   underworld: 'The Underworld',
-  dotonboriArcade: 'Dotonbori Merchant Arcade',
-  fishMarket: 'Kuromon Fish Market',
-  takoyakiStand: 'Takoyaki Street Food',
-  dockVaults: 'Dock Underground Vaults',
-  // Sapporo District
-  fordRougeComplex: 'Ford River Rouge Complex',
-  carnegieSteelMill: 'Homestead Steel Mill',
-  standardOilRefinery: 'Standard Oil Refinery',
-  pentagonDodHQ: 'Pentagon Procurement HQ',
-  epaHQ: 'EPA Regulation Agency',
-  sapporoBrewery: 'Alpine Snow Brewery',
-  alpineLodge: 'Mount Yotei Alpine Lodge',
+  // Phase 4 consolidation: see the header comment above.
+  industrialZone: 'Industrial Zone',
   trainStation: '🚆 Central Train Station',
 }
 

@@ -50,7 +50,7 @@ import { preloadTopDownVehicles, NPC_VEHICLE_TIERS, vehiclePerformance, VEHICLE_
 // back to a `residence`/`hideout` template by the building's `kind` for the
 // 88 character home/hideout buildings that aren't hand-listed there (see
 // interiorTemplateFor).
-// Walking up to any of the 129 buildings (41 hand-authored + 88 character
+// Walking up to any of the 98 buildings (10 hand-authored + 88 character
 // homes/hideouts from characterHomeBuildings.js) and pressing E swaps into
 // its interior in place (same scene, same Phaser.Game instance, same
 // technique DominoWorldScene uses for its own rooms); the desk inside emits
@@ -86,32 +86,45 @@ const DEFAULT_SPAWN = { col: 7, row: 3 }
 // overlapping as the roster changes. Verified with a standalone overlap/
 // bounds check before wiring this in, not just eyeballed.
 
-// House rule: 2x2 character homes/hideouts packed at the same BAND_GAP=4 as
-// the hand-authored buildings below measured out to a 154-row map (verified
-// with a standalone layout script) - way too tall to be playable. Giving
-// home/hideout defs their own tighter `gap` (per-def override, see
-// layoutFinanceMap) instead keeps the map at 73 rows for the same 88 homes.
-// Tightened further to 1 (from 2) - the plan is to make homes background
-// scenery rather than player-enterable buildings, at which point they don't
-// need the same walk-up clearance a real building does; packing them denser
-// now gets the map size win regardless of when that lands.
-const HOME_GAP = 1
+// Map overhaul Phase 4 (tight residential clusters): homes used to be
+// row-wrap packed with a uniform 1-tile gap between every single home
+// (HOME_GAP), which reads as a loose flowing grid rather than the reference
+// mockup's solid, zero-gap blocks of touching houses with visible separation
+// only BETWEEN clusters. Replaced by packHomeBand() below - see its header
+// comment - which packs each style sub-group into its own zero-gap square-
+// ish grid block, then packs those (up to 3) cluster rectangles across the
+// band with CLUSTER_GAP between them. There's no more per-home gap at all
+// (homes touch edge to edge within a cluster), so the old HOME_GAP constant
+// and the `.map((d) => ({ ...d, gap: HOME_GAP }))` that applied it are gone
+// - packHomeBand never reads a def's `gap` field.
+const CLUSTER_GAP = 3
 
-// Map overhaul Phase 3 (spatial rebuild to match the hand-drawn mockup):
-// every non-home def below carries a `zone` tag - one of 'law' (left
-// column), 'finance' (center-left column), 'chapel' (center, fixed 30-wide
-// reservation - temple is the sole occupant), or 'industry' (right column,
-// by far the biggest bucket - 17 of the 41 hand-authored buildings, mostly
-// the old Kyoto/Sapporo amenity roster). layoutFinanceMap() below packs each
-// zone into its own column region of the middle hub band; see that function
-// for the packing itself. `corporateOffice`/`vcHub` aren't in the zone table
-// the mockup shipped with (an apparent oversight there - the table lists 29
-// of these 31 hand-authored defs) - tagged 'finance' since both are
-// financial-HQ flavored (Corporate Holdings / Venture Capital Hub) and sat
-// in the same "Financial/civic HQs" source block as the other finance-zone
-// buildings before this pass.
+// Map overhaul Phase 4 (trim to the 14-main-building-category spec): the
+// roster below used to carry 31 hand-authored hub defs (Phase 3). 9 of the
+// 14 spec'd main-building categories already map 1:1 to a real building here
+// (stockExchange/casino/bank/realEstateAgency/temple/underworld/
+// trainStation/governmentBuilding/businessCenter); a 10th, Industrial Zones,
+// is now `industrialZone` below - one multi-tenant hub absorbing the 5
+// former single-tenant industrialist HQs (fordRougeComplex/carnegieSteelMill/
+// standardOilRefinery/pentagonDodHQ/epaHQ), same TABS-modal pattern Phase 2
+// already used 3 times for underworld/businessCenter/governmentBuilding -
+// see IndustrialZoneModal.jsx. The remaining 4 spec categories (Court &
+// Prison, Food Center, Dock/Pier, Entertainment Complex) are still unbuilt -
+// out of scope for this pass. Every other Phase-3 hub def that didn't map to
+// one of the 14 categories (parliament/hotel/park/dockVaults/teaHouse/
+// machiyaEstate/zenGarden/silkMarket/sakeBrewery/artisanShop/
+// dotonboriArcade/fishMarket/takoyakiStand/sapporoBrewery/alpineLodge/
+// corporateOffice/vcHub - 17 buildings) is deleted outright, not folded into
+// a hub - there's no natural absorbing building for any of them the way the
+// Phase 2 consolidations had one.
+//
+// Every remaining non-home def below still carries a `zone` tag - one of
+// 'law' (left column), 'finance' (center-left column), 'chapel' (center,
+// fixed 30-wide reservation - temple is the sole occupant), or 'industry'
+// (right column) - see layoutFinanceMap() for how each zone is packed into
+// its own column region of the middle hub band.
 const FINANCE_BUILDING_DEFS = [
-  // --- Financial/civic HQs (formerly "Tokyo") ---
+  // --- Financial HQs ---
   { id: 'stockExchange', label: 'Tokyo Stock Exchange', facadeStyle: 'modernGlass', color: 0x1f5f3a, width: 3, height: 3, zone: 'finance' },
   // Consolidation (Phase 2): Buffett/Vanderbilt/Musk/Howard Marks/Jobs each
   // used to be their own single-tenant HQ. Folded into one denser
@@ -119,36 +132,20 @@ const FINANCE_BUILDING_DEFS = [
   // bigger than any one of the old towers to read as "several tenants share
   // this building", not just a relabeled single HQ.
   { id: 'businessCenter', label: 'Capital Business Center', facadeStyle: 'modernGlass', color: 0x3a3a4a, width: 7, height: 4, zone: 'finance' },
-  { id: 'corporateOffice', label: 'Corporate Holdings', facadeStyle: 'modernGlass', color: 0x4a3a5f, width: 4, height: 3, zone: 'finance' },
-  { id: 'vcHub', label: 'Venture Capital Hub', facadeStyle: 'modernGlass', color: 0x2a3a6b, width: 3, height: 3, zone: 'finance' },
   { id: 'bank', label: 'Bank & Realty Office', facadeStyle: 'modernGlass', color: 0x1f3a5f, width: 4, height: 3, zone: 'finance' },
   { id: 'realEstateAgency', label: 'Real Estate Agency', facadeStyle: 'modernGlass', color: 0x3a5f4a, width: 4, height: 3, zone: 'finance' },
-  { id: 'parliament', label: 'Parliament Hall', facadeStyle: 'modernGlass', color: 0x3a3a6a, width: 4, height: 3, zone: 'law' },
   // Consolidation (Phase 2): FBI HQ (Hoover) + IRS HQ (Caplin) folded into one
   // federal hub (see GovernmentBuildingModal.jsx's 3 tabs, the 3rd of which
   // also gives the existing status-bar-only GovernmentModal a physical
-  // building). modernGlass (not traditionalCottage/modernBrick like its two
-  // predecessors) to read as the civic building it now is, matching
-  // Parliament Hall's look.
+  // building).
   { id: 'governmentBuilding', label: 'Federal Government Building', facadeStyle: 'modernGlass', color: 0x2a3a5a, width: 6, height: 4, zone: 'law' },
 
-  // --- Cultural/amenity buildings (formerly "Kyoto") ---
-  { id: 'teaHouse', label: 'Cherry Coke Tea House', facadeStyle: 'traditionalCottage', color: 0x8a4a2a, width: 3, height: 2, zone: 'industry' },
-  { id: 'machiyaEstate', label: 'Machiya Executive Estate', facadeStyle: 'traditionalCottage', color: 0x6a5a3a, width: 4, height: 3, zone: 'industry' },
-  { id: 'zenGarden', label: 'Zen Rock Garden', facadeStyle: 'traditionalCottage', color: 0x8a8a6a, width: 3, height: 2, zone: 'industry' },
-  { id: 'silkMarket', label: 'Silk & Kimono Market', facadeStyle: 'traditionalCottage', color: 0x8a2a4a, width: 3, height: 2, zone: 'industry' },
-  { id: 'sakeBrewery', label: 'Fushimi Sake Brewery', facadeStyle: 'traditionalCottage', color: 0x6a4a2a, width: 3, height: 2, zone: 'industry' },
-  { id: 'artisanShop', label: 'Kiyomizu Artisan Shop', facadeStyle: 'traditionalCottage', color: 0x4a6a5a, width: 3, height: 2, zone: 'industry' },
-  { id: 'hotel', label: 'Ryokan Mountain Inn', facadeStyle: 'traditionalCottage', color: 0x5a4a3a, width: 4, height: 3, zone: 'law' },
-  { id: 'park', label: 'Serenity Park', facadeStyle: 'traditionalCottage', color: 0x2a5f2a, width: 4, height: 2, zone: 'law' },
-  // Distinct indigo/violet exterior (every other Kyoto building above is a
-  // muted brown/grey/green earth-tone) so this reads as the grand chapel
-  // it now has an interior for (see buildChapelInteriorZone in this file
-  // and src/game/interiors/tmxWallInterior.js) rather than blending into
-  // the district as just another plain amenity building - reported gap:
-  // the interior existed but nothing on the map signaled it. Label now
-  // says "Chapel" outright while keeping "Whispering Temple" as the
-  // flavor name TempleModal.jsx already displays.
+  // Distinct indigo/violet exterior so this reads as the grand chapel it has
+  // an interior for (see buildChapelInteriorZone in this file and
+  // src/game/interiors/tmxWallInterior.js) rather than blending into the
+  // district as just another plain amenity building. Label now says
+  // "Chapel" outright while keeping "Whispering Temple" as the flavor name
+  // TempleModal.jsx already displays.
   // 16x14 matches the authored chapel art exactly (House/Wings/Dragon layers,
   // cols 6-21 x rows 2-15 of Exterior.tmx) so the facade fills its footprint
   // with no overflow onto neighbours - see drawChapelExteriorFacade.
@@ -156,31 +153,27 @@ const FINANCE_BUILDING_DEFS = [
   // reservation (its own width) in the middle hub band; see layoutFinanceMap.
   { id: 'temple', label: 'Whispering Temple Chapel', facadeStyle: 'traditionalCottage', color: 0x3a2a6a, width: 30, height: 22, zone: 'chapel' },
 
-  // --- Entertainment/crime buildings (formerly "Osaka") ---
   { id: 'casino', label: 'Neon Dragon Casino', facadeStyle: 'modernBrick', color: 0x8a1f6a, width: 4, height: 3, zone: 'finance' },
-  { id: 'dotonboriArcade', label: 'Dotonbori Merchant Arcade', facadeStyle: 'modernBrick', color: 0x8a6a2a, width: 4, height: 2, zone: 'industry' },
-  { id: 'fishMarket', label: 'Kuromon Fish Market', facadeStyle: 'modernBrick', color: 0x2a5a6a, width: 3, height: 2, zone: 'industry' },
-  { id: 'takoyakiStand', label: 'Takoyaki Street Food', facadeStyle: 'modernBrick', color: 0x8a4a1f, width: 2, height: 2, zone: 'industry' },
   // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
   // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
-  // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 3 new hubs footprint-
-  // wise since it absorbs 4 former buildings, not 2-5 tenants sharing offices
-  // - reads as a sprawling underworld block rather than a single storefront.
+  // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 4 multi-tenant hubs
+  // footprint-wise since it absorbs 4 former buildings, not 2-5 tenants
+  // sharing offices - reads as a sprawling underworld block rather than a
+  // single storefront.
   { id: 'underworld', label: 'The Underworld', facadeStyle: 'modernBrick', color: 0x3a1f3a, width: 6, height: 4, zone: 'law' },
-  { id: 'dockVaults', label: 'Dock Underground Vaults', facadeStyle: 'modernBrick', color: 0x2a2a3a, width: 4, height: 2, zone: 'law' },
 
-  // --- Industrial/civic buildings (formerly "Sapporo") ---
-  { id: 'fordRougeComplex', label: 'Ford River Rouge Complex', facadeStyle: 'modernGlass', color: 0x3a4a5a, width: 4, height: 3, npcId: 'ford', zone: 'industry' },
-  { id: 'carnegieSteelMill', label: 'Homestead Steel Mill', facadeStyle: 'modernGlass', color: 0x5a3a2a, width: 4, height: 3, npcId: 'carnegie', zone: 'industry' },
-  { id: 'standardOilRefinery', label: 'Standard Oil Refinery', facadeStyle: 'modernGlass', color: 0x2a3a3a, width: 4, height: 3, npcId: 'rockefeller', zone: 'industry' },
-  { id: 'pentagonDodHQ', label: 'Pentagon Procurement HQ', facadeStyle: 'modernGlass', color: 0x2a4a6a, width: 4, height: 3, npcId: 'mcnamara', zone: 'industry' },
-  { id: 'epaHQ', label: 'EPA Regulation Agency', facadeStyle: 'modernGlass', color: 0x2a5a3a, width: 4, height: 3, npcId: 'ruckelshaus', zone: 'industry' },
-  { id: 'sapporoBrewery', label: 'Alpine Snow Brewery', facadeStyle: 'modernGlass', color: 0x8a6a2a, width: 3, height: 2, zone: 'industry' },
-  { id: 'alpineLodge', label: 'Mount Yotei Alpine Lodge', facadeStyle: 'modernGlass', color: 0x6a4a3a, width: 4, height: 3, zone: 'industry' },
+  // Consolidation (Phase 4): Ford River Rouge Complex + Homestead Steel Mill
+  // + Standard Oil Refinery + Pentagon Procurement HQ + EPA Regulation
+  // Agency - 5 former single-tenant industrialist/regulator HQs - folded
+  // into one Industrial Zone hub, the 10th of the spec's 14 main-building
+  // categories (see IndustrialZoneModal.jsx's 5 tabs). Sized like
+  // businessCenter (7x4 for 5 tenants) for the same "reads as several
+  // tenants share this building" reason.
+  { id: 'industrialZone', label: 'Industrial Zone', facadeStyle: 'modernGlass', color: 0x3a4a4a, width: 7, height: 4, zone: 'industry' },
   { id: 'trainStation', label: '🚆 Central Train Station', facadeStyle: 'modernGlass', color: 0x4a6fa5, width: 4, height: 2, zone: 'industry' },
 
   // --- Character homes & hideouts (generated, see characterHomeBuildings.js) ---
-  // Appended after the 31 hub defs above (not interleaved) - layoutFinanceMap
+  // Appended after the 10 hub defs above (not interleaved) - layoutFinanceMap
   // below never packs this combined array as one flat pool any more (that
   // was the pre-Phase-3 scheme); it re-filters FINANCE_BUILDING_DEFS back
   // into hub defs (by `zone`) and home defs (by `kind`) itself. Kept as one
@@ -196,7 +189,7 @@ const FINANCE_BUILDING_DEFS = [
   // row (reported: a log-cabin home next to a stone manor next to a pico8
   // warehouse, no grouping at all).
   ...CHARACTER_HOME_BUILDING_DEFS
-    .map((d) => ({ ...d, gap: HOME_GAP }))
+    .slice()
     .sort((a, b) => residentialStyleKey(a.npcId, a.kind).localeCompare(residentialStyleKey(b.npcId, b.kind))),
 ]
 
@@ -250,7 +243,9 @@ function firstColumnClearOfStreets(col, width, streetCols, colEnd) {
 //
 //   1. Top home band    - residential clusters (stone/woodHouse/hideout style
 //                          homes only), packed same as before.
-//   2. Middle hub band   - all 31 hand-authored "hub" buildings, arranged in
+//   2. Middle hub band   - all 10 hand-authored "hub" buildings (Phase 4
+//                          trimmed this from 31 - see the header comment
+//                          above FINANCE_BUILDING_DEFS), arranged in
 //                          4 column-zones left to right (law, finance,
 //                          chapel, industry - see the `zone` tags on
 //                          FINANCE_BUILDING_DEFS above), separated by
@@ -336,6 +331,87 @@ function packDefs(defs, colStart, colEnd, rowStart, reservedCols) {
   // pre-Phase-3 single-pass packer's own `mapRows` derivation relied on.
   const contentBottomRow = defs.length ? row + rowMaxHeight - 1 : rowStart - 1
   return { buildings: packed, contentBottomRow }
+}
+
+// Map overhaul Phase 4: packs a home band's defs (every one 2x2 tiles - see
+// characterHomeBuildings.js's buildDef, no size variation) into tight,
+// zero-gap cluster BLOCKS, one block per residentialStyleKey sub-group,
+// instead of packDefs' flowing row-wrap with a uniform gap between every
+// single home. Two passes:
+//   1. Group `homeDefs` by style key (3 sub-groups per band - see
+//      TOP_HOME_STYLES/BOTTOM_HOME_STYLES). Each group of N homes becomes a
+//      cols x rows square-ish grid (cols = ceil(sqrt(N)), rows =
+//      ceil(N/cols)), homes placed at (col*2, row*2) tile offsets within the
+//      cluster - zero gap, so adjacent homes touch edge to edge. `homeDefs`
+//      arrives pre-sorted by style key (see FINANCE_BUILDING_DEFS's own
+//      sort), so groups come out in a stable, deterministic order.
+//   2. Pack the (up to 3) resulting cluster rectangles left to right across
+//      [colStart, colEnd] with CLUSTER_GAP between adjacent clusters - same
+//      row-wrap-on-overflow-or-street-hit shape packDefs uses, just against
+//      a whole cluster's footprint width instead of one building's width, so
+//      the wrap-to-a-new-row case (defensively handled, not assumed
+//      unreachable) still respects `reservedCols`.
+function packHomeBand(homeDefs, colStart, colEnd, rowStart, reservedCols) {
+  const groups = new Map()
+  for (const d of homeDefs) {
+    const key = residentialStyleKey(d.npcId, d.kind)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(d)
+  }
+
+  const clusters = []
+  for (const [key, defs] of groups) {
+    const n = defs.length
+    const cols = Math.ceil(Math.sqrt(n))
+    const rows = Math.ceil(n / cols)
+    const placedDefs = defs.map((def, i) => ({
+      def,
+      dc: (i % cols) * 2,
+      dr: Math.floor(i / cols) * 2,
+    }))
+    clusters.push({ key, count: n, cols, rows, width: cols * 2, height: rows * 2, defs: placedDefs })
+  }
+
+  const packed = []
+  let col = colStart
+  let row = rowStart
+  let rowMaxHeight = 0
+  for (const cluster of clusters) {
+    if (col + cluster.width - 1 > colEnd) {
+      col = colStart
+      row += rowMaxHeight + CLUSTER_GAP
+      rowMaxHeight = 0
+    }
+    let clear = firstColumnClearOfStreets(col, cluster.width, reservedCols, colEnd)
+    if (clear === null) {
+      col = colStart
+      row += rowMaxHeight + CLUSTER_GAP
+      rowMaxHeight = 0
+      clear = firstColumnClearOfStreets(col, cluster.width, reservedCols, colEnd)
+    }
+    if (clear === null) {
+      // Unreachable as long as [colStart, colEnd] is wider than the widest
+      // cluster - see layoutFinanceMap's band-width math - but fail loudly
+      // rather than silently write null tile coords, same convention as
+      // packDefs above.
+      throw new Error(
+        `packHomeBand: cluster "${cluster.key}" (${cluster.width}x${cluster.height}, ${cluster.count} homes) cannot fit ` +
+          `within columns ${colStart}-${colEnd} clear of the reserved streets.`
+      )
+    }
+    col = clear
+    const c0 = col
+    const r0 = row
+    for (const { def, dc, dr } of cluster.defs) {
+      const bc0 = c0 + dc
+      const br0 = r0 + dr
+      packed.push({ ...def, tiles: { c0: bc0, r0: br0, c1: bc0 + def.width - 1, r1: br0 + def.height - 1 } })
+    }
+    col += cluster.width + CLUSTER_GAP
+    rowMaxHeight = Math.max(rowMaxHeight, cluster.height)
+  }
+  const contentBottomRow = clusters.length ? row + rowMaxHeight - 1 : rowStart - 1
+  return { buildings: packed, contentBottomRow, clusters }
 }
 
 // Inserts a full-width, STREET_WIDTH-tall horizontal street centered in the
@@ -449,7 +525,7 @@ function layoutFinanceMap(mapCols) {
 
   // ---- Band 1: top home band ----
   const topBandTop = MAP_TOP_MARGIN
-  const topBand = packDefs(topHomeDefs, bandColStart, bandColEnd, topBandTop, reservedCols)
+  const topBand = packHomeBand(topHomeDefs, bandColStart, bandColEnd, topBandTop, reservedCols)
 
   const gap1 = insertStreetGap(topBand.contentBottomRow)
 
@@ -476,7 +552,7 @@ function layoutFinanceMap(mapCols) {
   // corner empty.
   const bottomBandTop = gap2.nextBandTop
   const bottomBandColEnd = bandColEnd - FARM_ZONE_W - FARM_ZONE_MARGIN
-  const bottomBand = packDefs(bottomHomeDefs, bandColStart, bottomBandColEnd, bottomBandTop, reservedCols)
+  const bottomBand = packHomeBand(bottomHomeDefs, bandColStart, bottomBandColEnd, bottomBandTop, reservedCols)
 
   // Farm zone sits at the true bottom-right of the map: bottom-aligned with
   // whichever is taller, the bottom band's own home content or the farm
@@ -503,7 +579,7 @@ function layoutFinanceMap(mapCols) {
   return { buildings, mapRows, hStreets: [...gap1.streetRows, ...gap2.streetRows], vStreets: vStreetCols, farmZone }
 }
 
-const MAP_COLS = 118
+const MAP_COLS = 86
 const {
   buildings: FINANCE_BUILDINGS,
   mapRows: MAP_ROWS,
@@ -513,7 +589,7 @@ const {
 } = layoutFinanceMap(MAP_COLS)
 // Exported purely so the layout can be asserted against from outside (no
 // building overlaps, every door reachable) without a Phaser canvas - the
-// packing is generated from a 129-entry def list now, far past the point
+// packing is generated from a 98-entry def list now, far past the point
 // where eyeballing it is meaningful. Nothing in the game reads these.
 export {
   FINANCE_BUILDINGS,
@@ -547,18 +623,19 @@ function financeTileType(r, c) {
 // ---------------- Building interiors ----------------
 // A single 12x9 room shape (INTERIOR_COLS/ROWS, matching DominoWorldScene's
 // own room convention) is reused for every building's interior; only the
-// palette + desk label differ per INTERIOR_TEMPLATES entry. Crypto HQ gets
-// a template all to itself; the 5 tycoon HQs share "tycoonOffice"; 6
-// government/finance offices share "officeA"; 6 corporate/industrial HQs
-// share "officeB"; the remaining 21 district-amenity buildings share
-// "amenity" - all 39 hand-listed by id in BUILDING_INTERIOR_TEMPLATE below.
-// The 88 character home/hideout buildings (characterHomeBuildings.js) would
-// be silly to list by hand one at a time, so they're deliberately left out
-// of that map entirely - interiorTemplateFor() falls back to "residence" or
-// "hideout" by the building's `kind` for anything not found there. Stock
-// Exchange and Casino are the two exceptions to all of this - they keep
-// bespoke rooms (buildStockExchangeInteriorZone / buildCasinoInteriorZone)
-// instead of a template.
+// palette + desk label differ per INTERIOR_TEMPLATES entry. Map overhaul
+// Phase 4 trimmed the hub roster from 31 hand-authored buildings down to 10
+// (see the header comment above FINANCE_BUILDING_DEFS) - bank/realEstateAgency
+// are the only two still routed through buildGenericInteriorZone at all
+// (both share "officeA"); every other surviving hub building
+// (stockExchange/casino/trainStation/temple/underworld/businessCenter/
+// governmentBuilding/industrialZone) is special-cased in triggerInteraction()
+// to open a bespoke room or a React modal directly instead. The 88 character
+// home/hideout buildings (characterHomeBuildings.js) would be silly to list
+// by hand one at a time, so they're deliberately left out of
+// BUILDING_INTERIOR_TEMPLATE entirely - interiorTemplateFor() falls back to
+// "residence" or "hideout" by the building's `kind` for anything not found
+// there.
 const INTERIOR_COLS = 12
 const INTERIOR_ROWS = 9
 const INTERIOR_SPAWN = { col: 6, row: 5 }
@@ -578,41 +655,22 @@ const INTERIOR_TEMPLATES = {
   hideout: { floorA: 0x1f1418, floorB: 0x160e12, deskColor: 0x6a1f3a, deskLabel: 'Back Room' },
 }
 
-// businessCenter/underworld/governmentBuilding (the 3 Phase-2 hub buildings)
-// deliberately have no entry here - like stockExchange/casino/trainStation,
-// triggerInteraction() special-cases their `zone.id` and opens a React modal
+// businessCenter/underworld/governmentBuilding/industrialZone (the 4
+// Phase-2/4 tabbed-modal hub buildings) deliberately have no entry here -
+// like stockExchange/casino/trainStation/temple, triggerInteraction()
+// special-cases their `zone.id` and opens a React modal or bespoke room
 // directly instead of ever routing through buildGenericInteriorZone, so they
-// never need an interior template.
+// never need an interior template. trainStation/temple keep a stale-but-dead
+// entry below (pre-existing, unrelated to this pass - interiorTemplateFor()
+// is simply never called with their id).
 const BUILDING_INTERIOR_TEMPLATE = {
   bank: 'officeA',
   realEstateAgency: 'officeA',
-  corporateOffice: 'officeB',
-  vcHub: 'officeB',
-  pentagonDodHQ: 'officeA',
-  epaHQ: 'officeA',
-  fordRougeComplex: 'officeB',
-  carnegieSteelMill: 'officeB',
-  standardOilRefinery: 'officeB',
-  teaHouse: 'amenity',
-  machiyaEstate: 'amenity',
-  zenGarden: 'amenity',
-  silkMarket: 'amenity',
-  sakeBrewery: 'amenity',
-  artisanShop: 'amenity',
-  dotonboriArcade: 'amenity',
-  fishMarket: 'amenity',
-  takoyakiStand: 'amenity',
-  dockVaults: 'amenity',
-  sapporoBrewery: 'amenity',
-  alpineLodge: 'amenity',
   trainStation: 'amenity',
-  hotel: 'amenity',
-  parliament: 'amenity',
-  park: 'amenity',
   temple: 'amenity',
 }
 
-// Explicit id lookup first (the 39 hand-authored entries above); falls back
+// Explicit id lookup first (the 4 hand-authored entries above); falls back
 // to the building's `kind` for the 88 generated home/hideout buildings,
 // which were deliberately never added to BUILDING_INTERIOR_TEMPLATE one by
 // one (see the comment on INTERIOR_TEMPLATES above). "amenity" is the last
@@ -750,7 +808,7 @@ function scatterTrees(scene, layout, buildings, count, zoneObjects) {
 // Village cottage prefab (buildingDoorAnimSpec returns non-null exclusively
 // for that family - see tileGen.js) get an overlay sprite here. That's
 // roughly a quarter of the "everyone else" wealth tier's homes (see
-// brickOrPico8HomeKit), not all 129 buildings - deliberately scoped so the
+// brickOrPico8HomeKit), not all 98 buildings - deliberately scoped so the
 // animation reads as "this recognizable house style has a working door"
 // rather than a uniform tic applied to every building indiscriminately
 // (district civic buildings, hideouts, and the other two home facade
@@ -767,7 +825,7 @@ function drawBuildings(scene, buildings, zoneObjects) {
     // (homes/hideouts, i.e. anything with a truthy `kind`) - with 88 of them
     // now clustered into dense same-style blocks, a label over every single
     // one was visual noise nobody could read anyway. Hub/civic buildings
-    // (the 31 hand-authored defs, none of which set `kind`) keep theirs.
+    // (the 10 hand-authored defs, none of which set `kind`) keep theirs.
     if (!b.kind) {
       const label = scene.add
         .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
@@ -1756,7 +1814,7 @@ export default class OverworldScene extends Phaser.Scene {
       const presence = this.presenceCache.get(roamer.agent.id)
       roamer.currentAction = presence?.action || ''
       // worldPresenceEngine.js guarantees buildingId is always a real
-      // building id (home_<id> or one of the 41 hand-authored ones), so
+      // building id (home_<id> or one of the 10 hand-authored ones), so
       // doorA/doorB should always resolve - the final else branch is
       // defensive only, for a roster id that somehow has no disposition.
       const doorA = presence ? this.buildingDoorPixel(presence.currentBuildingId, roamer.agent.id) : null
@@ -3081,11 +3139,12 @@ export default class OverworldScene extends Phaser.Scene {
         this.bridge.emit('interact', { type: 'townTravel' })
         return
       }
-      // The 3 Phase-2 consolidated hubs (Underworld/Business Center/
-      // Government Building) are multi-tenant tabbed React modals, not a
-      // walk-in interior - same pattern as trainStation above: open the
-      // modal straight from the overworld footprint, no interior zone load.
-      if (zone.id === 'underworld' || zone.id === 'businessCenter' || zone.id === 'governmentBuilding') {
+      // The 4 Phase-2/4 consolidated hubs (Underworld/Business Center/
+      // Government Building/Industrial Zone) are multi-tenant tabbed React
+      // modals, not a walk-in interior - same pattern as trainStation above:
+      // open the modal straight from the overworld footprint, no interior
+      // zone load.
+      if (zone.id === 'underworld' || zone.id === 'businessCenter' || zone.id === 'governmentBuilding' || zone.id === 'industrialZone') {
         this.pauseForModal()
         this.bridge.emit('interact', { type: 'building', id: zone.id })
         return
@@ -3113,10 +3172,6 @@ export default class OverworldScene extends Phaser.Scene {
       }
       if (zone.id === 'temple') {
         this.transitionToZone('chapelInterior')
-        return
-      }
-      if (zone.id === 'teaHouse') {
-        this.loadZone('teaHouseInterior')
         return
       }
       this.currentInteriorBuildingId = zone.id

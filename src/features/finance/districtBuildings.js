@@ -11,21 +11,9 @@ export const DISTRICT_BUILDINGS_CONFIG = {
   // minigames (see src/features/casino and src/features/arcade) and now get
   // their own dedicated modals wired directly in WorldScreen.jsx, so their
   // entries were removed from here rather than left as dead duplicates.
-  hotel: {
-    title: 'Capital Suites Hotel',
-    district: 'Commercial District',
-    borderClass: 'border-amber-300',
-    textClass: 'text-amber-200',
-    flavor: 'Marble lobby, silent staff, rooms that cost more per night than most people make in a week.',
-    actions: [
-      {
-        label: 'Book the Penthouse ($150)',
-        cost: 150,
-        reputationDelta: 3,
-        resultText: 'You wake up refreshed, and you look the part of old money.',
-      },
-    ],
-  },
+  // Hotel's entry (Capital Suites Hotel) was removed in Phase 4 - the
+  // building itself isn't one of the 14 spec'd main-building categories and
+  // was deleted from FINANCE_BUILDING_DEFS along with 16 other buildings.
 
   // --- Underground District ---
   crimeAlley: {
@@ -60,36 +48,9 @@ export const DISTRICT_BUILDINGS_CONFIG = {
   },
 
   // --- Government & Cultural District ---
-  parliament: {
-    title: 'Parliament Hall',
-    district: 'Government & Cultural District',
-    borderClass: 'border-indigo-400',
-    textClass: 'text-indigo-300',
-    flavor: 'Marble columns and cameras. Every favor here is a transaction, just dressed up nicer.',
-    actions: [
-      {
-        label: 'Make a Campaign Donation ($2,000)',
-        cost: 2000,
-        reputationDelta: 8,
-        resultText: 'Your name gets mentioned favorably on the floor.',
-      },
-    ],
-  },
-  park: {
-    title: 'Serenity Park',
-    district: 'Government & Cultural District',
-    borderClass: 'border-green-400',
-    textClass: 'text-green-300',
-    flavor: 'A rare patch of real grass between the towers. Even predators need a place to breathe.',
-    actions: [
-      {
-        label: 'Fund Park Maintenance ($250)',
-        cost: 250,
-        reputationDelta: 1,
-        resultText: 'The city feels a little kinder from here.',
-      },
-    ],
-  },
+  // Parliament Hall and Serenity Park's entries were removed in Phase 4 for
+  // the same reason as Hotel above - neither building is one of the 14
+  // spec'd main-building categories.
   temple: {
     title: 'Whispering Temple',
     district: 'Government & Cultural District',

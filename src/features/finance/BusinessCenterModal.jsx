@@ -7,9 +7,9 @@ import InteractiveLocationModal from '../world/InteractiveLocationModal'
 // Apple Glass HQ (Jobs) used to be 5 separate standalone buildings. They're
 // now one physical building ('businessCenter' in OverworldScene.js's
 // FINANCE_BUILDING_DEFS) with a tab per former tenant - same TABS pattern as
-// CasinoModal.jsx. Note: fordRougeComplex (Ford) is a SIXTH former single-
-// tenant HQ but is deliberately NOT part of this hub - it's earmarked for a
-// future Industrial Zone and is left completely untouched.
+// CasinoModal.jsx. Ford's own former single-tenant HQ (fordRougeComplex) was
+// deliberately left out of this hub back then - it's since landed in its own
+// Industrial Zone hub instead (Phase 4 - see IndustrialZoneModal.jsx).
 const TABS = [
   { id: 'buffett', label: 'Buffett' },
   { id: 'vanderbilt', label: 'Vanderbilt' },

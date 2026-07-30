@@ -12,7 +12,6 @@ import { generateHunterPolice, generateMonster } from '../features/hunter/monste
 import { hasRank } from '../features/hunter/skillEffects'
 import StockExchangeModal from '../features/finance/StockExchangeModal'
 import BankModal from '../features/finance/BankModal'
-import CorporateModal from '../features/finance/CorporateModal'
 import NamedNpcModal from '../features/finance/NamedNpcModal'
 import AmbientNpcModal from '../features/finance/AmbientNpcModal'
 import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
@@ -20,6 +19,7 @@ import CasinoModal from '../features/casino/CasinoModal'
 import UnderworldModal from '../features/finance/UnderworldModal'
 import BusinessCenterModal from '../features/finance/BusinessCenterModal'
 import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal'
+import IndustrialZoneModal from '../features/finance/IndustrialZoneModal'
 import TempleModal from '../features/temple/TempleModal'
 import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
 import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
@@ -81,12 +81,16 @@ const DISTRICT_BUILDING_IDS = Object.keys(DISTRICT_BUILDINGS_CONFIG)
 // gone (Phase 2 consolidation folded their InteractiveLocationModal content
 // straight into a tab of BusinessCenterModal/UnderworldModal instead, each
 // rendering InteractiveLocationModal with `embedded`), so their intercept
-// entries are removed. teaHouse and fordRougeComplex are untouched - neither
-// building is part of this consolidation.
-const BUILDING_TO_INTERACTIVE_LOCATION = {
-  teaHouse: 'mcdonalds_diner',
-  fordRougeComplex: 'ford_factory',
-}
+// entries are removed. fordRougeComplex (Ford) went the same way in Phase 4
+// (folded into IndustrialZoneModal's Ford tab - see that file). teaHouse's
+// entry is also removed: the building itself is gone (Phase 4's 14-category
+// trim), and its mcdonalds_diner content was never actually reached through
+// this map anyway - it's opened from a toolbar button elsewhere in this file
+// (see the `onOpenLocations` prop below), which is untouched. Empty for now,
+// kept (rather than deleted outright) as a working extension point for any
+// future building that wants to reuse an existing InteractiveLocationModal
+// entry non-embedded.
+const BUILDING_TO_INTERACTIVE_LOCATION = {}
 
 function WorldClearedModal({ blockName, allCleared, onContinue }) {
   return (
@@ -504,21 +508,17 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id === 'bank' && (
         <BankModal onClose={closeModal} />
       )}
-      {activeModal?.type === 'building' && activeModal.id === 'corporateOffice' && (
-        <CorporateModal onClose={closeModal} />
-      )}
       {/* Crypto HQ is gone as a standalone building - it's now the Crypto tab
           inside StockExchangeModal, so there's no top-level 'cryptoExchange'
-          case left to render here. */}
-      {/* Real Estate Agency and the VC Hub are new-district front doors onto
-          the same existing Bank/Corporate systems, rather than duplicate
-          mechanics - Commercial District's realty wing and Financial
-          District's startup-investing wing respectively. */}
+          case left to render here. Corporate Holdings and the VC Hub (former
+          CorporateModal front doors) are gone too - Phase 4's 14-category
+          trim deleted both outright, neither maps to a spec'd main-building
+          category. */}
+      {/* Real Estate Agency is a new-district front door onto the same
+          existing Bank system, rather than duplicate mechanics - Commercial
+          District's realty wing. */}
       {activeModal?.type === 'building' && activeModal.id === 'realEstateAgency' && (
         <BankModal onClose={closeModal} />
-      )}
-      {activeModal?.type === 'building' && activeModal.id === 'vcHub' && (
-        <CorporateModal onClose={closeModal} />
       )}
       {/* Casino got its own bespoke Phaser interior + a tabbed modal (real
           blackjack/poker/slots/NPC-challenge minigames), and now also hosts
@@ -532,7 +532,7 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id === 'temple' && (
         <TempleModal onClose={closeModal} />
       )}
-      {/* The 3 Phase-2 consolidated hubs - each is a tabbed modal wrapping
+      {/* The 4 Phase-2/4 consolidated hubs - each is a tabbed modal wrapping
           several formerly-standalone buildings' content via the `embedded`
           prop pattern (see each modal file for its TABS array). None of
           these building ids exist in DISTRICT_BUILDING_IDS, so they can't
@@ -545,6 +545,9 @@ export default function WorldScreen() {
       )}
       {activeModal?.type === 'building' && activeModal.id === 'governmentBuilding' && (
         <GovernmentBuildingModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'building' && activeModal.id === 'industrialZone' && (
+        <IndustrialZoneModal onClose={closeModal} />
       )}
       {activeModal?.type === 'building' && activeModal.id !== 'temple' && DISTRICT_BUILDING_IDS.includes(activeModal.id) && (
         <DistrictBuildingModal buildingId={activeModal.id} onClose={closeModal} />

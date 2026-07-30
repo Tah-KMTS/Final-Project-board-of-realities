@@ -28,24 +28,32 @@ export const DISPOSITION_TIERS = ['recluse', 'homebody', 'regular', 'socialite',
 // howardMarksHQ/appleHQ -> businessCenter; cryptoExchange -> folded into
 // stockExchange (a Crypto tab, not its own building any more); irsHQ/fbiHQ
 // -> governmentBuilding; arcade -> folded into casino; crimeAlley/
-// blackMarket/callCenterOps/speakeasyHotel -> underworld. Mirror any future
-// change to FINANCE_BUILDING_DEFS here too (see house-rule comment above).
+// blackMarket/callCenterOps/speakeasyHotel -> underworld. Map overhaul
+// Phase 4 (14-main-building-category trim): fordRougeComplex/
+// carnegieSteelMill/standardOilRefinery/pentagonDodHQ/epaHQ -> industrialZone
+// (the 5 industrialists/regulators share one hub the same way the Phase 2
+// consolidations work - see IndustrialZoneModal.jsx); parliament/hotel/park/
+// dockVaults/teaHouse/machiyaEstate/zenGarden/silkMarket/sakeBrewery/
+// artisanShop/dotonboriArcade/fishMarket/takoyakiStand/sapporoBrewery/
+// alpineLodge/corporateOffice/vcHub are deleted outright with no replacement
+// - none of those 17 map to one of the spec's 14 main-building categories.
+// Mirror any future change to FINANCE_BUILDING_DEFS here too (see house-rule
+// comment above).
 const REAL_BUILDING_IDS = [
   'stockExchange', 'businessCenter', 'governmentBuilding',
-  'corporateOffice', 'vcHub', 'bank', 'realEstateAgency', 'parliament',
-  'teaHouse', 'machiyaEstate', 'zenGarden', 'silkMarket',
-  'sakeBrewery', 'artisanShop', 'hotel', 'park', 'temple',
-  'casino', 'underworld', 'dotonboriArcade',
-  'fishMarket', 'takoyakiStand', 'dockVaults',
-  'fordRougeComplex', 'carnegieSteelMill', 'standardOilRefinery', 'pentagonDodHQ',
-  'epaHQ', 'sapporoBrewery', 'alpineLodge', 'trainStation',
+  'bank', 'realEstateAgency', 'temple',
+  'casino', 'underworld', 'industrialZone', 'trainStation',
 ]
 
 // Crime members plausibly frequent underworld-facing venues rather than the
 // full public building list. crimeAlley/blackMarket/speakeasyHotel are all
 // the same physical 'underworld' building now (Phase 2 consolidation) - one
-// entry, not three duplicates of the same id.
-const CRIME_FALLBACK_POOL = ['underworld', 'dockVaults', 'dotonboriArcade']
+// entry, not three duplicates of the same id. dockVaults/dotonboriArcade
+// (Phase 4: both deleted, no replacement) used to round this pool out to 3
+// underworld-adjacent venues; underworld alone is still correct here since
+// it already absorbed every crime-flavored building this pool could have
+// pointed to.
+const CRIME_FALLBACK_POOL = ['underworld']
 
 const FINANCE_NPC_BY_ID = new Map(FINANCE_NPCS.map((n) => [n.id, n]))
 
@@ -165,44 +173,54 @@ function deriveSociabilityAndAffinity(tier, character, fidelity, syndicateSignal
 // (businessCenter/underworld/governmentBuilding), keeping each character's
 // remaining 2nd/3rd fallback slot unchanged unless that slot was ALSO a
 // deleted id, in which case it's replaced with a sensible still-real
-// building rather than left dangling.
+// building rather than left dangling. Map overhaul Phase 4 repeats the same
+// treatment for the 5 industrialists/regulators (repointed to the new
+// industrialZone hub - see IndustrialZoneModal.jsx) and for every entry that
+// referenced one of the 17 buildings deleted outright in this pass (no
+// absorbing hub exists for those, so each slot is swapped for a still-real
+// building in the same rough spirit as what was lost - e.g. a cultural/
+// leisure slot becomes another cultural/leisure-ish still-real building
+// where one exists, otherwise a plausible civic/financial fallback);
+// duplicate entries created by two old ids collapsing onto the same new one
+// (e.g. two industrialist buildings both becoming 'industrialZone') are
+// deduped down to a single slot rather than repeated.
 const WORK_BUILDING_OVERRIDES = {
   jobs: ['businessCenter', 'stockExchange'],
   musk: ['businessCenter', 'stockExchange'],
-  huang: ['stockExchange', 'businessCenter', 'parliament'],
-  buffett: ['businessCenter', 'machiyaEstate', 'teaHouse'],
-  munger: ['temple', 'machiyaEstate', 'teaHouse'],
-  graham: ['zenGarden', 'hotel', 'teaHouse'],
-  templeton: ['park', 'machiyaEstate', 'governmentBuilding'],
-  capone: ['underworld', 'dotonboriArcade', 'dockVaults'],
-  luciano: ['underworld', 'dockVaults', 'dotonboriArcade'],
-  soros: ['underworld', 'fishMarket'],
-  livermore: ['underworld', 'dockVaults'],
-  ford: ['fordRougeComplex', 'carnegieSteelMill', 'alpineLodge'],
-  carnegie: ['carnegieSteelMill', 'standardOilRefinery', 'alpineLodge'],
-  rockefeller: ['standardOilRefinery', 'fordRougeComplex', 'trainStation'],
-  vanderbilt: ['businessCenter', 'trainStation', 'sapporoBrewery'],
-  gates: ['stockExchange', 'parliament', 'businessCenter'],
+  huang: ['stockExchange', 'businessCenter', 'governmentBuilding'],
+  buffett: ['businessCenter', 'bank', 'realEstateAgency'],
+  munger: ['temple', 'bank', 'businessCenter'],
+  graham: ['temple', 'realEstateAgency', 'businessCenter'],
+  templeton: ['temple', 'bank', 'governmentBuilding'],
+  capone: ['underworld', 'casino', 'trainStation'],
+  luciano: ['underworld', 'trainStation', 'casino'],
+  soros: ['underworld', 'bank'],
+  livermore: ['underworld', 'stockExchange'],
+  ford: ['industrialZone', 'trainStation'],
+  carnegie: ['industrialZone', 'bank'],
+  rockefeller: ['industrialZone', 'trainStation'],
+  vanderbilt: ['businessCenter', 'trainStation', 'industrialZone'],
+  gates: ['stockExchange', 'governmentBuilding', 'businessCenter'],
   bezos: ['stockExchange', 'businessCenter', 'bank'],
   son: ['stockExchange', 'businessCenter'],
-  icahn: ['stockExchange', 'parliament', 'corporateOffice'],
-  dalio: ['machiyaEstate', 'park', 'governmentBuilding'],
+  icahn: ['stockExchange', 'governmentBuilding', 'businessCenter'],
+  dalio: ['bank', 'temple', 'governmentBuilding'],
   simons: ['stockExchange', 'bank'],
-  lynch: ['teaHouse', 'silkMarket', 'machiyaEstate'],
-  walker: ['fishMarket', 'dotonboriArcade', 'underworld'],
-  jpmorgan: ['stockExchange', 'bank', 'corporateOffice'],
-  escobar: ['dockVaults', 'underworld', 'dotonboriArcade'],
+  lynch: ['businessCenter', 'realEstateAgency', 'bank'],
+  walker: ['bank', 'casino', 'underworld'],
+  jpmorgan: ['stockExchange', 'bank', 'businessCenter'],
+  escobar: ['trainStation', 'underworld', 'casino'],
   howardmarks: ['businessCenter', 'stockExchange'],
-  caplin: ['governmentBuilding', 'hotel'],
+  caplin: ['governmentBuilding', 'realEstateAgency'],
   hoover: ['governmentBuilding', 'underworld'],
-  mcnamara: ['pentagonDodHQ', 'trainStation'],
-  ruckelshaus: ['epaHQ', 'carnegieSteelMill'],
+  mcnamara: ['industrialZone', 'trainStation'],
+  ruckelshaus: ['industrialZone', 'governmentBuilding'],
   douglas_sec: ['stockExchange', 'bank'],
   levitt_sec: ['stockExchange', 'bank'],
   kennedy_sec: ['stockExchange', 'bank'],
   mueller: ['governmentBuilding', 'underworld'],
-  andrews: ['governmentBuilding', 'hotel'],
-  marshall: ['pentagonDodHQ', 'trainStation'],
+  andrews: ['governmentBuilding', 'realEstateAgency'],
+  marshall: ['industrialZone', 'trainStation'],
 }
 
 function fallbackWorkBuildings(character, isCrime) {
