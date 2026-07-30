@@ -97,37 +97,50 @@ const DEFAULT_SPAWN = { col: 7, row: 3 }
 // now gets the map size win regardless of when that lands.
 const HOME_GAP = 1
 
+// Map overhaul Phase 3 (spatial rebuild to match the hand-drawn mockup):
+// every non-home def below carries a `zone` tag - one of 'law' (left
+// column), 'finance' (center-left column), 'chapel' (center, fixed 30-wide
+// reservation - temple is the sole occupant), or 'industry' (right column,
+// by far the biggest bucket - 17 of the 41 hand-authored buildings, mostly
+// the old Kyoto/Sapporo amenity roster). layoutFinanceMap() below packs each
+// zone into its own column region of the middle hub band; see that function
+// for the packing itself. `corporateOffice`/`vcHub` aren't in the zone table
+// the mockup shipped with (an apparent oversight there - the table lists 29
+// of these 31 hand-authored defs) - tagged 'finance' since both are
+// financial-HQ flavored (Corporate Holdings / Venture Capital Hub) and sat
+// in the same "Financial/civic HQs" source block as the other finance-zone
+// buildings before this pass.
 const FINANCE_BUILDING_DEFS = [
   // --- Financial/civic HQs (formerly "Tokyo") ---
-  { id: 'stockExchange', label: 'Tokyo Stock Exchange', facadeStyle: 'modernGlass', color: 0x1f5f3a, width: 3, height: 3 },
+  { id: 'stockExchange', label: 'Tokyo Stock Exchange', facadeStyle: 'modernGlass', color: 0x1f5f3a, width: 3, height: 3, zone: 'finance' },
   // Consolidation (Phase 2): Buffett/Vanderbilt/Musk/Howard Marks/Jobs each
   // used to be their own single-tenant HQ. Folded into one denser
   // multi-tenant hub (see BusinessCenterModal.jsx's 5 tabs) - footprint is
   // bigger than any one of the old towers to read as "several tenants share
   // this building", not just a relabeled single HQ.
-  { id: 'businessCenter', label: 'Capital Business Center', facadeStyle: 'modernGlass', color: 0x3a3a4a, width: 7, height: 4 },
-  { id: 'corporateOffice', label: 'Corporate Holdings', facadeStyle: 'modernGlass', color: 0x4a3a5f, width: 4, height: 3 },
-  { id: 'vcHub', label: 'Venture Capital Hub', facadeStyle: 'modernGlass', color: 0x2a3a6b, width: 3, height: 3 },
-  { id: 'bank', label: 'Bank & Realty Office', facadeStyle: 'modernGlass', color: 0x1f3a5f, width: 4, height: 3 },
-  { id: 'realEstateAgency', label: 'Real Estate Agency', facadeStyle: 'modernGlass', color: 0x3a5f4a, width: 4, height: 3 },
-  { id: 'parliament', label: 'Parliament Hall', facadeStyle: 'modernGlass', color: 0x3a3a6a, width: 4, height: 3 },
+  { id: 'businessCenter', label: 'Capital Business Center', facadeStyle: 'modernGlass', color: 0x3a3a4a, width: 7, height: 4, zone: 'finance' },
+  { id: 'corporateOffice', label: 'Corporate Holdings', facadeStyle: 'modernGlass', color: 0x4a3a5f, width: 4, height: 3, zone: 'finance' },
+  { id: 'vcHub', label: 'Venture Capital Hub', facadeStyle: 'modernGlass', color: 0x2a3a6b, width: 3, height: 3, zone: 'finance' },
+  { id: 'bank', label: 'Bank & Realty Office', facadeStyle: 'modernGlass', color: 0x1f3a5f, width: 4, height: 3, zone: 'finance' },
+  { id: 'realEstateAgency', label: 'Real Estate Agency', facadeStyle: 'modernGlass', color: 0x3a5f4a, width: 4, height: 3, zone: 'finance' },
+  { id: 'parliament', label: 'Parliament Hall', facadeStyle: 'modernGlass', color: 0x3a3a6a, width: 4, height: 3, zone: 'law' },
   // Consolidation (Phase 2): FBI HQ (Hoover) + IRS HQ (Caplin) folded into one
   // federal hub (see GovernmentBuildingModal.jsx's 3 tabs, the 3rd of which
   // also gives the existing status-bar-only GovernmentModal a physical
   // building). modernGlass (not traditionalCottage/modernBrick like its two
   // predecessors) to read as the civic building it now is, matching
   // Parliament Hall's look.
-  { id: 'governmentBuilding', label: 'Federal Government Building', facadeStyle: 'modernGlass', color: 0x2a3a5a, width: 6, height: 4 },
+  { id: 'governmentBuilding', label: 'Federal Government Building', facadeStyle: 'modernGlass', color: 0x2a3a5a, width: 6, height: 4, zone: 'law' },
 
   // --- Cultural/amenity buildings (formerly "Kyoto") ---
-  { id: 'teaHouse', label: 'Cherry Coke Tea House', facadeStyle: 'traditionalCottage', color: 0x8a4a2a, width: 3, height: 2 },
-  { id: 'machiyaEstate', label: 'Machiya Executive Estate', facadeStyle: 'traditionalCottage', color: 0x6a5a3a, width: 4, height: 3 },
-  { id: 'zenGarden', label: 'Zen Rock Garden', facadeStyle: 'traditionalCottage', color: 0x8a8a6a, width: 3, height: 2 },
-  { id: 'silkMarket', label: 'Silk & Kimono Market', facadeStyle: 'traditionalCottage', color: 0x8a2a4a, width: 3, height: 2 },
-  { id: 'sakeBrewery', label: 'Fushimi Sake Brewery', facadeStyle: 'traditionalCottage', color: 0x6a4a2a, width: 3, height: 2 },
-  { id: 'artisanShop', label: 'Kiyomizu Artisan Shop', facadeStyle: 'traditionalCottage', color: 0x4a6a5a, width: 3, height: 2 },
-  { id: 'hotel', label: 'Ryokan Mountain Inn', facadeStyle: 'traditionalCottage', color: 0x5a4a3a, width: 4, height: 3 },
-  { id: 'park', label: 'Serenity Park', facadeStyle: 'traditionalCottage', color: 0x2a5f2a, width: 4, height: 2 },
+  { id: 'teaHouse', label: 'Cherry Coke Tea House', facadeStyle: 'traditionalCottage', color: 0x8a4a2a, width: 3, height: 2, zone: 'industry' },
+  { id: 'machiyaEstate', label: 'Machiya Executive Estate', facadeStyle: 'traditionalCottage', color: 0x6a5a3a, width: 4, height: 3, zone: 'industry' },
+  { id: 'zenGarden', label: 'Zen Rock Garden', facadeStyle: 'traditionalCottage', color: 0x8a8a6a, width: 3, height: 2, zone: 'industry' },
+  { id: 'silkMarket', label: 'Silk & Kimono Market', facadeStyle: 'traditionalCottage', color: 0x8a2a4a, width: 3, height: 2, zone: 'industry' },
+  { id: 'sakeBrewery', label: 'Fushimi Sake Brewery', facadeStyle: 'traditionalCottage', color: 0x6a4a2a, width: 3, height: 2, zone: 'industry' },
+  { id: 'artisanShop', label: 'Kiyomizu Artisan Shop', facadeStyle: 'traditionalCottage', color: 0x4a6a5a, width: 3, height: 2, zone: 'industry' },
+  { id: 'hotel', label: 'Ryokan Mountain Inn', facadeStyle: 'traditionalCottage', color: 0x5a4a3a, width: 4, height: 3, zone: 'law' },
+  { id: 'park', label: 'Serenity Park', facadeStyle: 'traditionalCottage', color: 0x2a5f2a, width: 4, height: 2, zone: 'law' },
   // Distinct indigo/violet exterior (every other Kyoto building above is a
   // muted brown/grey/green earth-tone) so this reads as the grand chapel
   // it now has an interior for (see buildChapelInteriorZone in this file
@@ -139,39 +152,46 @@ const FINANCE_BUILDING_DEFS = [
   // 16x14 matches the authored chapel art exactly (House/Wings/Dragon layers,
   // cols 6-21 x rows 2-15 of Exterior.tmx) so the facade fills its footprint
   // with no overflow onto neighbours - see drawChapelExteriorFacade.
-  { id: 'temple', label: 'Whispering Temple Chapel', facadeStyle: 'traditionalCottage', color: 0x3a2a6a, width: 30, height: 22 },
+  // zone: 'chapel' - the sole occupant of the fixed 30-wide center-column
+  // reservation (its own width) in the middle hub band; see layoutFinanceMap.
+  { id: 'temple', label: 'Whispering Temple Chapel', facadeStyle: 'traditionalCottage', color: 0x3a2a6a, width: 30, height: 22, zone: 'chapel' },
 
   // --- Entertainment/crime buildings (formerly "Osaka") ---
-  { id: 'casino', label: 'Neon Dragon Casino', facadeStyle: 'modernBrick', color: 0x8a1f6a, width: 4, height: 3 },
-  { id: 'dotonboriArcade', label: 'Dotonbori Merchant Arcade', facadeStyle: 'modernBrick', color: 0x8a6a2a, width: 4, height: 2 },
-  { id: 'fishMarket', label: 'Kuromon Fish Market', facadeStyle: 'modernBrick', color: 0x2a5a6a, width: 3, height: 2 },
-  { id: 'takoyakiStand', label: 'Takoyaki Street Food', facadeStyle: 'modernBrick', color: 0x8a4a1f, width: 2, height: 2 },
+  { id: 'casino', label: 'Neon Dragon Casino', facadeStyle: 'modernBrick', color: 0x8a1f6a, width: 4, height: 3, zone: 'finance' },
+  { id: 'dotonboriArcade', label: 'Dotonbori Merchant Arcade', facadeStyle: 'modernBrick', color: 0x8a6a2a, width: 4, height: 2, zone: 'industry' },
+  { id: 'fishMarket', label: 'Kuromon Fish Market', facadeStyle: 'modernBrick', color: 0x2a5a6a, width: 3, height: 2, zone: 'industry' },
+  { id: 'takoyakiStand', label: 'Takoyaki Street Food', facadeStyle: 'modernBrick', color: 0x8a4a1f, width: 2, height: 2, zone: 'industry' },
   // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
   // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
   // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 3 new hubs footprint-
   // wise since it absorbs 4 former buildings, not 2-5 tenants sharing offices
   // - reads as a sprawling underworld block rather than a single storefront.
-  { id: 'underworld', label: 'The Underworld', facadeStyle: 'modernBrick', color: 0x3a1f3a, width: 6, height: 4 },
-  { id: 'dockVaults', label: 'Dock Underground Vaults', facadeStyle: 'modernBrick', color: 0x2a2a3a, width: 4, height: 2 },
+  { id: 'underworld', label: 'The Underworld', facadeStyle: 'modernBrick', color: 0x3a1f3a, width: 6, height: 4, zone: 'law' },
+  { id: 'dockVaults', label: 'Dock Underground Vaults', facadeStyle: 'modernBrick', color: 0x2a2a3a, width: 4, height: 2, zone: 'law' },
 
   // --- Industrial/civic buildings (formerly "Sapporo") ---
-  { id: 'fordRougeComplex', label: 'Ford River Rouge Complex', facadeStyle: 'modernGlass', color: 0x3a4a5a, width: 4, height: 3, npcId: 'ford' },
-  { id: 'carnegieSteelMill', label: 'Homestead Steel Mill', facadeStyle: 'modernGlass', color: 0x5a3a2a, width: 4, height: 3, npcId: 'carnegie' },
-  { id: 'standardOilRefinery', label: 'Standard Oil Refinery', facadeStyle: 'modernGlass', color: 0x2a3a3a, width: 4, height: 3, npcId: 'rockefeller' },
-  { id: 'pentagonDodHQ', label: 'Pentagon Procurement HQ', facadeStyle: 'modernGlass', color: 0x2a4a6a, width: 4, height: 3, npcId: 'mcnamara' },
-  { id: 'epaHQ', label: 'EPA Regulation Agency', facadeStyle: 'modernGlass', color: 0x2a5a3a, width: 4, height: 3, npcId: 'ruckelshaus' },
-  { id: 'sapporoBrewery', label: 'Alpine Snow Brewery', facadeStyle: 'modernGlass', color: 0x8a6a2a, width: 3, height: 2 },
-  { id: 'alpineLodge', label: 'Mount Yotei Alpine Lodge', facadeStyle: 'modernGlass', color: 0x6a4a3a, width: 4, height: 3 },
-  { id: 'trainStation', label: '🚆 Central Train Station', facadeStyle: 'modernGlass', color: 0x4a6fa5, width: 4, height: 2 },
+  { id: 'fordRougeComplex', label: 'Ford River Rouge Complex', facadeStyle: 'modernGlass', color: 0x3a4a5a, width: 4, height: 3, npcId: 'ford', zone: 'industry' },
+  { id: 'carnegieSteelMill', label: 'Homestead Steel Mill', facadeStyle: 'modernGlass', color: 0x5a3a2a, width: 4, height: 3, npcId: 'carnegie', zone: 'industry' },
+  { id: 'standardOilRefinery', label: 'Standard Oil Refinery', facadeStyle: 'modernGlass', color: 0x2a3a3a, width: 4, height: 3, npcId: 'rockefeller', zone: 'industry' },
+  { id: 'pentagonDodHQ', label: 'Pentagon Procurement HQ', facadeStyle: 'modernGlass', color: 0x2a4a6a, width: 4, height: 3, npcId: 'mcnamara', zone: 'industry' },
+  { id: 'epaHQ', label: 'EPA Regulation Agency', facadeStyle: 'modernGlass', color: 0x2a5a3a, width: 4, height: 3, npcId: 'ruckelshaus', zone: 'industry' },
+  { id: 'sapporoBrewery', label: 'Alpine Snow Brewery', facadeStyle: 'modernGlass', color: 0x8a6a2a, width: 3, height: 2, zone: 'industry' },
+  { id: 'alpineLodge', label: 'Mount Yotei Alpine Lodge', facadeStyle: 'modernGlass', color: 0x6a4a3a, width: 4, height: 3, zone: 'industry' },
+  { id: 'trainStation', label: '🚆 Central Train Station', facadeStyle: 'modernGlass', color: 0x4a6fa5, width: 4, height: 2, zone: 'industry' },
 
   // --- Character homes & hideouts (generated, see characterHomeBuildings.js) ---
-  // Appended after the 41 defs above (not interleaved) so the already-
-  // verified office/amenity layout stays first and unaffected; layoutFinanceMap
-  // packs the whole list (offices then homes) as one flat pool.
+  // Appended after the 31 hub defs above (not interleaved) - layoutFinanceMap
+  // below never packs this combined array as one flat pool any more (that
+  // was the pre-Phase-3 scheme); it re-filters FINANCE_BUILDING_DEFS back
+  // into hub defs (by `zone`) and home defs (by `kind`) itself. Kept as one
+  // array anyway (rather than three separate exported lists) so this stays
+  // the single roster source-of-truth other files could grep for.
   // Sorted by residentialStyleKey (stone manor / wood house / pico8 /
   // serene cottage / brick cottage / hideout) before packing - array order
   // is preserved straight through packing, so this sort survives into "same
-  // style lands in a contiguous run", i.e. actual visual clusters rather
+  // style lands in a contiguous run" once layoutFinanceMap splits it into the
+  // top-band styles (stone/woodHouse/hideout) and bottom-band styles (pico8/
+  // serene/brick) and packs each half, i.e. actual visual clusters rather
   // than the roster's arbitrary order scattering every style across every
   // row (reported: a log-cabin home next to a stone manor next to a pico8
   // warehouse, no grouping at all).
@@ -193,43 +213,26 @@ const BAND_GAP = 4 // default tiles between buildings (a def can override its ow
 // already-verified column/gap layout below is untouched, just offset.
 const MAP_TOP_MARGIN = 4
 
-// STEP 1 of the map coherence overhaul (production/next-session-plan.md).
-//
-// The problem this fixes: FINANCE_V_STREETS used to be a hardcoded list of
-// single columns ([7, 20, 34, 47, 60, 73]) that layoutFinanceMap knew nothing
-// about, so buildings were packed straight over them and their facades drew
-// on top of the road - the "building is built on the road" the human
-// reported. Streets were also 1 tile wide, too narrow to read as roads or to
-// drive on.
-//
-// Now: street columns are DERIVED from the map width, streets are
-// STREET_WIDTH tiles wide, and the packer treats them as reserved - it skips
-// a building past any street block it would overlap.
+// Streets are STREET_WIDTH tiles wide (wide enough to read as a road and to
+// drive on) and the packer treats every street block as reserved - it skips
+// a building past any street block it would overlap, so a facade can never
+// draw on top of a road.
 const STREET_WIDTH = 3
-// Distance between street-block starts. The clear gap is
-// V_STREET_SPACING - STREET_WIDTH, and that gap MUST exceed the widest
-// building plus its 1-tile art margin on each side, or that building can
-// never be placed. Raised from 26 when the chapel grew to 30 tiles wide:
-// 26 left a 23-column gap, the packer could not fit it anywhere, and it
-// came out with null coordinates. checkMapLayout.mjs catches this.
-const V_STREET_SPACING = 38
-const V_STREET_FIRST_COL = 6
-
-function verticalStreetColumns(mapCols) {
-  const cols = []
-  for (let start = V_STREET_FIRST_COL; start + STREET_WIDTH - 1 < mapCols - 1; start += V_STREET_SPACING) {
-    for (let d = 0; d < STREET_WIDTH; d++) cols.push(start + d)
-  }
-  return cols
-}
+// 1-tile clear margin reserved on either side of every street block. Facade
+// ART is allowed to overflow its footprint (prefab facades draw taller/wider
+// than the tiles they own - see packRender), so a building whose footprint
+// merely touches a street still LOOKS like it's built on the road without
+// this margin. Packing-only: these margin columns/rows are ordinary grass,
+// not road.
+const STREET_MARGIN = 1
 
 // Smallest column >= `col` where a `width`-wide building clears every street
-// block, or null if it can't fit before `bandColEnd` (caller then wraps to a
-// new row). V_STREET_SPACING guarantees the gaps between streets are wider
-// than any building, so wrapping always eventually succeeds.
-function firstColumnClearOfStreets(col, width, streetCols, bandColEnd) {
+// block in `streetCols` (already padded with STREET_MARGIN on each side by
+// the caller - see reservedCols below), or null if it can't fit before
+// `colEnd` (caller then wraps to a new row).
+function firstColumnClearOfStreets(col, width, streetCols, colEnd) {
   let c = col
-  while (c + width - 1 <= bandColEnd) {
+  while (c + width - 1 <= colEnd) {
     let hit = -1
     for (let x = c; x <= c + width - 1; x++) {
       if (streetCols.includes(x)) { hit = x; break }
@@ -240,96 +243,82 @@ function firstColumnClearOfStreets(col, width, streetCols, bandColEnd) {
   return null
 }
 
-// Horizontal streets, map-flattening version: there's no longer a fixed set
-// of district-gap rows to drop a street into (that concept is gone - see the
-// header comment above FINANCE_BUILDING_DEFS). Unlike vertical streets,
-// horizontal rows also can't be reserved DURING packing the way columns are
-// (verticalStreetColumns precomputes columns from mapCols, a known input;
-// mapRows is only known once packing finishes). So this runs packing first
-// with no street concept at all, then does a second pass over the finished
-// building list: find every row-band that ended up fully building-free
-// (there are several - BAND_GAP/HOME_GAP row-wraps, and especially the
-// office->home category-change boundary, all leave multi-row gaps nothing
-// was ever packed into), and greedily place a STREET_WIDTH-tall street in
-// every free band spaced at least H_STREET_INTERVAL rows from the last one
-// chosen. This reliably finds every usable gap in the actual finished
-// layout, rather than only the gaps that happen to exist exactly at a wrap
-// boundary hit while walking the packing cursor (tried first; it missed
-// several perfectly good gaps because the packer doesn't wrap on every row).
-// Interval picked to land in the middle of the "every ~14-16 rows" target:
-// dense enough to keep the road-tile count in the same ballpark as the old
-// 4-band scheme (checked with production/checkMapLayout.mjs), sparse enough
-// that most building rows aren't immediately adjacent to a street.
-const H_STREET_INTERVAL = 15
+// ---------------------------------------------------------------------------
+// Map overhaul Phase 3: rebuilds the map's spatial layout to a fixed 3-band
+// mockup (a cross of 2 main horizontal roads dividing the map into 3
+// horizontal bands) instead of the old single left-to-right/row-wrap pass:
+//
+//   1. Top home band    - residential clusters (stone/woodHouse/hideout style
+//                          homes only), packed same as before.
+//   2. Middle hub band   - all 31 hand-authored "hub" buildings, arranged in
+//                          4 column-zones left to right (law, finance,
+//                          chapel, industry - see the `zone` tags on
+//                          FINANCE_BUILDING_DEFS above), separated by
+//                          vertical road gaps. The chapel zone is a fixed
+//                          30-wide reservation (its own width) rather than a
+//                          packed group, since `temple` is a single building
+//                          with an authored footprint. Placed dead-center as
+//                          a landmark.
+//   3. Bottom home band  - residential clusters (pico8/serene/brick style
+//                          homes - the bulk of the 88), packed same as band 1.
+//
+// A full-width horizontal street sits between band 1->2 and band 2->3 (see
+// insertStreetGap). A reserved rectangle in the bottom-right corner of band 3
+// (FINANCE_FARM_ZONE, computed after this function returns) is carved out of
+// the bottom band's own packable width for the ambient habitat animals/
+// wealthy pet pens - see spawnHabitatAnimals/spawnWealthyPetPens below.
+// ---------------------------------------------------------------------------
 
-function layoutFinanceMap(mapCols) {
-  const streetCols = verticalStreetColumns(mapCols)
-  // Facade ART is allowed to overflow its footprint (prefab facades draw
-  // taller/wider than the tiles they own - see packRender), so a building
-  // whose footprint merely touches a street still LOOKS like it's built on
-  // the road. Reserving one extra column either side of every street block
-  // keeps that overhang off the tarmac. Packing-only: these margin columns
-  // are ordinary grass, not road.
-  const reservedCols = []
-  for (const c of streetCols) {
-    reservedCols.push(c - 1, c, c + 1)
-  }
-  const bandColEnd = mapCols - BAND_COL_END_FROM_RIGHT
-  const buildings = []
-  let col = BAND_COL_START
-  let row = MAP_TOP_MARGIN
+// Home style keys that land in the top band vs. the bottom band (see
+// residentialStyleKey in tileGen.js for the 6 possible values - every one is
+// assigned to exactly one of these two sets).
+const TOP_HOME_STYLES = new Set(['stone', 'woodHouse', 'hideout'])
+const BOTTOM_HOME_STYLES = new Set(['pico8', 'serene', 'brick'])
+
+// Bottom-right reservation for ambient habitat animals + wealthy pet pens
+// (see spawnHabitatAnimals/spawnWealthyPetPens/findPenSpot) - sized per the
+// map-overhaul brief ("last ~20 columns x last ~15 rows"), carved out of the
+// bottom home band's own packable width so it's guaranteed clear rather than
+// hoping the row-wrap packer happens to leave the corner empty.
+const FARM_ZONE_W = 20
+const FARM_ZONE_H = 15
+// Clear gap between the farm reservation and the bottom band's own packed
+// home content, same margin motivation as STREET_MARGIN above.
+const FARM_ZONE_MARGIN = 2
+
+// Core row-wrap packer, shared by every band/zone below - the same "walk a
+// cursor left to right, wrap to a new row on overflow or a street hit"
+// algorithm the old single-pass packer used, just scoped to an explicit
+// [colStart, colEnd] column range and starting row instead of always
+// spanning the whole map. `reservedCols` is the (already STREET_MARGIN-
+// padded) list of street columns to dodge - pass an empty array for a region
+// that by construction contains no street (e.g. one hub zone's own column
+// span, which sits strictly between two street reservations).
+function packDefs(defs, colStart, colEnd, rowStart, reservedCols) {
+  const packed = []
+  let col = colStart
+  let row = rowStart
   let rowMaxHeight = 0
-  let prevIsHome = null
-
-  for (const b of FINANCE_BUILDING_DEFS) {
-    // Force a fresh row whenever the building "category" changes (hand-
-    // authored office/HQ facades vs. character homes/hideouts), even if
-    // the current row has space left. Without this, homes are appended
-    // after the hand-authored defs in the same array, and the packer just
-    // kept filling the row it was on - so the LAST office building and the
-    // FIRST home routinely ended up side by side, with no gap and two
-    // completely different art styles touching directly (reported: a flat
-    // grey office facade wedged into a row of log-cabin homes). Homes still
-    // pack tightly against EACH OTHER (see HOME_GAP) - this only draws a
-    // line between the two categories, using the wider BAND_GAP rather than
-    // either category's own tighter gap, so the boundary reads as
-    // deliberate, not just another row wrap.
-    const isHome = Boolean(b.kind)
-    const categoryChanged = prevIsHome !== null && isHome !== prevIsHome && col !== BAND_COL_START
-    // Row-wrap gap honours the same per-def override horizontal packing
-    // already uses (b.gap ?? BAND_GAP) instead of always BAND_GAP. Homes
-    // set gap: HOME_GAP=1 to pack tightly side-by-side, but every WRAPPED
-    // row still cost a full BAND_GAP=4 vertically regardless - with ~88
-    // 2-wide homes needing several wrapped rows, that asymmetry was most of
-    // the map's excess height.
-    if (categoryChanged) {
-      col = BAND_COL_START
-      row += rowMaxHeight + BAND_GAP
-      rowMaxHeight = 0
-    } else if (col + b.width - 1 > bandColEnd) {
-      col = BAND_COL_START
+  for (const b of defs) {
+    if (col + b.width - 1 > colEnd) {
+      col = colStart
       row += rowMaxHeight + (b.gap ?? BAND_GAP)
       rowMaxHeight = 0
     }
-    prevIsHome = isHome
-    // Reserve the vertical streets: shift right past any street block this
-    // building would straddle, wrapping to the next row if it no longer
-    // fits on this one.
-    let clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
+    let clear = firstColumnClearOfStreets(col, b.width, reservedCols, colEnd)
     if (clear === null) {
-      col = BAND_COL_START
+      col = colStart
       row += rowMaxHeight + (b.gap ?? BAND_GAP)
       rowMaxHeight = 0
-      clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
+      clear = firstColumnClearOfStreets(col, b.width, reservedCols, colEnd)
     }
     if (clear === null) {
-      // Unreachable while V_STREET_SPACING is wide enough for the widest
-      // building (see its comment). Failing loudly beats silently writing
-      // null tile coords, which is what produced a building at column
-      // `null` when the chapel outgrew the street spacing.
+      // Unreachable as long as the caller sized [colStart, colEnd] wider
+      // than the widest def in `defs` (see layoutFinanceMap's zone-width
+      // math) - failing loudly beats silently writing null tile coords.
       throw new Error(
-        `layoutFinanceMap: "${b.label ?? b.id}" is ${b.width} tiles wide and cannot fit between vertical streets ` +
-          `(clear gap is ${V_STREET_SPACING - STREET_WIDTH} columns). Raise V_STREET_SPACING.`
+        `packDefs: "${b.label ?? b.id}" is ${b.width} tiles wide and cannot fit within columns ` +
+          `${colStart}-${colEnd} clear of the reserved streets.`
       )
     }
     col = clear
@@ -337,47 +326,181 @@ function layoutFinanceMap(mapCols) {
     const r0 = row
     const c1 = col + b.width - 1
     const r1 = row + b.height - 1
-    buildings.push({ ...b, tiles: { c0, r0, c1, r1 } })
+    packed.push({ ...b, tiles: { c0, r0, c1, r1 } })
     col += b.width + (b.gap ?? BAND_GAP)
     rowMaxHeight = Math.max(rowMaxHeight, b.height)
   }
-  const mapRows = row + rowMaxHeight + 2 // clear buffer row + bottom wall row
+  // Bottom-most occupied row. Monotonic: `row` only ever increases (each
+  // wrap adds the previous row's rowMaxHeight + a gap), so the last row
+  // processed is always the one with the greatest r1 - same assumption the
+  // pre-Phase-3 single-pass packer's own `mapRows` derivation relied on.
+  const contentBottomRow = defs.length ? row + rowMaxHeight - 1 : rowStart - 1
+  return { buildings: packed, contentBottomRow }
+}
 
-  // Second pass: scan the finished layout for building-free row bands (rows
-  // no building's r0..r1 touches) and greedily place a street in every band
-  // spaced >= H_STREET_INTERVAL from the last one chosen. Starts scanning at
-  // MAP_TOP_MARGIN, not row 0 - everything above that is the water/wall
-  // margin financeTileType already handles on its own, not packable content.
-  const rowHasBuilding = new Array(mapRows).fill(false)
-  for (const b of buildings) {
-    for (let r = b.tiles.r0; r <= b.tiles.r1; r++) rowHasBuilding[r] = true
-  }
-  const freeBands = []
-  let bandStart = null
-  for (let r = MAP_TOP_MARGIN; r < mapRows; r++) {
-    if (!rowHasBuilding[r]) {
-      if (bandStart === null) bandStart = r
-    } else if (bandStart !== null) {
-      freeBands.push([bandStart, r - 1])
-      bandStart = null
+// Inserts a full-width, STREET_WIDTH-tall horizontal street centered in the
+// gap below `prevBottomRow`, with BAND_GAP rows of clearance on top of the
+// street's own width (so facades on either side keep the same "art can
+// overflow its footprint" margin every other street reservation in this file
+// uses) - reuses BAND_GAP/STREET_WIDTH rather than introducing new tuning
+// constants for a 3-band map where every inter-band gap is now known and
+// fixed in advance (the old freeBands scan this replaces existed only
+// because the single flat packer didn't know in advance where its gaps
+// would land).
+function insertStreetGap(prevBottomRow) {
+  const gapTop = prevBottomRow + 1
+  const gapRows = BAND_GAP + STREET_WIDTH
+  const streetTop = gapTop + Math.floor((gapRows - STREET_WIDTH) / 2)
+  const streetRows = []
+  for (let r = streetTop; r < streetTop + STREET_WIDTH; r++) streetRows.push(r)
+  return { streetRows, nextBandTop: gapTop + gapRows }
+}
+
+function layoutFinanceMap(mapCols) {
+  const bandColStart = BAND_COL_START
+  const bandColEnd = mapCols - BAND_COL_END_FROM_RIGHT
+
+  const homeDefs = FINANCE_BUILDING_DEFS.filter((d) => Boolean(d.kind))
+  const hubDefs = FINANCE_BUILDING_DEFS.filter((d) => !d.kind)
+  const topHomeDefs = homeDefs.filter((d) => TOP_HOME_STYLES.has(residentialStyleKey(d.npcId, d.kind)))
+  const bottomHomeDefs = homeDefs.filter((d) => BOTTOM_HOME_STYLES.has(residentialStyleKey(d.npcId, d.kind)))
+
+  const zoneDefs = { law: [], finance: [], chapel: [], industry: [] }
+  for (const d of hubDefs) {
+    if (!zoneDefs[d.zone]) {
+      throw new Error(`layoutFinanceMap: "${d.id}" has no valid zone tag (got ${JSON.stringify(d.zone)})`)
     }
+    zoneDefs[d.zone].push(d)
   }
-  if (bandStart !== null) freeBands.push([bandStart, mapRows - 1])
+  const chapelDef = zoneDefs.chapel[0]
+  const chapelWidth = chapelDef.width // 30 - temple's own width, the zone's fixed reservation.
 
-  const hStreets = []
-  let lastStreetCenter = -Infinity
-  for (const [bandTop, bandBottom] of freeBands) {
-    const bandLen = bandBottom - bandTop + 1
-    if (bandLen < STREET_WIDTH) continue
-    const center = Math.round((bandTop + bandBottom) / 2)
-    if (center - lastStreetCenter < H_STREET_INTERVAL) continue
-    const half = Math.floor(STREET_WIDTH / 2)
-    const streetTop = Math.max(bandTop, center - half)
-    for (let r = streetTop; r <= streetTop + STREET_WIDTH - 1 && r <= bandBottom; r++) hStreets.push(r)
-    lastStreetCenter = center
+  // 3 street gaps separate the 4 zone columns (law | finance | chapel |
+  // industry). Zone widths are allocated proportionally to each zone's own
+  // packed-content "weight" (sum of building widths + the gaps between them,
+  // as if laid out in one row) rather than split evenly - industry has by
+  // far the most buildings (17, vs. law's 6 and finance's 7), so an even
+  // split would leave it packing into many more rows than law/finance and
+  // make it the tallest zone by a wide margin. Weighting by content also
+  // happens to keep the chapel roughly centered: it's preceded by 2 zones
+  // (law, finance) and followed by only 1 (industry), so industry needs to
+  // end up noticeably wider than law+finance combined for the chapel not to
+  // be pushed off-center - which is exactly what content-weighting produces
+  // here, since industry's weight so heavily outweighs the other two.
+  const perStreetSpan = STREET_WIDTH + STREET_MARGIN * 2
+  const usableWidth = bandColEnd - bandColStart + 1
+  const remainingForZones = usableWidth - perStreetSpan * 3 - chapelWidth
+  if (remainingForZones < 30) {
+    throw new Error(
+      `layoutFinanceMap: only ${remainingForZones} columns left for the law/finance/industry zones after reserving ` +
+        `the chapel + 3 streets - map is too narrow. Raise MAP_COLS.`
+    )
+  }
+  const zoneContentWeight = (defs) => defs.reduce((s, d) => s + d.width, 0) + Math.max(0, defs.length - 1) * BAND_GAP
+  const lawWeight = zoneContentWeight(zoneDefs.law)
+  const financeWeight = zoneContentWeight(zoneDefs.finance)
+  const industryWeight = zoneContentWeight(zoneDefs.industry)
+  const totalWeight = lawWeight + financeWeight + industryWeight
+  const minZoneWidth = (defs) => Math.max(...defs.map((d) => d.width))
+  const lawWidth = Math.max(minZoneWidth(zoneDefs.law), Math.round((remainingForZones * lawWeight) / totalWeight))
+  const financeWidth = Math.max(minZoneWidth(zoneDefs.finance), Math.round((remainingForZones * financeWeight) / totalWeight))
+  // Industry takes whatever's left rather than its own rounded share, so the
+  // 3 widths always sum to exactly remainingForZones with no rounding gap or
+  // overlap - safe because industry is always the largest-weight zone by far,
+  // so "whatever's left" is always generous, never starved.
+  const industryWidth = remainingForZones - lawWidth - financeWidth
+  const industryMin = minZoneWidth(zoneDefs.industry)
+  if (industryWidth < industryMin) {
+    throw new Error(`layoutFinanceMap: industry zone only got ${industryWidth} columns (needs >= ${industryMin}) - map is too narrow. Raise MAP_COLS.`)
   }
 
-  return { buildings, mapRows, hStreets, vStreets: streetCols }
+  let cursor = bandColStart
+  const lawColStart = cursor
+  const lawColEnd = lawColStart + lawWidth - 1
+  cursor = lawColEnd + 1 + STREET_MARGIN
+  const street1Start = cursor
+  cursor = street1Start + STREET_WIDTH + STREET_MARGIN
+  const financeColStart = cursor
+  const financeColEnd = financeColStart + financeWidth - 1
+  cursor = financeColEnd + 1 + STREET_MARGIN
+  const street2Start = cursor
+  cursor = street2Start + STREET_WIDTH + STREET_MARGIN
+  const chapelColStart = cursor
+  const chapelColEnd = chapelColStart + chapelWidth - 1
+  cursor = chapelColEnd + 1 + STREET_MARGIN
+  const street3Start = cursor
+  cursor = street3Start + STREET_WIDTH + STREET_MARGIN
+  const industryColStart = cursor
+  const industryColEnd = bandColEnd // soaks up any rounding slack here rather than leaving a gap before the right map margin
+
+  const vStreetCols = []
+  for (const start of [street1Start, street2Start, street3Start]) {
+    for (let d = 0; d < STREET_WIDTH; d++) vStreetCols.push(start + d)
+  }
+  // Same margin convention as before: reserve 1 column either side of every
+  // street block. These vertical streets span the FULL map height (used by
+  // the top/bottom home band packers below too, not just the hub band) so
+  // the 3 zone-separator roads read as continuous north-south corridors -
+  // together with the 2 horizontal streets between bands, this is the
+  // "cross of two main roads" the mockup describes, extended into a full
+  // street grid rather than stopping at the hub band's edges.
+  const reservedCols = []
+  for (const c of vStreetCols) reservedCols.push(c - 1, c, c + 1)
+
+  // ---- Band 1: top home band ----
+  const topBandTop = MAP_TOP_MARGIN
+  const topBand = packDefs(topHomeDefs, bandColStart, bandColEnd, topBandTop, reservedCols)
+
+  const gap1 = insertStreetGap(topBand.contentBottomRow)
+
+  // ---- Band 2: middle hub band - 4 zone columns, all starting at the same
+  // row. Each zone's own column span sits strictly between two street
+  // reservations (or the map margin), so packing within a zone never needs
+  // to dodge a street - hence the empty reservedCols array for those 3 calls.
+  const hubBandTop = gap1.nextBandTop
+  const law = packDefs(zoneDefs.law, lawColStart, lawColEnd, hubBandTop, [])
+  const finance = packDefs(zoneDefs.finance, financeColStart, financeColEnd, hubBandTop, [])
+  const chapelBuilding = {
+    ...chapelDef,
+    tiles: { c0: chapelColStart, r0: hubBandTop, c1: chapelColEnd, r1: hubBandTop + chapelDef.height - 1 },
+  }
+  const industry = packDefs(zoneDefs.industry, industryColStart, industryColEnd, hubBandTop, [])
+  const hubBandBottom = Math.max(law.contentBottomRow, finance.contentBottomRow, chapelBuilding.tiles.r1, industry.contentBottomRow)
+
+  const gap2 = insertStreetGap(hubBandBottom)
+
+  // ---- Band 3: bottom home band - packed only up to bottomBandColEnd
+  // (short of the map's true right edge) so the rightmost FARM_ZONE_W
+  // columns of this band are guaranteed free of home content for the farm
+  // zone below, rather than hoping the row-wrap packer happens to leave the
+  // corner empty.
+  const bottomBandTop = gap2.nextBandTop
+  const bottomBandColEnd = bandColEnd - FARM_ZONE_W - FARM_ZONE_MARGIN
+  const bottomBand = packDefs(bottomHomeDefs, bandColStart, bottomBandColEnd, bottomBandTop, reservedCols)
+
+  // Farm zone sits at the true bottom-right of the map: bottom-aligned with
+  // whichever is taller, the bottom band's own home content or the farm
+  // zone's own fixed height (so it's never pushed above band 3's top, and
+  // the map only grows past the home content's natural height if the farm
+  // reservation genuinely needs more room than that).
+  const farmRowEnd = Math.max(bottomBand.contentBottomRow, bottomBandTop + FARM_ZONE_H - 1)
+  const farmRowStart = farmRowEnd - FARM_ZONE_H + 1
+  const farmColEnd = bandColEnd
+  const farmColStart = farmColEnd - FARM_ZONE_W + 1
+  const farmZone = { c0: farmColStart, r0: farmRowStart, c1: farmColEnd, r1: farmRowEnd }
+
+  const mapRows = farmRowEnd + 3 // clear buffer row + bottom wall row, same convention the old single-pass packer used
+
+  const buildings = [
+    ...topBand.buildings,
+    ...law.buildings,
+    ...finance.buildings,
+    chapelBuilding,
+    ...industry.buildings,
+    ...bottomBand.buildings,
+  ]
+
+  return { buildings, mapRows, hStreets: [...gap1.streetRows, ...gap2.streetRows], vStreets: vStreetCols, farmZone }
 }
 
 const MAP_COLS = 118
@@ -386,6 +509,7 @@ const {
   mapRows: MAP_ROWS,
   hStreets: FINANCE_H_STREETS,
   vStreets: FINANCE_V_STREETS,
+  farmZone: FINANCE_FARM_ZONE,
 } = layoutFinanceMap(MAP_COLS)
 // Exported purely so the layout can be asserted against from outside (no
 // building overlaps, every door reachable) without a Phaser canvas - the
@@ -402,19 +526,6 @@ export {
   idleDriftOffset,
   IDLE_DRIFT_RADIUS_BY_TIER,
 }
-// (Historical note: this used to describe six hand-picked corridors on an
-// 80-wide map. Street columns are now derived from the map width by
-// verticalStreetColumns() and reserved by the packer - see the comment above
-// layoutFinanceMap. Kept only for the DEFAULT_SPAWN detail below.)
-// Six vertical corridors spread evenly across the map: col 7 is the
-// spawn column (kept - DEFAULT_SPAWN sits on it), the rest give the right
-// half of the map (which the original two-corridor [7, 33] left with no
-// north-south route once the map widened past 40 cols) the same coverage.
-// FINANCE_V_STREETS is now derived by layoutFinanceMap (see above) rather
-// than hardcoded here. The old comment at this spot said a building "can
-// still occupy one of these columns... its facade just renders over the
-// street" - that was the bug, not an acceptable trade-off, and the packer
-// now reserves street columns instead.
 // Rows 1-2 along the top edge render as water tiles for terrain variety.
 // Water is now impassable (isSingleTileObstacle/isBlockedTile - see there
 // for why), so this deliberately excludes row 3: DEFAULT_SPAWN.row is
@@ -652,11 +763,18 @@ function drawBuildings(scene, buildings, zoneObjects) {
     const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
     zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color, b))
-    const label = scene.add
-      .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
-      .setOrigin(0.5, 1)
-      .setDepth(y + h + 10)
-    zoneObjects.push(label)
+    // Map overhaul Phase 3: no name label above residential buildings
+    // (homes/hideouts, i.e. anything with a truthy `kind`) - with 88 of them
+    // now clustered into dense same-style blocks, a label over every single
+    // one was visual noise nobody could read anyway. Hub/civic buildings
+    // (the 31 hand-authored defs, none of which set `kind`) keep theirs.
+    if (!b.kind) {
+      const label = scene.add
+        .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
+        .setOrigin(0.5, 1)
+        .setDepth(y + h + 10)
+      zoneObjects.push(label)
+    }
 
     const doorSpec = buildingDoorAnimSpec(b, x, y, w, h)
     if (doorSpec && scene.textures.exists(SERENE_VILLAGE_DOOR_KEY)) {
@@ -1968,17 +2086,18 @@ export default class OverworldScene extends Phaser.Scene {
   // updateHabitatAnimals via the shared wanderActor() function - not a
   // second movement system.
 
-  // Roughly 2-3 small clusters of 2-4 animals each, biased toward landing
-  // near an existing scattered tree/rock (blockedEnvironmentTiles, populated
-  // by scatterEnvironment just before this runs - see buildOverworldZone) so
-  // they read as loitering near a landmark rather than scattered uniformly
-  // across the whole map; falls back to any open grass tile if no
-  // tree/rock-adjacent spot is found within the try budget.
+  // Map overhaul Phase 3: cluster anchors (and every per-animal spot within
+  // a cluster) are now constrained to FINANCE_FARM_ZONE, the bottom-right
+  // reservation computed by layoutFinanceMap - habitat animals no longer
+  // scatter across the whole map. Tree/rock bias still applies (see below)
+  // but `treeTiles` itself is pre-filtered to the farm zone, so the bias only
+  // ever points at a tree/rock that's already inside it.
   spawnHabitatAnimals() {
+    const zone = FINANCE_FARM_ZONE
     const treeTiles = []
     for (const key of this.blockedEnvironmentTiles) {
       const [r, c] = key.split(',').map(Number)
-      treeTiles.push({ r, c })
+      if (r >= zone.r0 && r <= zone.r1 && c >= zone.c0 && c <= zone.c1) treeTiles.push({ r, c })
     }
 
     const clusterCount = 2 + Math.floor(Math.random() * 2) // 2-3 clusters
@@ -1992,10 +2111,10 @@ export default class OverworldScene extends Phaser.Scene {
           r = t.r + Math.floor(Math.random() * 5) - 2 // +/- 2 tiles of a tree/rock
           c = t.c + Math.floor(Math.random() * 5) - 2
         } else {
-          r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6)) // skip the coastal water channel
-          c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
+          r = zone.r0 + Math.floor(Math.random() * (zone.r1 - zone.r0 + 1))
+          c = zone.c0 + Math.floor(Math.random() * (zone.c1 - zone.c0 + 1))
         }
-        if (r < 1 || r >= MAP_ROWS - 1 || c < 1 || c >= MAP_COLS - 1) continue
+        if (r < zone.r0 || r > zone.r1 || c < zone.c0 || c > zone.c1) continue
         if (this.financeLayout[r]?.[c] !== 'grass') continue
         if (this.isBlockedTile(c, r)) continue
         anchor = { r, c }
@@ -2008,7 +2127,7 @@ export default class OverworldScene extends Phaser.Scene {
         for (let tries = 0; tries < 15 && !spot; tries++) {
           const rr = anchor.r + Math.floor(Math.random() * 3) - 1
           const cc = anchor.c + Math.floor(Math.random() * 3) - 1
-          if (rr < 1 || rr >= MAP_ROWS - 1 || cc < 1 || cc >= MAP_COLS - 1) continue
+          if (rr < zone.r0 || rr > zone.r1 || cc < zone.c0 || cc > zone.c1) continue
           if (this.financeLayout[rr]?.[cc] !== 'grass') continue
           if (this.isBlockedTile(cc, rr)) continue
           spot = { r: rr, c: cc }
@@ -2021,48 +2140,44 @@ export default class OverworldScene extends Phaser.Scene {
     }
   }
 
-  // First open (grass, not a building/tree/rock/other-reserved-cell) WxH
-  // rectangle found among a handful of fixed offsets adjacent to `home`'s
-  // footprint (below/above/right/left, each tried at two alignments) -
-  // simpler than a full ring search since pen placement is low-stakes (skip
-  // the character entirely if nothing fits, per the project brief). Mirrors
-  // the forbidden-zone style scatterEnvironment/adjacentOpenTiles already use
-  // in this file, just for a multi-tile rect instead of single tiles.
-  findPenSpot(home, w, h, buildingTileSet, usedPenTiles) {
-    const { c0: hc0, r0: hr0, c1: hc1, r1: hr1 } = home.tiles
-    const candidates = [
-      { c0: hc0, r0: hr1 + 1 }, // below, left-aligned
-      { c0: hc1 - w + 1, r0: hr1 + 1 }, // below, right-aligned
-      { c0: hc0, r0: hr0 - h }, // above, left-aligned
-      { c0: hc1 - w + 1, r0: hr0 - h }, // above, right-aligned
-      { c0: hc1 + 1, r0: hr0 }, // right, top-aligned
-      { c0: hc1 + 1, r0: hr1 - h + 1 }, // right, bottom-aligned
-      { c0: hc0 - w, r0: hr0 }, // left, top-aligned
-      { c0: hc0 - w, r0: hr1 - h + 1 }, // left, bottom-aligned
-    ]
-    for (const { c0, r0 } of candidates) {
-      if (c0 < 1 || r0 < 1 || c0 + w - 1 >= MAP_COLS - 1 || r0 + h - 1 >= MAP_ROWS - 1) continue
-      let ok = true
-      for (let r = r0; r < r0 + h && ok; r++) {
-        for (let c = c0; c < c0 + w && ok; c++) {
-          const key = `${r},${c}`
-          if (this.financeLayout[r]?.[c] !== 'grass') ok = false
-          else if (buildingTileSet.has(key)) ok = false
-          else if (usedPenTiles.has(key)) ok = false
-          else if (this.blockedEnvironmentTiles.has(key)) ok = false
+  // Map overhaul Phase 3: no longer searches adjacent to a specific home's
+  // footprint - wealthy characters' homes ended up wherever their
+  // residentialStyleKey put them (top or bottom band), unrelated to where
+  // their pet pen should visually group up. Pens now all live together in
+  // FINANCE_FARM_ZONE, so this just scans that zone's own grid, top-left to
+  // bottom-right, for the first open (grass, not a building/other-pen/
+  // scattered-tree) WxH rectangle - `usedPenTiles` accumulates across calls
+  // (see spawnWealthyPetPens), so successive pens naturally pack left-to-
+  // right/top-to-bottom within the zone instead of colliding.
+  findPenSpot(zone, w, h, buildingTileSet, usedPenTiles) {
+    for (let r0 = zone.r0; r0 + h - 1 <= zone.r1; r0++) {
+      for (let c0 = zone.c0; c0 + w - 1 <= zone.c1; c0++) {
+        let ok = true
+        for (let r = r0; r < r0 + h && ok; r++) {
+          for (let c = c0; c < c0 + w && ok; c++) {
+            const key = `${r},${c}`
+            if (this.financeLayout[r]?.[c] !== 'grass') ok = false
+            else if (buildingTileSet.has(key)) ok = false
+            else if (usedPenTiles.has(key)) ok = false
+            else if (this.blockedEnvironmentTiles.has(key)) ok = false
+          }
         }
+        if (ok) return { c0, r0 }
       }
-      if (ok) return { c0, r0 }
     }
     return null
   }
 
   // The "exotic pets as a wealth flex" detail: a small, fixed number of the
-  // wealthiest homes (by the SAME billionaire signal tileGen.js's
+  // wealthiest characters (by the SAME billionaire signal tileGen.js's
   // packFacadeFor uses for the stone-cottage tier - see WEALTH_STONE_THRESHOLD)
-  // get a small fenced pen next to their home with 1-2 animals wandering only
-  // inside it. Deliberately capped at PET_PEN_COUNT - this is flavor for a
-  // handful of the richest characters, not a mechanic for all 88 homes.
+  // get a small fenced pen with 1-2 animals wandering only inside it.
+  // Deliberately capped at PET_PEN_COUNT - this is flavor for a handful of
+  // the richest characters, not a mechanic for all 88 homes. Map overhaul
+  // Phase 3: all pens now group together in FINANCE_FARM_ZONE (bottom-right
+  // corner of the map) instead of sitting next to each character's own home
+  // - which home band (top/bottom) that character's home ended up in no
+  // longer has any bearing on where their pen is.
   spawnWealthyPetPens() {
     const PET_PEN_COUNT = 5
     const PET_PEN_W = 4
@@ -2082,8 +2197,12 @@ export default class OverworldScene extends Phaser.Scene {
     }
     const usedPenTiles = new Set()
 
-    for (const { building: home } of wealthyHomes) {
-      const spot = this.findPenSpot(home, PET_PEN_W, PET_PEN_H, buildingTileSet, usedPenTiles)
+    // Loops `wealthyHomes.length` times (not `for...of` over the array) since
+    // the per-character home/building is no longer read inside the loop at
+    // all - only the count of qualifying wealthy characters matters now that
+    // pens are placed independently of any specific home (see findPenSpot).
+    for (let i = 0; i < wealthyHomes.length; i++) {
+      const spot = this.findPenSpot(FINANCE_FARM_ZONE, PET_PEN_W, PET_PEN_H, buildingTileSet, usedPenTiles)
       if (!spot) continue // low-stakes decoration - skip rather than force an overlap
       const { c0, r0 } = spot
       const px = c0 * TILE_SIZE
