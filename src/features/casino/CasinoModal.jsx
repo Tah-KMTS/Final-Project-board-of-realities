@@ -3,12 +3,14 @@ import { useGameStore } from '../../store/useGameStore'
 import Blackjack from './Blackjack'
 import Poker from './Poker'
 import Slots from './Slots'
+import RussianRoulette from './RussianRoulette'
 import ChallengeNpc from './ChallengeNpc'
 
 const TABS = [
   { id: 'blackjack', label: 'Blackjack' },
   { id: 'poker', label: 'Poker' },
   { id: 'slots', label: 'Slots' },
+  { id: 'roulette', label: 'Russian Roulette' },
   { id: 'challenge', label: 'Challenge an NPC' },
   { id: 'host_blackjack', label: 'Host Blackjack (House Edge)' },
   { id: 'host_poker', label: 'Host Poker (House Edge)' },
@@ -49,6 +51,7 @@ export default function CasinoModal({ onClose }) {
           {tab === 'blackjack' && <Blackjack variant="house" />}
           {tab === 'poker' && <Poker variant="house" />}
           {tab === 'slots' && <Slots />}
+          {tab === 'roulette' && <RussianRoulette />}
           {tab === 'challenge' && <ChallengeNpc />}
           {tab === 'host_blackjack' && <Blackjack variant="playerHouse" dealerName="The Challenger" />}
           {tab === 'host_poker' && <Poker variant="playerHouse" />}
