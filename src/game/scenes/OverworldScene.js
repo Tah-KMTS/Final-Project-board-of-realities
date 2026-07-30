@@ -531,11 +531,16 @@ function terrainTileTypeAt(tile, row) {
   return 'grass'
 }
 
-// Trees and rocks are solid obstacles (their tile is added to
-// `blockedTiles`, consulted by isBlockedTile below) - flowers stay walkable
-// ground decoration, matching the usual top-down-RPG convention. Previously
-// nothing scattered here was ever registered as blocked, so the player
-// could walk straight through a tree trunk or a boulder.
+// Trees are solid again (their tile - and the canopy tile above it, for the
+// ~2-tile-tall Cute Fantasy oak - go into `blockedTiles`, consulted by
+// isBlockedTile/isSingleTileObstacle below): reported as "the big tree" not
+// blocking the player or NPCs. Rocks/flowers stay walkable ground
+// decoration. Named roamers (the 88 scheduled characters) don't run
+// collision at all any more regardless (see updateNamedRoamers's own house
+// rule on why - a straight-line-walk-vs-buildings problem, not a trees
+// problem) so this only affects the player and ambient/wandering NPCs
+// (wanderActor), both of which already re-roll a new direction on hitting
+// an obstacle rather than fighting it.
 // Scatter ATTEMPTS (not placements - most rolls are rejected for landing on
 // a road, a building's 1-tile margin, or a non-grass type). Scaled off the
 // map area so widening the map doesn't silently thin the vegetation out:
@@ -543,7 +548,7 @@ function terrainTileTypeAt(tile, row) {
 // one looking bare.
 const ENVIRONMENT_SCATTER_ATTEMPTS = Math.round((MAP_COLS * MAP_ROWS) / 9)
 
-function scatterEnvironment(scene, layout, buildings, count, zoneObjects) {
+function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blockedTiles) {
   const forbidden = new Set()
   for (const b of buildings) {
     for (let r = b.tiles.r0 - 1; r <= b.tiles.r1 + 1; r++) {
@@ -562,30 +567,43 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects) {
     const cx = c * TILE_SIZE + TILE_SIZE / 2
     const cy = r * TILE_SIZE + TILE_SIZE / 2
     let objs
+    let isTree = false
     const isUrban = (r >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && r <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) || (r >= DISTRICT_BAND_ROWS['Osaka District'].top - 2 && r <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 2)
     const isJRPG = (r >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && r <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2)
-    // Trees/rocks are pure background scenery, not obstacles - depth sorting
-    // (sprite.setDepth(y), same as every other actor) already draws the
-    // player in front of or behind the canopy correctly, so walking through
-    // one doesn't read as clipping.
     if (isUrban) {
       const roll = Math.random()
-      if (roll < 0.55) objs = placeTree(scene, cx, cy)
+      if (roll < 0.55) { objs = placeTree(scene, cx, cy); isTree = true }
       else if (roll < 0.72) objs = placeRock(scene, cx, cy)
       else objs = placeFlower(scene, cx, cy)
     } else if (isJRPG) {
       // Kyoto: cherry blossom still dominant, but with real trees among it.
       const roll = Math.random()
       if (roll < 0.35) objs = placeFlower(scene, cx, cy)
-      else if (roll < 0.85) objs = placeTree(scene, cx, cy)
+      else if (roll < 0.85) { objs = placeTree(scene, cx, cy); isTree = true }
       else objs = placeRock(scene, cx, cy)
     } else {
       const roll = Math.random()
-      if (roll < 0.45) objs = placeTree(scene, cx, cy)
+      if (roll < 0.45) { objs = placeTree(scene, cx, cy); isTree = true }
       else if (roll < 0.85) objs = placeFlower(scene, cx, cy)
       else objs = placeRock(scene, cx, cy)
     }
-    if (objs) zoneObjects.push(...objs)
+    if (objs) {
+      zoneObjects.push(...objs)
+      if (isTree && blockedTiles) {
+        blockedTiles.add(`${r},${c}`)
+        // The Cute Fantasy oak's trunk sits on (r,c) and the canopy rises
+        // into the tile ABOVE it - blocking only the trunk let people stand
+        // inside the leaves, which read as walking through the tree. Only
+        // block the canopy tile if it's ordinary ground: it can be a ROAD
+        // (vehicles are road-locked, blocking it would sever the network
+        // with no visible cause) or the player's own spawn tile.
+        const canopyType = r > 0 ? layout[r - 1][c] : null
+        const canopyIsSpawn = r - 1 === DEFAULT_SPAWN.row && c === DEFAULT_SPAWN.col
+        if (r > 0 && GRASS_TYPES.has(canopyType) && !canopyIsSpawn) {
+          blockedTiles.add(`${r - 1},${c}`)
+        }
+      }
+    }
   }
 }
 
@@ -1168,7 +1186,7 @@ export default class OverworldScene extends Phaser.Scene {
 
     // City-specific environment scatter
     this.blockedEnvironmentTiles = new Set()
-    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, ENVIRONMENT_SCATTER_ATTEMPTS, this.zoneObjects)
+    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, ENVIRONMENT_SCATTER_ATTEMPTS, this.zoneObjects, this.blockedEnvironmentTiles)
 
     drawBuildings(this, FINANCE_BUILDINGS, this.zoneObjects)
 

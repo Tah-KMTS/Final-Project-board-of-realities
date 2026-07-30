@@ -175,17 +175,18 @@ export function cuteTreesReady(scene) {
 // (0.5, 0.9) rather than centre, so the canopy rises above the tile the tree
 // occupies the way the reference does, instead of the tile bisecting it.
 // `rand` is the caller's deterministic 0..1 roll so scatter stays reproducible.
-export function drawCuteTree(scene, cx, cy, tileSize, rand = Math.random()) {
-  const big = rand < 0.62
-  const key = big ? CUTE_TREE_KEYS.oak : CUTE_TREE_KEYS.oakSmall
-  const frame = big ? undefined : Math.floor(rand * 1000) % OAK_SMALL.count
-  // Scale so a big oak spans ~2 tiles wide, matching the reference's
+export function drawCuteTree(scene, cx, cy, tileSize) {
+  // Always the full oak now - the small sapling/bush variant (Oak_Tree_
+  // Small.png) read as a stumpy dark blob rather than a proper tree at this
+  // scale (reported: "remove these trunk[s]"), unlike the big oak's clear
+  // trunk+canopy silhouette. `rand` used to pick between the two; no longer
+  // needed now there's only one variant, but keep it as an accepted (unused)
+  // param so every call site (which still passes a seeded roll) doesn't need
+  // updating.
+  // Scale so the oak spans ~2 tiles wide, matching the reference's
   // tree-to-house proportions rather than the old one-tile blob.
-  const scale = big ? (tileSize * 2) / OAK.w : (tileSize * 1.1) / OAK_SMALL.w
-  const img =
-    frame === undefined
-      ? scene.add.image(cx, cy, key)
-      : scene.add.image(cx, cy, key, frame)
+  const scale = (tileSize * 2) / OAK.w
+  const img = scene.add.image(cx, cy, CUTE_TREE_KEYS.oak)
   img.setOrigin(0.5, 0.9).setScale(scale).setDepth(cy)
   return [img]
 }
