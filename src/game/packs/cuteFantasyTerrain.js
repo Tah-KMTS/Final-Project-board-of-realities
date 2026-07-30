@@ -78,29 +78,13 @@ function pathFrame(isPath, r, c) {
 export const GRASS_TYPES = new Set(['grass', 'slate', 'cobblestone'])
 
 // Overlays real grass/path tiles onto `baseLayer` (the procedural Graphics
-// pass) and returns a Container holding both.
-// PERFORMANCE - READ BEFORE OPTIMISING THIS. It is one Game Object per tile
-// (~10,700 at 160x67) and that IS the main cost on this map. Two attempts to
-// batch it have been made and BOTH were reverted after breaking the ground:
-//
-//   1. One full-map RenderTexture: 6400x2680px, past the 4096px max texture
-//      size plenty of GPUs report. Silently rendered nothing.
-//   2. RenderTextures chunked at 2048px: still rendered the ground wrong in
-//      part of the map. Cause not established - it was written and shipped
-//      without ever being run, which is why it failed twice.
-//
-// Both were reasoned about rather than observed. Do NOT attempt a third
-// rewrite from inspection alone: run the game, confirm the ground renders,
-// and profile to see whether this is even the bottleneck before changing it.
-// A Blitter or a real TilemapLayer is the likeliest correct answer (neither
-// has a single-surface size limit), but it needs verifying in a running
-// scene, not in a build log.
+// pass) and returns a Container holding both. See the grass-run comment
+// inside for how this is batched and why RenderTexture was ruled out.
 export function buildCuteTerrainOverlay(scene, baseLayer, cols, rows, tileSize, tileTypeAt) {
   const scale = tileSize / 16
   const container = scene.add.container(0, 0)
   container.setDepth(baseLayer.depth ?? 0)
   container.add(baseLayer)
-
 
   // Grass is a SINGLE repeated tile, so it does not need one Game Object per
   // cell. Each row's grass is emitted as a few TileSprites - one per

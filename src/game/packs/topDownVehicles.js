@@ -99,3 +99,36 @@ export function headingFor(dx, dy) {
   const octant = Math.round(angle / (Math.PI / 4))
   return HEADINGS[((octant % 8) + 8) % 8]
 }
+
+// ---------------------------------------------------------------------------
+// Per-vehicle performance. `speed` is the same multiplier the vehicle tiers
+// already used (higher = faster top speed); `accel` is how quickly it gets
+// there, in throttle units per second, where 1 full unit spans standstill to
+// top speed. So accel 2 reaches top speed in half a second, accel 0.6 takes
+// well over a second.
+//
+// Before this, every vehicle jumped to its top speed on the frame you got in,
+// so a supercar and a van felt identical apart from the final number. Giving
+// heavy vehicles a slow ramp is what makes them read as heavy.
+const VEHICLE_PERFORMANCE = {
+  buy_tesla: { speed: 3.2, accel: 2.0 },
+  npc_supercar_yellow: { speed: 3.2, accel: 2.0 },
+  atmo_police: { speed: 2.8, accel: 1.4 },
+  atmo_ambulance: { speed: 2.4, accel: 0.8 },
+  rent_sedan: { speed: 2.2, accel: 1.1 },
+  atmo_sedan_blue: { speed: 2.2, accel: 1.1 },
+  npc_sedan_red: { speed: 2.2, accel: 1.1 },
+  atmo_taxi: { speed: 2.1, accel: 1.1 },
+  atmo_suv: { speed: 1.9, accel: 0.7 },
+  npc_suv_green: { speed: 1.9, accel: 0.7 },
+  atmo_van: { speed: 1.7, accel: 0.6 },
+  npc_van_brown: { speed: 1.7, accel: 0.6 },
+}
+
+// Speed every vehicle starts from when you pull away, as a fraction of its own
+// top speed. Not zero - the tile-stepping mover would stall outright.
+export const VEHICLE_LAUNCH_FRACTION = 0.45
+
+export function vehiclePerformance(tierId, fallbackSpeed = 1.8) {
+  return VEHICLE_PERFORMANCE[tierId] ?? { speed: fallbackSpeed, accel: 1.0 }
+}

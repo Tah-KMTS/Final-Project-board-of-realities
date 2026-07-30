@@ -36,7 +36,7 @@ import { buildChapelMapZone, preloadChapelMap, CHAPEL_ROOM } from '../interiors/
 import { buildChapelExteriorZone, preloadChapelExterior, updateChapelGate, chapelFacadeSolidOffsets, CHAPEL_EXTERIOR_ROOM } from '../interiors/tmxMapExterior'
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
 import { preloadCuteTerrain, preloadCuteTrees, GRASS_TYPES } from '../packs/cuteFantasyTerrain'
-import { preloadTopDownVehicles, NPC_VEHICLE_TIERS } from '../packs/topDownVehicles'
+import { preloadTopDownVehicles, NPC_VEHICLE_TIERS, vehiclePerformance, VEHICLE_LAUNCH_FRACTION } from '../packs/topDownVehicles'
 
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
@@ -2490,7 +2490,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.drivingEntry = entry
     this.playerActor.sprite.setVisible(false)
     this.playerActor.shadow.setVisible(false)
-    this.tileMover.stepDurationMs = Math.round(160 / entry.speedMultiplier)
+    // Pull away from a standstill rather than snapping to top speed. The
+    // throttle ramps in update(); see vehiclePerformance for per-vehicle
+    // top speed and how fast each one gets there.
+    this.driveThrottle = 0
+    this.applyDriveSpeed()
     // Avoids a one-frame snap-rotation from stale prev-position on the first
     // driving frame (see the faceVector call in update()).
     this._prevDriveX = this.playerActor.x
@@ -2498,9 +2502,21 @@ export default class OverworldScene extends Phaser.Scene {
     useGameStore.getState().setDriving(true)
   }
 
+  // Converts the current throttle into a TileMover step duration. Shorter
+  // step = faster. Called every frame while driving.
+  applyDriveSpeed() {
+    const entry = this.drivingEntry
+    if (!entry) return
+    const { speed } = vehiclePerformance(entry.tierId, entry.speedMultiplier ?? 1.8)
+    const t = this.driveThrottle ?? 0
+    const current = speed * (VEHICLE_LAUNCH_FRACTION + (1 - VEHICLE_LAUNCH_FRACTION) * t)
+    this.tileMover.stepDurationMs = Math.round(160 / Math.max(0.2, current))
+  }
+
   exitVehicle() {
     const entry = this.drivingEntry
     if (!entry) return
+    this.driveThrottle = 0
     this.drivingEntry = null
     this.tileMover.stepDurationMs = 160
     useGameStore.getState().setDriving(false)
@@ -2831,6 +2847,18 @@ export default class OverworldScene extends Phaser.Scene {
       const dy = this.playerActor.y - this._prevDriveY
       this.drivingEntry.actor.setPosition(this.playerActor.x, this.playerActor.y)
       this.drivingEntry.actor.faceVector(dx, dy)
+
+      // Throttle: builds while a direction is held, falls away when it isn't,
+      // at the vehicle's own accel rate. A supercar is near top speed almost
+      // immediately; a van takes a couple of seconds. Braking is quicker than
+      // accelerating, which is both true of cars and stops a released key
+      // leaving you coasting.
+      const { accel } = vehiclePerformance(this.drivingEntry.tierId, this.drivingEntry.speedMultiplier ?? 1.8)
+      const dt = delta / 1000
+      const throttling = Boolean(horiz || vert)
+      const rate = throttling ? accel : -accel * 2
+      this.driveThrottle = Math.max(0, Math.min(1, (this.driveThrottle ?? 0) + rate * dt))
+      this.applyDriveSpeed()
     }
     this._prevDriveX = this.playerActor.x
     this._prevDriveY = this.playerActor.y
