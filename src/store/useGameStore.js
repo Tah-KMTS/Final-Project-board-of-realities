@@ -154,6 +154,7 @@ function createDefaultState() {
       marketInitialized: false,
       stocks: [],
       portfolio: {},
+      shortPositions: {},
       cryptoPrice: CRYPTO_BASE_PRICE,
       cryptoHype: 0,
       cryptoHoldings: 0,
@@ -596,6 +597,54 @@ export const useGameStore = create((set, get) => ({
     return true
   },
 
+  // Short-selling: the inverse of buyStock/sellStock. Opening a short
+  // "borrows shares and sells them now" - proceeds are credited to cash
+  // immediately, no cash check needed since nothing is being spent. Covering
+  // later buys the shares back at whatever the price is then; if the price
+  // rose since opening, covering costs MORE than was received, so a short
+  // can leave the player unable to afford closing it out - a real,
+  // unbounded-downside liability that computeNetWorth must account for.
+  //
+  // priceMultiplier follows the same convention as buyStock/sellStock: the
+  // Stock Exchange's timed-meter mini-game passes a bonus (>1, priced like
+  // sellStock - a HIGH entry price is good when opening a short) or discount
+  // (<1, priced like buyStock - a LOW cover price is good); plain callers
+  // omit it and get exactly stock.price*shares.
+  openShort: (ticker, shares, priceMultiplier = 1) => {
+    const state = get()
+    const stock = state.world2.stocks.find((s) => s.ticker === ticker)
+    if (!stock) return false
+    const currentShorts = state.world2.shortPositions || {}
+    const proceeds = stock.price * shares * priceMultiplier
+    const existing = currentShorts[ticker] || { shares: 0, entryPrice: 0 }
+    const totalShares = existing.shares + shares
+    const entryPrice = (existing.shares * existing.entryPrice + proceeds) / totalShares
+    set({
+      cash: state.cash + proceeds,
+      world2: {
+        ...state.world2,
+        shortPositions: { ...currentShorts, [ticker]: { shares: totalShares, entryPrice } },
+      },
+    })
+    return true
+  },
+
+  coverShort: (ticker, shares, priceMultiplier = 1) => {
+    const state = get()
+    const stock = state.world2.stocks.find((s) => s.ticker === ticker)
+    const currentShorts = state.world2.shortPositions || {}
+    const position = currentShorts[ticker]
+    if (!stock || !position || position.shares < shares) return false
+    const cost = stock.price * shares * priceMultiplier
+    if (state.cash < cost) return false
+    const remaining = position.shares - shares
+    const shortPositions = { ...currentShorts }
+    if (remaining <= 0) delete shortPositions[ticker]
+    else shortPositions[ticker] = { ...position, shares: remaining }
+    set({ cash: state.cash - cost, world2: { ...state.world2, shortPositions } })
+    return true
+  },
+
   buyCrypto: (usdAmount) => {
     const state = get()
     if (state.cash < usdAmount || usdAmount <= 0) return false
@@ -832,7 +881,16 @@ export const useGameStore = create((set, get) => ({
       return sum + (stock ? stock.price * holding.shares : 0)
     }, 0)
     const cryptoValue = w2.cryptoHoldings * w2.cryptoPrice
-    return state.cash + stockValue + cryptoValue
+    // Open shorts are a liability, not free cash: the proceeds from opening
+    // one already landed in `cash` above, but covering it back costs
+    // whatever the stock is worth NOW, so that cost must be subtracted here
+    // or the $1B win condition could be met by opening huge shorts and never
+    // covering them.
+    const shortLiability = Object.entries(w2.shortPositions || {}).reduce((sum, [ticker, short]) => {
+      const stock = w2.stocks.find((s) => s.ticker === ticker)
+      return sum + (stock ? stock.price * short.shares : 0)
+    }, 0)
+    return state.cash + stockValue + cryptoValue - shortLiability
   },
 
   isSoleSurvivor: () => {

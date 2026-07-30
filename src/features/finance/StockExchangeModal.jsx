@@ -25,7 +25,12 @@ export default function StockExchangeModal({ onClose, onDeclareVictory }) {
 
         <div className="mb-4 max-h-64 overflow-y-auto border-2 border-gray-600 bg-[#0f1020] p-3">
           {world2.stocks.map((stock) => (
-            <TradeMeter key={stock.ticker} stock={stock} holding={world2.portfolio[stock.ticker]} />
+            <TradeMeter
+              key={stock.ticker}
+              stock={stock}
+              holding={world2.portfolio[stock.ticker]}
+              shortHolding={world2.shortPositions?.[stock.ticker]}
+            />
           ))}
         </div>
 
