@@ -12,9 +12,14 @@
  * guarantee for the 63 characters it had no bespoke schedule for. As of this
  * change `updateAgentPositions` has no remaining callers anywhere in src/
  * (verified by grep) but is kept, unremoved, because:
- *   - TITAN_ROUTINES itself is still very much alive: characterDispositions.js
- *     reads it for homeCity, and OverworldScene.js's homeDistrictFor() reads
- *     it for district grouping.
+ *   - TITAN_ROUTINES itself is still very much alive: AgentInteractionsModal.jsx
+ *     reads routine.homeCity for its city filter, and vehicleGen.js reads it
+ *     to tell titans apart from ordinary characters. (Map flattening removed
+ *     its two other consumers - characterDispositions.js's old
+ *     homeDistrictForCharacter() and OverworldScene.js's old
+ *     homeDistrictFor() - which used homeCity purely for district grouping,
+ *     a concept that's gone now; TITAN_ROUTINES survives on the two
+ *     consumers above.)
  *   - Deleting an exported function is a bigger, separate decision than the
  *     position-source swap this comment is documenting.
  * Positions below are in the legacy tilemap grid (40x45 grid, 40px tiles =

@@ -131,7 +131,6 @@ function fallbackDisposition(characterId) {
     name: characterId,
     tier: 'regular',
     homeBuildingId: `home_${characterId}`,
-    district: 'Tokyo District',
     sociability: 0.5,
     homeAffinity: 0.5,
     travelRange: 0,

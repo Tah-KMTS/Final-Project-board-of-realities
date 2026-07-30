@@ -449,10 +449,6 @@ export default function WorldScreen() {
       {activeModal?.type === 'townTravel' && (
         <TownTravelUI
           onClose={closeModal}
-          onTravel={(cityId) => {
-            bridgeRef.current.emit('cityTravel', { cityId })
-            closeModal()
-          }}
           onOpenTransitShop={() => setActiveModal({ type: 'interactiveLocation', locationId: 'transit_hub' })}
         />
       )}

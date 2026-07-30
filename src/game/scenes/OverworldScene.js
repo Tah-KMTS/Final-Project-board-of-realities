@@ -4,7 +4,6 @@ import { resolvePalette } from '../characterPalettes'
 import { generateAmbientNpcs } from '../../utils/npcGenerator'
 import { getAllCharacters, getAnyCharacter } from '../../features/agents/characterLookup'
 import { getDisposition } from '../../features/agents/characterDispositions'
-import { TITAN_ROUTINES } from '../../features/agents/agentMovementEngine'
 import { TIME_BLOCKS, simulateWorldPresence } from '../../features/agents/worldPresenceEngine'
 import { CHARACTER_HOME_BUILDING_DEFS, getHomeBuildingDef } from '../../features/world/characterHomeBuildings'
 import { SpriteActor } from '../actor'
@@ -69,16 +68,23 @@ const TILE_SIZE = 40
 // clear of the HUD without touching the band/gap layout math at all.
 const DEFAULT_SPAWN = { col: 7, row: 3 }
 
-// ---------------- Capital Syndicate: 4-district Financial region ----------------
-// Each district is a self-contained horizontal band, stacked top to bottom
-// in DISTRICT_ORDER, with a grass gap (>= BAND_GAP tiles) between bands for
-// a street. Buildings within a band are packed left-to-right and wrap to a
-// second row once they'd cross BAND_COL_END - laid out by layoutFinanceMap()
-// below rather than hand-placed, so there's no risk of two buildings (or a
-// building and the map border) overlapping as the roster changes. Verified
-// with a standalone overlap/bounds check before wiring this in, not just
-// eyeballed.
-const DISTRICT_ORDER = ['Tokyo District', 'Kyoto District', 'Osaka District', 'Sapporo District']
+// ---------------- Capital Syndicate: unified Financial region ----------------
+// Map overhaul Phase 1 (flattening): this used to be 4 stacked district
+// bands (Tokyo/Kyoto/Osaka/Sapporo), each its own self-contained row-band
+// with its own street gap. That grouping is gone - FINANCE_BUILDING_DEFS
+// below is now ONE flat pool, packed left-to-right/top-to-bottom by
+// layoutFinanceMap() with no district concept at all, so the whole roster
+// reads as one continuous city. The "--- Tokyo District ---"-style comments
+// still splitting the list below are leftover roster organisation only
+// (keeps related HQs/amenities grouped in the source for readability) - they
+// no longer correspond to any physical region of the map; a building's
+// position is purely wherever the packer's cursor happens to land.
+//
+// Buildings are packed left-to-right and wrap to a new row once they'd cross
+// bandColEnd - laid out by layoutFinanceMap() below rather than hand-placed,
+// so there's no risk of two buildings (or a building and the map border)
+// overlapping as the roster changes. Verified with a standalone overlap/
+// bounds check before wiring this in, not just eyeballed.
 
 // House rule: 2x2 character homes/hideouts packed at the same BAND_GAP=4 as
 // the hand-authored buildings below measured out to a 154-row map (verified
@@ -92,30 +98,30 @@ const DISTRICT_ORDER = ['Tokyo District', 'Kyoto District', 'Osaka District', 'S
 const HOME_GAP = 1
 
 const FINANCE_BUILDING_DEFS = [
-  // --- Tokyo District ---
-  { id: 'stockExchange', label: 'Tokyo Stock Exchange', district: 'Tokyo District', color: 0x1f5f3a, width: 3, height: 3 },
-  { id: 'buffettHQ', label: 'Biffle Tower', district: 'Tokyo District', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
-  { id: 'vanderbiltHQ', label: 'Vanderbilt Rail Co.', district: 'Tokyo District', color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
-  { id: 'muskHQ', label: 'Rusk Industries', district: 'Tokyo District', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
-  { id: 'howardMarksHQ', label: 'Oaktree Cycle Capital', district: 'Tokyo District', color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
-  { id: 'appleHQ', label: 'Apple Glass HQ', district: 'Tokyo District', color: 0xc0c0c0, width: 4, height: 3, npcId: 'jobs' },
-  { id: 'cryptoExchange', label: 'Crypto HQ', district: 'Tokyo District', color: 0x8a5a1f, width: 4, height: 3 },
-  { id: 'corporateOffice', label: 'Corporate Holdings', district: 'Tokyo District', color: 0x4a3a5f, width: 4, height: 3 },
-  { id: 'vcHub', label: 'Venture Capital Hub', district: 'Tokyo District', color: 0x2a3a6b, width: 3, height: 3 },
-  { id: 'bank', label: 'Bank & Realty Office', district: 'Tokyo District', color: 0x1f3a5f, width: 4, height: 3 },
-  { id: 'realEstateAgency', label: 'Real Estate Agency', district: 'Tokyo District', color: 0x3a5f4a, width: 4, height: 3 },
-  { id: 'parliament', label: 'Parliament Hall', district: 'Tokyo District', color: 0x3a3a6a, width: 4, height: 3 },
+  // --- Financial/civic HQs (formerly "Tokyo") ---
+  { id: 'stockExchange', label: 'Tokyo Stock Exchange', facadeStyle: 'modernGlass', color: 0x1f5f3a, width: 3, height: 3 },
+  { id: 'buffettHQ', label: 'Biffle Tower', facadeStyle: 'modernGlass', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
+  { id: 'vanderbiltHQ', label: 'Vanderbilt Rail Co.', facadeStyle: 'modernGlass', color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
+  { id: 'muskHQ', label: 'Rusk Industries', facadeStyle: 'modernGlass', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
+  { id: 'howardMarksHQ', label: 'Oaktree Cycle Capital', facadeStyle: 'modernGlass', color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
+  { id: 'appleHQ', label: 'Apple Glass HQ', facadeStyle: 'modernGlass', color: 0xc0c0c0, width: 4, height: 3, npcId: 'jobs' },
+  { id: 'cryptoExchange', label: 'Crypto HQ', facadeStyle: 'modernGlass', color: 0x8a5a1f, width: 4, height: 3 },
+  { id: 'corporateOffice', label: 'Corporate Holdings', facadeStyle: 'modernGlass', color: 0x4a3a5f, width: 4, height: 3 },
+  { id: 'vcHub', label: 'Venture Capital Hub', facadeStyle: 'modernGlass', color: 0x2a3a6b, width: 3, height: 3 },
+  { id: 'bank', label: 'Bank & Realty Office', facadeStyle: 'modernGlass', color: 0x1f3a5f, width: 4, height: 3 },
+  { id: 'realEstateAgency', label: 'Real Estate Agency', facadeStyle: 'modernGlass', color: 0x3a5f4a, width: 4, height: 3 },
+  { id: 'parliament', label: 'Parliament Hall', facadeStyle: 'modernGlass', color: 0x3a3a6a, width: 4, height: 3 },
 
-  // --- Kyoto District ---
-  { id: 'irsHQ', label: 'IRS Internal Revenue', district: 'Kyoto District', color: 0x5a5a5a, width: 4, height: 3, npcId: 'caplin' },
-  { id: 'teaHouse', label: 'Cherry Coke Tea House', district: 'Kyoto District', color: 0x8a4a2a, width: 3, height: 2 },
-  { id: 'machiyaEstate', label: 'Machiya Executive Estate', district: 'Kyoto District', color: 0x6a5a3a, width: 4, height: 3 },
-  { id: 'zenGarden', label: 'Zen Rock Garden', district: 'Kyoto District', color: 0x8a8a6a, width: 3, height: 2 },
-  { id: 'silkMarket', label: 'Silk & Kimono Market', district: 'Kyoto District', color: 0x8a2a4a, width: 3, height: 2 },
-  { id: 'sakeBrewery', label: 'Fushimi Sake Brewery', district: 'Kyoto District', color: 0x6a4a2a, width: 3, height: 2 },
-  { id: 'artisanShop', label: 'Kiyomizu Artisan Shop', district: 'Kyoto District', color: 0x4a6a5a, width: 3, height: 2 },
-  { id: 'hotel', label: 'Ryokan Mountain Inn', district: 'Kyoto District', color: 0x5a4a3a, width: 4, height: 3 },
-  { id: 'park', label: 'Serenity Park', district: 'Kyoto District', color: 0x2a5f2a, width: 4, height: 2 },
+  // --- Cultural/amenity buildings (formerly "Kyoto") ---
+  { id: 'irsHQ', label: 'IRS Internal Revenue', facadeStyle: 'traditionalCottage', color: 0x5a5a5a, width: 4, height: 3, npcId: 'caplin' },
+  { id: 'teaHouse', label: 'Cherry Coke Tea House', facadeStyle: 'traditionalCottage', color: 0x8a4a2a, width: 3, height: 2 },
+  { id: 'machiyaEstate', label: 'Machiya Executive Estate', facadeStyle: 'traditionalCottage', color: 0x6a5a3a, width: 4, height: 3 },
+  { id: 'zenGarden', label: 'Zen Rock Garden', facadeStyle: 'traditionalCottage', color: 0x8a8a6a, width: 3, height: 2 },
+  { id: 'silkMarket', label: 'Silk & Kimono Market', facadeStyle: 'traditionalCottage', color: 0x8a2a4a, width: 3, height: 2 },
+  { id: 'sakeBrewery', label: 'Fushimi Sake Brewery', facadeStyle: 'traditionalCottage', color: 0x6a4a2a, width: 3, height: 2 },
+  { id: 'artisanShop', label: 'Kiyomizu Artisan Shop', facadeStyle: 'traditionalCottage', color: 0x4a6a5a, width: 3, height: 2 },
+  { id: 'hotel', label: 'Ryokan Mountain Inn', facadeStyle: 'traditionalCottage', color: 0x5a4a3a, width: 4, height: 3 },
+  { id: 'park', label: 'Serenity Park', facadeStyle: 'traditionalCottage', color: 0x2a5f2a, width: 4, height: 2 },
   // Distinct indigo/violet exterior (every other Kyoto building above is a
   // muted brown/grey/green earth-tone) so this reads as the grand chapel
   // it now has an interior for (see buildChapelInteriorZone in this file
@@ -127,43 +133,42 @@ const FINANCE_BUILDING_DEFS = [
   // 16x14 matches the authored chapel art exactly (House/Wings/Dragon layers,
   // cols 6-21 x rows 2-15 of Exterior.tmx) so the facade fills its footprint
   // with no overflow onto neighbours - see drawChapelExteriorFacade.
-  { id: 'temple', label: 'Whispering Temple Chapel', district: 'Kyoto District', color: 0x3a2a6a, width: 30, height: 22 },
+  { id: 'temple', label: 'Whispering Temple Chapel', facadeStyle: 'traditionalCottage', color: 0x3a2a6a, width: 30, height: 22 },
 
-  // --- Osaka District ---
-  { id: 'casino', label: 'Neon Dragon Casino', district: 'Osaka District', color: 0x8a1f6a, width: 4, height: 3 },
-  { id: 'arcade', label: 'Pixel Palace Arcade', district: 'Osaka District', color: 0x1f6a8a, width: 3, height: 3 },
-  { id: 'speakeasyHotel', label: 'Chicago Speakeasy Hotel', district: 'Osaka District', color: 0x6a3a2a, width: 4, height: 3, npcId: 'capone' },
-  { id: 'fbiHQ', label: 'FBI Headquarters', district: 'Osaka District', color: 0x2a3a5a, width: 4, height: 3, npcId: 'hoover' },
-  { id: 'dotonboriArcade', label: 'Dotonbori Merchant Arcade', district: 'Osaka District', color: 0x8a6a2a, width: 4, height: 2 },
-  { id: 'fishMarket', label: 'Kuromon Fish Market', district: 'Osaka District', color: 0x2a5a6a, width: 3, height: 2 },
-  { id: 'takoyakiStand', label: 'Takoyaki Street Food', district: 'Osaka District', color: 0x8a4a1f, width: 2, height: 2 },
-  { id: 'crimeAlley', label: 'Crime Alley', district: 'Osaka District', color: 0x6a1f1f, width: 4, height: 2, npcId: 'luciano' },
-  { id: 'blackMarket', label: 'Black Market', district: 'Osaka District', color: 0x4a1f6a, width: 3, height: 2 },
-  { id: 'callCenterOps', label: 'Call Center Ops', district: 'Osaka District', color: 0x6a5a1f, width: 3, height: 2 },
-  { id: 'dockVaults', label: 'Dock Underground Vaults', district: 'Osaka District', color: 0x2a2a3a, width: 4, height: 2 },
+  // --- Entertainment/crime buildings (formerly "Osaka") ---
+  { id: 'casino', label: 'Neon Dragon Casino', facadeStyle: 'modernBrick', color: 0x8a1f6a, width: 4, height: 3 },
+  { id: 'arcade', label: 'Pixel Palace Arcade', facadeStyle: 'modernBrick', color: 0x1f6a8a, width: 3, height: 3 },
+  { id: 'speakeasyHotel', label: 'Chicago Speakeasy Hotel', facadeStyle: 'modernBrick', color: 0x6a3a2a, width: 4, height: 3, npcId: 'capone' },
+  { id: 'fbiHQ', label: 'FBI Headquarters', facadeStyle: 'modernBrick', color: 0x2a3a5a, width: 4, height: 3, npcId: 'hoover' },
+  { id: 'dotonboriArcade', label: 'Dotonbori Merchant Arcade', facadeStyle: 'modernBrick', color: 0x8a6a2a, width: 4, height: 2 },
+  { id: 'fishMarket', label: 'Kuromon Fish Market', facadeStyle: 'modernBrick', color: 0x2a5a6a, width: 3, height: 2 },
+  { id: 'takoyakiStand', label: 'Takoyaki Street Food', facadeStyle: 'modernBrick', color: 0x8a4a1f, width: 2, height: 2 },
+  { id: 'crimeAlley', label: 'Crime Alley', facadeStyle: 'modernBrick', color: 0x6a1f1f, width: 4, height: 2, npcId: 'luciano' },
+  { id: 'blackMarket', label: 'Black Market', facadeStyle: 'modernBrick', color: 0x4a1f6a, width: 3, height: 2 },
+  { id: 'callCenterOps', label: 'Call Center Ops', facadeStyle: 'modernBrick', color: 0x6a5a1f, width: 3, height: 2 },
+  { id: 'dockVaults', label: 'Dock Underground Vaults', facadeStyle: 'modernBrick', color: 0x2a2a3a, width: 4, height: 2 },
 
-  // --- Sapporo District ---
-  { id: 'fordRougeComplex', label: 'Ford River Rouge Complex', district: 'Sapporo District', color: 0x3a4a5a, width: 4, height: 3, npcId: 'ford' },
-  { id: 'carnegieSteelMill', label: 'Homestead Steel Mill', district: 'Sapporo District', color: 0x5a3a2a, width: 4, height: 3, npcId: 'carnegie' },
-  { id: 'standardOilRefinery', label: 'Standard Oil Refinery', district: 'Sapporo District', color: 0x2a3a3a, width: 4, height: 3, npcId: 'rockefeller' },
-  { id: 'pentagonDodHQ', label: 'Pentagon Procurement HQ', district: 'Sapporo District', color: 0x2a4a6a, width: 4, height: 3, npcId: 'mcnamara' },
-  { id: 'epaHQ', label: 'EPA Regulation Agency', district: 'Sapporo District', color: 0x2a5a3a, width: 4, height: 3, npcId: 'ruckelshaus' },
-  { id: 'sapporoBrewery', label: 'Alpine Snow Brewery', district: 'Sapporo District', color: 0x8a6a2a, width: 3, height: 2 },
-  { id: 'alpineLodge', label: 'Mount Yotei Alpine Lodge', district: 'Sapporo District', color: 0x6a4a3a, width: 4, height: 3 },
-  { id: 'trainStation', label: '🚆 Central Train Station', district: 'Sapporo District', color: 0x4a6fa5, width: 4, height: 2 },
+  // --- Industrial/civic buildings (formerly "Sapporo") ---
+  { id: 'fordRougeComplex', label: 'Ford River Rouge Complex', facadeStyle: 'modernGlass', color: 0x3a4a5a, width: 4, height: 3, npcId: 'ford' },
+  { id: 'carnegieSteelMill', label: 'Homestead Steel Mill', facadeStyle: 'modernGlass', color: 0x5a3a2a, width: 4, height: 3, npcId: 'carnegie' },
+  { id: 'standardOilRefinery', label: 'Standard Oil Refinery', facadeStyle: 'modernGlass', color: 0x2a3a3a, width: 4, height: 3, npcId: 'rockefeller' },
+  { id: 'pentagonDodHQ', label: 'Pentagon Procurement HQ', facadeStyle: 'modernGlass', color: 0x2a4a6a, width: 4, height: 3, npcId: 'mcnamara' },
+  { id: 'epaHQ', label: 'EPA Regulation Agency', facadeStyle: 'modernGlass', color: 0x2a5a3a, width: 4, height: 3, npcId: 'ruckelshaus' },
+  { id: 'sapporoBrewery', label: 'Alpine Snow Brewery', facadeStyle: 'modernGlass', color: 0x8a6a2a, width: 3, height: 2 },
+  { id: 'alpineLodge', label: 'Mount Yotei Alpine Lodge', facadeStyle: 'modernGlass', color: 0x6a4a3a, width: 4, height: 3 },
+  { id: 'trainStation', label: '🚆 Central Train Station', facadeStyle: 'modernGlass', color: 0x4a6fa5, width: 4, height: 2 },
 
   // --- Character homes & hideouts (generated, see characterHomeBuildings.js) ---
   // Appended after the 41 defs above (not interleaved) so the already-
-  // verified district layout stays first and unaffected; layoutFinanceMap
-  // packs each into its def's district band same as any other building.
+  // verified office/amenity layout stays first and unaffected; layoutFinanceMap
+  // packs the whole list (offices then homes) as one flat pool.
   // Sorted by residentialStyleKey (stone manor / wood house / pico8 /
-  // serene cottage / brick cottage / hideout) before packing - .filter()
-  // in layoutFinanceMap preserves relative order, so within each district
-  // band this sort survives straight through to "same style lands in a
-  // contiguous run", i.e. actual visual clusters rather than the roster's
-  // arbitrary order scattering every style across every row (reported: a
-  // log-cabin home next to a stone manor next to a pico8 warehouse, no
-  // grouping at all).
+  // serene cottage / brick cottage / hideout) before packing - array order
+  // is preserved straight through packing, so this sort survives into "same
+  // style lands in a contiguous run", i.e. actual visual clusters rather
+  // than the roster's arbitrary order scattering every style across every
+  // row (reported: a log-cabin home next to a stone manor next to a pico8
+  // warehouse, no grouping at all).
   ...CHARACTER_HOME_BUILDING_DEFS
     .map((d) => ({ ...d, gap: HOME_GAP }))
     .sort((a, b) => residentialStyleKey(a.npcId, a.kind).localeCompare(residentialStyleKey(b.npcId, b.kind))),
@@ -229,6 +234,28 @@ function firstColumnClearOfStreets(col, width, streetCols, bandColEnd) {
   return null
 }
 
+// Horizontal streets, map-flattening version: there's no longer a fixed set
+// of district-gap rows to drop a street into (that concept is gone - see the
+// header comment above FINANCE_BUILDING_DEFS). Unlike vertical streets,
+// horizontal rows also can't be reserved DURING packing the way columns are
+// (verticalStreetColumns precomputes columns from mapCols, a known input;
+// mapRows is only known once packing finishes). So this runs packing first
+// with no street concept at all, then does a second pass over the finished
+// building list: find every row-band that ended up fully building-free
+// (there are several - BAND_GAP/HOME_GAP row-wraps, and especially the
+// office->home category-change boundary, all leave multi-row gaps nothing
+// was ever packed into), and greedily place a STREET_WIDTH-tall street in
+// every free band spaced at least H_STREET_INTERVAL rows from the last one
+// chosen. This reliably finds every usable gap in the actual finished
+// layout, rather than only the gaps that happen to exist exactly at a wrap
+// boundary hit while walking the packing cursor (tried first; it missed
+// several perfectly good gaps because the packer doesn't wrap on every row).
+// Interval picked to land in the middle of the "every ~14-16 rows" target:
+// dense enough to keep the road-tile count in the same ballpark as the old
+// 4-band scheme (checked with production/checkMapLayout.mjs), sparse enough
+// that most building rows aren't immediately adjacent to a street.
+const H_STREET_INTERVAL = 15
+
 function layoutFinanceMap(mapCols) {
   const streetCols = verticalStreetColumns(mapCols)
   // Facade ART is allowed to overflow its footprint (prefab facades draw
@@ -243,100 +270,108 @@ function layoutFinanceMap(mapCols) {
   }
   const bandColEnd = mapCols - BAND_COL_END_FROM_RIGHT
   const buildings = []
-  const districtBandRows = {}
-  let cursorRow = MAP_TOP_MARGIN
-  for (const district of DISTRICT_ORDER) {
-    const defs = FINANCE_BUILDING_DEFS.filter((b) => b.district === district)
-    let col = BAND_COL_START
-    let row = cursorRow
-    let rowMaxHeight = 0
-    const bandTop = cursorRow
-    let prevIsHome = null
-    for (const b of defs) {
-      // Force a fresh row whenever the building "category" changes (hand-
-      // authored office/HQ facades vs. character homes/hideouts), even if
-      // the current row has space left. Without this, homes are appended
-      // after a district's hand-authored defs in the same array, and the
-      // packer just kept filling the row it was on - so the LAST office
-      // building and the FIRST home routinely ended up side by side, with
-      // no gap and two completely different art styles touching directly
-      // (reported: a flat grey office facade wedged into a row of log-cabin
-      // homes). Homes still pack tightly against EACH OTHER (see HOME_GAP)
-      // - this only draws a line between the two categories, using the
-      // wider BAND_GAP rather than either category's own tighter gap, so
-      // the boundary reads as deliberate, not just another row wrap.
-      const isHome = Boolean(b.kind)
-      const categoryChanged = prevIsHome !== null && isHome !== prevIsHome && col !== BAND_COL_START
-      // Row-wrap gap honours the same per-def override horizontal packing
-      // already uses (b.gap ?? BAND_GAP) instead of always BAND_GAP. Homes
-      // set gap: HOME_GAP=1 to pack tightly side-by-side, but every WRAPPED
-      // row still cost a full BAND_GAP=4 vertically regardless - with ~88
-      // 2-wide homes needing several wrapped rows per district, that
-      // asymmetry was most of the map's excess height.
-      if (categoryChanged) {
-        col = BAND_COL_START
-        row += rowMaxHeight + BAND_GAP
-        rowMaxHeight = 0
-      } else if (col + b.width - 1 > bandColEnd) {
-        col = BAND_COL_START
-        row += rowMaxHeight + (b.gap ?? BAND_GAP)
-        rowMaxHeight = 0
-      }
-      prevIsHome = isHome
-      // Reserve the vertical streets: shift right past any street block this
-      // building would straddle, wrapping to the next row if it no longer
-      // fits on this one.
-      let clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
-      if (clear === null) {
-        col = BAND_COL_START
-        row += rowMaxHeight + (b.gap ?? BAND_GAP)
-        rowMaxHeight = 0
-        clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
-      }
-      if (clear === null) {
-        // Unreachable while V_STREET_SPACING is wide enough for the widest
-        // building (see its comment). Failing loudly beats silently writing
-        // null tile coords, which is what produced a building at column
-        // `null` when the chapel outgrew the street spacing.
-        throw new Error(
-          `layoutFinanceMap: "${b.label ?? b.id}" is ${b.width} tiles wide and cannot fit between vertical streets ` +
-            `(clear gap is ${V_STREET_SPACING - STREET_WIDTH} columns). Raise V_STREET_SPACING.`
-        )
-      }
-      col = clear
-      const c0 = col
-      const r0 = row
-      const c1 = col + b.width - 1
-      const r1 = row + b.height - 1
-      buildings.push({ ...b, tiles: { c0, r0, c1, r1 } })
-      col += b.width + (b.gap ?? BAND_GAP)
-      rowMaxHeight = Math.max(rowMaxHeight, b.height)
-    }
-    const bandBottom = row + rowMaxHeight - 1
-    districtBandRows[district] = { top: bandTop, bottom: bandBottom }
-    cursorRow = bandBottom + BAND_GAP + 1
-  }
-  const lastBottom = districtBandRows[DISTRICT_ORDER[DISTRICT_ORDER.length - 1]].bottom
-  const mapRows = lastBottom + 3 // clear buffer row + bottom wall row
+  let col = BAND_COL_START
+  let row = MAP_TOP_MARGIN
+  let rowMaxHeight = 0
+  let prevIsHome = null
 
-  // One horizontal street laid across the middle of the grass gap between
-  // each pair of adjacent bands.
-  // Flat list of every street ROW (not just the centre line) so existing
-  // consumers keep working with plain .includes(r) / random indexing, while
-  // the street is now STREET_WIDTH tiles tall. Clamped into the grass gap so
-  // a street never touches a band's buildings.
+  for (const b of FINANCE_BUILDING_DEFS) {
+    // Force a fresh row whenever the building "category" changes (hand-
+    // authored office/HQ facades vs. character homes/hideouts), even if
+    // the current row has space left. Without this, homes are appended
+    // after the hand-authored defs in the same array, and the packer just
+    // kept filling the row it was on - so the LAST office building and the
+    // FIRST home routinely ended up side by side, with no gap and two
+    // completely different art styles touching directly (reported: a flat
+    // grey office facade wedged into a row of log-cabin homes). Homes still
+    // pack tightly against EACH OTHER (see HOME_GAP) - this only draws a
+    // line between the two categories, using the wider BAND_GAP rather than
+    // either category's own tighter gap, so the boundary reads as
+    // deliberate, not just another row wrap.
+    const isHome = Boolean(b.kind)
+    const categoryChanged = prevIsHome !== null && isHome !== prevIsHome && col !== BAND_COL_START
+    // Row-wrap gap honours the same per-def override horizontal packing
+    // already uses (b.gap ?? BAND_GAP) instead of always BAND_GAP. Homes
+    // set gap: HOME_GAP=1 to pack tightly side-by-side, but every WRAPPED
+    // row still cost a full BAND_GAP=4 vertically regardless - with ~88
+    // 2-wide homes needing several wrapped rows, that asymmetry was most of
+    // the map's excess height.
+    if (categoryChanged) {
+      col = BAND_COL_START
+      row += rowMaxHeight + BAND_GAP
+      rowMaxHeight = 0
+    } else if (col + b.width - 1 > bandColEnd) {
+      col = BAND_COL_START
+      row += rowMaxHeight + (b.gap ?? BAND_GAP)
+      rowMaxHeight = 0
+    }
+    prevIsHome = isHome
+    // Reserve the vertical streets: shift right past any street block this
+    // building would straddle, wrapping to the next row if it no longer
+    // fits on this one.
+    let clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
+    if (clear === null) {
+      col = BAND_COL_START
+      row += rowMaxHeight + (b.gap ?? BAND_GAP)
+      rowMaxHeight = 0
+      clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
+    }
+    if (clear === null) {
+      // Unreachable while V_STREET_SPACING is wide enough for the widest
+      // building (see its comment). Failing loudly beats silently writing
+      // null tile coords, which is what produced a building at column
+      // `null` when the chapel outgrew the street spacing.
+      throw new Error(
+        `layoutFinanceMap: "${b.label ?? b.id}" is ${b.width} tiles wide and cannot fit between vertical streets ` +
+          `(clear gap is ${V_STREET_SPACING - STREET_WIDTH} columns). Raise V_STREET_SPACING.`
+      )
+    }
+    col = clear
+    const c0 = col
+    const r0 = row
+    const c1 = col + b.width - 1
+    const r1 = row + b.height - 1
+    buildings.push({ ...b, tiles: { c0, r0, c1, r1 } })
+    col += b.width + (b.gap ?? BAND_GAP)
+    rowMaxHeight = Math.max(rowMaxHeight, b.height)
+  }
+  const mapRows = row + rowMaxHeight + 2 // clear buffer row + bottom wall row
+
+  // Second pass: scan the finished layout for building-free row bands (rows
+  // no building's r0..r1 touches) and greedily place a street in every band
+  // spaced >= H_STREET_INTERVAL from the last one chosen. Starts scanning at
+  // MAP_TOP_MARGIN, not row 0 - everything above that is the water/wall
+  // margin financeTileType already handles on its own, not packable content.
+  const rowHasBuilding = new Array(mapRows).fill(false)
+  for (const b of buildings) {
+    for (let r = b.tiles.r0; r <= b.tiles.r1; r++) rowHasBuilding[r] = true
+  }
+  const freeBands = []
+  let bandStart = null
+  for (let r = MAP_TOP_MARGIN; r < mapRows; r++) {
+    if (!rowHasBuilding[r]) {
+      if (bandStart === null) bandStart = r
+    } else if (bandStart !== null) {
+      freeBands.push([bandStart, r - 1])
+      bandStart = null
+    }
+  }
+  if (bandStart !== null) freeBands.push([bandStart, mapRows - 1])
+
   const hStreets = []
-  for (let i = 0; i < DISTRICT_ORDER.length - 1; i++) {
-    const gapTop = districtBandRows[DISTRICT_ORDER[i]].bottom + 1
-    const gapBottom = districtBandRows[DISTRICT_ORDER[i + 1]].top - 1
-    const centre = Math.round((gapTop + gapBottom) / 2)
+  let lastStreetCenter = -Infinity
+  for (const [bandTop, bandBottom] of freeBands) {
+    const bandLen = bandBottom - bandTop + 1
+    if (bandLen < STREET_WIDTH) continue
+    const center = Math.round((bandTop + bandBottom) / 2)
+    if (center - lastStreetCenter < H_STREET_INTERVAL) continue
     const half = Math.floor(STREET_WIDTH / 2)
-    for (let r = centre - half; r <= centre - half + STREET_WIDTH - 1; r++) {
-      if (r >= gapTop && r <= gapBottom) hStreets.push(r)
-    }
+    const streetTop = Math.max(bandTop, center - half)
+    for (let r = streetTop; r <= streetTop + STREET_WIDTH - 1 && r <= bandBottom; r++) hStreets.push(r)
+    lastStreetCenter = center
   }
 
-  return { buildings, mapRows, hStreets, districtBandRows, vStreets: streetCols }
+  return { buildings, mapRows, hStreets, vStreets: streetCols }
 }
 
 const MAP_COLS = 118
@@ -344,7 +379,6 @@ const {
   buildings: FINANCE_BUILDINGS,
   mapRows: MAP_ROWS,
   hStreets: FINANCE_H_STREETS,
-  districtBandRows: DISTRICT_BAND_ROWS,
   vStreets: FINANCE_V_STREETS,
 } = layoutFinanceMap(MAP_COLS)
 // Exported purely so the layout can be asserted against from outside (no
@@ -357,7 +391,6 @@ export {
   FINANCE_H_STREETS,
   MAP_COLS,
   MAP_ROWS,
-  DISTRICT_BAND_ROWS,
   TILE_SIZE,
   presencePhaseOffset,
   idleDriftOffset,
@@ -508,9 +541,12 @@ function buildLayout(tileTypeFn, cols, rows) {
   return layout
 }
 
-// 'path' and 'water' render the same everywhere; 'grass' cells get a
-// per-district ground reskin (Tokyo slate marble, Kyoto cobblestone, everyone
-// else plain grass); border 'wall' cells are the same everywhere too.
+// 'path' and 'water' render the same everywhere; 'grass' cells are now a
+// single uniform ground type map-wide (the old Tokyo-slate/Kyoto-cobblestone
+// row-band reskin is gone along with the district system - and it was
+// already a no-op visually, since GRASS_TYPES in cuteFantasyTerrain.js
+// treats slate/cobblestone/grass as rendering identically); border 'wall'
+// cells are the same everywhere too.
 // Footprint-relative solid tiles for the chapel courtyard drawn on the map.
 // Computed once - it's pure data derived from the authored .tmx.
 const TEMPLE_SOLID_OFFSETS = chapelFacadeSolidOffsets()
@@ -520,14 +556,13 @@ const TEMPLE_SOLID_OFFSETS = chapelFacadeSolidOffsets()
 // below them, which is where the player stands to use them.
 const CHAPEL_DOOR_OFFSET = { col: 14, row: 15, width: 2, height: 2 }
 
-function terrainTileTypeAt(tile, row) {
+function terrainTileTypeAt(tile, _row) {
   if (tile === 'water') return 'water'
   if (tile === 'path') return 'path'
   if (tile === 'wall') return 'wall'
-  
-  if (row >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && row <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) return 'slate'
-  if (row >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && row <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2) return 'cobblestone'
-  
+  // `_row` is unused now that ground type no longer varies by district band
+  // position - kept as a parameter so callers (buildTerrainLayer's
+  // (row, col) => ... callback) don't need to change.
   return 'grass'
 }
 
@@ -559,34 +594,24 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
     const r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6)) // skip water rows at top
     const c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
     // Map overhaul step 3: props go on anything that RENDERS as grass, not
-    // just the literal 'grass' type. The district bands are 'slate'/
-    // 'cobblestone' in the layout but now draw as grass (see
-    // cuteFantasyTerrain's GRASS_TYPES), so restricting to 'grass' left every
-    // district as bare lawn with no vegetation at all.
+    // just the literal 'grass' type (GRASS_TYPES also covers the now-unused
+    // 'slate'/'cobblestone' values in case any old save/layout data still
+    // has them - see cuteFantasyTerrain's GRASS_TYPES).
     if (!GRASS_TYPES.has(layout[r][c]) || forbidden.has(`${r},${c}`)) continue
     const cx = c * TILE_SIZE + TILE_SIZE / 2
     const cy = r * TILE_SIZE + TILE_SIZE / 2
     let objs
     let isTree = false
-    const isUrban = (r >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && r <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) || (r >= DISTRICT_BAND_ROWS['Osaka District'].top - 2 && r <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 2)
-    const isJRPG = (r >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && r <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2)
-    if (isUrban) {
-      const roll = Math.random()
-      if (roll < 0.55) { objs = placeTree(scene, cx, cy); isTree = true }
-      else if (roll < 0.72) objs = placeRock(scene, cx, cy)
-      else objs = placeFlower(scene, cx, cy)
-    } else if (isJRPG) {
-      // Kyoto: cherry blossom still dominant, but with real trees among it.
-      const roll = Math.random()
-      if (roll < 0.35) objs = placeFlower(scene, cx, cy)
-      else if (roll < 0.85) { objs = placeTree(scene, cx, cy); isTree = true }
-      else objs = placeRock(scene, cx, cy)
-    } else {
-      const roll = Math.random()
-      if (roll < 0.45) { objs = placeTree(scene, cx, cy); isTree = true }
-      else if (roll < 0.85) objs = placeFlower(scene, cx, cy)
-      else objs = placeRock(scene, cx, cy)
-    }
+    // Map flattening: one blended vegetation mix for the whole map instead
+    // of 3 district-position-dependent profiles (formerly "urban" ~55%
+    // tree/17% rock/28% flower over Tokyo+Osaka, "JRPG" ~50% tree/15% rock/
+    // 35% flower over Kyoto, and a third default elsewhere). Picked roughly
+    // between those three rather than a straight average, per the map-
+    // flattening brief.
+    const roll = Math.random()
+    if (roll < 0.48) { objs = placeTree(scene, cx, cy); isTree = true }
+    else if (roll < 0.75) objs = placeFlower(scene, cx, cy)
+    else objs = placeRock(scene, cx, cy)
     if (objs) {
       zoneObjects.push(...objs)
       if (isTree && blockedTiles) {
@@ -659,30 +684,13 @@ function drawBuildings(scene, buildings, zoneObjects) {
 // adapter - so a character's on-map position and their modal's location text
 // can never disagree (see updateNamedRoamers/refreshPresenceCache below).
 // agentMovementEngine.js's TITAN_ROUTINES is no longer a position source
-// (see that file's own header comment); homeDistrictFor below still reads it
-// purely for home-city grouping. The "thought" strings ambient (non-named)
-// wander NPCs use are still derived from each character's real roster data
-// (platform, policy bias, syndicate territory, perk, archetype) rather than
-// a generic shared string.
-
-const CITY_TO_DISTRICT = {
-  tokyo: 'Tokyo District',
-  kyoto: 'Kyoto District',
-  osaka: 'Osaka District',
-  sapporo: 'Sapporo District',
-}
-
-function homeDistrictFor(character) {
-  const routine = TITAN_ROUTINES[character.id]
-  if (routine) return CITY_TO_DISTRICT[routine.homeCity] || 'Tokyo District'
-  const cat = character.category || ''
-  if (cat.startsWith('Crime') || cat === 'FBI Leader') return 'Osaka District'
-  if (cat === 'IRS Leader' || cat === 'FTC Chairman') return 'Kyoto District'
-  if (cat === 'DOD Leader' || cat === 'EPA Leader') return 'Sapporo District'
-  // Presidents (Parliament Hall), Fed chairmen (Bank), SEC leaders (Stock
-  // Exchange), and remaining titans all live around Tokyo's civic core.
-  return 'Tokyo District'
-}
+// (see that file's own header comment). The "thought" strings ambient
+// (non-named) wander NPCs use are still derived from each character's real
+// roster data (platform, policy bias, syndicate territory, perk, archetype)
+// rather than a generic shared string.
+// (Map flattening: homeDistrictFor()/CITY_TO_DISTRICT, which used to tag
+// each named roamer with a home-district string purely for grouping, are
+// gone - nothing ever read roamer.district back out.)
 
 // House rule: worldPresenceEngine.js only advances what block a character is
 // in when worldClock.timeBlockIndex itself advances (End Day presses) - see
@@ -1111,29 +1119,23 @@ export default class OverworldScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.playerActor.sprite, true)
   }
 
-  teleportToCity(cityId) {
-    const districtMap = {
-      'tokyo': 'Tokyo District',
-      'kyoto': 'Kyoto District',
-      'osaka': 'Osaka District',
-      'sapporo': 'Sapporo District'
-    }
-    const districtName = districtMap[cityId] || 'Tokyo District'
-    
-    // Find a building in that district to spawn near (preferably train station)
-    let target = FINANCE_BUILDINGS.find(b => b.district === districtName && b.id === 'trainStation')
-    if (!target) {
-        target = FINANCE_BUILDINGS.find(b => b.district === districtName)
-    }
-    
+  // Map flattening: there's only one city now, so `cityId` is accepted but
+  // ignored - this just teleports the player to the (single) train station.
+  // Kept rather than deleted because GameCanvas.jsx still wires a 'cityTravel'
+  // bridge event to this method; TownTravelUI.jsx's city-picker (its only
+  // caller) is removed in this same pass, so in practice nothing invokes
+  // this any more, but leaving a working no-op-ish stub is safer than a
+  // dangling method other code still references.
+  teleportToCity(_cityId) {
+    const target = FINANCE_BUILDINGS.find(b => b.id === 'trainStation')
     if (target) {
-        this.overworldReturnSpawn = {
-            col: Math.round((target.tiles.c0 + target.tiles.c1) / 2),
-            row: target.tiles.r1 + 1,
-        }
-        if (this.currentZoneId === 'overworld') {
-            this.tileMover.teleport(this.overworldReturnSpawn.col, this.overworldReturnSpawn.row)
-        }
+      this.overworldReturnSpawn = {
+        col: Math.round((target.tiles.c0 + target.tiles.c1) / 2),
+        row: target.tiles.r1 + 1,
+      }
+      if (this.currentZoneId === 'overworld') {
+        this.tileMover.teleport(this.overworldReturnSpawn.col, this.overworldReturnSpawn.row)
+      }
     }
   }
 
@@ -1176,15 +1178,13 @@ export default class OverworldScene extends Phaser.Scene {
   buildOverworldZone() {
     this.financeLayout = buildLayout(financeTileType, MAP_COLS, MAP_ROWS)
 
-    const currentCityId = useGameStore.getState().currentCityId || 'tokyo'
-
-    // Procedural terrain layer - one Graphics pass, per-city ground reskin.
+    // Procedural terrain layer - one Graphics pass, uniform ground everywhere
+    // (see terrainTileTypeAt - the old per-district ground reskin is gone).
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) =>
       terrainTileTypeAt(this.financeLayout[row][col], row)
     )
     this.zoneObjects.push(terrainLayer)
 
-    // City-specific environment scatter
     this.blockedEnvironmentTiles = new Set()
     scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, ENVIRONMENT_SCATTER_ATTEMPTS, this.zoneObjects, this.blockedEnvironmentTiles)
 
@@ -1198,9 +1198,6 @@ export default class OverworldScene extends Phaser.Scene {
     this.spawnWealthyPetPens()
     this.spawnHabitatAnimals()
 
-    // City-specific landmark buildings overlay (now District-specific)
-    this.drawCityLandmarkOverlay()
-
     this.spawnNamedRoamers()
     this.spawnFinanceAmbientNpcs()
     // Building interaction zones (this.zones) have to exist BEFORE vehicles
@@ -1212,67 +1209,6 @@ export default class OverworldScene extends Phaser.Scene {
     this.spawnWorldVehicles()
 
     this.regionLabel.setText('Capital Syndicate Mega-Map')
-  }
-
-  drawCityLandmarkOverlay() {
-    const overlayGraphics = this.add.graphics().setDepth(2000)
-    this.zoneObjects.push(overlayGraphics)
-
-    // Tokyo District: amber-gold border accent
-    const tokyoBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Tokyo District')
-    for (let i = 0; i < Math.min(3, tokyoBuildings.length); i++) {
-      const b = tokyoBuildings[i]
-      const x = b.tiles.c0 * TILE_SIZE
-      const y = b.tiles.r0 * TILE_SIZE
-      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-      overlayGraphics.lineStyle(3, 0xf59e0b, 0.9)
-      overlayGraphics.strokeRect(x, y, w, h)
-      overlayGraphics.fillStyle(0xf59e0b, 0.3)
-      overlayGraphics.fillRect(x, y - 4, w, 4)
-    }
-
-    // Kyoto District: red torii-gate accent
-    const kyotoBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Kyoto District')
-    for (let i = 0; i < Math.min(3, kyotoBuildings.length); i++) {
-      const b = kyotoBuildings[i]
-      const x = b.tiles.c0 * TILE_SIZE
-      const y = b.tiles.r0 * TILE_SIZE
-      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-      overlayGraphics.fillStyle(0xdc2626, 0.85)
-      overlayGraphics.fillRect(x - 4, y - 10, w + 8, 6)
-      overlayGraphics.fillStyle(0xfbbf24, 1)
-      overlayGraphics.fillRect(x + w / 2 - 2, y - 14, 4, 4)
-    }
-
-    // Osaka District: cyan/neon magenta border accents
-    const osakaBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Osaka District')
-    for (let i = 0; i < Math.min(3, osakaBuildings.length); i++) {
-      const b = osakaBuildings[i]
-      const x = b.tiles.c0 * TILE_SIZE
-      const y = b.tiles.r0 * TILE_SIZE
-      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-      overlayGraphics.lineStyle(3, 0x06b6d4, 0.9)
-      overlayGraphics.strokeRect(x, y, w, h)
-      overlayGraphics.fillStyle(0xec4899, 0.7)
-      overlayGraphics.fillRect(x + 4, y - 6, w - 8, 4)
-    }
-
-    // Sapporo District: ice-blue border accents & snow caps
-    const sapporoBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Sapporo District')
-    for (let i = 0; i < Math.min(3, sapporoBuildings.length); i++) {
-      const b = sapporoBuildings[i]
-      const x = b.tiles.c0 * TILE_SIZE
-      const y = b.tiles.r0 * TILE_SIZE
-      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-      overlayGraphics.lineStyle(3, 0x38bdf8, 0.9)
-      overlayGraphics.strokeRect(x, y, w, h)
-      overlayGraphics.fillStyle(0xe0f2fe, 0.9)
-      overlayGraphics.fillRect(x - 2, y - 6, w + 4, 5)
-    }
   }
 
   buildStockExchangeInteriorZone() {
@@ -1581,7 +1517,6 @@ export default class OverworldScene extends Phaser.Scene {
         character,
         actor,
         label,
-        district: homeDistrictFor(character),
         phaseOffset: presencePhaseOffset(character.id),
         currentAction: '',
         dead: false,
@@ -3096,19 +3031,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.updateNearbyZone()
     this.updateAnimatedDoors()
 
-    if (this.currentZoneId === 'overworld') {
-      const row = Math.floor(this.playerActor.y / TILE_SIZE)
-      let newCityId = null
-      if (row >= DISTRICT_BAND_ROWS['Tokyo District'].top - 4 && row <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 4) newCityId = 'tokyo'
-      else if (row >= DISTRICT_BAND_ROWS['Kyoto District'].top - 4 && row <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 4) newCityId = 'kyoto'
-      else if (row >= DISTRICT_BAND_ROWS['Osaka District'].top - 4 && row <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 4) newCityId = 'osaka'
-      else if (row >= DISTRICT_BAND_ROWS['Sapporo District'].top - 4 && row <= DISTRICT_BAND_ROWS['Sapporo District'].bottom + 4) newCityId = 'sapporo'
-
-      const state = useGameStore.getState()
-      if (newCityId && state.currentCityId !== newCityId) {
-        state.switchCity(newCityId)
-      }
-    }
+    // Map flattening: currentCityId no longer changes as the player walks
+    // around - there's nothing to detect any more (the district bands this
+    // derived from are gone). Every reader elsewhere already defaults via
+    // `s.currentCityId || 'tokyo'`, so leaving it frozen at whatever it was
+    // is safe.
 
     if (Phaser.Input.Keyboard.JustDown(this.wasd.E) && this.nearbyZone) {
       this.triggerInteraction(this.nearbyZone)

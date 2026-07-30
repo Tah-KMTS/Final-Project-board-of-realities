@@ -1,13 +1,11 @@
 // Derives a pure, deterministic behavior profile for every character in
 // getAllCharacters() from signals that already exist elsewhere (finance
 // archetype, crime-syndicate traits/aggression, government category,
-// TITAN_ROUTINES home city, biography fidelity). No new lore, no
-// Math.random - a later worker layers actual runtime "is this NPC home or
-// out" behavior (heat, time-of-day, etc.) on top of the static tier/fields
-// exported here.
+// biography fidelity). No new lore, no Math.random - a later worker layers
+// actual runtime "is this NPC home or out" behavior (heat, time-of-day, etc.)
+// on top of the static tier/fields exported here.
 
 import { getAllCharacters } from './characterLookup'
-import { TITAN_ROUTINES } from './agentMovementEngine'
 import { FINANCE_NPCS } from '../finance/financeNpcs'
 import { CRIME_SYNDICATES } from '../government/crimeSyndicates'
 import { SYNDICATE_MEMBERS_BY_ID } from '../../data/syndicate'
@@ -18,55 +16,28 @@ export const DISPOSITION_TIERS = ['recluse', 'homebody', 'regular', 'socialite',
 // House rule: FINANCE_BUILDING_DEFS lives in src/game/scenes/OverworldScene.js,
 // which imports Phaser and cannot load outside a browser/canvas context (this
 // module has to run in plain Node). The id list below is hand-copied from
-// that array (kept in the same district groupings) purely so workBuildingIds
-// can reference real building ids - if a building is ever added, renamed, or
-// removed there, mirror the change here too.
-const BUILDINGS_BY_DISTRICT = {
-  'Tokyo District': [
-    'stockExchange', 'buffettHQ', 'vanderbiltHQ', 'muskHQ', 'howardMarksHQ', 'appleHQ',
-    'cryptoExchange', 'corporateOffice', 'vcHub', 'bank', 'realEstateAgency', 'parliament',
-  ],
-  'Kyoto District': [
-    'irsHQ', 'teaHouse', 'machiyaEstate', 'zenGarden', 'silkMarket',
-    'sakeBrewery', 'artisanShop', 'hotel', 'park', 'temple',
-  ],
-  'Osaka District': [
-    'casino', 'arcade', 'speakeasyHotel', 'fbiHQ', 'dotonboriArcade',
-    'fishMarket', 'takoyakiStand', 'crimeAlley', 'blackMarket', 'callCenterOps', 'dockVaults',
-  ],
-  'Sapporo District': [
-    'fordRougeComplex', 'carnegieSteelMill', 'standardOilRefinery', 'pentagonDodHQ',
-    'epaHQ', 'sapporoBrewery', 'alpineLodge', 'trainStation',
-  ],
-}
+// that array purely so workBuildingIds can reference real building ids - if a
+// building is ever added, renamed, or removed there, mirror the change here
+// too.
+// Map flattening: this used to be 4 district-keyed pools (BUILDINGS_BY_DISTRICT)
+// that fallbackWorkBuildings() picked from based on a character's home
+// district. The map is one flat pool now (see OverworldScene.js's header
+// comment above FINANCE_BUILDING_DEFS), so this is one flat list too -
+// mirrors CRIME_FALLBACK_POOL below, which was already a single global pool.
+const REAL_BUILDING_IDS = [
+  'stockExchange', 'buffettHQ', 'vanderbiltHQ', 'muskHQ', 'howardMarksHQ', 'appleHQ',
+  'cryptoExchange', 'corporateOffice', 'vcHub', 'bank', 'realEstateAgency', 'parliament',
+  'irsHQ', 'teaHouse', 'machiyaEstate', 'zenGarden', 'silkMarket',
+  'sakeBrewery', 'artisanShop', 'hotel', 'park', 'temple',
+  'casino', 'arcade', 'speakeasyHotel', 'fbiHQ', 'dotonboriArcade',
+  'fishMarket', 'takoyakiStand', 'crimeAlley', 'blackMarket', 'callCenterOps', 'dockVaults',
+  'fordRougeComplex', 'carnegieSteelMill', 'standardOilRefinery', 'pentagonDodHQ',
+  'epaHQ', 'sapporoBrewery', 'alpineLodge', 'trainStation',
+]
 
-const REAL_BUILDING_IDS = Object.values(BUILDINGS_BY_DISTRICT).flat()
-
-// Crime members plausibly frequent their own district's underworld-facing
-// venues rather than the district's full public building list.
+// Crime members plausibly frequent underworld-facing venues rather than the
+// full public building list.
 const CRIME_FALLBACK_POOL = ['crimeAlley', 'blackMarket', 'dockVaults', 'speakeasyHotel', 'dotonboriArcade']
-
-const CITY_TO_DISTRICT = {
-  tokyo: 'Tokyo District',
-  kyoto: 'Kyoto District',
-  osaka: 'Osaka District',
-  sapporo: 'Sapporo District',
-}
-
-// House rule: mirrors homeDistrictFor() in src/game/scenes/OverworldScene.js
-// (~line 345) field-for-field. That function isn't exported and the scene
-// can't be imported into Node (Phaser), so the branching is duplicated here;
-// TITAN_ROUTINES itself is imported live from its real module below (not
-// copied), so home-city data can never drift out of sync with the map.
-export function homeDistrictForCharacter(character) {
-  const routine = TITAN_ROUTINES[character.id]
-  if (routine) return CITY_TO_DISTRICT[routine.homeCity] || 'Tokyo District'
-  const cat = character.category || ''
-  if (cat.startsWith('Crime') || cat === 'FBI Leader') return 'Osaka District'
-  if (cat === 'IRS Leader' || cat === 'FTC Chairman') return 'Kyoto District'
-  if (cat === 'DOD Leader' || cat === 'EPA Leader') return 'Sapporo District'
-  return 'Tokyo District'
-}
 
 const FINANCE_NPC_BY_ID = new Map(FINANCE_NPCS.map((n) => [n.id, n]))
 
@@ -220,8 +191,8 @@ const WORK_BUILDING_OVERRIDES = {
   marshall: ['pentagonDodHQ', 'trainStation'],
 }
 
-function fallbackWorkBuildings(character, district, isCrime) {
-  const pool = isCrime ? CRIME_FALLBACK_POOL : BUILDINGS_BY_DISTRICT[district] || BUILDINGS_BY_DISTRICT['Tokyo District']
+function fallbackWorkBuildings(character, isCrime) {
+  const pool = isCrime ? CRIME_FALLBACK_POOL : REAL_BUILDING_IDS
   const count = 1 + (hashId(character.id) % 3) // 1..3, deterministic per character
   // Deterministic stand-in for "pick `count` distinct buildings this person
   // plausibly uses": rank the pool by a per-(character,building) hash and
@@ -244,20 +215,18 @@ function buildProfile(character) {
   const lowProfile = syndicateMeta ? matchesAny(syndicateMeta.traits, LOW_PROFILE_MARKERS) : false
   const highVisibility = syndicateMeta ? matchesAny(syndicateMeta.traits, HIGH_VISIBILITY_MARKERS) : false
 
-  const district = homeDistrictForCharacter(character)
   const tier = deriveTier(character, { isCrime, lowProfile, aggression, archetype, category: character.category })
   const { sociability, homeAffinity } = deriveSociabilityAndAffinity(tier, character, fidelity, { lowProfile, highVisibility })
 
   const workBuildingIds = WORK_BUILDING_OVERRIDES[character.id]
     ? WORK_BUILDING_OVERRIDES[character.id].slice(0, 3)
-    : fallbackWorkBuildings(character, district, isCrime)
+    : fallbackWorkBuildings(character, isCrime)
 
   return {
     id: character.id,
     name: character.name,
     tier,
     homeBuildingId: `home_${character.id}`,
-    district,
     sociability,
     homeAffinity,
     travelRange: workBuildingIds.length,

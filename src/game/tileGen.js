@@ -210,11 +210,19 @@ export function placeFencePen(scene, x, y, wPx, hPx, TILE_SIZE) {
 // tinyTownTiles.js / pico8CityTiles.js for the per-index evidence.
 const TILE_PX = 40 // world tile size these packs are scaled up to (16px art -> 2.5x; pico-8's 8px art -> 5x)
 
-const DISTRICT_FACADE = {
-  'Tokyo District': { sheetKey: PACK_SHEET_KEYS.modernCity, kit: MODERN_CITY.concreteGlass },
-  'Sapporo District': { sheetKey: PACK_SHEET_KEYS.modernCity, kit: MODERN_CITY.concreteGlass },
-  'Osaka District': { sheetKey: PACK_SHEET_KEYS.modernCity, kit: MODERN_CITY.redBrick },
-  'Kyoto District': { sheetKey: PACK_SHEET_KEYS.tinyTown, kit: null, peaked: true, cottage: 'stoneCottage' },
+// Map-flattening note: this used to be keyed by the building's district
+// ('Tokyo District' etc, one of the 4 physical map bands). The district
+// system is gone (see OverworldScene.js's header comment above
+// FINANCE_BUILDING_DEFS), but the visual variety it drove is still wanted -
+// office/HQ buildings still shouldn't all render identically. So each
+// hand-authored building def now carries a `facadeStyle` tag directly (the
+// exact same 3-way split districts used to imply, just decoupled from
+// physical position - a building's facade style no longer says anything
+// about where on the map it landed).
+const BUILDING_FACADE_STYLE = {
+  modernGlass: { sheetKey: PACK_SHEET_KEYS.modernCity, kit: MODERN_CITY.concreteGlass },
+  modernBrick: { sheetKey: PACK_SHEET_KEYS.modernCity, kit: MODERN_CITY.redBrick },
+  traditionalCottage: { sheetKey: PACK_SHEET_KEYS.tinyTown, kit: null, peaked: true, cottage: 'stoneCottage' },
 }
 
 // House rule: a character's home is skinned by their real wealth rather than
@@ -351,9 +359,12 @@ export function residentialStyleKey(npcId, kind) {
 }
 
 // Resolves which pack + kit a building draws with. Returns null for anything
-// that should keep the procedural facade (interior desks, unknown districts).
+// that should keep the procedural facade (interior desks, unrecognised
+// facade styles). Home/hideout buildings never needed a facadeStyle tag -
+// their look comes entirely from kind/npcId/wealth below - so the gate only
+// requires one for the office/civic branch further down.
 function packFacadeFor(building) {
-  if (!building || typeof building !== 'object' || !building.district) return null
+  if (!building || typeof building !== 'object') return null
 
   if (building.kind === 'home' || building.kind === 'hideout') {
     // Hideouts use brick + the OPEN archway instead of a closed door, so a
@@ -373,7 +384,7 @@ function packFacadeFor(building) {
     return brickOrPico8HomeKit(building.npcId)
   }
 
-  const spec = DISTRICT_FACADE[building.district]
+  const spec = BUILDING_FACADE_STYLE[building.facadeStyle]
   if (!spec) return null
   if (spec.cottage) {
     return { sheetKey: spec.sheetKey, kit: cottageKit(TINY_TOWN[spec.cottage]), peaked: true }
