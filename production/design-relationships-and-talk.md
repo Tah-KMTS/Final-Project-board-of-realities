@@ -335,3 +335,117 @@ light social-simulation layer than to a romance mechanic. It is buildable
 incrementally: steps 4-5 alone make refusals feel motivated, and 6-7 are what
 produce the emergent stories. But it should not be estimated as an extension of
 the existing 72-line `romanceEngine.js`.
+
+---
+
+# ADDENDUM 2 - Behaviour: emotion the player can SEE
+
+Everything so far changes what an NPC *says* and what they *plan*. None of it
+changes where they stand. Emotion that only alters dialogue is not really felt.
+A lover who trails you through three districts communicates more than any line.
+
+So: a third layer, **Behaviour**, between emotional state and movement.
+
+## Where this hooks in (already proven)
+
+Named roamers move by lerping between two building doors:
+
+```js
+const t = presenceStepProgress(this.agentClock, roamer.phaseOffset)
+rawPos = { x: doorA.x + (doorB.x - doorA.x) * t, ... }
+```
+
+`rawPos` then goes through `resolveOpenPosition()` and is applied. **That is the
+hook.** This session's NPC-driving work already overrides `rawPos` for car
+owners, re-splitting the journey into walk/drive/walk, and it works. A behaviour
+is the same override with a different target.
+
+Scoping consequence: **no new movement system is needed.**
+
+## The behaviour set
+
+Each has an owner, a target, a duration and an exit condition.
+
+| Behaviour | Triggered by | What the player sees |
+|---|---|---|
+| `storm_off` | anger spike, insult, refusal-while-owed | Ends the conversation, walks briskly away, will not re-engage for N hours |
+| `cold_shoulder` | grievance, moderate tension | Stays put, refuses interaction, turns away |
+| `follow` | high affection, clingy traits | Tails you at a distance, closes when you stop |
+| `shadow` | very high affection + low trust + jealousy | Follows further back, breaks off when you look, reappears. Unsettling by design |
+| `avoid` | fear, shame, unpayable debt | Routes around you; leaves a building you enter |
+| `flee` | fear spike, you are armed or wanted | Abandons schedule, heads home or to a crowd |
+| `seek_out` | grievance ready to confront, or good news | Leaves their schedule to find you |
+| `wait_for` | arranged meeting, or lying in wait | Loiters at a place until you arrive or it times out |
+| `tail_target` | an intent against another NPC | Follows someone who is not you |
+
+`tail_target` is what stops the world being player-centric: seeing Nitti shadow
+Ricca across town tells a story nobody narrated.
+
+## Tendency, not uniformity - the whole point
+
+The same anger must not produce the same act in everyone. Derive a
+`behaviourProfile`, cached like `getDisposition()`:
+
+```js
+{ volatility,   // anger -> storm_off vs. cold_shoulder
+  clinginess,   // affection -> follow vs. give space
+  possessive,   // jealousy -> shadow vs. withdraw
+  boldness,     // grievance -> seek_out vs. avoid
+  composure }   // how much emotion it takes to break schedule at all
+```
+
+Sources already in the repo: `traits[]` (`Ruthless`, `Charismatic`,
+`Publicity-Seeker`, `Methodical`, `Cold-Blooded`), disposition tier, `fidelity`,
+role. A `Methodical` capo with high composure does not storm off - he goes quiet
+and forms an intent, which is more menacing. A `Publicity-Seeker` makes a scene.
+
+**Two characters at identical anger must behave visibly differently.** That is
+the acceptance test for this layer, and the thing that silently fails if
+profiles are not really wired in.
+
+## Rules that keep it from becoming noise
+
+- **Composure gate.** Breaking schedule is exceptional. Most emotion should show
+  as a changed line or a refusal. If half the roster is following the player the
+  signal is worthless.
+- **One behaviour at a time.** Priority: `flee` > `storm_off` > `seek_out` >
+  `shadow` > `follow` > `avoid` > schedule.
+- **Every behaviour has an exit** - duration, satisfaction, or distance cap. A
+  follower must eventually give up or the player can never shake them.
+- **Behaviours resume the schedule, not replace it.** On exit the NPC returns to
+  where presence says they are, so `NamedNpcModal` location text stays honest.
+- **Respect the movement rules already built.** Followers walk; a car-owning NPC
+  in `seek_out` uses the driving route. Do not bypass `resolveOpenPosition`
+  except where the car path already does.
+
+## Interaction with intents
+
+Behaviours are short-term and visible; intents are long-term and hidden.
+
+- An intent in progress emits supporting behaviours - `tail_target`, `wait_for`,
+  `seek_out`. That IS the leak addendum 1 calls for: the warning is not a popup,
+  it is seeing them outside your building.
+- A behaviour can create an intent: storming off in public costs them standing,
+  which becomes a grievance of its own.
+
+## Build order
+
+Slot after step 5 (capability profiles), before intents:
+
+- **5b.** `behaviourProfile` derivation. Pure, testable. Assert two characters at
+  equal anger diverge.
+- **5c.** Behaviour state machine + `rawPos` override, starting with only
+  `storm_off` and `follow`. Those two alone change how the game feels.
+- **5d.** The rest, then wire intents to emit supporting behaviours.
+
+## The honest risk
+
+This is the layer most likely to feel broken rather than alive, because it is
+the most visible. A follower clipping through a wall, or an NPC who storms off
+and teleports back to their schedule position, reads as a bug and destroys the
+emotional effect.
+
+The vehicle work this session is the cautionary tale: cars driving through
+buildings, through each other, and teleporting back to the pickup all survived
+review because **a screenshot cannot show motion**. Behaviours must be watched in
+a running game. See `production/probeGame.mjs`.
