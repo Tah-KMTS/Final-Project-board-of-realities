@@ -7,7 +7,13 @@ import { DISTRICT_BUILDINGS_CONFIG } from './districtBuildings'
 // Cultural). Mirrors the existing modal-wrapper pattern used everywhere
 // else in the game (fixed inset-0 z-50 overlay + bordered panel), just
 // driven by data instead of one bespoke component per building.
-export default function DistrictBuildingModal({ buildingId, onClose }) {
+// `embedded` (default false): standalone call site in WorldScreen.jsx is
+// unaffected. When true (a tab inside UnderworldModal - Black Market/Call
+// Center Ops/Crime Alley all reuse this same config-driven component 3x),
+// skip the outer overlay + Leave button; the wrapping hub modal supplies
+// both, and `buildingId` is passed explicitly per tab rather than read from
+// activeModal.id.
+export default function DistrictBuildingModal({ buildingId, onClose, embedded = false }) {
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
@@ -33,9 +39,8 @@ export default function DistrictBuildingModal({ buildingId, onClose }) {
     if (action.reputationDelta) addReputation(action.reputationDelta)
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className={`glass-panel w-[420px] border-4 ${config.borderClass} bg-[#1c1d3a] p-6 font-mono text-white`}>
+  const body = (
+    <>
         <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">{config.district}</p>
         <h2 className={`mb-2 text-xl font-bold ${config.textClass}`}>{config.title}</h2>
         <p className="mb-4 text-xs text-gray-400">{config.flavor}</p>
@@ -55,9 +60,20 @@ export default function DistrictBuildingModal({ buildingId, onClose }) {
 
         {result && <p className="mb-4 text-xs italic text-gray-300">{result}</p>}
 
-        <button onClick={onClose} className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500">
-          Leave
-        </button>
+        {!embedded && (
+          <button onClick={onClose} className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500">
+            Leave
+          </button>
+        )}
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className={`glass-panel w-[420px] border-4 ${config.borderClass} bg-[#1c1d3a] p-6 font-mono text-white`}>
+        {body}
       </div>
     </div>
   )

@@ -2,7 +2,12 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { CRYPTO_NAME, CRYPTO_TICKER } from './marketData'
 
-export default function CryptoModal({ onClose }) {
+// `embedded`: default false keeps every existing standalone call site (none
+// left directly in WorldScreen.jsx any more, but this stays the general
+// pattern used by every modal folded into a hub tab) untouched. When true
+// (StockExchangeModal's Crypto tab), skip the outer fixed-overlay wrapper
+// and the bottom "Leave" button - the wrapping hub modal supplies both.
+export default function CryptoModal({ onClose, embedded = false }) {
   const cash = useGameStore((s) => s.cash)
   const world2 = useGameStore((s) => s.world2)
   const buyCrypto = useGameStore((s) => s.buyCrypto)
@@ -14,9 +19,8 @@ export default function CryptoModal({ onClose }) {
 
   const holdingsValue = world2.cryptoHoldings * world2.cryptoPrice
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="w-[440px] border-4 border-orange-400 bg-[#1c1d3a] p-6 font-mono text-white">
+  const body = (
+    <>
         <h2 className="mb-2 text-xl font-bold text-orange-300">Crypto HQ</h2>
         <p className="mb-3 text-xs text-gray-400">
           {CRYPTO_NAME} ({CRYPTO_TICKER}) — pump it, then dump it before it crashes.
@@ -79,12 +83,23 @@ export default function CryptoModal({ onClose }) {
 
         {feedbackMsg && <p className="mb-4 text-xs italic text-orange-300">{feedbackMsg}</p>}
 
-        <button
-          onClick={onClose}
-          className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500"
-        >
-          Leave
-        </button>
+        {!embedded && (
+          <button
+            onClick={onClose}
+            className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500"
+          >
+            Leave
+          </button>
+        )}
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="w-[440px] border-4 border-orange-400 bg-[#1c1d3a] p-6 font-mono text-white">
+        {body}
       </div>
     </div>
   )

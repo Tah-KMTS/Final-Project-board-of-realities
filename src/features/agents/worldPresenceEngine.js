@@ -36,19 +36,18 @@ export const TIME_BLOCKS = [
 const BUILDING_LABELS = {
   // Tokyo District
   stockExchange: 'Tokyo Stock Exchange',
-  buffettHQ: 'Biffle Tower',
-  vanderbiltHQ: 'Vanderbilt Rail Co.',
-  muskHQ: 'Rusk Industries',
-  howardMarksHQ: 'Oaktree Cycle Capital',
-  appleHQ: 'Apple Glass HQ',
-  cryptoExchange: 'Crypto HQ',
+  // Phase 2 consolidation: businessCenter/underworld/governmentBuilding
+  // replace the 13 single-tenant building ids they absorbed (see the
+  // matching house-rule comment in characterDispositions.js's
+  // REAL_BUILDING_IDS) - mirror any future FINANCE_BUILDING_DEFS change here.
+  businessCenter: 'Capital Business Center',
+  governmentBuilding: 'Federal Government Building',
   corporateOffice: 'Corporate Holdings',
   vcHub: 'Venture Capital Hub',
   bank: 'Bank & Realty Office',
   realEstateAgency: 'Real Estate Agency',
   parliament: 'Parliament Hall',
   // Kyoto District
-  irsHQ: 'IRS Internal Revenue',
   teaHouse: 'Cherry Coke Tea House',
   machiyaEstate: 'Machiya Executive Estate',
   zenGarden: 'Zen Rock Garden',
@@ -60,15 +59,10 @@ const BUILDING_LABELS = {
   temple: 'Whispering Temple Chapel',
   // Osaka District
   casino: 'Neon Dragon Casino',
-  arcade: 'Pixel Palace Arcade',
-  speakeasyHotel: 'Chicago Speakeasy Hotel',
-  fbiHQ: 'FBI Headquarters',
+  underworld: 'The Underworld',
   dotonboriArcade: 'Dotonbori Merchant Arcade',
   fishMarket: 'Kuromon Fish Market',
   takoyakiStand: 'Takoyaki Street Food',
-  crimeAlley: 'Crime Alley',
-  blackMarket: 'Black Market',
-  callCenterOps: 'Call Center Ops',
   dockVaults: 'Dock Underground Vaults',
   // Sapporo District
   fordRougeComplex: 'Ford River Rouge Complex',

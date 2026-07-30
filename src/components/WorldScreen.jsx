@@ -13,12 +13,13 @@ import { hasRank } from '../features/hunter/skillEffects'
 import StockExchangeModal from '../features/finance/StockExchangeModal'
 import BankModal from '../features/finance/BankModal'
 import CorporateModal from '../features/finance/CorporateModal'
-import CryptoModal from '../features/finance/CryptoModal'
 import NamedNpcModal from '../features/finance/NamedNpcModal'
 import AmbientNpcModal from '../features/finance/AmbientNpcModal'
 import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
 import CasinoModal from '../features/casino/CasinoModal'
-import ArcadeModal from '../features/arcade/ArcadeModal'
+import UnderworldModal from '../features/finance/UnderworldModal'
+import BusinessCenterModal from '../features/finance/BusinessCenterModal'
+import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal'
 import TempleModal from '../features/temple/TempleModal'
 import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
 import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
@@ -76,11 +77,15 @@ const DISTRICT_BUILDING_IDS = Object.keys(DISTRICT_BUILDINGS_CONFIG)
 // open city travel directly instead of a generic interior, so transit_hub
 // is opened from a button inside TownTravelUI, not from this map - see
 // interactiveLocations.js's house-rule comment on that location.
+// appleHQ and speakeasyHotel used to route here too - both buildings are
+// gone (Phase 2 consolidation folded their InteractiveLocationModal content
+// straight into a tab of BusinessCenterModal/UnderworldModal instead, each
+// rendering InteractiveLocationModal with `embedded`), so their intercept
+// entries are removed. teaHouse and fordRougeComplex are untouched - neither
+// building is part of this consolidation.
 const BUILDING_TO_INTERACTIVE_LOCATION = {
   teaHouse: 'mcdonalds_diner',
   fordRougeComplex: 'ford_factory',
-  appleHQ: 'apple_lab',
-  speakeasyHotel: 'speakeasy_club',
 }
 
 function WorldClearedModal({ blockName, allCleared, onContinue }) {
@@ -502,9 +507,9 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id === 'corporateOffice' && (
         <CorporateModal onClose={closeModal} />
       )}
-      {activeModal?.type === 'building' && activeModal.id === 'cryptoExchange' && (
-        <CryptoModal onClose={closeModal} />
-      )}
+      {/* Crypto HQ is gone as a standalone building - it's now the Crypto tab
+          inside StockExchangeModal, so there's no top-level 'cryptoExchange'
+          case left to render here. */}
       {/* Real Estate Agency and the VC Hub are new-district front doors onto
           the same existing Bank/Corporate systems, rather than duplicate
           mechanics - Commercial District's realty wing and Financial
@@ -516,18 +521,30 @@ export default function WorldScreen() {
         <CorporateModal onClose={closeModal} />
       )}
       {/* Casino got its own bespoke Phaser interior + a tabbed modal (real
-          blackjack/poker/slots/NPC-challenge minigames); Arcade kept the
-          shared amenity interior but also got its own modal for the claw
-          machine - neither routes through the generic DistrictBuildingModal
-          any more. */}
+          blackjack/poker/slots/NPC-challenge minigames), and now also hosts
+          Pixel Palace Arcade as an embedded tab (see CasinoModal.jsx's TABS)
+          - Arcade no longer has its own top-level 'arcade' building id/case,
+          it's reached only through Casino's Arcade tab now. Neither routes
+          through the generic DistrictBuildingModal. */}
       {activeModal?.type === 'building' && activeModal.id === 'casino' && (
         <CasinoModal onClose={closeModal} />
       )}
-      {activeModal?.type === 'building' && activeModal.id === 'arcade' && (
-        <ArcadeModal onClose={closeModal} />
-      )}
       {activeModal?.type === 'building' && activeModal.id === 'temple' && (
         <TempleModal onClose={closeModal} />
+      )}
+      {/* The 3 Phase-2 consolidated hubs - each is a tabbed modal wrapping
+          several formerly-standalone buildings' content via the `embedded`
+          prop pattern (see each modal file for its TABS array). None of
+          these building ids exist in DISTRICT_BUILDING_IDS, so they can't
+          double-fire the DistrictBuildingModal branch below. */}
+      {activeModal?.type === 'building' && activeModal.id === 'underworld' && (
+        <UnderworldModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'building' && activeModal.id === 'businessCenter' && (
+        <BusinessCenterModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'building' && activeModal.id === 'governmentBuilding' && (
+        <GovernmentBuildingModal onClose={closeModal} />
       )}
       {activeModal?.type === 'building' && activeModal.id !== 'temple' && DISTRICT_BUILDING_IDS.includes(activeModal.id) && (
         <DistrictBuildingModal buildingId={activeModal.id} onClose={closeModal} />

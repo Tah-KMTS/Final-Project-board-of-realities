@@ -26,7 +26,12 @@ function resolveDialogueLines(npcId) {
   return null
 }
 
-export default function NamedNpcModal({ npcId, onClose }) {
+// `embedded` (default false): every existing standalone call site
+// (WorldScreen.jsx's interior-desk/namedRoamer branches) is unaffected.
+// When true (BusinessCenterModal/GovernmentBuildingModal's per-NPC tabs, and
+// UnderworldModal's Crime Alley tab folding in Luciano), skip the outer
+// overlay + "Close Dialogue" button - the wrapping hub modal supplies both.
+export default function NamedNpcModal({ npcId, onClose, embedded = false }) {
   // getAnyCharacter resolves across every roster (titan/crime/president/fed/
   // ftc/agency-head) - previously this only ever checked FINANCE_NPCS, so
   // every non-titan character showed up as its raw id with a fake "Titan"/
@@ -171,9 +176,8 @@ export default function NamedNpcModal({ npcId, onClose }) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
-      <div className="w-full max-w-xl border-4 border-yellow-500/70 bg-[#121429] p-6 text-white shadow-2xl">
+  const body = (
+    <>
         {/* Header */}
         <div className="flex items-start justify-between border-b border-gray-700 pb-3">
           <div className="flex items-center gap-3">
@@ -376,13 +380,24 @@ export default function NamedNpcModal({ npcId, onClose }) {
             </div>
           )}
 
-          <button
-            onClick={onClose}
-            className="w-full border border-gray-600 bg-gray-800 py-1.5 text-xs text-gray-300 hover:bg-gray-700 hover:text-white"
-          >
-            Close Dialogue
-          </button>
+          {!embedded && (
+            <button
+              onClick={onClose}
+              className="w-full border border-gray-600 bg-gray-800 py-1.5 text-xs text-gray-300 hover:bg-gray-700 hover:text-white"
+            >
+              Close Dialogue
+            </button>
+          )}
         </div>
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
+      <div className="w-full max-w-xl border-4 border-yellow-500/70 bg-[#121429] p-6 text-white shadow-2xl">
+        {body}
       </div>
     </div>
   )

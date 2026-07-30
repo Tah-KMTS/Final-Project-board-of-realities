@@ -7,7 +7,10 @@ import ClawMachine from './ClawMachine'
 // - it only needed its own React modal, not a bespoke Phaser zone, since the
 // claw machine is the one new mechanic here (contrast with Casino, which
 // got a bespoke interior for four different minigames).
-export default function ArcadeModal({ onClose }) {
+// `embedded` (default false): standalone call sites are unaffected. When
+// true (CasinoModal's Arcade tab), skip the outer overlay + Leave button -
+// the wrapping Casino modal supplies both.
+export default function ArcadeModal({ onClose, embedded = false }) {
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
   const addReputation = useGameStore((s) => s.addReputation)
@@ -20,9 +23,8 @@ export default function ArcadeModal({ onClose }) {
     setResult('You rack up a high score. People notice.')
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="glass-panel w-[460px] border-4 border-cyan-400 bg-[#1c1d3a] p-6 font-mono text-white">
+  const body = (
+    <>
         <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Commercial District</p>
         <h2 className="mb-2 text-xl font-bold text-cyan-300">Pixel Palace Arcade</h2>
         <p className="mb-4 text-xs text-gray-400">
@@ -46,9 +48,20 @@ export default function ArcadeModal({ onClose }) {
           <ClawMachine />
         </div>
 
-        <button onClick={onClose} className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500">
-          Leave
-        </button>
+        {!embedded && (
+          <button onClick={onClose} className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500">
+            Leave
+          </button>
+        )}
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="glass-panel w-[460px] border-4 border-cyan-400 bg-[#1c1d3a] p-6 font-mono text-white">
+        {body}
       </div>
     </div>
   )

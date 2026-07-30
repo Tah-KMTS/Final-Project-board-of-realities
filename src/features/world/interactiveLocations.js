@@ -6,6 +6,11 @@ import { TIER_SPRITES } from '../../game/vehicleGen'
 // used to be a dead `coordinates: {x,y}` pair that nothing read; only
 // mcdonalds_diner was actually reachable (hardcoded into WorldScreen.jsx's
 // toolbar button), so the other 4 locations were unreachable dead data.
+// `buildingId` itself is documentation only (nothing in code reads it) -
+// apple_lab's and speakeasy_club's are updated to businessCenter/underworld
+// below to reflect the Phase 2 consolidation even though they're no longer
+// routed via BUILDING_TO_INTERACTIVE_LOCATION (they're reached through an
+// embedded tab in BusinessCenterModal/UnderworldModal instead).
 export const INTERACTIVE_LOCATIONS = [
   {
     id: 'mcdonalds_diner',
@@ -37,7 +42,7 @@ export const INTERACTIVE_LOCATIONS = [
     id: 'apple_lab',
     name: 'Apple Glass Design Studio',
     district: 'Commercial District',
-    buildingId: 'appleHQ',
+    buildingId: 'businessCenter',
     icon: '💻',
     description: "Steve Jobs' unibody glass design studio. Test prototype hardware to boost tech stock valuation.",
     residentNpc: 'Steve Jobs',
@@ -49,7 +54,7 @@ export const INTERACTIVE_LOCATIONS = [
     id: 'speakeasy_club',
     name: 'Underground Speakeasy Club',
     district: 'Underground District',
-    buildingId: 'speakeasyHotel',
+    buildingId: 'underworld',
     icon: '🍷',
     description: 'Prohibition-era subterranean club frequented by Al Capone, Lucky Luciano, and Arnold Rothstein.',
     residentNpc: 'Al Capone & Lucky Luciano',

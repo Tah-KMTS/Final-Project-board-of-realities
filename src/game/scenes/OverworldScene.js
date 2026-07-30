@@ -100,20 +100,26 @@ const HOME_GAP = 1
 const FINANCE_BUILDING_DEFS = [
   // --- Financial/civic HQs (formerly "Tokyo") ---
   { id: 'stockExchange', label: 'Tokyo Stock Exchange', facadeStyle: 'modernGlass', color: 0x1f5f3a, width: 3, height: 3 },
-  { id: 'buffettHQ', label: 'Biffle Tower', facadeStyle: 'modernGlass', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
-  { id: 'vanderbiltHQ', label: 'Vanderbilt Rail Co.', facadeStyle: 'modernGlass', color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
-  { id: 'muskHQ', label: 'Rusk Industries', facadeStyle: 'modernGlass', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
-  { id: 'howardMarksHQ', label: 'Oaktree Cycle Capital', facadeStyle: 'modernGlass', color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
-  { id: 'appleHQ', label: 'Apple Glass HQ', facadeStyle: 'modernGlass', color: 0xc0c0c0, width: 4, height: 3, npcId: 'jobs' },
-  { id: 'cryptoExchange', label: 'Crypto HQ', facadeStyle: 'modernGlass', color: 0x8a5a1f, width: 4, height: 3 },
+  // Consolidation (Phase 2): Buffett/Vanderbilt/Musk/Howard Marks/Jobs each
+  // used to be their own single-tenant HQ. Folded into one denser
+  // multi-tenant hub (see BusinessCenterModal.jsx's 5 tabs) - footprint is
+  // bigger than any one of the old towers to read as "several tenants share
+  // this building", not just a relabeled single HQ.
+  { id: 'businessCenter', label: 'Capital Business Center', facadeStyle: 'modernGlass', color: 0x3a3a4a, width: 7, height: 4 },
   { id: 'corporateOffice', label: 'Corporate Holdings', facadeStyle: 'modernGlass', color: 0x4a3a5f, width: 4, height: 3 },
   { id: 'vcHub', label: 'Venture Capital Hub', facadeStyle: 'modernGlass', color: 0x2a3a6b, width: 3, height: 3 },
   { id: 'bank', label: 'Bank & Realty Office', facadeStyle: 'modernGlass', color: 0x1f3a5f, width: 4, height: 3 },
   { id: 'realEstateAgency', label: 'Real Estate Agency', facadeStyle: 'modernGlass', color: 0x3a5f4a, width: 4, height: 3 },
   { id: 'parliament', label: 'Parliament Hall', facadeStyle: 'modernGlass', color: 0x3a3a6a, width: 4, height: 3 },
+  // Consolidation (Phase 2): FBI HQ (Hoover) + IRS HQ (Caplin) folded into one
+  // federal hub (see GovernmentBuildingModal.jsx's 3 tabs, the 3rd of which
+  // also gives the existing status-bar-only GovernmentModal a physical
+  // building). modernGlass (not traditionalCottage/modernBrick like its two
+  // predecessors) to read as the civic building it now is, matching
+  // Parliament Hall's look.
+  { id: 'governmentBuilding', label: 'Federal Government Building', facadeStyle: 'modernGlass', color: 0x2a3a5a, width: 6, height: 4 },
 
   // --- Cultural/amenity buildings (formerly "Kyoto") ---
-  { id: 'irsHQ', label: 'IRS Internal Revenue', facadeStyle: 'traditionalCottage', color: 0x5a5a5a, width: 4, height: 3, npcId: 'caplin' },
   { id: 'teaHouse', label: 'Cherry Coke Tea House', facadeStyle: 'traditionalCottage', color: 0x8a4a2a, width: 3, height: 2 },
   { id: 'machiyaEstate', label: 'Machiya Executive Estate', facadeStyle: 'traditionalCottage', color: 0x6a5a3a, width: 4, height: 3 },
   { id: 'zenGarden', label: 'Zen Rock Garden', facadeStyle: 'traditionalCottage', color: 0x8a8a6a, width: 3, height: 2 },
@@ -137,15 +143,15 @@ const FINANCE_BUILDING_DEFS = [
 
   // --- Entertainment/crime buildings (formerly "Osaka") ---
   { id: 'casino', label: 'Neon Dragon Casino', facadeStyle: 'modernBrick', color: 0x8a1f6a, width: 4, height: 3 },
-  { id: 'arcade', label: 'Pixel Palace Arcade', facadeStyle: 'modernBrick', color: 0x1f6a8a, width: 3, height: 3 },
-  { id: 'speakeasyHotel', label: 'Chicago Speakeasy Hotel', facadeStyle: 'modernBrick', color: 0x6a3a2a, width: 4, height: 3, npcId: 'capone' },
-  { id: 'fbiHQ', label: 'FBI Headquarters', facadeStyle: 'modernBrick', color: 0x2a3a5a, width: 4, height: 3, npcId: 'hoover' },
   { id: 'dotonboriArcade', label: 'Dotonbori Merchant Arcade', facadeStyle: 'modernBrick', color: 0x8a6a2a, width: 4, height: 2 },
   { id: 'fishMarket', label: 'Kuromon Fish Market', facadeStyle: 'modernBrick', color: 0x2a5a6a, width: 3, height: 2 },
   { id: 'takoyakiStand', label: 'Takoyaki Street Food', facadeStyle: 'modernBrick', color: 0x8a4a1f, width: 2, height: 2 },
-  { id: 'crimeAlley', label: 'Crime Alley', facadeStyle: 'modernBrick', color: 0x6a1f1f, width: 4, height: 2, npcId: 'luciano' },
-  { id: 'blackMarket', label: 'Black Market', facadeStyle: 'modernBrick', color: 0x4a1f6a, width: 3, height: 2 },
-  { id: 'callCenterOps', label: 'Call Center Ops', facadeStyle: 'modernBrick', color: 0x6a5a1f, width: 3, height: 2 },
+  // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
+  // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
+  // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 3 new hubs footprint-
+  // wise since it absorbs 4 former buildings, not 2-5 tenants sharing offices
+  // - reads as a sprawling underworld block rather than a single storefront.
+  { id: 'underworld', label: 'The Underworld', facadeStyle: 'modernBrick', color: 0x3a1f3a, width: 6, height: 4 },
   { id: 'dockVaults', label: 'Dock Underground Vaults', facadeStyle: 'modernBrick', color: 0x2a2a3a, width: 4, height: 2 },
 
   // --- Industrial/civic buildings (formerly "Sapporo") ---
@@ -461,20 +467,16 @@ const INTERIOR_TEMPLATES = {
   hideout: { floorA: 0x1f1418, floorB: 0x160e12, deskColor: 0x6a1f3a, deskLabel: 'Back Room' },
 }
 
+// businessCenter/underworld/governmentBuilding (the 3 Phase-2 hub buildings)
+// deliberately have no entry here - like stockExchange/casino/trainStation,
+// triggerInteraction() special-cases their `zone.id` and opens a React modal
+// directly instead of ever routing through buildGenericInteriorZone, so they
+// never need an interior template.
 const BUILDING_INTERIOR_TEMPLATE = {
-  cryptoExchange: 'cryptoHQ',
-  buffettHQ: 'tycoonOffice',
-  vanderbiltHQ: 'tycoonOffice',
-  muskHQ: 'tycoonOffice',
-  howardMarksHQ: 'tycoonOffice',
-  appleHQ: 'tycoonOffice',
   bank: 'officeA',
   realEstateAgency: 'officeA',
   corporateOffice: 'officeB',
   vcHub: 'officeB',
-  speakeasyHotel: 'officeB',
-  irsHQ: 'officeA',
-  fbiHQ: 'officeA',
   pentagonDodHQ: 'officeA',
   epaHQ: 'officeA',
   fordRougeComplex: 'officeB',
@@ -493,11 +495,7 @@ const BUILDING_INTERIOR_TEMPLATE = {
   sapporoBrewery: 'amenity',
   alpineLodge: 'amenity',
   trainStation: 'amenity',
-  arcade: 'amenity',
   hotel: 'amenity',
-  crimeAlley: 'amenity',
-  blackMarket: 'amenity',
-  callCenterOps: 'amenity',
   parliament: 'amenity',
   park: 'amenity',
   temple: 'amenity',
@@ -813,6 +811,32 @@ function idleDriftOffset(characterId, agentClock, tier) {
   const x = Math.sin((agentClock / IDLE_DRIFT_PERIOD_X) * Math.PI * 2 + phaseX) * radius
   const y = Math.cos((agentClock / IDLE_DRIFT_PERIOD_Y) * Math.PI * 2 + phaseY) * radius
   return { x, y }
+}
+
+// Fixed per-character "door slot" - the Phase 2 building consolidation lets
+// up to 5 characters (Business Center) share one physical door, and
+// buildingDoorPixel used to resolve every character at that building to the
+// exact same pixel with only idleDriftOffset's few-px mill on top, so 5
+// roamers converging there visually stacked on nearly one spot. Same
+// deterministic, id-seeded hash style as idleDriftOffset/presencePhaseOffset
+// above (no Math.random) - each character gets one fixed slot in a small
+// ring around the door, added to the door pixel BEFORE idleDriftOffset's
+// mill/seek target math runs, so it composes with (rather than fights)
+// that existing drift. 6 slots spaced 12-24px from center and from each
+// other is plenty for "reads as distinct people", not full pedestrian
+// collision - this game doesn't have that for anyone.
+const DOOR_SLOT_OFFSETS = [
+  { x: 0, y: 0 },
+  { x: -18, y: 8 },
+  { x: 18, y: 8 },
+  { x: -24, y: -8 },
+  { x: 24, y: -8 },
+  { x: 0, y: 18 },
+]
+
+function doorSlotOffset(characterId) {
+  const idx = idleDriftHash(`${characterId}:doorSlot`) % DOOR_SLOT_OFFSETS.length
+  return DOOR_SLOT_OFFSETS[idx]
 }
 
 function agentAmbientActions(c) {
@@ -1534,14 +1558,21 @@ export default class OverworldScene extends Phaser.Scene {
   // Real live-map pixel position just outside a building's south edge (the
   // same "stand outside the door" convention triggerInteraction uses for
   // overworldReturnSpawn) - the ground truth for "this character is
-  // physically at this building", not just narrating it.
-  buildingDoorPixel(buildingId) {
+  // physically at this building", not just narrating it. `characterId` is
+  // optional (omitting it returns the bare center-door pixel, used by
+  // teleportToCity/spawn code that has no per-character concept); when
+  // given, doorSlotOffset spreads that character to their own fixed slot
+  // around the door so multiple roamers at the same building don't stack.
+  buildingDoorPixel(buildingId, characterId) {
     const b = FINANCE_BUILDINGS.find((bd) => bd.id === buildingId)
     if (!b) return null
-    return {
+    const base = {
       x: ((b.tiles.c0 + b.tiles.c1 + 1) / 2) * TILE_SIZE,
       y: (b.tiles.r1 + 1) * TILE_SIZE + TILE_SIZE / 2,
     }
+    if (!characterId) return base
+    const slot = doorSlotOffset(characterId)
+    return { x: base.x + slot.x, y: base.y + slot.y }
   }
 
   // Resolves every named roamer's current-block and next-block buildingId
@@ -1610,8 +1641,8 @@ export default class OverworldScene extends Phaser.Scene {
       // building id (home_<id> or one of the 41 hand-authored ones), so
       // doorA/doorB should always resolve - the final else branch is
       // defensive only, for a roster id that somehow has no disposition.
-      const doorA = presence ? this.buildingDoorPixel(presence.currentBuildingId) : null
-      const doorB = presence ? this.buildingDoorPixel(presence.nextBuildingId) : null
+      const doorA = presence ? this.buildingDoorPixel(presence.currentBuildingId, roamer.agent.id) : null
+      const doorB = presence ? this.buildingDoorPixel(presence.nextBuildingId, roamer.agent.id) : null
       const traveling = doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId
 
       // spawnNamedRoamers() creates every actor at the (-100,-100) off-screen
@@ -2481,7 +2512,10 @@ export default class OverworldScene extends Phaser.Scene {
     // rotates. tierId is still the flavor name (`atmo_police`) even though
     // the sprite is now one of the 3 shared pico8 colors - see
     // pico8CarFrameFor's header comment.
-    const fbiHQ = FINANCE_BUILDINGS.find((b) => b.id === 'fbiHQ')
+    // fbiHQ was folded into governmentBuilding in the Phase 2 building
+    // consolidation (see FINANCE_BUILDING_DEFS) - this atmosphere
+    // police-cruiser spawn just needed a still-real building id near it.
+    const fbiHQ = FINANCE_BUILDINGS.find((b) => b.id === 'governmentBuilding')
     const policeNear = fbiHQ ? this.adjacentOpenTiles(fbiHQ, 1)[0] : null
     const policeFallback = policeNear
       ? (this.nearestRoadTile(policeNear.col, policeNear.row) ?? policeNear)
@@ -2928,7 +2962,16 @@ export default class OverworldScene extends Phaser.Scene {
         this.bridge.emit('interact', { type: 'townTravel' })
         return
       }
-      
+      // The 3 Phase-2 consolidated hubs (Underworld/Business Center/
+      // Government Building) are multi-tenant tabbed React modals, not a
+      // walk-in interior - same pattern as trainStation above: open the
+      // modal straight from the overworld footprint, no interior zone load.
+      if (zone.id === 'underworld' || zone.id === 'businessCenter' || zone.id === 'governmentBuilding') {
+        this.pauseForModal()
+        this.bridge.emit('interact', { type: 'building', id: zone.id })
+        return
+      }
+
       const building = FINANCE_BUILDINGS[zone.uid] || FINANCE_BUILDINGS.find((b) => b.id === zone.id)
       
       if (zone.id === 'stockExchange') {
