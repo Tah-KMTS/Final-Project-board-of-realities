@@ -1675,6 +1675,16 @@ export default class OverworldScene extends Phaser.Scene {
           roamer.dropOff = spot
             ? { x: spot.col * TILE_SIZE + TILE_SIZE / 2, y: spot.row * TILE_SIZE + TILE_SIZE / 2 }
             : null
+          // RESERVE the drop-off the moment it is chosen, not on arrival.
+          // nearestRoadTile rejects tiles near a vehicle's registered col/row,
+          // but a car in transit still had its OLD spot registered - so every
+          // car heading for the same building picked the same free kerb and
+          // they all stacked on it. Claiming it up front makes the next car's
+          // search route around it.
+          if (spot && roamer.carEntry) {
+            roamer.carEntry.col = spot.col
+            roamer.carEntry.row = spot.row
+          }
           // Precompute the on-road polyline for the drive leg.
           roamer.driveRoute =
             spot && roamer.carPark
