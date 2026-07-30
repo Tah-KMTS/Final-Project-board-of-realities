@@ -332,6 +332,24 @@ function brickOrPico8HomeKit(npcId) {
   return { sheetKey: PACK_SHEET_KEYS.tinyTown, kit: cottageKit(TINY_TOWN.brickCottage), peaked: true }
 }
 
+// Style FAMILY a residential building (home or hideout) will render in,
+// reusing the exact same wealth-threshold/hash logic packFacadeFor uses to
+// pick a facade - without resolving the actual sheet/kit, just which visual
+// family it lands in. Lets OverworldScene.js sort home/hideout defs into
+// same-style clusters before packing them (reported: wildly different home
+// styles - a log cabin, a flat office-style facade, a stone manor - kept
+// landing directly side by side with no visual grouping).
+export function residentialStyleKey(npcId, kind) {
+  if (kind === 'hideout') return 'hideout'
+  const netWorth = getAnyCharacter(npcId)?.netWorth ?? 0
+  if (netWorth >= WEALTH_STONE_THRESHOLD) return 'stone'
+  if (netWorth >= WEALTH_WOOD_HOUSE_THRESHOLD) return 'woodHouse'
+  const bucket = hashId(npcId || '') % 4
+  if (bucket === 0) return 'pico8'
+  if (bucket === 1) return 'serene'
+  return 'brick'
+}
+
 // Resolves which pack + kit a building draws with. Returns null for anything
 // that should keep the procedural facade (interior desks, unknown districts).
 function packFacadeFor(building) {

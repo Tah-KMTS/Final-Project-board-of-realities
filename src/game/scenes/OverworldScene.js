@@ -23,6 +23,7 @@ import {
   HABITAT_ASSET_KEYS,
   WEALTH_STONE_THRESHOLD,
   buildingDoorAnimSpec,
+  residentialStyleKey,
 } from '../tileGen'
 import {
   SERENE_VILLAGE_DOOR_KEY,
@@ -84,7 +85,11 @@ const DISTRICT_ORDER = ['Tokyo District', 'Kyoto District', 'Osaka District', 'S
 // with a standalone layout script) - way too tall to be playable. Giving
 // home/hideout defs their own tighter `gap` (per-def override, see
 // layoutFinanceMap) instead keeps the map at 73 rows for the same 88 homes.
-const HOME_GAP = 2
+// Tightened further to 1 (from 2) - the plan is to make homes background
+// scenery rather than player-enterable buildings, at which point they don't
+// need the same walk-up clearance a real building does; packing them denser
+// now gets the map size win regardless of when that lands.
+const HOME_GAP = 1
 
 const FINANCE_BUILDING_DEFS = [
   // --- Tokyo District ---
@@ -151,7 +156,17 @@ const FINANCE_BUILDING_DEFS = [
   // Appended after the 41 defs above (not interleaved) so the already-
   // verified district layout stays first and unaffected; layoutFinanceMap
   // packs each into its def's district band same as any other building.
-  ...CHARACTER_HOME_BUILDING_DEFS.map((d) => ({ ...d, gap: HOME_GAP })),
+  // Sorted by residentialStyleKey (stone manor / wood house / pico8 /
+  // serene cottage / brick cottage / hideout) before packing - .filter()
+  // in layoutFinanceMap preserves relative order, so within each district
+  // band this sort survives straight through to "same style lands in a
+  // contiguous run", i.e. actual visual clusters rather than the roster's
+  // arbitrary order scattering every style across every row (reported: a
+  // log-cabin home next to a stone manor next to a pico8 warehouse, no
+  // grouping at all).
+  ...CHARACTER_HOME_BUILDING_DEFS
+    .map((d) => ({ ...d, gap: HOME_GAP }))
+    .sort((a, b) => residentialStyleKey(a.npcId, a.kind).localeCompare(residentialStyleKey(b.npcId, b.kind))),
 ]
 
 const BAND_COL_START = 2
@@ -236,19 +251,45 @@ function layoutFinanceMap(mapCols) {
     let row = cursorRow
     let rowMaxHeight = 0
     const bandTop = cursorRow
+    let prevIsHome = null
     for (const b of defs) {
-      if (col + b.width - 1 > bandColEnd) {
+      // Force a fresh row whenever the building "category" changes (hand-
+      // authored office/HQ facades vs. character homes/hideouts), even if
+      // the current row has space left. Without this, homes are appended
+      // after a district's hand-authored defs in the same array, and the
+      // packer just kept filling the row it was on - so the LAST office
+      // building and the FIRST home routinely ended up side by side, with
+      // no gap and two completely different art styles touching directly
+      // (reported: a flat grey office facade wedged into a row of log-cabin
+      // homes). Homes still pack tightly against EACH OTHER (see HOME_GAP)
+      // - this only draws a line between the two categories, using the
+      // wider BAND_GAP rather than either category's own tighter gap, so
+      // the boundary reads as deliberate, not just another row wrap.
+      const isHome = Boolean(b.kind)
+      const categoryChanged = prevIsHome !== null && isHome !== prevIsHome && col !== BAND_COL_START
+      // Row-wrap gap honours the same per-def override horizontal packing
+      // already uses (b.gap ?? BAND_GAP) instead of always BAND_GAP. Homes
+      // set gap: HOME_GAP=1 to pack tightly side-by-side, but every WRAPPED
+      // row still cost a full BAND_GAP=4 vertically regardless - with ~88
+      // 2-wide homes needing several wrapped rows per district, that
+      // asymmetry was most of the map's excess height.
+      if (categoryChanged) {
         col = BAND_COL_START
         row += rowMaxHeight + BAND_GAP
         rowMaxHeight = 0
+      } else if (col + b.width - 1 > bandColEnd) {
+        col = BAND_COL_START
+        row += rowMaxHeight + (b.gap ?? BAND_GAP)
+        rowMaxHeight = 0
       }
+      prevIsHome = isHome
       // Reserve the vertical streets: shift right past any street block this
       // building would straddle, wrapping to the next row if it no longer
       // fits on this one.
       let clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
       if (clear === null) {
         col = BAND_COL_START
-        row += rowMaxHeight + BAND_GAP
+        row += rowMaxHeight + (b.gap ?? BAND_GAP)
         rowMaxHeight = 0
         clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
       }
@@ -298,7 +339,7 @@ function layoutFinanceMap(mapCols) {
   return { buildings, mapRows, hStreets, districtBandRows, vStreets: streetCols }
 }
 
-const MAP_COLS = 160
+const MAP_COLS = 118
 const {
   buildings: FINANCE_BUILDINGS,
   mapRows: MAP_ROWS,
@@ -318,7 +359,6 @@ export {
   MAP_ROWS,
   DISTRICT_BAND_ROWS,
   TILE_SIZE,
-  presenceStepProgress,
   presencePhaseOffset,
   idleDriftOffset,
   IDLE_DRIFT_RADIUS_BY_TIER,
@@ -503,7 +543,7 @@ function terrainTileTypeAt(tile, row) {
 // one looking bare.
 const ENVIRONMENT_SCATTER_ATTEMPTS = Math.round((MAP_COLS * MAP_ROWS) / 9)
 
-function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blockedTiles) {
+function scatterEnvironment(scene, layout, buildings, count, zoneObjects) {
   const forbidden = new Set()
   for (const b of buildings) {
     for (let r = b.tiles.r0 - 1; r <= b.tiles.r1 + 1; r++) {
@@ -522,76 +562,30 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
     const cx = c * TILE_SIZE + TILE_SIZE / 2
     const cy = r * TILE_SIZE + TILE_SIZE / 2
     let objs
-    let solid = false
-    let isTree = false
     const isUrban = (r >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && r <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) || (r >= DISTRICT_BAND_ROWS['Osaka District'].top - 2 && r <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 2)
     const isJRPG = (r >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && r <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2)
-
-    // Rebalanced with the grass ground: previously the urban bands dropped
-    // 75% of attempts and then only ever placed rocks, and Kyoto placed no
-    // trees at all. That was tuned for the old dark marble/cobblestone
-    // ground - on grass it just read as empty lawn. Every band now grows
-    // trees; the districts keep their character through the MIX, not through
-    // having no vegetation.
+    // Trees/rocks are pure background scenery, not obstacles - depth sorting
+    // (sprite.setDepth(y), same as every other actor) already draws the
+    // player in front of or behind the canopy correctly, so walking through
+    // one doesn't read as clipping.
     if (isUrban) {
       const roll = Math.random()
-      if (roll < 0.55) {
-        objs = placeTree(scene, cx, cy)
-        solid = true
-        isTree = true
-      } else if (roll < 0.72) {
-        objs = placeRock(scene, cx, cy)
-        solid = true
-      } else {
-        objs = placeFlower(scene, cx, cy)
-      }
+      if (roll < 0.55) objs = placeTree(scene, cx, cy)
+      else if (roll < 0.72) objs = placeRock(scene, cx, cy)
+      else objs = placeFlower(scene, cx, cy)
     } else if (isJRPG) {
       // Kyoto: cherry blossom still dominant, but with real trees among it.
       const roll = Math.random()
-      if (roll < 0.35) {
-        objs = placeFlower(scene, cx, cy)
-      } else if (roll < 0.85) {
-        objs = placeTree(scene, cx, cy)
-        solid = true
-        isTree = true
-      } else {
-        objs = placeRock(scene, cx, cy)
-        solid = true
-      }
+      if (roll < 0.35) objs = placeFlower(scene, cx, cy)
+      else if (roll < 0.85) objs = placeTree(scene, cx, cy)
+      else objs = placeRock(scene, cx, cy)
     } else {
       const roll = Math.random()
-      if (roll < 0.45) {
-        objs = placeTree(scene, cx, cy)
-        solid = true
-        isTree = true
-      } else if (roll < 0.85) {
-        objs = placeFlower(scene, cx, cy)
-      } else {
-        objs = placeRock(scene, cx, cy)
-        solid = true
-      }
+      if (roll < 0.45) objs = placeTree(scene, cx, cy)
+      else if (roll < 0.85) objs = placeFlower(scene, cx, cy)
+      else objs = placeRock(scene, cx, cy)
     }
-    if (objs) {
-      zoneObjects.push(...objs)
-      if (solid && blockedTiles) {
-        blockedTiles.add(`${r},${c}`)
-        // A Cute Fantasy oak is ~2 tiles tall: the trunk sits on (r,c) and
-        // the canopy rises into the tile ABOVE it. Blocking only the trunk
-        // let people stand inside the leaves, which read as walking through
-        // the tree. Rocks/flowers are one tile and keep the old behaviour.
-        //
-        // The canopy tile is only blocked if it is ordinary ground. Trees
-        // themselves only land on grass, but the tile ABOVE one can be a
-        // ROAD - and since vehicles are now road-locked, blocking it would
-        // sever the road network and strand cars with no visible cause. The
-        // spawn tile is excluded for the same class of reason.
-        const canopyType = r > 0 ? layout[r - 1][c] : null
-        const canopyIsSpawn = r - 1 === DEFAULT_SPAWN.row && c === DEFAULT_SPAWN.col
-        if (isTree && r > 0 && GRASS_TYPES.has(canopyType) && !canopyIsSpawn) {
-          blockedTiles.add(`${r - 1},${c}`)
-        }
-      }
-    }
+    if (objs) zoneObjects.push(...objs)
   }
 }
 
@@ -694,11 +688,25 @@ function nextTimeBlock(day, timeBlockIndex) {
   return { day: nextDay, timeBlockIndex: idx }
 }
 
-// How many agentClock units (see updateNamedRoamers - agentClock advances by
-// delta/4000 each frame) one one-way glide between two doors takes. 5 units
-// is the same pace the old TITAN_ROUTINES lerp used between schedule steps
-// (~20 real seconds), kept for continuity of feel.
-const PRESENCE_STEP_PERIOD = 5
+// Named-roamer movement speed in px/s - the SAME constant speed for every
+// roamer, walking or driving (see the seekTo()/travelPhase state machine in
+// updateNamedRoamers). An earlier design tried to fit each journey into a
+// precomputed time period (so two stops in the same block would always be
+// reached "on schedule") using a continuous back-and-forth triangle wave;
+// that kept producing distinct bugs - a unit-conversion error that silently
+// doubled real speed, an asymmetric clamp that froze the return leg then
+// snapped to catch up, and (structurally) any two roamers with
+// differently-far-apart stops reading as different speeds even when the
+// math was correct. Simpler and more robust: nobody arrives "on schedule",
+// everybody just walks/drives there at one constant, believable pace and
+// waits once they arrive. 70px/s (1.75 tiles/s) was the original target and
+// is mathematically exact (verified: seekTo bounds every step to
+// speed*delta with no possible overshoot) - but repeated human feedback
+// said it still reads as too fast on screen. Cut to 30px/s (0.75 tiles/s),
+// close to wanderActor's existing 20px/s ambient-NPC pace elsewhere in this
+// file - a purposeful walk should be a little brisker than aimless
+// wandering, not much more.
+const NAMED_ROAMER_WALK_SPEED_PX_PER_SEC = 30
 // How often (ms) the presence cache is force-refreshed even without a block
 // change, so a mid-block wantedLevel swing (police chase heat) is reflected
 // within a few seconds instead of only at the next End Day.
@@ -714,18 +722,9 @@ function presencePhaseOffset(characterId) {
   return (h % 997) / 997
 }
 
-// Continuous 0->1->0 triangle wave (never jumps/snaps at the loop point) -
-// the "stepProgress" a character's sprite lerps between its current-block
-// and next-block door positions with.
-function presenceStepProgress(agentClock, phaseOffset) {
-  const x = agentClock / PRESENCE_STEP_PERIOD + phaseOffset
-  const frac = x - Math.floor(x)
-  return frac < 0.5 ? frac * 2 : (1 - frac) * 2
-}
-
-// House rule: the lerp above has nothing to interpolate between when a
+// House rule: the "not traveling" branch has nowhere to walk when a
 // roamer's current-block and next-block buildingId are the SAME building
-// (doorA === doorB in updateNamedRoamers) - measured as the common case by
+// (updateNamedRoamers) - measured as the common case by
 // design (~49% of all character-instants frozen at any moment, up to ~79%
 // for recluse tier, since staying put across consecutive blocks is normal
 // behavior, not a glitch). Without something layered on top, that's a
@@ -741,8 +740,8 @@ function presenceStepProgress(agentClock, phaseOffset) {
 // guards this position exactly like every other one. It's cosmetic,
 // scene-layer motion only, applied after worldPresenceEngine.js has already
 // resolved the real buildingId for this frame - worldPresenceEngine.js
-// itself is untouched and stays pure, same as agentClock/presenceStepProgress
-// never feeding anything back into it. Two sin/cos terms at different,
+// itself is untouched and stays pure, same as agentClock never feeding
+// anything back into it. Two sin/cos terms at different,
 // golden-ratio-scaled (so never in sync) periods trace a wandering Lissajous
 // loop instead of a straight back-and-forth line, so the two axes are
 // (short of a measure-zero instant) never simultaneously motionless -
@@ -765,8 +764,8 @@ function idleDriftHash(seed) {
 
 const GOLDEN_RATIO = 1.6180339887498949
 // agentClock units (see updateNamedRoamers - advances delta/4000 per frame,
-// i.e. 1 unit = 4 real seconds, same units PRESENCE_STEP_PERIOD uses) for one
-// full idle-drift loop on each axis - a handful of real seconds, so the mill
+// i.e. 1 unit = 4 real seconds) for one full idle-drift loop on each axis -
+// a handful of real seconds, so the mill
 // reads as idle fidgeting rather than vibrating (too fast) or standing still
 // (too slow). The Y period is the X period scaled by the golden ratio so the
 // two never share a beat.
@@ -1169,7 +1168,7 @@ export default class OverworldScene extends Phaser.Scene {
 
     // City-specific environment scatter
     this.blockedEnvironmentTiles = new Set()
-    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, ENVIRONMENT_SCATTER_ATTEMPTS, this.zoneObjects, this.blockedEnvironmentTiles)
+    scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, ENVIRONMENT_SCATTER_ATTEMPTS, this.zoneObjects)
 
     drawBuildings(this, FINANCE_BUILDINGS, this.zoneObjects)
 
@@ -1620,10 +1619,22 @@ export default class OverworldScene extends Phaser.Scene {
     this.presenceBlockKey = `${worldClock.day}|${worldClock.timeBlockIndex}`
   }
 
-  updateNamedRoamers(delta) {
+  updateNamedRoamers(rawDelta) {
     if (!this.namedRoamers.length) return
-    // agentClock now only drives the continuous door-to-door glide (see
-    // presenceStepProgress) - it no longer indexes into a schedule array,
+    // Clamp delta before it drives any movement math. An uncapped delta
+    // turns any real stall (tab backgrounded for a moment, a GC pause, a
+    // slow frame) into a catch-up jump - stepPx = speed*delta scales up
+    // right along with however long the stall was, so a single bad frame
+    // can move a roamer dozens of pixels in one step even though the
+    // per-frame math is "correct". Reported as "some NPCs moving at super
+    // speed" - a few characters happening to catch the one spiked frame,
+    // not a sustained issue. 50ms floor (~20fps) still tracks legitimate
+    // slow frames without amplifying real stalls into visible teleports.
+    const delta = Math.min(rawDelta, 50)
+    // agentClock feeds idleDriftOffset's mill-in-place animation for roamers
+    // who aren't currently traveling - actual travel is constant-speed
+    // seek-and-stop, not agentClock-driven (see the travelPhase state
+    // machine below). agentClock no longer indexes into a schedule array;
     // that whole position path (agentMovementEngine.updateAgentPositions) is
     // retired in favor of worldPresenceEngine.js (see the house-rule comment
     // above nextTimeBlock()).
@@ -1648,108 +1659,106 @@ export default class OverworldScene extends Phaser.Scene {
       // defensive only, for a roster id that somehow has no disposition.
       const doorA = presence ? this.buildingDoorPixel(presence.currentBuildingId) : null
       const doorB = presence ? this.buildingDoorPixel(presence.nextBuildingId) : null
-      let rawPos
-      if (doorA && doorB) {
-        const t = presenceStepProgress(this.agentClock, roamer.phaseOffset)
-        rawPos = { x: doorA.x + (doorB.x - doorA.x) * t, y: doorA.y + (doorB.y - doorA.y) * t }
-      } else if (doorA) {
-        rawPos = doorA
-      } else {
-        rawPos = { x: roamer.actor.x, y: roamer.actor.y }
+      const traveling = doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId
+
+      // spawnNamedRoamers() creates every actor at the (-100,-100) off-screen
+      // placeholder, potentially thousands of pixels from their real
+      // building. seekTo below is a small, per-frame bounded step - correct
+      // for ongoing movement, but if a roamer's very first resolved position
+      // is used as its seek origin, that first frame kicks off a real-time
+      // walk all the way in from (-100,-100), straight-line through
+      // whatever buildings happen to be on the way (each one shoving the
+      // position via resolveOpenPosition) - measured as roamers appearing to
+      // move at 400-700+px/s right after a fresh "New Game". Snap once,
+      // directly, the first time a real door resolves, same way the old
+      // time-based system's absolute t-lerp always did implicitly.
+      if (!roamer.placed) {
+        const startAt = doorA || doorB
+        if (startAt) {
+          roamer.actor.sprite.setPosition(startAt.x, startAt.y)
+          roamer.placed = true
+        }
       }
-      // Car owners route VIA their car instead of walking the straight
-      // door-to-door line. Without this they never came within reach of it:
-      // the lerp above goes straight from one door to the other, so passing
-      // near the parked car was pure luck, and the measured distance from a
-      // building to its kerb is 4-8 tiles for a third of them.
-      //
-      // The journey is re-split into walk -> drive -> walk over the SAME t,
-      // so arrival timing is unchanged: out to the car, drive to a kerb by
-      // the destination, walk in from there.
+
+      // Constant-speed "seek and stop" movement - every roamer moves toward
+      // its current target at exactly NAMED_ROAMER_WALK_SPEED_PX_PER_SEC and
+      // holds position once it arrives. Replaces an earlier design that
+      // tried to fit each journey into a precomputed time period with a
+      // continuous back-and-forth triangle wave; that approach kept
+      // producing distinct bugs (a unit-conversion error that doubled real
+      // speed, an asymmetric clamp that froze the return leg then snapped,
+      // and cars appearing to move at wildly different speeds depending on
+      // how far apart their two stops happened to be) because "arrive
+      // exactly on schedule" and "move at a believable constant speed" are
+      // fighting requirements once distances vary. This drops the
+      // schedule-timing requirement - a roamer just walks there and waits.
+      const stepPx = NAMED_ROAMER_WALK_SPEED_PX_PER_SEC * (delta / 1000)
+      const seekTo = (target) => {
+        const dx = target.x - roamer.actor.x
+        const dy = target.y - roamer.actor.y
+        const dist = Math.hypot(dx, dy)
+        if (dist <= stepPx || dist === 0) return { pos: { x: target.x, y: target.y }, arrived: true }
+        return {
+          pos: { x: roamer.actor.x + (dx / dist) * stepPx, y: roamer.actor.y + (dy / dist) * stepPx },
+          arrived: false,
+        }
+      }
+
+      let rawPos = { x: roamer.actor.x, y: roamer.actor.y }
       let onFoot = true
-      if (roamer.carActor && doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId) {
-        if (roamer.routeFor !== presence.nextBuildingId) {
-          const dc = Math.floor(doorB.x / TILE_SIZE)
-          const dr = Math.floor(doorB.y / TILE_SIZE)
-          const spot = this.nearestRoadTile(dc, dr, [], roamer.carEntry)
-          roamer.dropOff = spot
-            ? { x: spot.col * TILE_SIZE + TILE_SIZE / 2, y: spot.row * TILE_SIZE + TILE_SIZE / 2 }
-            : null
-          // RESERVE the drop-off the moment it is chosen, not on arrival.
-          // nearestRoadTile rejects tiles near a vehicle's registered col/row,
-          // but a car in transit still had its OLD spot registered - so every
-          // car heading for the same building picked the same free kerb and
-          // they all stacked on it. Claiming it up front makes the next car's
-          // search route around it.
-          if (spot && roamer.carEntry) {
-            roamer.carEntry.col = spot.col
-            roamer.carEntry.row = spot.row
-          }
-          // Precompute the on-road polyline for the drive leg.
-          roamer.driveRoute =
-            spot && roamer.carPark
-              ? this.roadRouteWaypoints(
-                  Math.floor(roamer.carPark.x / TILE_SIZE),
-                  Math.floor(roamer.carPark.y / TILE_SIZE),
-                  spot.col,
-                  spot.row
-                )
-              : null
-          roamer.routeFor = presence.nextBuildingId
-          roamer.driveU = 0
-          roamer.carRest = null
+
+      if (!traveling) {
+        roamer.travelPhase = null
+        const dest = doorA || doorB
+        if (dest) {
+          // idleDriftOffset must be folded into the SEEK TARGET (door +
+          // offset), not added to the result afterward. seekTo's "from"
+          // point is wherever the actor currently is - which already
+          // includes last frame's drift - so adding a fresh drift value on
+          // top of that every frame doesn't orbit the door, it ACCUMULATES:
+          // roughly the same offset gets re-added frame after frame with no
+          // bound, running away in whatever direction that frame's phase
+          // happened to point. Measured as a nearly-constant drift value
+          // (e.g. {x:-16,y:-9}) compounding into a runaway walk at
+          // 20x the intended speed for whichever roamer's phase gave it a
+          // large offset - explains the reported mix of "some fast, some
+          // stuck at a building, some normal": purely a function of each
+          // character's drift phase at that moment, not their actual
+          // situation. Seeking toward a slowly-moving point (the door,
+          // orbited by the bounded sin/cos offset) keeps the roamer
+          // genuinely centered on their door instead.
+          const tier = doorA ? getDisposition(roamer.agent.id)?.tier : null
+          const drift = doorA ? idleDriftOffset(roamer.agent.id, this.agentClock, tier) : { x: 0, y: 0 }
+          rawPos = seekTo({ x: dest.x + drift.x, y: dest.y + drift.y }).pos
         }
-        const pick = roamer.carPark
-        const drop = roamer.dropOff
-        if (pick && drop) {
-          const t2 = presenceStepProgress(this.agentClock, roamer.phaseOffset)
-          const seg = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u })
-          // Where the car rests while the NPC is on foot. Before the drive
-          // that's the pickup kerb; after it, the DROP-OFF. It used to always
-          // be the pickup, so at the end of a journey the car teleported all
-          // the way back to where it started - the person appeared at the
-          // destination and the car vanished, which is what read as a person
-          // and a car transforming into each other.
-          roamer.carRest = t2 < 0.2 ? pick : drop
-          if (t2 < 0.2) rawPos = seg(doorA, pick, t2 / 0.2)
-          else if (t2 < 0.8) {
-            // Follow the road polyline, not a straight line - the straight
-            // version drove across lawns, which is the rule this whole
-            // vehicle pass exists to keep.
-            const u = (t2 - 0.2) / 0.6
-            if (roamer.driveRoute) {
-              // Advance along the route only while the way ahead is clear, so
-              // cars queue behind one another instead of driving through.
-              // Progress is tracked separately from the schedule `u` and
-              // catches up once traffic clears - it never runs past it.
-              const prev = roamer.driveU ?? u
-              const want = Math.max(prev, u)
-              const at = this.pointAlongRoute(roamer.driveRoute, prev)
-              const peek = this.pointAlongRoute(roamer.driveRoute, Math.min(1, want + 0.01))
-              const dir = { x: peek.x - at.x, y: peek.y - at.y }
-              roamer.driveU = this.vehicleAhead(at, dir, roamer.carEntry) ? prev : want
-              rawPos = this.pointAlongRoute(roamer.driveRoute, roamer.driveU)
-            } else {
-              rawPos = seg(pick, drop, u)
-            }
-            onFoot = false
-          } else rawPos = seg(drop, doorB, (t2 - 0.8) / 0.2)
-        }
+      } else {
+        // Car-owning roamers used to route VIA their car (walk to it, drive
+        // a road-following route, walk in from the drop-off) instead of a
+        // straight door-to-door line. That choreography was the source of
+        // three separate movement bugs in a row (an asymmetric catch-up
+        // clamp, an instant-snap on unblocking, and a stuck-target issue
+        // that made roamers read as sprinting at 400-700+px/s) and isn't
+        // core to the game - simplified to the same plain walk everyone
+        // else gets. The car stays visually parked at its last spot instead
+        // of following them; see the `roamer.inCar`/`carPark` rendering
+        // below, unchanged.
+        roamer.travelPhase = null
+        rawPos = seekTo(doorB).pos
       }
       roamer.inCar = !onFoot
-
-      if (doorA && onFoot) {
-        const tier = getDisposition(roamer.agent.id)?.tier
-        const drift = idleDriftOffset(roamer.agent.id, this.agentClock, tier)
-        rawPos = { x: rawPos.x + drift.x, y: rawPos.y + drift.y }
-      }
-      // resolveOpenPosition pushes actors out of obstacles - and parked cars
-      // ARE obstacles, so it shoved a walking NPC away from the very car they
-      // were heading for. Skip it while driving (the route runs kerb to kerb,
-      // which is open road by construction).
-      const { x, y } = onFoot
-        ? this.resolveOpenPosition(rawPos.x, rawPos.y)
-        : { x: rawPos.x, y: rawPos.y }
+      // Named roamers don't push against building collision at all - they
+      // have no pathfinding, so any straight-line walk (traveling) or small
+      // idle wander (drifting near their own door) can graze a building
+      // edge, and resolveOpenPosition fighting that every frame is what
+      // read as shaking in place or a permanent stall against an obstacle
+      // (reported against both buildings and a parked car). Buildings stay
+      // solid for the PLAYER; for roamers this trades a rare, brief visual
+      // overlap with a building corner for never visibly fighting or
+      // getting stuck - the better trade for background NPCs. Trees/rocks
+      // are no longer solid for anyone (see scatterEnvironment) so they're
+      // not a factor here either way.
+      const x = rawPos.x
+      const y = rawPos.y
       const dx = x - roamer.actor.x
       const dy = y - roamer.actor.y
       const movedDist = Math.abs(dx) + Math.abs(dy)
@@ -2405,6 +2414,15 @@ export default class OverworldScene extends Phaser.Scene {
       want -= segs[i]
     }
     return points[points.length - 1]
+  }
+
+  routeLength(points) {
+    if (!points || points.length < 2) return 0
+    let total = 0
+    for (let i = 1; i < points.length; i++) {
+      total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y)
+    }
+    return total
   }
 
   nearestRoadTile(col, row, taken = [], ignore = null) {
