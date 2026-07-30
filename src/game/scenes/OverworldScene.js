@@ -1686,6 +1686,7 @@ export default class OverworldScene extends Phaser.Scene {
                 )
               : null
           roamer.routeFor = presence.nextBuildingId
+          roamer.driveU = 0
         }
         const pick = roamer.carPark
         const drop = roamer.dropOff
@@ -1698,7 +1699,21 @@ export default class OverworldScene extends Phaser.Scene {
             // version drove across lawns, which is the rule this whole
             // vehicle pass exists to keep.
             const u = (t2 - 0.2) / 0.6
-            rawPos = roamer.driveRoute ? this.pointAlongRoute(roamer.driveRoute, u) : seg(pick, drop, u)
+            if (roamer.driveRoute) {
+              // Advance along the route only while the way ahead is clear, so
+              // cars queue behind one another instead of driving through.
+              // Progress is tracked separately from the schedule `u` and
+              // catches up once traffic clears - it never runs past it.
+              const prev = roamer.driveU ?? u
+              const want = Math.max(prev, u)
+              const at = this.pointAlongRoute(roamer.driveRoute, prev)
+              const peek = this.pointAlongRoute(roamer.driveRoute, Math.min(1, want + 0.01))
+              const dir = { x: peek.x - at.x, y: peek.y - at.y }
+              roamer.driveU = this.vehicleAhead(at, dir, roamer.carEntry) ? prev : want
+              rawPos = this.pointAlongRoute(roamer.driveRoute, roamer.driveU)
+            } else {
+              rawPos = seg(pick, drop, u)
+            }
             onFoot = false
           } else rawPos = seg(drop, doorB, (t2 - 0.8) / 0.2)
         }
@@ -2300,6 +2315,27 @@ export default class OverworldScene extends Phaser.Scene {
     pts.push(centre(dv, dRow)) // down the destination's street
     if (dv !== dCol) pts.push(centre(dCol, dRow)) // pull into the kerb
     return pts
+  }
+
+  // True if another vehicle sits close AHEAD of a car at `pos` travelling in
+  // direction `dir`. Only vehicles in front count - checking all directions
+  // would deadlock two cars that merely pass near each other, and a car
+  // should not brake for something already behind it.
+  vehicleAhead(pos, dir, self) {
+    const len = Math.hypot(dir.x, dir.y)
+    if (len < 0.0001) return false
+    const ux = dir.x / len
+    const uy = dir.y / len
+    for (const v of this.vehicleActors) {
+      if (v === self || !v.actor) continue
+      const ox = v.actor.x - pos.x
+      const oy = v.actor.y - pos.y
+      const dist = Math.hypot(ox, oy)
+      if (dist > TILE_SIZE * 1.6 || dist < 0.0001) continue
+      // Ahead = positive projection onto the travel direction.
+      if ((ox * ux + oy * uy) / dist > 0.5) return true
+    }
+    return false
   }
 
   // Position along a polyline at 0..1 of its total length.
