@@ -449,3 +449,149 @@ The vehicle work this session is the cautionary tale: cars driving through
 buildings, through each other, and teleporting back to the pickup all survived
 review because **a screenshot cannot show motion**. Behaviours must be watched in
 a running game. See `production/probeGame.mjs`.
+
+---
+
+# ADDENDUM 3 - The no-teleport invariant
+
+**Rule, stated as an invariant because everything below follows from it:**
+
+> An NPC's position must be continuous. They never teleport, never pop in or
+> out, and never pass through solid things. If they are somewhere new, they
+> travelled there by some visible means - walked, drove, or used a traversal
+> they are actually capable of. The visual must show the means.
+
+This is the most demanding requirement in this document. It is not a feature on
+top of the others; it constrains all of them, and it contradicts how the world
+currently works.
+
+## What violates it today
+
+1. **Straight-line travel.** Roamers lerp `doorA -> doorB` directly. This clips
+   through buildings (measured previously at ~12.4% of travel frames) - a
+   through-walls violation on one frame in eight.
+2. **Presence is a location oracle, not a journey.** `resolvePresence()` answers
+   "where are they now", and the renderer interpolates toward it. If a schedule
+   block puts someone across the map, they slide there regardless of whether the
+   trip is possible in the time available.
+3. **Zone reload recreates roamers**, so they appear at their current schedule
+   position rather than continuing from where they were.
+4. **`resolveOpenPosition()` pushes actors out of obstacles** by snapping them to
+   the nearest open edge. That is a small teleport, and it fires constantly.
+5. **Indoors is not represented.** A character "at home" stands on the pavement
+   outside (see `handoff-interiors.md` Task 1) rather than having entered.
+
+Fixing behaviours and intents on top of this will not read as alive, because the
+underlying motion is already dishonest.
+
+## What the invariant demands
+
+### 1. A navigation graph, and real paths
+
+Per-tile A* for 88 agents on a 160x67 map every frame is not affordable. Use a
+**coarse waypoint graph** instead:
+
+- nodes: building doors, road junctions, kerbs, district gateways;
+- edges: precomputed road runs between them, each with a length and an allowed
+  **traversal mode**;
+- path once per journey, then walk the polyline - exactly the approach the NPC
+  driving work already uses (`roadRouteWaypoints` / `pointAlongRoute`). **That
+  code is the prototype for this**; generalise it rather than starting fresh.
+
+Cache the graph at map build. It only changes when the map does.
+
+### 2. Travel must cost time, and the schedule must yield
+
+Presence has to stop being "they are at X now" and become **"they are travelling
+to X, fraction f complete"**. If the journey cannot finish before the next
+block, the NPC is still en route - the schedule waits. An NPC who cannot make it
+should be *late*, not teleported.
+
+This is the single biggest change in this addendum and it touches
+`worldPresenceEngine.js` directly.
+
+### 3. Traversal modes, and capability
+
+Edges carry a mode; agents carry what they can use:
+
+| Mode | Who | Visual required |
+|---|---|---|
+| `walk` | everyone | walk cycle |
+| `drive` | car owners | in the car, on roads, already built |
+| `climb` | high `capabilities.violence` / `Enforcer` traits | climb animation over the obstacle |
+| `vault` | agile traits | short hop over a fence |
+| `door` | anyone with access | entering/exiting animation, not a pop |
+| `restricted` | agency staff into agency buildings | badge/door |
+
+**A capability without an animation cannot be used.** If there is no climb
+animation, the climb edge is disabled for everyone - taking the longer path is
+correct; a silent wall-phase is not. This keeps the invariant honest rather than
+aspirational.
+
+### 4. Off-screen agents still need continuous positions
+
+The player only sees one region, but agents elsewhere must not jump when the
+camera reaches them. Simulate position continuously for everyone; only *render*
+the visible ones. Positions are cheap - it is the sprites that cost.
+
+On zone reload, restore each roamer's in-progress journey (path + progress), not
+just their schedule slot. This is the same class of bug as vehicles teleporting
+back to their pickup spot, fixed earlier this session.
+
+### 5. Replace push-out with avoidance
+
+`resolveOpenPosition()` snaps out of obstacles after the fact. Under this
+invariant the path should not enter obstacles in the first place - the graph is
+built from open tiles. Keep push-out only as a last-resort safety net, and log
+when it fires: **every firing is an invariant violation worth investigating.**
+
+### 6. Entering and leaving buildings must be seen
+
+Walk to the door, play the door transition, then remove the sprite. Reverse on
+exit. A character who is indoors should be inside the interior (that is
+`handoff-interiors.md` Task 1) rather than pinned to the pavement.
+
+## Interaction with the behaviour layer
+
+Behaviours become path requests rather than position overrides:
+
+- `storm_off` - path to the nearest exit from the player's area, at raised speed;
+- `follow` - re-path toward the player's current node periodically, not a
+  straight line;
+- `seek_out` - a full journey, which may mean driving across town and takes real
+  time. **You can outrun someone**, which is the correct and interesting outcome;
+- `flee` - path away, preferring crowds and doors.
+
+Everything the behaviour layer wants is expressible as a path plus a speed.
+
+## Cost, honestly
+
+This is the largest item in the document and it is **foundational** - the
+grievance, intent and behaviour systems all sit on top of it. It should be built
+**before** them, not after, because retrofitting continuous movement under a
+finished behaviour system means rewriting the behaviour system.
+
+Rough order:
+
+1. Navigation graph from the existing map data (generalise `roadRouteWaypoints`).
+2. Journey state in presence: destination, path, progress, mode. Schedule yields.
+3. Continuous off-screen simulation + journey restore across zone loads.
+4. Traversal modes gated on having an animation.
+5. Door transitions in and out of buildings.
+
+Steps 1-3 alone remove every teleport in the list above.
+
+## Verification
+
+The invariant is testable, which is the good news:
+
+- **Continuity assertion:** sample every agent's position each tick over a long
+  headless run; flag any frame-to-frame jump larger than their speed permits.
+  Should be zero. This is a real check - not a metric that can only come out one
+  way.
+- **Solidity assertion:** no sampled position inside a building footprint or a
+  blocked tile.
+- **Push-out counter:** `resolveOpenPosition` firings per thousand ticks. Should
+  trend to zero as paths improve.
+- **Visual:** watch it in a running game. Motion bugs do not show in
+  screenshots - the whole vehicle arc this session proved that repeatedly.
