@@ -595,3 +595,100 @@ The invariant is testable, which is the good news:
   trend to zero as paths improve.
 - **Visual:** watch it in a running game. Motion bugs do not show in
   screenshots - the whole vehicle arc this session proved that repeatedly.
+
+---
+
+# ADDENDUM 4 - "At home" must mean inside, doing something
+
+Follows directly from addendum 3. A character whose schedule says they are at
+home should be **inside their home, doing what that character does** - not
+standing on the pavement outside the front door.
+
+This overlaps `production/handoff-interiors.md` Task 1 (characters inside
+buildings) and Task 2 (real interiors). **That handoff owns the implementation.**
+What follows is the extra requirement this design adds on top of it, so the two
+documents do not drift: being *inside* is not enough. They must be *occupied*.
+
+## The activity already exists - it is just never rendered
+
+`resolvePresence()` already returns an `action` string per character, and the
+overworld already prints it above their head: "Resting at home", "Conducting
+daily business", "Meeting with associates", "Out managing the day's affairs",
+"Keeping to themselves indoors".
+
+So the simulation already knows what everyone is doing. The gap is purely that
+**nothing renders it** - the character is a static sprite pinned outside, and
+the activity exists only as a label.
+
+Closing that gap is mostly wiring, not new simulation.
+
+## What an occupied interior means
+
+When the player walks into a building, each NPC resolved to it should be:
+
+1. **In a plausible spot for the activity** - asleep in the bedroom at 3am, at
+   the kitchen in the morning, at a desk during business hours. Position follows
+   from activity, which follows from the schedule that already exists.
+2. **Using the furniture.** This is where the `Modern_Interiors_Free_v2.2`
+   sit/idle/phone sheets land - see `handoff-ui-furniture-anim.md`. The pack
+   ships `sit`, `sit2`, `sit3`, `phone`, `idle_anim` and `run` strips per
+   character precisely so an occupied room reads as occupied.
+3. **Interruptible.** Walking in changes what they are doing. Someone asleep
+   wakes; someone in a private meeting stops talking. The reaction depends on the
+   relationship - which is what makes entering a home a *social* act rather than
+   a door transition.
+
+## Furniture affordances
+
+Rather than authoring positions per character per building, give furniture
+**affordances** and let activities claim them:
+
+| Affordance | Activity | Animation |
+|---|---|---|
+| `bed` | sleeping, resting | lie-down / idle |
+| `chair`, `sofa` | working, waiting, talking | `sit` sheets |
+| `kitchen` | cooking, eating | idle at station |
+| `desk` | business, paperwork | `sit` + `phone` |
+| `machinery` | industrial work | worker idle |
+| `bar`, `table` | drinking, meeting | sit / stand cluster |
+
+An activity requests an affordance; the room grants a free one. This scales to
+129 buildings without hand-placement, and it means a bedroom with no bed is a
+content bug the generator can *assert* on rather than something spotted by eye.
+
+## Why this is worth more than set dressing
+
+Occupied interiors turn several other systems from numbers into scenes:
+
+- **Cheating discovery** stops being a dice roll. You walk into a home and see
+  who is there. The social graph decides who else finds out.
+- **Intent leaks** become concrete: you enter a hideout and two people who should
+  not be meeting are meeting.
+- **Trespass** becomes real. Entering a home uninvited is a grievance whose
+  severity scales with the relationship - trivial from a spouse, serious from a
+  stranger, and worse if witnessed. That is a whole interaction verb the game
+  currently has no way to express.
+- **The intel feed becomes checkable.** "Seen at Y" can be verified by going to
+  Y and finding them doing the thing the feed said.
+
+## Constraints inherited from addendum 3
+
+- **Entering and leaving must be seen.** Walk to the door, transition, then
+  remove the sprite. No popping in or out of a building.
+- **An NPC indoors still has a continuous position** - inside the interior's
+  coordinate space. When the player enters, they are already where they should
+  be, not spawned on arrival.
+- **Travel time still applies.** Someone who has just left work is not yet home,
+  and their home is empty until they arrive.
+
+## Build note
+
+Sequence this **after** the navigation work (addendum 3) and **alongside**
+`handoff-interiors.md`, not before either. There is no point placing a character
+believably inside a room they teleported into.
+
+The cheapest first slice that proves it: pick the residence template, wire
+`action` -> affordance -> position + animation for the three or four most common
+actions, and confirm by walking into a house at different times of day and
+seeing different things. That is a small change with a large perceived effect,
+and it is verifiable by looking.
