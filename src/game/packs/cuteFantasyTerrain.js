@@ -171,26 +171,33 @@ export function cuteTreesReady(scene) {
   return scene.textures.exists(CUTE_TREE_KEYS.oak) && scene.textures.exists(CUTE_TREE_KEYS.oakSmall)
 }
 
-// Draws a tree centred on (cx, cy) with its TRUNK at that point - origin
-// (0.5, 0.8) rather than centre, so the canopy rises above the tile the tree
-// occupies the way the reference does, instead of the tile bisecting it.
-// The 0.8 (not a rounder-looking 0.9) is load-bearing: scatterEnvironment
-// blocks the WHOLE ground tile (cx,cy) sits in for collision, and at this
-// image's displayed height (2.5 tiles, see `scale` below) origin 0.8 is the
-// value that puts the image's bottom edge exactly on that tile's bottom
-// edge. Origin 0.9 (the previous value) left the bottom quarter of the
-// blocked tile with no tree pixels in it at all - bare grass the player
-// could see but not step on, reported as "an invisible barrier below the
-// tree". `rand` used to pick between the big oak and a small sapling
-// variant; that variant's gone (it read as a stumpy dark blob rather than a
-// proper tree, reported as "trunk[s] to remove"), so `rand` is unused now
-// but kept as an accepted param so every call site (which still passes a
-// seeded roll) doesn't need updating.
-// Scale so the oak spans ~2 tiles wide, matching the reference's
-// tree-to-house proportions rather than the old one-tile blob.
+// Oak_Tree.png has a lot of blank space below the actual trunk: scanning its
+// alpha channel (PIL), the last fully-opaque row is row 63 of 80 - the
+// remaining ~21% of the image is antialiasing fading to fully transparent.
+// Anchoring off the image's technical bottom edge (as an origin of 0.8 or
+// 0.9 does) puts that blank padding, not the trunk, at the tile's bottom -
+// which is exactly what read as "an invisible barrier below the tree": the
+// blocked tile's lower portion has no visible tree in it at all.
+const OAK_TRUNK_VISIBLE_BOTTOM_FRAC = 63 / 80
+
+// Draws a tree centred on (cx, cy) with its TRUNK at that point. `tileSize`
+// is used twice: once for the display scale (below) and once here, to derive
+// the origin that lines the trunk's actual visible bottom edge up with the
+// bottom edge of the tile scatterEnvironment blocks for collision - see
+// OAK_TRUNK_VISIBLE_BOTTOM_FRAC above. Displayed height is 2.5 tiles (fixed
+// by OAK's own aspect ratio once width is pinned to 2 tiles - see `scale`),
+// so half a tile is 0.2 of the image's height; the origin is the visible-
+// bottom fraction minus that.
+// `rand` used to pick between the big oak and a small sapling variant;
+// that variant's gone (it read as a stumpy dark blob rather than a proper
+// tree, reported as "trunk[s] to remove"), so `rand` is unused now but kept
+// as an accepted param so every call site (which still passes a seeded
+// roll) doesn't need updating.
 export function drawCuteTree(scene, cx, cy, tileSize) {
   const scale = (tileSize * 2) / OAK.w
+  const heightInTiles = (OAK.h * scale) / tileSize
+  const originY = OAK_TRUNK_VISIBLE_BOTTOM_FRAC - 0.5 / heightInTiles
   const img = scene.add.image(cx, cy, CUTE_TREE_KEYS.oak)
-  img.setOrigin(0.5, 0.8).setScale(scale).setDepth(cy)
+  img.setOrigin(0.5, originY).setScale(scale).setDepth(cy)
   return [img]
 }
