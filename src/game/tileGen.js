@@ -307,29 +307,27 @@ const SERENE_HOME_VARIANTS = [SERENE_VILLAGE_HOMES.cottage.red, SERENE_VILLAGE_H
 function brickOrPico8HomeKit(npcId) {
   const h = hashId(npcId || '')
   const bucket = h % 4
-  // House rule (bug found via live introspection while wiring the Serene
-  // Village bucket below): hashId builds h with `>>> 0`, i.e. a full 32-bit
-  // UNSIGNED value, so h can exceed 2^31 and have its sign bit set. `%` on a
-  // plain positive JS number is unaffected, but `>>` first coerces its
-  // operand to a SIGNED int32 - for those large h values `h >> 2` comes out
-  // negative, and a negative array index (e.g. -1) silently resolves to
-  // `undefined` rather than throwing on its own, which then blew up one line
-  // below on `variant.door` for real npcIds (confirmed: 'yellen' and
-  // 'miller' both hash to a negative variantIdx) and would have equally
-  // broken the pico8 line beneath it for any npcId hashing the same way.
-  // `>>> 2` (unsigned shift) keeps this consistent with the unsigned value
-  // hashId actually produces - never negative, so never an invalid index.
   if (bucket === 0) {
-    const variant = PICO8_HOME_VARIANTS[(h >>> 2) % PICO8_HOME_VARIANTS.length]
+    // Map overhaul: this used to pick 1 of 4 color variants per-character
+    // (`(h >>> 2) % length`), so a single 'pico8' style cluster rendered as a
+    // scramble of different colors instead of the reference mockup's solid
+    // one-color-per-cluster blocks. Fixed to always the same variant - every
+    // home clustered under this style key now looks alike. Pick a different
+    // index into PICO8_HOME_VARIANTS above if this specific one (warehouse,
+    // purple) isn't the shade wanted.
+    const variant = PICO8_HOME_VARIANTS[0]
     return { sheetKey: PACK_SHEET_KEYS.pico8City, kit: variant, prefab: true }
   }
   if (bucket === 1) {
     // Serene Village cottages carry a documented door slot (see
     // sereneVillageTiles.js) - recorded on the returned spec as `doorSlot`
     // so buildingDoorAnimSpec below can find it without re-deriving the
-    // bucket/variant choice a second time (it just re-runs this same
-    // deterministic hash, see that function).
-    const variant = SERENE_HOME_VARIANTS[(h >>> 2) % SERENE_HOME_VARIANTS.length]
+    // bucket/variant choice a second time (it just calls this same function
+    // again via packFacadeFor). Same map-overhaul fix as the pico8 branch
+    // above - one fixed variant per style key instead of a per-character
+    // scramble. Index 2 (blue) picked to match one of the reference mockup's
+    // clusters; swap the index into SERENE_HOME_VARIANTS above if wrong.
+    const variant = SERENE_HOME_VARIANTS[2]
     return {
       sheetKey: PACK_SHEET_KEYS.sereneVillage,
       kit: variant,

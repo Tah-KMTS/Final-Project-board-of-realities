@@ -89,15 +89,19 @@ const DEFAULT_SPAWN = { col: 7, row: 3 }
 // Map overhaul Phase 4 (tight residential clusters): homes used to be
 // row-wrap packed with a uniform 1-tile gap between every single home
 // (HOME_GAP), which reads as a loose flowing grid rather than the reference
-// mockup's solid, zero-gap blocks of touching houses with visible separation
-// only BETWEEN clusters. Replaced by packHomeBand() below - see its header
-// comment - which packs each style sub-group into its own zero-gap square-
-// ish grid block, then packs those (up to 3) cluster rectangles across the
-// band with CLUSTER_GAP between them. There's no more per-home gap at all
-// (homes touch edge to edge within a cluster), so the old HOME_GAP constant
-// and the `.map((d) => ({ ...d, gap: HOME_GAP }))` that applied it are gone
-// - packHomeBand never reads a def's `gap` field.
+// mockup's solid blocks of touching houses with visible separation only
+// BETWEEN clusters/rows. Replaced by packHomeBand() below - see its header
+// comment - which packs each style sub-group into its own square-ish grid of
+// ROWS (each row a strip of houses touching edge to edge, zero horizontal
+// gap), with ROW_GAP of walkable clearance between one row and the next so
+// the cluster reads as parallel walkable rows rather than one solid
+// impassable block, then packs those (up to 3) cluster rectangles across the
+// band with CLUSTER_GAP between them (bigger than ROW_GAP, so a cluster
+// boundary still reads as more of a break than a between-row gap). The old
+// HOME_GAP constant and the `.map((d) => ({ ...d, gap: HOME_GAP }))` that
+// applied it are gone - packHomeBand never reads a def's `gap` field.
 const CLUSTER_GAP = 3
+const ROW_GAP = 2
 
 // Map overhaul Phase 4 (trim to the 14-main-building-category spec): the
 // roster below used to carry 31 hand-authored hub defs (Phase 3). 9 of the
@@ -341,10 +345,14 @@ function packDefs(defs, colStart, colEnd, rowStart, reservedCols) {
 //   1. Group `homeDefs` by style key (3 sub-groups per band - see
 //      TOP_HOME_STYLES/BOTTOM_HOME_STYLES). Each group of N homes becomes a
 //      cols x rows square-ish grid (cols = ceil(sqrt(N)), rows =
-//      ceil(N/cols)), homes placed at (col*2, row*2) tile offsets within the
-//      cluster - zero gap, so adjacent homes touch edge to edge. `homeDefs`
-//      arrives pre-sorted by style key (see FINANCE_BUILDING_DEFS's own
-//      sort), so groups come out in a stable, deterministic order.
+//      ceil(N/cols)). Homes within a row sit at col*2 tile offsets - zero
+//      horizontal gap, touching edge to edge, reading as one continuous strip
+//      of houses. Rows themselves are spaced row*(2+ROW_GAP) apart instead of
+//      row*2, so there's a walkable corridor between one row and the next
+//      (reported: a solid zero-gap-in-every-direction block reads as one
+//      impassable building, not a neighborhood you can walk through).
+//      `homeDefs` arrives pre-sorted by style key (see FINANCE_BUILDING_DEFS's
+//      own sort), so groups come out in a stable, deterministic order.
 //   2. Pack the (up to 3) resulting cluster rectangles left to right across
 //      [colStart, colEnd] with CLUSTER_GAP between adjacent clusters - same
 //      row-wrap-on-overflow-or-street-hit shape packDefs uses, just against
@@ -367,9 +375,13 @@ function packHomeBand(homeDefs, colStart, colEnd, rowStart, reservedCols) {
     const placedDefs = defs.map((def, i) => ({
       def,
       dc: (i % cols) * 2,
-      dr: Math.floor(i / cols) * 2,
+      dr: Math.floor(i / cols) * (2 + ROW_GAP),
     }))
-    clusters.push({ key, count: n, cols, rows, width: cols * 2, height: rows * 2, defs: placedDefs })
+    // Height spans every row's own 2 tiles plus ROW_GAP between rows only -
+    // (rows - 1) gaps for `rows` rows, not `rows` gaps, so there's no trailing
+    // walkable strip hanging off the cluster's own last row.
+    const height = rows * 2 + (rows - 1) * ROW_GAP
+    clusters.push({ key, count: n, cols, rows, width: cols * 2, height, defs: placedDefs })
   }
 
   const packed = []
