@@ -1823,9 +1823,17 @@ export default class OverworldScene extends Phaser.Scene {
             roamer.carActor.setPosition(roamer.carPark.x, roamer.carPark.y)
             this.orientParked(roamer.carActor, roamer.carPark.col, roamer.carPark.row)
           }
+          // Getting in only needs them to reach the car. Requiring the NPC to
+          // ALSO be standing on a road made this almost never fire: they leave
+          // a building door onto grass, and by the time they reach a road tile
+          // they have usually walked past their own car. Measured across the
+          // 129 buildings, the parked car is 1 tile from the door for 45 of
+          // them and 4-8 tiles away for 35 - so the walk-up has to be the only
+          // condition. The car is parked on a kerb by construction, so getting
+          // in still puts the driver on the road.
           const atCar =
-            Phaser.Math.Distance.Between(x, y, roamer.carPark.x, roamer.carPark.y) < TILE_SIZE * 1.2
-          if (travelling && onRoad && atCar) {
+            Phaser.Math.Distance.Between(x, y, roamer.carPark.x, roamer.carPark.y) < TILE_SIZE * 1.6
+          if (travelling && atCar) {
             roamer.inCar = true
             roamer.offRoadFrames = 0
           }
