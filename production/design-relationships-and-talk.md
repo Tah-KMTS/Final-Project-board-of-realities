@@ -193,3 +193,145 @@ for the rolldown + stub pattern that lets you import repo modules headlessly.
   bloat every save.
 - **Migrate the existing save shape.** `relationships[npcId]` is currently a
   number and real saves contain it.
+
+---
+
+# ADDENDUM - Grievance, betrayal and NPC agency
+
+The model above is incomplete, and the gap is structural rather than a few
+missing features. Recording it plainly so it is not rediscovered late.
+
+**What is missing:** everything above models *relationship quality* - how much
+someone likes and trusts you. It does not model **grievance** or **agency**.
+
+- `tension` is a scalar mood. A grudge is *about something specific*, attributed
+  to a person, and it can outlive the feeling that caused it. You can be calm
+  and still be owed.
+- Every NPC above is purely **reactive**. They answer requests. They never
+  decide, on their own initiative, to do something to you. Betrayal, revenge and
+  escalation are all NPC-initiated, so none of them are expressible.
+
+Five additions close it.
+
+## 1. Grievance ledger (replaces scalar tension as the memory of harm)
+
+```js
+grievances: [{
+  id, what,            // stole_from, exposed, cheated_with, killed_ally,
+                       // broke_promise, humiliated_publicly, refused_when_owed
+  severity: 0..100,
+  day, witnessed: boolean, publiclyKnown: boolean,
+  target,              // usually the player, but NPC-vs-NPC too
+  settled: boolean,    // paid off, avenged, or forgiven
+}]
+```
+
+Grievances **compound rather than average** - three small slights from the same
+person read as a pattern, which is how people actually work. Decay is per-trait:
+Unforgiving / Cold-Blooded barely decay; `forgiveness` from the courtship
+profile drives the rest. A public grievance decays slower than a private one,
+because it costs them standing to let it go.
+
+Keep `tension` as the short-term mood. The ledger is the long memory.
+
+## 2. Emotion state, separate from relationship
+
+Short-lived, decays over days, modulates decisions without changing how much
+they like you: anger, fear, shame, pride, gratitude, contempt.
+
+This is what lets someone who likes you refuse you today because you humiliated
+them in front of a rival this morning - and agree next week.
+
+## 3. Capability profile - what they can actually DO to you
+
+A grudge only becomes murder if the character both **would** and **can**. Al
+Capone can order a hit. Janet Yellen cannot and would not - but she can end your
+access to credit, which for this game should hurt comparably.
+
+```js
+capabilities: { violence, legal, financial, social, informational }  // each 0..1
+```
+
+Derived, not authored: role and category (syndicate boss vs. regulator vs.
+titan), `traits[]`, net worth, and the agency they head. **This is what makes
+revenge character-appropriate instead of everyone reaching for the same knife**,
+and it is the single most important addition here.
+
+## 4. Intent - grievance that becomes a plan
+
+When grievance x capability x opportunity crosses a threshold, the NPC forms an
+**intent** that plays out over days rather than firing instantly:
+
+```js
+intent: { kind, target, progress, deadline, visibility }
+// kind: sabotage | expose | ruin_financially | inform_authorities
+//     | steal_from | blackmail | order_hit | freeze_out
+```
+
+Intents advance daily, and **leak**. Visibility means the player gets warning
+signs - an ally mentions someone has been asking about you, a contact goes cold,
+you notice you are being followed. That gives counterplay: settle the grievance,
+buy them off, strike first, or leave town.
+
+Without the delay and the leak this is just a random punishment. With them it is
+a story.
+
+## 5. Social graph - NPC-to-NPC, not just player-to-NPC
+
+Betrayal needs stakes and revenge needs allies. Minimum viable version:
+
+- pairwise affinity between NPCs, seeded from shared category, district,
+  syndicate and era;
+- **information propagation** - who tells whom. Your affair, your theft, your
+  broken promise spreads along the graph at a rate set by the teller's
+  disposition tier. Socialites leak; recluses do not;
+- grievances against *their* allies become grievances against you, at reduced
+  severity. Kill Nitti and Capone has a problem with you.
+
+This is also what makes cheating dangerous in a way a per-character flag never
+can: discovery is not a dice roll against the person you wronged, it is a
+question of who saw and who talks.
+
+## Betrayal, specifically
+
+Betrayal is not a new system - it falls out of the above once NPCs have goals:
+
+- **NPC betrays player**: they hold an obligation to you *and* a competing
+  interest (a rival's offer, a threat, their own survival). Defecting is an
+  intent with a payoff. High trust makes it *more damaging*, not less likely -
+  the ones who can betray you are the ones you let close.
+- **Player betrays NPC**: creates a grievance weighted by prior trust. Betraying
+  someone who trusted you at 90 should be far worse than the same act against
+  someone at 20. **Severity scales with the trust that was breached**, which is
+  what makes the trust axis load-bearing rather than decorative.
+
+## Consequence: the player needs exposure
+
+For any of this to have weight, NPC action has to be able to *reach* the player
+- assets that can be stolen or frozen, a reputation that can be damaged,
+businesses that can be sabotaged, a wanted level informers can raise, and
+physical vulnerability. Most of these exist already; they need to become
+**targets** rather than only player-facing stats.
+
+## Revised build order
+
+Steps 1-3 from the original order still hold, then:
+
+4. Grievance ledger + emotion state (extends relationship state; still pure data)
+5. Capability profiles (derived, cached, same pattern as `getDisposition`)
+6. Social graph + information propagation
+7. Intent system + the daily tick that advances and leaks it
+8. Stage transitions, cheating, breakup - much richer once 4-7 exist
+9. UI
+
+**Do not build the intent system before the social graph.** An NPC deciding to
+ruin you with no model of who they know, who told them, or who backs them will
+produce motiveless-feeling attacks, which is worse than no system at all.
+
+## Honest scoping note
+
+This is a substantially larger build than the original design - closer to a
+light social-simulation layer than to a romance mechanic. It is buildable
+incrementally: steps 4-5 alone make refusals feel motivated, and 6-7 are what
+produce the emergent stories. But it should not be estimated as an extension of
+the existing 72-line `romanceEngine.js`.
