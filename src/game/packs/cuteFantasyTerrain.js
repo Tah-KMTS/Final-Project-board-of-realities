@@ -172,21 +172,25 @@ export function cuteTreesReady(scene) {
 }
 
 // Draws a tree centred on (cx, cy) with its TRUNK at that point - origin
-// (0.5, 0.9) rather than centre, so the canopy rises above the tile the tree
+// (0.5, 0.8) rather than centre, so the canopy rises above the tile the tree
 // occupies the way the reference does, instead of the tile bisecting it.
-// `rand` is the caller's deterministic 0..1 roll so scatter stays reproducible.
+// The 0.8 (not a rounder-looking 0.9) is load-bearing: scatterEnvironment
+// blocks the WHOLE ground tile (cx,cy) sits in for collision, and at this
+// image's displayed height (2.5 tiles, see `scale` below) origin 0.8 is the
+// value that puts the image's bottom edge exactly on that tile's bottom
+// edge. Origin 0.9 (the previous value) left the bottom quarter of the
+// blocked tile with no tree pixels in it at all - bare grass the player
+// could see but not step on, reported as "an invisible barrier below the
+// tree". `rand` used to pick between the big oak and a small sapling
+// variant; that variant's gone (it read as a stumpy dark blob rather than a
+// proper tree, reported as "trunk[s] to remove"), so `rand` is unused now
+// but kept as an accepted param so every call site (which still passes a
+// seeded roll) doesn't need updating.
+// Scale so the oak spans ~2 tiles wide, matching the reference's
+// tree-to-house proportions rather than the old one-tile blob.
 export function drawCuteTree(scene, cx, cy, tileSize) {
-  // Always the full oak now - the small sapling/bush variant (Oak_Tree_
-  // Small.png) read as a stumpy dark blob rather than a proper tree at this
-  // scale (reported: "remove these trunk[s]"), unlike the big oak's clear
-  // trunk+canopy silhouette. `rand` used to pick between the two; no longer
-  // needed now there's only one variant, but keep it as an accepted (unused)
-  // param so every call site (which still passes a seeded roll) doesn't need
-  // updating.
-  // Scale so the oak spans ~2 tiles wide, matching the reference's
-  // tree-to-house proportions rather than the old one-tile blob.
   const scale = (tileSize * 2) / OAK.w
   const img = scene.add.image(cx, cy, CUTE_TREE_KEYS.oak)
-  img.setOrigin(0.5, 0.9).setScale(scale).setDepth(cy)
+  img.setOrigin(0.5, 0.8).setScale(scale).setDepth(cy)
   return [img]
 }
