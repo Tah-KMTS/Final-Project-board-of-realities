@@ -1657,12 +1657,52 @@ export default class OverworldScene extends Phaser.Scene {
       } else {
         rawPos = { x: roamer.actor.x, y: roamer.actor.y }
       }
-      if (doorA) {
+      // Car owners route VIA their car instead of walking the straight
+      // door-to-door line. Without this they never came within reach of it:
+      // the lerp above goes straight from one door to the other, so passing
+      // near the parked car was pure luck, and the measured distance from a
+      // building to its kerb is 4-8 tiles for a third of them.
+      //
+      // The journey is re-split into walk -> drive -> walk over the SAME t,
+      // so arrival timing is unchanged: out to the car, drive to a kerb by
+      // the destination, walk in from there.
+      let onFoot = true
+      if (roamer.carActor && doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId) {
+        if (roamer.routeFor !== presence.nextBuildingId) {
+          const dc = Math.floor(doorB.x / TILE_SIZE)
+          const dr = Math.floor(doorB.y / TILE_SIZE)
+          const spot = this.nearestRoadTile(dc, dr, [], roamer.carEntry)
+          roamer.dropOff = spot
+            ? { x: spot.col * TILE_SIZE + TILE_SIZE / 2, y: spot.row * TILE_SIZE + TILE_SIZE / 2 }
+            : null
+          roamer.routeFor = presence.nextBuildingId
+        }
+        const pick = roamer.carPark
+        const drop = roamer.dropOff
+        if (pick && drop) {
+          const t2 = presenceStepProgress(this.agentClock, roamer.phaseOffset)
+          const seg = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u })
+          if (t2 < 0.2) rawPos = seg(doorA, pick, t2 / 0.2)
+          else if (t2 < 0.8) {
+            rawPos = seg(pick, drop, (t2 - 0.2) / 0.6)
+            onFoot = false
+          } else rawPos = seg(drop, doorB, (t2 - 0.8) / 0.2)
+        }
+      }
+      roamer.inCar = !onFoot
+
+      if (doorA && onFoot) {
         const tier = getDisposition(roamer.agent.id)?.tier
         const drift = idleDriftOffset(roamer.agent.id, this.agentClock, tier)
         rawPos = { x: rawPos.x + drift.x, y: rawPos.y + drift.y }
       }
-      const { x, y } = this.resolveOpenPosition(rawPos.x, rawPos.y)
+      // resolveOpenPosition pushes actors out of obstacles - and parked cars
+      // ARE obstacles, so it shoved a walking NPC away from the very car they
+      // were heading for. Skip it while driving (the route runs kerb to kerb,
+      // which is open road by construction).
+      const { x, y } = onFoot
+        ? this.resolveOpenPosition(rawPos.x, rawPos.y)
+        : { x: rawPos.x, y: rawPos.y }
       const dx = x - roamer.actor.x
       const dy = y - roamer.actor.y
       const movedDist = Math.abs(dx) + Math.abs(dy)
@@ -1802,40 +1842,24 @@ export default class OverworldScene extends Phaser.Scene {
           roamer.offRoadFrames = 0
         }
 
-        const onRoad = this.isRoadTile(Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE))
+        // inCar is decided by the route phase computed earlier in this loop,
+        // not re-derived here. The old on-road / proximity test fought with
+        // it and is gone; this block only places the car now.
         if (roamer.inCar) {
-          // Leaving the car needs the NPC to be off-road for a sustained
-          // stretch, not a single frame. Walking along a tile boundary flips
-          // onRoad on and off constantly, and reacting to that instantly made
-          // the car flicker between the driver and its parking space.
-          roamer.offRoadFrames = onRoad ? 0 : (roamer.offRoadFrames || 0) + 1
-          if (roamer.offRoadFrames > 20) {
-            roamer.inCar = false
-            roamer.offRoadFrames = 0
-          } else {
-            roamer.carActor.setPosition(x, y)
-            roamer.carActor.faceVector(dx, dy)
-          }
-        }
-        if (!roamer.inCar && roamer.carPark) {
-          // Only touch the car when it isn't already parked where it belongs.
-          if (roamer.carActor.x !== roamer.carPark.x || roamer.carActor.y !== roamer.carPark.y) {
-            roamer.carActor.setPosition(roamer.carPark.x, roamer.carPark.y)
-            this.orientParked(roamer.carActor, roamer.carPark.col, roamer.carPark.row)
-          }
-          // Getting in only needs them to reach the car. Requiring the NPC to
-          // ALSO be standing on a road made this almost never fire: they leave
-          // a building door onto grass, and by the time they reach a road tile
-          // they have usually walked past their own car. Measured across the
-          // 129 buildings, the parked car is 1 tile from the door for 45 of
-          // them and 4-8 tiles away for 35 - so the walk-up has to be the only
-          // condition. The car is parked on a kerb by construction, so getting
-          // in still puts the driver on the road.
-          const atCar =
-            Phaser.Math.Distance.Between(x, y, roamer.carPark.x, roamer.carPark.y) < TILE_SIZE * 1.6
-          if (travelling && atCar) {
-            roamer.inCar = true
-            roamer.offRoadFrames = 0
+          roamer.carActor.setPosition(x, y)
+          roamer.carActor.faceVector(dx, dy)
+        } else if (roamer.carPark) {
+          // Parked. On arrival the !travelling branch above has already moved
+          // carPark to the destination's kerb, which is where the drive ended,
+          // so this single target covers both ends of the journey.
+          const target = roamer.carPark
+          if (roamer.carActor.x !== target.x || roamer.carActor.y !== target.y) {
+            roamer.carActor.setPosition(target.x, target.y)
+            this.orientParked(
+              roamer.carActor,
+              Math.floor(target.x / TILE_SIZE),
+              Math.floor(target.y / TILE_SIZE)
+            )
           }
         }
         roamer.carActor.setVisible(true)
