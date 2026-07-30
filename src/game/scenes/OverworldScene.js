@@ -1675,6 +1675,16 @@ export default class OverworldScene extends Phaser.Scene {
           roamer.dropOff = spot
             ? { x: spot.col * TILE_SIZE + TILE_SIZE / 2, y: spot.row * TILE_SIZE + TILE_SIZE / 2 }
             : null
+          // Precompute the on-road polyline for the drive leg.
+          roamer.driveRoute =
+            spot && roamer.carPark
+              ? this.roadRouteWaypoints(
+                  Math.floor(roamer.carPark.x / TILE_SIZE),
+                  Math.floor(roamer.carPark.y / TILE_SIZE),
+                  spot.col,
+                  spot.row
+                )
+              : null
           roamer.routeFor = presence.nextBuildingId
         }
         const pick = roamer.carPark
@@ -1684,7 +1694,11 @@ export default class OverworldScene extends Phaser.Scene {
           const seg = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u })
           if (t2 < 0.2) rawPos = seg(doorA, pick, t2 / 0.2)
           else if (t2 < 0.8) {
-            rawPos = seg(pick, drop, (t2 - 0.2) / 0.6)
+            // Follow the road polyline, not a straight line - the straight
+            // version drove across lawns, which is the rule this whole
+            // vehicle pass exists to keep.
+            const u = (t2 - 0.2) / 0.6
+            rawPos = roamer.driveRoute ? this.pointAlongRoute(roamer.driveRoute, u) : seg(pick, drop, u)
             onFoot = false
           } else rawPos = seg(drop, doorB, (t2 - 0.8) / 0.2)
         }
@@ -2249,6 +2263,67 @@ export default class OverworldScene extends Phaser.Scene {
     const near = (o) => Math.abs(o.col - c) <= this.CAR_TILE_GAP && Math.abs(o.row - r) <= this.CAR_TILE_GAP
     if (taken.some(near)) return true
     return Boolean(this.vehicleActors?.some((v) => v !== ignore && near(v)))
+  }
+
+  // Nearest vertical-street column to `col`. Drive routes run along the road
+  // grid, and the grid's north-south legs are these columns.
+  nearestVStreetCol(col) {
+    let best = null
+    for (const c of FINANCE_V_STREETS) {
+      if (best === null || Math.abs(c - col) < Math.abs(best - col)) best = c
+    }
+    return best ?? col
+  }
+
+  nearestHStreetRow(row) {
+    let best = null
+    for (const r of FINANCE_H_STREETS) {
+      if (best === null || Math.abs(r - row) < Math.abs(best - row)) best = r
+    }
+    return best ?? row
+  }
+
+  // Waypoints for driving from tile P to tile D along roads only. A straight
+  // line between two kerbs cuts across grass, because the road network is a
+  // grid - this walks it properly: north-south along the pickup's street, east
+  // -west along a connecting cross-street, then north-south to the drop-off.
+  // Returns world-pixel centres.
+  roadRouteWaypoints(pCol, pRow, dCol, dRow) {
+    const centre = (c, r) => ({ x: c * TILE_SIZE + TILE_SIZE / 2, y: r * TILE_SIZE + TILE_SIZE / 2 })
+    const pv = this.nearestVStreetCol(pCol)
+    const dv = this.nearestVStreetCol(dCol)
+    const cross = this.nearestHStreetRow(Math.round((pRow + dRow) / 2))
+    const pts = [centre(pCol, pRow)]
+    if (pv !== pCol) pts.push(centre(pv, pRow)) // sidle onto the north-south street
+    pts.push(centre(pv, cross)) // drive it to the cross-street
+    if (dv !== pv) pts.push(centre(dv, cross)) // along the cross-street
+    pts.push(centre(dv, dRow)) // down the destination's street
+    if (dv !== dCol) pts.push(centre(dCol, dRow)) // pull into the kerb
+    return pts
+  }
+
+  // Position along a polyline at 0..1 of its total length.
+  pointAlongRoute(points, u) {
+    if (points.length < 2) return points[0] ?? { x: 0, y: 0 }
+    const segs = []
+    let total = 0
+    for (let i = 1; i < points.length; i++) {
+      const d = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y)
+      segs.push(d)
+      total += d
+    }
+    if (total <= 0) return points[0]
+    let want = Math.max(0, Math.min(1, u)) * total
+    for (let i = 0; i < segs.length; i++) {
+      if (want <= segs[i] || i === segs.length - 1) {
+        const f = segs[i] > 0 ? want / segs[i] : 0
+        const a = points[i]
+        const b = points[i + 1]
+        return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
+      }
+      want -= segs[i]
+    }
+    return points[points.length - 1]
   }
 
   nearestRoadTile(col, row, taken = [], ignore = null) {
