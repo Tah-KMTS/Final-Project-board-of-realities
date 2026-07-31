@@ -24,12 +24,17 @@ const TABS = [
   { id: 'speakeasy', label: 'Speakeasy Hotel' },
 ]
 
-export default function UnderworldModal({ onClose }) {
+// `embedded` (default false): standalone building access (walking up to the
+// Underworld building) keeps working exactly as before. When true (Phone
+// app -> Dark Web & Underground's "Underworld" tab - see
+// src/features/phone/DarkWebApp.jsx), skip the outer fixed-overlay wrapper
+// and the bottom "Leave" button - same convention as BankModal.jsx/
+// StockExchangeModal.jsx.
+export default function UnderworldModal({ onClose, embedded = false }) {
   const [tab, setTab] = useState('blackMarket')
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="glass-panel w-[640px] border-4 border-red-500 bg-[#1c1d3a] p-6 font-mono text-white">
+  const body = (
+    <>
         <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Underground District</p>
         <h2 className="mb-2 text-xl font-bold text-red-400">The Underworld</h2>
         <p className="mb-3 text-xs text-gray-400">
@@ -66,9 +71,20 @@ export default function UnderworldModal({ onClose }) {
           {tab === 'speakeasy' && <InteractiveLocationModal locationId="speakeasy_club" embedded />}
         </div>
 
-        <button onClick={onClose} className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500">
-          Leave the Underworld
-        </button>
+        {!embedded && (
+          <button onClick={onClose} className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500">
+            Leave the Underworld
+          </button>
+        )}
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="glass-panel w-[640px] border-4 border-red-500 bg-[#1c1d3a] p-6 font-mono text-white">
+        {body}
       </div>
     </div>
   )

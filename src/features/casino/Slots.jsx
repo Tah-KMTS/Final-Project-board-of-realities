@@ -57,6 +57,7 @@ export default function Slots() {
   const addReputation = useGameStore((s) => s.addReputation)
   const spendEnergy = useGameStore((s) => s.spendEnergy)
   const energy = useGameStore((s) => s.player.energy)
+  const getEffectiveLuck = useGameStore((s) => s.getEffectiveLuck)
 
   const [bet, setBet] = useState(MIN_BET)
   // Raw text buffer for the bet <input> so the player can freely type/clear
@@ -107,7 +108,19 @@ export default function Slots() {
           setMessage(`Winner! ${matchedSymbol.glyph} pays ${multiplier}x - $${payout.toLocaleString()}.`)
         }
       } else {
-        setMessage('No match. Better luck next spin.')
+        // Post-loss "lucky save": Luck can turn a loss into a wash (bet
+        // refunded, no reputation change) but never into an actual win - the
+        // reel weights/payouts above stay untouched. Zero at default Luck
+        // (5), clamped to a 15% ceiling that isn't reachable at the real
+        // Luck cap of 8 (Chapel Blessing) - 6% at cap today.
+        const effectiveLuck = getEffectiveLuck()
+        const luckSaveChance = Math.max(0, Math.min(0.15, (effectiveLuck - 5) * 0.02))
+        if (Math.random() < luckSaveChance) {
+          addCash(bet)
+          setMessage('No match... but a stray coin rolls back out of the tray. Push - your bet is returned.')
+        } else {
+          setMessage('No match. Better luck next spin.')
+        }
       }
     }, SPIN_ANIM_MS)
   }

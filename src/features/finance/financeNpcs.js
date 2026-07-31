@@ -366,10 +366,15 @@ export function getFinanceNpc(id) {
 }
 
 export function generateBodyguardMonster(npc) {
-  const hp = 80 + npc.bodyguardPower * 30
-  const atk = 8 + npc.bodyguardPower * 3
+  // Defensive fallback: every roster entry returned by getAnyCharacter()
+  // (characterLookup.js) now carries bodyguardPower, but guard against a
+  // missing npc/field here too so this never throws again the way it did
+  // when called with a non-Financial-Titan id via getFinanceNpc().
+  const power = npc?.bodyguardPower ?? 6
+  const hp = 80 + power * 30
+  const atk = 8 + power * 3
   return {
-    name: `${npc.name}'s Elite Retainer Guard`,
+    name: `${npc?.name || 'Unknown Target'}'s Elite Retainer Guard`,
     maxHp: Math.round(hp),
     hp: Math.round(hp),
     attack: Math.round(atk),

@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { FINANCE_NPCS } from './financeNpcs'
 
-export default function SyndicateBoardModal({ onClose }) {
+// `embedded` (default false): the former "Board" header button's content.
+// That button is gone (folded into the Phone's Banking & Portfolio app - see
+// src/features/phone/BankingApp.jsx, since recruiting financial advisors is
+// a portfolio decision); embedded=true drops the outer fixed-overlay wrapper
+// and the bottom "Close Board Room" button, same convention as every other
+// hub-tab modal in this codebase (CryptoModal.jsx etc).
+export default function SyndicateBoardModal({ onClose, embedded = false }) {
   const world2 = useGameStore((s) => s.world2)
   const cash = useGameStore((s) => s.cash)
   const getDailyFinanceIncome = useGameStore((s) => s.getDailyFinanceIncome)
@@ -15,9 +21,8 @@ export default function SyndicateBoardModal({ onClose }) {
 
   const { advisorPassive } = getDailyFinanceIncome()
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-      <div className="flex h-[85vh] w-full max-w-4xl flex-col border-4 border-yellow-500/70 bg-[#0f1123] font-mono text-white shadow-2xl">
+  const body = (
+    <>
         {/* Header */}
         <div className="flex items-center justify-between border-b-2 border-yellow-500/40 bg-[#171a35] px-6 py-4">
           <div>
@@ -123,15 +128,29 @@ export default function SyndicateBoardModal({ onClose }) {
                       <div className="text-gray-300 text-[11px] mt-0.5">{npc.perkDescription}</div>
                     </div>
 
-                    {!isRecruited && (
-                      <button
-                        onClick={() => recruitFinanceNpc(npc.id)}
-                        disabled={cash < npc.recruitCost}
-                        className={`mt-3 w-full border py-1.5 text-xs font-bold transition-all ${cash >= npc.recruitCost ? 'border-yellow-400 bg-yellow-600/30 text-yellow-300 hover:bg-yellow-500 hover:text-black' : 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed'}`}
-                      >
-                        {cash >= npc.recruitCost ? `👔 Recruit to Board ($${npc.recruitCost.toLocaleString()})` : `Insufficient Cash ($${npc.recruitCost.toLocaleString()})`}
-                      </button>
-                    )}
+                    {!isRecruited && (() => {
+                      // Simons and Buffett (the two strongest passive-income
+                      // advisors) are gated behind the Titan Apprentice net
+                      // worth milestone ($5M) in recruitFinanceNpc() - mirror
+                      // that gate here so the button reflects it instead of
+                      // just silently no-op'ing on click.
+                      const milestoneLocked = (npc.id === 'simons' || npc.id === 'buffett')
+                        && !(world2.netWorthMilestones || []).includes('titan_apprentice')
+                      const affordable = cash >= npc.recruitCost && !milestoneLocked
+                      return (
+                        <button
+                          onClick={() => recruitFinanceNpc(npc.id)}
+                          disabled={!affordable}
+                          className={`mt-3 w-full border py-1.5 text-xs font-bold transition-all ${affordable ? 'border-yellow-400 bg-yellow-600/30 text-yellow-300 hover:bg-yellow-500 hover:text-black' : 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed'}`}
+                        >
+                          {milestoneLocked
+                            ? 'Requires Titan Apprentice milestone ($5,000,000 net worth)'
+                            : affordable
+                              ? `👔 Recruit to Board ($${npc.recruitCost.toLocaleString()})`
+                              : `Insufficient Cash ($${npc.recruitCost.toLocaleString()})`}
+                        </button>
+                      )
+                    })()}
                   </div>
                 )
               })}
@@ -140,14 +159,28 @@ export default function SyndicateBoardModal({ onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-800 bg-[#121429] p-4 text-right">
-          <button
-            onClick={onClose}
-            className="border-2 border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
-          >
-            Close Board Room
-          </button>
-        </div>
+        {!embedded && (
+          <div className="border-t border-gray-800 bg-[#121429] p-4 text-right">
+            <button
+              onClick={onClose}
+              className="border-2 border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
+            >
+              Close Board Room
+            </button>
+          </div>
+        )}
+    </>
+  )
+
+  // Embedded mode drops the fixed h-[85vh] overlay panel entirely - the
+  // wrapping Phone app tab already gives this its own scrollable area, same
+  // reasoning as GovernmentModal.jsx's embedded branch.
+  if (embedded) return <div className="flex max-h-[70vh] flex-col overflow-y-auto text-white">{body}</div>
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+      <div className="flex h-[85vh] w-full max-w-4xl flex-col border-4 border-yellow-500/70 bg-[#0f1123] font-mono text-white shadow-2xl">
+        {body}
       </div>
     </div>
   )

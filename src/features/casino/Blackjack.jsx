@@ -22,6 +22,14 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
   const addReputation = useGameStore((s) => s.addReputation)
   const spendEnergy = useGameStore((s) => s.spendEnergy)
   const energy = useGameStore((s) => s.player.energy)
+  const getEffectiveLuck = useGameStore((s) => s.getEffectiveLuck)
+
+  // Luck nudges only the card-counting catch chance, not real card odds
+  // (createDeck/shuffle/dealer-hits-to-17 stay untouched - Blackjack is the
+  // skill-driven game in this lineup). Smaller coefficient than a plain risk
+  // roll because succeeding at counting also reveals the dealer's hole card,
+  // a large advantage on its own. Floored at 5% so it's never riskless.
+  const effectiveCatchChance = Math.max(0.05, CARD_COUNT_CATCH_CHANCE - (getEffectiveLuck() - 5) * 0.01)
 
   const [phase, setPhase] = useState(variant === 'challenge' ? 'dealing' : 'bet')
   const [bet, setBet] = useState(Math.max(minBet, 20))
@@ -47,7 +55,7 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
       
       if (countCards && variant !== 'playerHouse') {
         usingCount = true
-        if (Math.random() < CARD_COUNT_CATCH_CHANCE) {
+        if (Math.random() < effectiveCatchChance) {
           setCaughtCounting(true)
           setCountCards(false)
           addWantedLevel(1)
@@ -232,7 +240,7 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
               disabled={caughtCounting}
               onChange={(e) => setCountCards(e.target.checked)}
             />
-            Count Cards (risky - {Math.round(CARD_COUNT_CATCH_CHANCE * 100)}% catch chance)
+            Count Cards (risky - {Math.round(effectiveCatchChance * 100)}% catch chance)
           </label>
         </div>
       )}

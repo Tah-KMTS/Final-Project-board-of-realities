@@ -43,8 +43,8 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
 
     const config = {
       type: Phaser.AUTO,
-      width: 800,
-      height: 500,
+      width: 1200,
+      height: 600,
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -90,7 +90,16 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
 
   return (
     <div className="w-full h-full flex items-center justify-center bg-[#070a14]">
-      <div ref={containerRef} className="w-full h-[500px] md:h-[560px] max-w-5xl border-4 border-yellow-400/90 rounded-xl shadow-2xl overflow-hidden relative" />
+      {/* max-w-5xl (1024px) here used to bottleneck the canvas back down
+          even after WorldScreen.jsx's outer wrapper was widened to
+          max-w-7xl (1280px) for the 1200x600 logical resolution - Phaser's
+          Scale.FIT preserves the 2:1 aspect ratio regardless, but a
+          narrower box than the resolution's own aspect just meant more
+          unused letterbox space. max-w-[1200px] matches the configured
+          resolution 1:1 (no forced upscaling) while actually using the
+          width the outer wrapper now provides; height bumped to 600px to
+          match the same 2:1 ratio at the md breakpoint. */}
+      <div ref={containerRef} className="w-full h-[500px] md:h-[600px] max-w-[1200px] border-4 border-yellow-400/90 rounded-xl shadow-2xl overflow-hidden relative" />
     </div>
   )
 }

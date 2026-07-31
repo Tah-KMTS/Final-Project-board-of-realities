@@ -4,7 +4,12 @@ import { TITAN_ROUTINES } from '../agents/agentMovementEngine'
 import { FINANCE_NPCS } from './financeNpcs'
 import { getCityById } from '../world/japanCities'
 
-export default function AgentInteractionsModal({ onClose }) {
+// `embedded` (default false): the former "Titan Feed" header button's
+// content. That button is gone (folded into the Phone's Social/X app - see
+// src/features/phone/SocialApp.jsx); embedded=true drops the outer
+// fixed-overlay wrapper and the bottom "Close Feed" button, same convention
+// as every other hub-tab modal in this codebase (CryptoModal.jsx etc).
+export default function AgentInteractionsModal({ onClose, embedded = false }) {
   const world2 = useGameStore((s) => s.world2)
   const currentCityId = useGameStore((s) => s.currentCityId) || 'tokyo'
   const [filterType, setFilterType] = useState('all') // 'all' | 'butterfly' | 'migration' | 'assets' | 'city'
@@ -42,13 +47,16 @@ export default function AgentInteractionsModal({ onClose }) {
   const cityResidents = npcRoster.filter((n) => n.isInCurrentCity)
   const otherNpcs = npcRoster.filter((n) => !n.isInCurrentCity)
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
-      <div className="flex h-[90vh] w-full max-w-4xl flex-col border-4 border-cyan-500/70 bg-[#0c1024] text-white shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-cyan-500/40 bg-[#141838] px-6 py-4">
+  const body = (
+    <>
+        {/* Header - flex-wrap (rather than a fixed two-column
+            justify-between) so this doesn't overflow/clip when embedded in
+            the Phone's much narrower ~312px app slot (see
+            src/features/phone/SocialApp.jsx), not just the wide standalone
+            modal this was originally designed for. */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-cyan-500/40 bg-[#141838] px-6 py-4">
           <div>
-            <h1 className="text-2xl font-bold text-cyan-400 tracking-wide">⚡ 76-AGENT INTELLIGENCE NETWORK</h1>
+            <h1 className="text-lg font-bold text-cyan-400 tracking-wide">⚡ 76-AGENT INTELLIGENCE NETWORK</h1>
             <p className="text-xs text-gray-400 mt-0.5">
               Autonomous agents • City schedules • Daily interactions • Butterfly effects
             </p>
@@ -61,7 +69,7 @@ export default function AgentInteractionsModal({ onClose }) {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-gray-800 bg-[#161a3b] px-4 pt-2 gap-1 text-xs font-bold">
+        <div className="flex flex-wrap border-b border-gray-800 bg-[#161a3b] px-4 pt-2 gap-1 text-xs font-bold">
           <button
             onClick={() => setTab('feed')}
             className={`px-4 py-2 rounded-t transition-colors ${tab === 'feed' ? 'bg-cyan-600 text-white' : 'text-gray-400 hover:text-white'}`}
@@ -146,14 +154,28 @@ export default function AgentInteractionsModal({ onClose }) {
         )}
 
         {/* Footer */}
-        <div className="border-t border-gray-800 bg-[#121429] p-4 text-right">
-          <button
-            onClick={onClose}
-            className="border-2 border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
-          >
-            Close Feed
-          </button>
-        </div>
+        {!embedded && (
+          <div className="border-t border-gray-800 bg-[#121429] p-4 text-right">
+            <button
+              onClick={onClose}
+              className="border-2 border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
+            >
+              Close Feed
+            </button>
+          </div>
+        )}
+    </>
+  )
+
+  // Embedded mode drops the fixed h-[90vh] overlay panel entirely - the
+  // wrapping Phone app tab already gives this its own scrollable area, same
+  // reasoning as GovernmentModal.jsx's embedded branch.
+  if (embedded) return <div className="flex max-h-[70vh] flex-col overflow-y-auto text-white">{body}</div>
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
+      <div className="flex h-[90vh] w-full max-w-4xl flex-col border-4 border-cyan-500/70 bg-[#0c1024] text-white shadow-2xl">
+        {body}
       </div>
     </div>
   )

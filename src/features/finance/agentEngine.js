@@ -117,9 +117,17 @@ export function simulateDailyAgentInteractions(currentAgentsState, day) {
       actorState.memories.unshift(`Day ${day}: Shorted ${rivalNpc.name}'s market assets for $${raidImpact.toLocaleString()}.`)
       if (rivalState) {
         rivalState.memories.unshift(`Day ${day}: Suffered a hostile market attack from ${actorNpc.name}.`)
+        // Raid retaliation loop: the victim's rivalry reassigns to their
+        // attacker, they get measurably more aggressive, and their mood is
+        // forced to reflect just having been raided (separate from - and
+        // additional to - the 20%-random mood reroll above, which only ever
+        // touches the actor's own mood).
+        rivalState.rivalId = actorNpc.id
+        rivalState.aggression = Math.max(0, Math.min(1, rivalState.aggression + 0.12))
+        rivalState.currentMood = 'Aggressive Raid'
       }
       actorState.victories += 1
-      eventFeed.push({ id: `event_${day}_${i}`, day, type: 'raid', text: eventText, actorId: actorNpc.id, targetId: rivalNpc.id })
+      eventFeed.push({ id: `event_${day}_${i}`, day, type: 'raid', text: eventText, actorId: actorNpc.id, targetId: rivalNpc.id, raidImpact })
     } else if (actorState.riskTolerance > 0.6 && Math.random() < 0.5) {
       // High-Risk Tech / Crypto Surge
       const hypeDelta = Math.floor(Math.random() * 15) + 5

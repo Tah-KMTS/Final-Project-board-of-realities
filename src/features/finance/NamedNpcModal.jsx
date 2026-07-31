@@ -31,7 +31,7 @@ function resolveDialogueLines(npcId) {
 // When true (BusinessCenterModal/GovernmentBuildingModal's per-NPC tabs, and
 // UnderworldModal's Crime Alley tab folding in Luciano), skip the outer
 // overlay + "Close Dialogue" button - the wrapping hub modal supplies both.
-export default function NamedNpcModal({ npcId, onClose, embedded = false }) {
+export default function NamedNpcModal({ npcId, onClose, onAttack, embedded = false }) {
   // getAnyCharacter resolves across every roster (titan/crime/president/fed/
   // ftc/agency-head) - previously this only ever checked FINANCE_NPCS, so
   // every non-titan character showed up as its raw id with a fake "Titan"/
@@ -57,10 +57,22 @@ export default function NamedNpcModal({ npcId, onClose, embedded = false }) {
     ? { ...bioRecord, bio: npc.bio }
     : bioRecord
   const masterAgent = (world2.masterAgents || []).find((a) => a.id === npcId)
-  const agentState = masterAgent || (world2.agentsState || {})[npcId] || {
+  // Merge (not short-circuit): masterAgent is populated for all 76
+  // characters, so `masterAgent || agentsState[npcId] || {...}` used to mean
+  // agentsState's Titan-specific fields (currentMood/aggression/memories,
+  // written every endDay() by simulateDailyAgentInteractions/the raid
+  // retaliation loop) could never win, even for the 25 Financial Titans who
+  // actually have an agentsState entry. Merge order: fallback defaults are
+  // the base, masterAgent's currentLocation/currentAction/thoughtProcess
+  // apply on top for every character (including the 51 non-Titans who have
+  // no agentsState entry at all), and agentsState's Titan-specific fields
+  // win last when present.
+  const agentState = {
     currentMood: 'Bullish Expansion',
     primaryRivalName: 'Competitor',
     aggression: 50,
+    ...masterAgent,
+    ...((world2.agentsState || {})[npcId] || {}),
   }
 
   const [feedbackMsg, setFeedbackMsg] = useState(null)
@@ -378,6 +390,20 @@ export default function NamedNpcModal({ npcId, onClose, embedded = false }) {
             <div className="rounded bg-emerald-950/60 p-2 text-center text-xs font-bold text-emerald-400 border border-emerald-500">
               Active Member of your Board of Realities Cabinet
             </div>
+          )}
+
+          {/* Send their bodyguards after them - only offered when the caller
+              wires up onAttack (the world-map named-tycoon interaction in
+              WorldScreen.jsx). The embedded office-desk tabs (BusinessCenter/
+              GovernmentBuilding/IndustrialZone/Underworld) don't pass it, so
+              this stays hidden there, same as before. */}
+          {onAttack && (
+            <button
+              onClick={onAttack}
+              className="w-full border-2 border-red-600 bg-red-700 py-2 text-xs font-bold text-white hover:bg-red-600 transition-all"
+            >
+              Attack {npc.name}
+            </button>
           )}
 
           {!embedded && (

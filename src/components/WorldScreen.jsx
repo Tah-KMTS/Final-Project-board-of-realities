@@ -21,9 +21,7 @@ import BusinessCenterModal from '../features/finance/BusinessCenterModal'
 import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal'
 import IndustrialZoneModal from '../features/finance/IndustrialZoneModal'
 import TempleModal from '../features/temple/TempleModal'
-import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
-import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
-import GovernmentModal from './GovernmentModal'
+import JailEscapeModal from '../features/jail/JailEscapeModal'
 import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
 import ScotusCourtroomModal from '../features/government/ScotusCourtroomModal'
 import IrsHearingModal from '../features/government/IrsHearingModal'
@@ -40,7 +38,8 @@ import HitmanContractModal from '../features/world/HitmanContractModal'
 import { JAPAN_CITIES } from '../features/world/japanCities'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
-import { generateBodyguardMonster, generateStreetTargetMonster, generateSwatSquad, getFinanceNpc } from '../features/finance/financeNpcs'
+import { generateBodyguardMonster, generateStreetTargetMonster, generateSwatSquad } from '../features/finance/financeNpcs'
+import { getAnyCharacter } from '../features/agents/characterLookup'
 import YugiEncounterModal from '../features/yugioh/YugiEncounterModal'
 import KaibaCorpModal from '../features/yugioh/KaibaCorpModal'
 import CardShopModal from '../features/yugioh/CardShopModal'
@@ -60,6 +59,12 @@ import EventBoardModal from '../features/domino/EventBoardModal'
 import DominoNpcModal from '../features/domino/DominoNpcModal'
 import { getNpc } from '../features/domino/npcRoster'
 import TownTravelUI from './TownTravelUI'
+import PhoneShell from '../features/phone/PhoneShell'
+import SocialApp from '../features/phone/SocialApp'
+import BankingApp from '../features/phone/BankingApp'
+import StartupsApp from '../features/phone/StartupsApp'
+import DarkWebApp from '../features/phone/DarkWebApp'
+import ContactsApp from '../features/phone/ContactsApp'
 
 const REGION_LABELS = {
   hunter: "The Hunter's Rift",
@@ -83,14 +88,15 @@ const DISTRICT_BUILDING_IDS = Object.keys(DISTRICT_BUILDINGS_CONFIG)
 // rendering InteractiveLocationModal with `embedded`), so their intercept
 // entries are removed. fordRougeComplex (Ford) went the same way in Phase 4
 // (folded into IndustrialZoneModal's Ford tab - see that file). teaHouse's
-// entry is also removed: the building itself is gone (Phase 4's 14-category
-// trim), and its mcdonalds_diner content was never actually reached through
-// this map anyway - it's opened from a toolbar button elsewhere in this file
-// (see the `onOpenLocations` prop below), which is untouched. Empty for now,
-// kept (rather than deleted outright) as a working extension point for any
-// future building that wants to reuse an existing InteractiveLocationModal
-// entry non-embedded.
-const BUILDING_TO_INTERACTIVE_LOCATION = {}
+// entry used to be removed too: the building itself was gone (Phase 4's
+// 14-category trim), and its mcdonalds_diner content was only reachable
+// through FinanceStatusBar's "Places & Transit" header button. That button
+// is gone now (header cleanup pass - Phone + End Day only), so
+// mcdonalds_diner needed a real building again: `foodCourt` (OverworldScene.js's
+// FINANCE_BUILDING_DEFS) is that building, wired through this same
+// extension-point mechanism the comment above used to describe as
+// hypothetical.
+const BUILDING_TO_INTERACTIVE_LOCATION = { foodCourt: 'mcdonalds_diner' }
 
 function WorldClearedModal({ blockName, allCleared, onContinue }) {
   return (
@@ -133,6 +139,7 @@ export default function WorldScreen() {
   const world3 = useGameStore((s) => s.world3)
   const world4 = useGameStore((s) => s.world4)
   const addOwnedVehicle = useGameStore((s) => s.addOwnedVehicle)
+  const jail = useGameStore((s) => s.jail)
 
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
@@ -206,9 +213,34 @@ export default function WorldScreen() {
     prevClearedIdsRef.current = new Set(blocks.filter((b) => b.cleared).map((b) => b.id))
   }, [blocks])
 
+  // Being arrested (jail.inJail flipping false -> true, from any executeCrime
+  // call site - Temple/Bank/Crypto/collude/extort/vehicle theft) force-routes
+  // the player into JailEscapeModal, overriding whatever modal was open at
+  // the moment of arrest (e.g. the Temple/Bank/Crypto modal that triggered
+  // it). Deliberately keyed only on jail?.inJail so it doesn't refire every
+  // render while still jailed - see the interact-handler guard below for how
+  // the player gets routed back in if they close this modal without
+  // resolving it.
+  useEffect(() => {
+    if (jail?.inJail) setActiveModal({ type: 'jail' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jail?.inJail])
+
   useEffect(() => {
     const bridge = bridgeRef.current
     const offInteract = bridge.on('interact', (payload) => {
+      // While in jail, Temple/Bank/Crypto (the latter lives inside the
+      // Stock Exchange hub) and the Real Estate wing of Bank are off-limits
+      // - re-route into the jail modal instead of letting the payload open
+      // any of them.
+      if (
+        useGameStore.getState().jail?.inJail &&
+        payload.type === 'building' &&
+        ['temple', 'bank', 'realEstateAgency', 'stockExchange'].includes(payload.id)
+      ) {
+        setActiveModal({ type: 'jail' })
+        return
+      }
       // Save Point and the KC Tower Security Gate resolve immediately
       // rather than opening a modal.
       if (payload.type === 'domino' && payload.id === 'savePoint') {
@@ -310,9 +342,12 @@ export default function WorldScreen() {
   }
 
   const handleFinanceCombatVictory = (npcId) => {
-    const npc = getFinanceNpc(npcId)
+    // getAnyCharacter (not getFinanceNpc) - this fires for any named roamer's
+    // bodyguard fight, not just Financial Titans, and every roster entry
+    // carries netWorth (see characterLookup.js's INDEX build).
+    const npc = getAnyCharacter(npcId)
     markFinanceNpcDead(npcId)
-    useGameStore.getState().addCash(Math.round(npc.netWorth / 1e8))
+    useGameStore.getState().addCash(Math.round((npc?.netWorth || 0) / 1e8))
     bridgeRef.current.emit('npcKilled', { npcId })
   }
 
@@ -404,16 +439,11 @@ export default function WorldScreen() {
       </div>
 
       {mode === 'overworld' && (
-        <FinanceStatusBar
-          onOpenBoard={() => setActiveModal({ type: 'syndicateBoard' })}
-          onOpenAgentFeed={() => setActiveModal({ type: 'agentFeed' })}
-          onOpenGov={() => setActiveModal({ type: 'government' })}
-          onOpenLocations={() => setActiveModal({ type: 'interactiveLocation', locationId: 'mcdonalds_diner' })}
-        />
+        <FinanceStatusBar onOpenPhone={() => setActiveModal({ type: 'phone' })} />
       )}
 
       {!worldCleared && (
-        <div className="relative w-full max-w-5xl mx-auto my-2 rounded-xl overflow-hidden flex items-center justify-center">
+        <div className="relative w-full max-w-7xl mx-auto my-2 rounded-xl overflow-hidden flex items-center justify-center">
           <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
         </div>
       )}
@@ -422,10 +452,28 @@ export default function WorldScreen() {
         Move with WASD/Arrows • E to interact{mode === 'overworld' && activeRegion === 'hunter' ? ' • R to commit crime' : ''}
       </p>
 
+      {activeModal?.type === 'jail' && <JailEscapeModal onClose={closeModal} />}
       {activeModal?.type === 'inventory' && <InventoryModal onClose={closeModal} />}
-      {activeModal?.type === 'syndicateBoard' && <SyndicateBoardModal onClose={closeModal} />}
-      {activeModal?.type === 'agentFeed' && <AgentInteractionsModal onClose={closeModal} />}
-      {activeModal?.type === 'government' && <GovernmentModal onClose={closeModal} />}
+      {/* Board of Realities' 5 functional phone apps: Social/X (Titan Feed +
+          news ticker), Banking & Portfolio (Bank/Stock Exchange/Syndicate
+          Board tabs), Startups & M&A (the previously-orphaned CorporateModal),
+          Dark Web & Underground (Underworld/Hitman Contracts/Syndicate Ops/
+          Narcotics tabs), Contacts & Romance (list view over
+          world2.romanceState/recruitedAdvisors, opens NamedNpcModal per
+          contact) - see src/features/phone/
+          {SocialApp,BankingApp,StartupsApp,DarkWebApp,ContactsApp}.jsx. */}
+      {activeModal?.type === 'phone' && (
+        <PhoneShell
+          onClose={closeModal}
+          apps={{
+            social: () => <SocialApp />,
+            banking: () => <BankingApp />,
+            startups: () => <StartupsApp />,
+            darkweb: () => <DarkWebApp />,
+            contacts: () => <ContactsApp />,
+          }}
+        />
+      )}
       {activeModal?.type === 'scotusTrial' && <ScotusCourtroomModal onClose={closeModal} />}
       {activeModal?.type === 'irsAudit' && <IrsHearingModal onClose={closeModal} />}
       {activeModal?.type === 'fbiInterrogation' && <FbiInterrogationModal onClose={closeModal} />}
@@ -556,7 +604,29 @@ export default function WorldScreen() {
         <NamedNpcModal
           npcId={activeModal.npcId}
           onClose={closeModal}
-          onAttack={() => setActiveModal({ type: 'financeCombat', npcId: activeModal.npcId })}
+          onAttack={() => {
+            // Named tycoons' bodyguards scale with bodyguardPower (up to
+            // ~380 HP / ~38 ATK vs a fresh player's 100 HP) - warn before
+            // committing, same spirit as the riftB rank-gate warning above.
+            // Losing no longer wipes the save (see RiftCombatModal's
+            // lethal={false} below), but it's still a real, felt setback,
+            // so the player should know that going in.
+            // getAnyCharacter (not getFinanceNpc) - namedRoamer NPCs can be
+            // any roster (Financial Titan, Crime Syndicate, President, Fed/
+            // FTC Chairman, Agency Leader), all reachable through this same
+            // Attack button. getFinanceNpc only ever found Financial Titans
+            // and returned undefined for everyone else, which crashed
+            // generateBodyguardMonster below.
+            const npc = getAnyCharacter(activeModal.npcId)
+            const guard = generateBodyguardMonster(npc)
+            const proceed = window.confirm(
+              `${npc?.name || 'This target'}'s security detail looks serious - roughly ${guard.maxHp} HP, hitting for ` +
+              `~${guard.attack} per swing. You won't die if you lose, but you'll get hospitalized ` +
+              `and lose a cut of your cash. Attack anyway?`
+            )
+            if (!proceed) return
+            setActiveModal({ type: 'financeCombat', npcId: activeModal.npcId })
+          }}
         />
       )}
       {activeModal?.type === 'ambientNpc' && (
@@ -571,7 +641,8 @@ export default function WorldScreen() {
               notorietyIncreaseOnFail: 5,
               wantedIncreaseOnFail: 1,
               energyCost: 15,
-              assetSeizureOnFail: 0
+              assetSeizureOnFail: 0,
+              jailChanceOnFail: 0,
             })
             // if we had a toast we could show res.message
             closeModal()
@@ -579,11 +650,17 @@ export default function WorldScreen() {
           onAttack={() => setActiveModal({ type: 'ambientCombat', npcId: activeModal.npcId })}
         />
       )}
+      {/* Finance-world combats share Hunter's Rift combat UI but not its
+          permadeath stakes - lethal={false} routes losses through
+          takeFinanceCombatDamage (hospitalized + cash hit) instead of
+          takeDamage's save-wipe path. See useGameStore.js's comment on
+          takeFinanceCombatDamage for why. */}
       {activeModal?.type === 'financeCombat' && (
         <RiftCombatModal
           difficulty={5}
           variant="rift"
-          monsterOverride={generateBodyguardMonster(getFinanceNpc(activeModal.npcId))}
+          lethal={false}
+          monsterOverride={generateBodyguardMonster(getAnyCharacter(activeModal.npcId))}
           onClose={closeModal}
           onVictory={() => handleFinanceCombatVictory(activeModal.npcId)}
         />
@@ -592,6 +669,7 @@ export default function WorldScreen() {
         <RiftCombatModal
           difficulty={1}
           variant="rift"
+          lethal={false}
           monsterOverride={generateStreetTargetMonster()}
           onClose={closeModal}
           onVictory={() => handleAmbientCombatVictory(activeModal.npcId)}
@@ -601,6 +679,7 @@ export default function WorldScreen() {
         <RiftCombatModal
           difficulty={activeModal.wantedLevel}
           variant="police"
+          lethal={false}
           monsterOverride={generateSwatSquad(activeModal.wantedLevel)}
           onClose={closeModal}
         />

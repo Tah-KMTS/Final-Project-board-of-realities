@@ -1,0 +1,50 @@
+import { useState } from 'react'
+import { useGameStore } from '../../store/useGameStore'
+import BankModal from '../finance/BankModal'
+import StockExchangeModal from '../finance/StockExchangeModal'
+import SyndicateBoardModal from '../finance/SyndicateBoardModal'
+
+// Phone's Banking & Portfolio app. Three sub-tabs, each an existing modal
+// embedded (see each file's `embedded` prop): Bank & Realty (BankModal),
+// Stock Exchange (StockExchangeModal, which itself already embeds a Crypto
+// tab via CryptoModal), and Syndicate Board (SyndicateBoardModal - the
+// former "Board" header button's advisor-recruitment content, folded in here
+// since recruiting financial advisors is a portfolio decision).
+const TABS = [
+  { id: 'bank', label: 'Bank & Realty' },
+  { id: 'exchange', label: 'Stock Exchange' },
+  { id: 'board', label: 'Syndicate Board' },
+]
+
+export default function BankingApp() {
+  const [tab, setTab] = useState('bank')
+  // clearWorld2 is the Stock Exchange's "Declare Victory" gate - grabbed
+  // directly from the store rather than threaded through PhoneShell's `apps`
+  // plug point, same as every other action these embedded modals call.
+  const clearWorld2 = useGameStore((s) => s.clearWorld2)
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="mb-2 flex shrink-0 flex-wrap gap-1.5">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`rounded border px-2 py-1 text-[10px] font-bold transition-colors ${
+              tab === t.id
+                ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300'
+                : 'border-gray-600 text-gray-400 hover:border-gray-400'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {tab === 'bank' && <BankModal embedded />}
+        {tab === 'exchange' && <StockExchangeModal embedded onDeclareVictory={clearWorld2} />}
+        {tab === 'board' && <SyndicateBoardModal embedded />}
+      </div>
+    </div>
+  )
+}

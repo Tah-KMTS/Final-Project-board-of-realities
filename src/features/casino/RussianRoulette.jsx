@@ -67,6 +67,7 @@ export default function RussianRoulette() {
   const addReputation = useGameStore((s) => s.addReputation)
   const spendEnergy = useGameStore((s) => s.spendEnergy)
   const energy = useGameStore((s) => s.player.energy)
+  const getEffectiveLuck = useGameStore((s) => s.getEffectiveLuck)
 
   const [phase, setPhase] = useState('bet') // 'bet' | 'playing' | 'result'
   const [bet, setBet] = useState(MIN_BET)
@@ -90,7 +91,16 @@ export default function RussianRoulette() {
     if (phase !== 'playing' || round >= MAX_ROUNDS) return
     const attemptNumber = round + 1 // 1-indexed pull about to happen
     const chambersRemaining = CHAMBERS - (attemptNumber - 1)
-    const bang = Math.random() < 1 / chambersRemaining
+    // Luck discount applies to round 1 ONLY. A flat per-round discount
+    // compounds multiplicatively across every round and flips the house
+    // edge player-positive (up to +23.6% EV at the real Luck cap of 8) -
+    // confirmed by hand-computation, do not extend this to rounds 2-5.
+    // Restricting it to round 1 keeps the "same house edge regardless of
+    // cash-out round" invariant intact (~5.1% house edge at max Luck vs
+    // 10% today, still house-positive).
+    const luckBangReduction = attemptNumber === 1 ? (getEffectiveLuck() - 5) * 0.015 : 0
+    const bangChance = Math.max(0, 1 / chambersRemaining - luckBangReduction)
+    const bang = Math.random() < bangChance
 
     if (bang) {
       setPhase('result')

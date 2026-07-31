@@ -44,13 +44,22 @@ export default function RiftCombatModal({
   isFinalRaid = false,
   variant = isFinalRaid ? 'finalRaid' : 'rift',
   monsterOverride = null,
+  // Hunter's Rift dungeon-crawl combat keeps its intentional permadeath
+  // stakes (lethal=true, the default). Finance-world encounters routed
+  // through this same modal (ambientCombat/financeCombat/
+  // financePoliceEncounter - see WorldScreen.jsx) pass lethal={false} so a
+  // loss knocks the player out via takeFinanceCombatDamage() instead of
+  // wiping the save.
+  lethal = true,
   onClose,
   onVictory,
+  onDefeat,
 }) {
   const player = useGameStore((s) => s.player)
   const world1 = useGameStore((s) => s.world1)
   const inventory = useGameStore((s) => s.inventory)
   const takeDamage = useGameStore((s) => s.takeDamage)
+  const takeFinanceCombatDamage = useGameStore((s) => s.takeFinanceCombatDamage)
   const updatePlayer = useGameStore((s) => s.updatePlayer)
   const gainExp = useGameStore((s) => s.gainExp)
   const addCash = useGameStore((s) => s.addCash)
@@ -182,11 +191,19 @@ export default function RiftCombatModal({
       spawnFloat(setPlayerFloats, `-${monsterDmg}`)
       setPlayerHitPulse((p) => p + 1)
       playTakeDamageSound()
-      takeDamage(monsterDmg)
-      const afterState = useGameStore.getState()
-      if (!afterState.player.alive) {
-        setOutcome('defeat')
-        playDefeatSound()
+      if (lethal) {
+        takeDamage(monsterDmg)
+        const afterState = useGameStore.getState()
+        if (!afterState.player.alive) {
+          setOutcome('defeat')
+          playDefeatSound()
+        }
+      } else {
+        const stillStanding = takeFinanceCombatDamage(monsterDmg)
+        if (!stillStanding) {
+          setOutcome('defeat')
+          playDefeatSound()
+        }
       }
       setBusy(false)
     }, 500)
@@ -234,6 +251,7 @@ export default function RiftCombatModal({
 
   const handleContinue = () => {
     if (outcome === 'victory' && onVictory) onVictory()
+    if (outcome === 'defeat' && onDefeat) onDefeat()
     onClose()
   }
 
@@ -245,6 +263,11 @@ export default function RiftCombatModal({
         <h2 className="mb-2 text-xl font-bold text-red-400">
           {VARIANT_TITLES[variant]}
         </h2>
+        {!lethal && (
+          <p className="mb-2 text-xs text-yellow-300">
+            This fight won't kill you - losing means a costly, humiliating retreat, not game over.
+          </p>
+        )}
 
         <div key={`monster-bar-${monsterHitPulse}`} className="relative mb-3 border-2 border-gray-600 bg-[#0f1020] p-3 animate-shake">
           <div className="flex justify-between text-sm">
@@ -345,9 +368,25 @@ export default function RiftCombatModal({
           </div>
         )}
 
-        {outcome === 'defeat' && (
+        {outcome === 'defeat' && lethal && (
           <div className="text-center">
             <p className="mb-3 font-bold text-red-500">You have fallen...</p>
+          </div>
+        )}
+
+        {outcome === 'defeat' && !lethal && (
+          <div className="text-center">
+            <p className="mb-2 font-bold text-red-500">You've been beaten badly.</p>
+            <p className="mb-3 text-xs text-gray-400">
+              You wake up later, patched up and lighter in the wallet - a cut of your cash
+              covered the "fees," and you're too drained to do anything else today.
+            </p>
+            <button
+              onClick={handleContinue}
+              className="border-4 border-gray-500 px-6 py-2 font-bold hover:bg-gray-500"
+            >
+              Continue
+            </button>
           </div>
         )}
       </div>

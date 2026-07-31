@@ -158,6 +158,14 @@ const FINANCE_BUILDING_DEFS = [
   { id: 'temple', label: 'Whispering Temple Chapel', facadeStyle: 'traditionalCottage', color: 0x3a2a6a, width: 30, height: 22, zone: 'chapel' },
 
   { id: 'casino', label: 'Neon Dragon Casino', facadeStyle: 'modernBrick', color: 0x8a1f6a, width: 4, height: 3, zone: 'finance' },
+  // New 11th hub building (header cleanup pass): FinanceStatusBar's "Places &
+  // Transit" button is gone (header stripped to Phone + End Day only), so
+  // its mcdonalds_diner content (previously only reachable via that button -
+  // see WorldScreen.jsx's BUILDING_TO_INTERACTIVE_LOCATION comment) needed a
+  // real building. Sized/styled like the other small finance-zone amenities
+  // (bank/casino) rather than one of the multi-tenant tabbed hubs, since it's
+  // a single InteractiveLocationModal entry, not several tenants.
+  { id: 'foodCourt', label: 'Food Court', facadeStyle: 'modernBrick', color: 0xa05a1f, width: 4, height: 3, zone: 'finance' },
   // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
   // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
   // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 4 multi-tenant hubs
@@ -1245,8 +1253,13 @@ export default class OverworldScene extends Phaser.Scene {
     // as ensurePico8CarFrames above.
     ensureSereneVillageDoorAnims(this)
 
+    // Fixed-camera "Press E to..." prompt, centered near the bottom of the
+    // viewport. Was hardcoded to (320, 460) - correct only for the old
+    // 800x500 logical resolution (canvas widened to 1200x600 in
+    // GameCanvas.jsx); this.scale.width/height keeps it centered/anchored
+    // near the bottom regardless of the canvas's configured resolution.
     this.promptText = this.add
-      .text(320, 460, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffe066' })
+      .text(this.scale.width / 2, this.scale.height - 40, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffe066' })
       .setScrollFactor(0)
       .setOrigin(0.5)
       .setDepth(2000)
@@ -3155,8 +3168,17 @@ export default class OverworldScene extends Phaser.Scene {
       // Government Building/Industrial Zone) are multi-tenant tabbed React
       // modals, not a walk-in interior - same pattern as trainStation above:
       // open the modal straight from the overworld footprint, no interior
-      // zone load.
-      if (zone.id === 'underworld' || zone.id === 'businessCenter' || zone.id === 'governmentBuilding' || zone.id === 'industrialZone') {
+      // zone load. foodCourt (header cleanup pass) joins this list for the
+      // same reason - it routes straight to InteractiveLocationModal via
+      // WorldScreen.jsx's BUILDING_TO_INTERACTIVE_LOCATION intercept, not a
+      // generic walk-in interior.
+      if (
+        zone.id === 'underworld' ||
+        zone.id === 'businessCenter' ||
+        zone.id === 'governmentBuilding' ||
+        zone.id === 'industrialZone' ||
+        zone.id === 'foodCourt'
+      ) {
         this.pauseForModal()
         this.bridge.emit('interact', { type: 'building', id: zone.id })
         return

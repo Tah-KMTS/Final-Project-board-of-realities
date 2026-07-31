@@ -72,7 +72,8 @@ export default function CryptoModal({ onClose, embedded = false }) {
               notorietyIncreaseOnFail: 15,
               wantedIncreaseOnFail: 2,
               energyCost: 20,
-              assetSeizureOnFail: 0.1 // lose 10% of cash
+              assetSeizureOnFail: 0.1, // lose 10% of cash
+              jailChanceOnFail: 0.15,
             })
             setFeedbackMsg(res.message || res.reason)
           }}

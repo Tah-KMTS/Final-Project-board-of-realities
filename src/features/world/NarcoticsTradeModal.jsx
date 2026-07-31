@@ -3,7 +3,24 @@ import { useGameStore } from '../../store/useGameStore'
 import { NARCOTICS_DATABASE, calculateCartelResale } from './narcoticsEngine'
 import { getCharacterPortrait } from '../../data/characterPortraits'
 
-export default function NarcoticsTradeModal({ onClose }) {
+// Stable module-level no-op so the `healPlayer` fallback below doesn't
+// allocate a new function reference every render. useGameStore has no
+// `healPlayer` action (this modal was orphaned/unreachable before this pass
+// wired it into the phone - see DarkWebApp.jsx - so this selector bug never
+// surfaced before now: `(s) => s.healPlayer || (() => {})` created a new
+// function each render, which useSyncExternalStore/zustand detects as an
+// unstable snapshot and loops forever). Pharmaceutical "Consume" is
+// effectively a no-op until a real heal action exists in the store - not
+// adding one here per the "don't touch useGameStore.js" constraint.
+const NOOP = () => {}
+
+// `embedded` (default false): standalone access (via WorldScreen.jsx's
+// 'narcoticsTrade' modal type) keeps working exactly as before. When true
+// (Phone app -> Dark Web & Underground's "Narcotics" tab - see
+// src/features/phone/DarkWebApp.jsx), skip the outer fixed-overlay wrapper
+// and the bottom close button - same convention as BankModal.jsx/
+// StockExchangeModal.jsx.
+export default function NarcoticsTradeModal({ onClose, embedded = false }) {
   const [selectedItem, setSelectedItem] = useState(NARCOTICS_DATABASE[0])
   const [tradeQuantity, setTradeQuantity] = useState(1)
   const [feedbackMsg, setFeedbackMsg] = useState(null)
@@ -11,7 +28,7 @@ export default function NarcoticsTradeModal({ onClose }) {
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
-  const healPlayer = useGameStore((s) => s.healPlayer || (() => {}))
+  const healPlayer = useGameStore((s) => s.healPlayer) || NOOP
 
   const handleBuyWholesale = () => {
     const cost = selectedItem.wholesalePrice * tradeQuantity
@@ -45,9 +62,8 @@ export default function NarcoticsTradeModal({ onClose }) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 font-mono text-white">
-      <div className="w-full max-w-3xl border-4 border-red-600/80 bg-[#19080b] p-6 shadow-2xl">
+  const body = (
+    <div className={embedded ? 'w-full font-mono text-white' : 'w-full max-w-3xl border-4 border-red-600/80 bg-[#19080b] p-6 shadow-2xl'}>
         {/* Header */}
         <div className="flex items-start justify-between border-b border-red-600/40 pb-3">
           <div className="flex items-center gap-3">
@@ -125,15 +141,24 @@ export default function NarcoticsTradeModal({ onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-800 bg-[#120507] p-3 text-right">
-          <button
-            onClick={onClose}
-            className="border border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
-          >
-            Close Narcotics Trade
-          </button>
-        </div>
-      </div>
+        {!embedded && (
+          <div className="border-t border-gray-800 bg-[#120507] p-3 text-right">
+            <button
+              onClick={onClose}
+              className="border border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
+            >
+              Close Narcotics Trade
+            </button>
+          </div>
+        )}
+    </div>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 font-mono text-white">
+      {body}
     </div>
   )
 }
