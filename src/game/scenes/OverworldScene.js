@@ -1000,8 +1000,25 @@ const IDLE_DRIFT_RADIUS_BY_TIER = {
   socialite: 16,
 }
 
-function idleDriftOffset(characterId, agentClock, tier) {
-  const radius = IDLE_DRIFT_RADIUS_BY_TIER[tier] ?? IDLE_DRIFT_RADIUS_BY_TIER.regular
+// Two independent people's mill-in-place loops can happen to be at
+// near-cancelling phases at any given instant (their phaseX/phaseY hashes
+// are effectively uncorrelated) - harmless when a solo character has the
+// whole door to themselves, but once the arc-slot fix above can seat two
+// roamers only ~35-40px apart at rest, a socialite-tier pair (16px radius
+// each) swinging toward each other can transiently close that gap to a
+// handful of px, i.e. exactly the "stacking" look this whole fix targets,
+// just intermittent instead of permanent. Capping the mill radius whenever a
+// roamer is sharing their current building with anyone else (see `crowded`
+// on the slot assigned by assignDoorSlots) keeps their arc-slot spacing the
+// dominant term; CROWD_DRIFT_RADIUS_CAP is small but non-zero so the
+// existing "never simultaneously motionless on both axes" property (which
+// the walk-cycle/facing logic in updateNamedRoamers depends on) still holds
+// for crowded roamers too.
+const CROWD_DRIFT_RADIUS_CAP = 4
+
+function idleDriftOffset(characterId, agentClock, tier, crowded) {
+  let radius = IDLE_DRIFT_RADIUS_BY_TIER[tier] ?? IDLE_DRIFT_RADIUS_BY_TIER.regular
+  if (crowded) radius = Math.min(radius, CROWD_DRIFT_RADIUS_CAP)
   const phaseX = ((idleDriftHash(`${characterId}:driftX`) % 1000) / 1000) * Math.PI * 2
   const phaseY = ((idleDriftHash(`${characterId}:driftY`) % 1000) / 1000) * Math.PI * 2
   const x = Math.sin((agentClock / IDLE_DRIFT_PERIOD_X) * Math.PI * 2 + phaseX) * radius
@@ -1009,30 +1026,123 @@ function idleDriftOffset(characterId, agentClock, tier) {
   return { x, y }
 }
 
-// Fixed per-character "door slot" - the Phase 2 building consolidation lets
-// up to 5 characters (Business Center) share one physical door, and
-// buildingDoorPixel used to resolve every character at that building to the
-// exact same pixel with only idleDriftOffset's few-px mill on top, so 5
-// roamers converging there visually stacked on nearly one spot. Same
-// deterministic, id-seeded hash style as idleDriftOffset/presencePhaseOffset
-// above (no Math.random) - each character gets one fixed slot in a small
-// ring around the door, added to the door pixel BEFORE idleDriftOffset's
-// mill/seek target math runs, so it composes with (rather than fights)
-// that existing drift. 6 slots spaced 12-24px from center and from each
-// other is plenty for "reads as distinct people", not full pedestrian
-// collision - this game doesn't have that for anyone.
-const DOOR_SLOT_OFFSETS = [
-  { x: 0, y: 0 },
-  { x: -18, y: 8 },
-  { x: 18, y: 8 },
-  { x: -24, y: -8 },
-  { x: 24, y: -8 },
-  { x: 0, y: 18 },
+// Group-aware "door slot" layout. An earlier version of this fix gave every
+// character ONE fixed slot out of a 6-slot ring, hashed from characterId
+// alone - with only 10 shared (non-home) buildings and 76+ characters,
+// simulating worldPresenceEngine.js's actual output showed real convergence
+// groups up to ~24 roamers at a single building at once (underworld and
+// businessCenter are the worst offenders, since many characters list them as
+// a work building - see characterDispositions.js's WORK_BUILDING_OVERRIDES).
+// A 6-slot ring keyed only by character id can't hold that many distinct
+// positions (pigeonhole guarantees overlaps once a group exceeds 6), and
+// worse, being keyed only by character id meant two characters who happened
+// to hash to the same slot stacked at EVERY building they ever shared, not
+// just an unlucky one-off.
+//
+// This replaces that with a per-(building, time-block) arrangement: whoever
+// is actually resolved to the same buildingId in one refreshPresenceCache()
+// pass (see assignDoorSlots below, called from there) gets a distinct ring
+// slot, assigned in order of a stable per-character hash so the same group
+// of people always produces the same arrangement (no per-frame jitter, and
+// re-running the same day/time-block/seed reproduces the same layout).
+//
+// Rings fan out strictly to the south (positive y / toward the viewer) of
+// the door pixel - the door itself already sits just past the building's
+// south edge (see buildingDoorPixel) - rather than a full circle, so a large
+// group never gets a slot that pushes it back north into the building's own
+// footprint. Ring 0 is the bare door pixel (offset {0,0}), so the extremely
+// common case of "exactly one person at this building" (every home building,
+// always) is pixel-identical to pre-fix behavior.
+//
+// Radii were tuned against a live screenshot check, not just sprite width:
+// an initial pass sized purely off the ~48px sprite frame (chords ~27-34px)
+// kept sprites themselves from overlapping but full name-tag TEXT ("Cornelius
+// Vanderbilt" at the 9px monospace font used for labels, ~100px+ wide) still
+// visibly collided once a dozen-plus roamers converged, which is the exact
+// "unreadable garbage text" bug this whole fix targets - sprites not
+// overlapping isn't the same bar as labels not overlapping. These wider
+// radii (chords ~35-49px) meaningfully cut that down for the common
+// convergence sizes (simulateWorldPresence shows most real convergences are
+// well under 10 - see the worker's histogram notes) without pretending
+// perfect never-overlap is achievable for the rare (~24-person) tail: fully
+// eliminating text overlap at that count would need a footprint wide enough
+// to start reading as "scattered across the block" rather than "a crowd at
+// the door", or shortening/hiding labels outright, either of which is a
+// bigger behavior change than this fix's brief (spatial positioning only).
+// Max radius (150) stays under half the map's tightest real door-to-door
+// spacing (320px, casino<->foodCourt/realEstateAgency) so even a maxed-out
+// crowd never visually reads as bleeding into a neighboring building's own
+// crowd.
+const ARC_RINGS = [
+  { radius: 0, capacity: 1 },
+  { radius: 40, capacity: 3 },
+  { radius: 80, capacity: 6 },
+  { radius: 120, capacity: 9 },
+  { radius: 150, capacity: 12 },
 ]
+const ARC_MAX_ANGLE = (75 * Math.PI) / 180 // half-spread either side of due south
 
-function doorSlotOffset(characterId) {
-  const idx = idleDriftHash(`${characterId}:doorSlot`) % DOOR_SLOT_OFFSETS.length
-  return DOOR_SLOT_OFFSETS[idx]
+// Name-tag labels float at a fixed y-26 above their sprite (see
+// updateNamedRoamers). At radius 0 (the solo case) that's unchanged from
+// pre-fix behavior; every other slot nudges its label up/down a little more
+// by ring, purely so two roamers whose ARC positions happen to put them at a
+// similar x don't also share the exact same label baseline - it staggers
+// overlapping text onto different rows instead of directly on top of each
+// other, which reads far better even when the text still overlaps some.
+const ARC_RING_LABEL_DY = [26, 20, 32, 16, 38]
+
+function arcSlotOffset(index) {
+  let remaining = index
+  for (let ringIndex = 0; ringIndex < ARC_RINGS.length; ringIndex++) {
+    const ring = ARC_RINGS[ringIndex]
+    if (remaining < ring.capacity) {
+      if (ring.radius === 0) return { x: 0, y: 0, labelDy: ARC_RING_LABEL_DY[0] }
+      const t = ring.capacity === 1 ? 0 : remaining / (ring.capacity - 1) // 0..1 across the arc
+      const angle = -ARC_MAX_ANGLE + t * (ARC_MAX_ANGLE * 2)
+      return {
+        x: Math.sin(angle) * ring.radius,
+        y: Math.cos(angle) * ring.radius,
+        labelDy: ARC_RING_LABEL_DY[ringIndex] ?? 26,
+      }
+    }
+    remaining -= ring.capacity
+  }
+  // Beyond the last authored ring (>31 at one door - never observed in
+  // simulation, see above, but kept safe rather than reusing a slot):
+  // keep growing radius in the same 12-wide bands instead of crashing or
+  // collapsing back onto an existing slot.
+  const OVERFLOW_BAND = 14
+  const band = Math.floor(remaining / OVERFLOW_BAND)
+  const posInBand = remaining % OVERFLOW_BAND
+  const radius = 150 + 30 * (band + 1)
+  const t = posInBand / (OVERFLOW_BAND - 1)
+  const angle = -ARC_MAX_ANGLE + t * (ARC_MAX_ANGLE * 2)
+  return { x: Math.sin(angle) * radius, y: Math.cos(angle) * radius, labelDy: 26 + (band % 2) * 12 }
+}
+
+// Assigns one arcSlotOffset to every entry in a single presence snapshot
+// (either "everyone's current-block building" or "everyone's next-block
+// building" - see refreshPresenceCache, which calls this twice per resolve).
+// `entries` is [{characterId, buildingId}, ...] for every named roamer.
+// Grouping + sorting happens fresh each call rather than being cached
+// per-character, so it naturally reflects exactly who is at a building
+// THIS resolve - no stale slot claims from a previous block carry over.
+function assignDoorSlots(entries) {
+  const byBuilding = new Map()
+  for (const entry of entries) {
+    if (!byBuilding.has(entry.buildingId)) byBuilding.set(entry.buildingId, [])
+    byBuilding.get(entry.buildingId).push(entry.characterId)
+  }
+  const slotByCharacterId = new Map()
+  for (const ids of byBuilding.values()) {
+    // Stable order derived from each id's own hash (not alphabetical - that
+    // would visually cluster people whose names/ids happen to sort near
+    // each other) so the same group of people always fans out the same way.
+    ids.sort((a, b) => idleDriftHash(`${a}:doorSlotOrder`) - idleDriftHash(`${b}:doorSlotOrder`))
+    const crowded = ids.length > 1
+    ids.forEach((id, index) => slotByCharacterId.set(id, { ...arcSlotOffset(index), crowded }))
+  }
+  return slotByCharacterId
 }
 
 function agentAmbientActions(c) {
@@ -1759,20 +1869,20 @@ export default class OverworldScene extends Phaser.Scene {
   // Real live-map pixel position just outside a building's south edge (the
   // same "stand outside the door" convention triggerInteraction uses for
   // overworldReturnSpawn) - the ground truth for "this character is
-  // physically at this building", not just narrating it. `characterId` is
-  // optional (omitting it returns the bare center-door pixel, used by
+  // physically at this building", not just narrating it. `slot` is optional
+  // (omitting it returns the bare center-door pixel, used by
   // teleportToCity/spawn code that has no per-character concept); when
-  // given, doorSlotOffset spreads that character to their own fixed slot
-  // around the door so multiple roamers at the same building don't stack.
-  buildingDoorPixel(buildingId, characterId) {
+  // given, it's one of assignDoorSlots' arcSlotOffset results, spreading
+  // that character out from whoever else currently shares this building so
+  // multiple roamers converging on one door don't stack.
+  buildingDoorPixel(buildingId, slot) {
     const b = FINANCE_BUILDINGS.find((bd) => bd.id === buildingId)
     if (!b) return null
     const base = {
       x: ((b.tiles.c0 + b.tiles.c1 + 1) / 2) * TILE_SIZE,
       y: (b.tiles.r1 + 1) * TILE_SIZE + TILE_SIZE / 2,
     }
-    if (!characterId) return base
-    const slot = doorSlotOffset(characterId)
+    if (!slot) return base
     return { x: base.x + slot.x, y: base.y + slot.y }
   }
 
@@ -1782,7 +1892,12 @@ export default class OverworldScene extends Phaser.Scene {
   // change and on a throttle (see PRESENCE_RESOLVE_INTERVAL_MS in
   // updateNamedRoamers) rather than every frame - resolving all 88
   // characters twice (current + next block) is cheap at that cadence but
-  // wasteful at 60fps.
+  // wasteful at 60fps. Also (re-)runs assignDoorSlots per resolve for the
+  // current-block and next-block buildingId sets independently, so a
+  // roamer's current-door slot and next-door slot are each sized to
+  // whoever's actually sharing THAT building, not two people who happen to
+  // share a next-building but not a current one (or vice versa) fighting
+  // over the same slot index.
   refreshPresenceCache() {
     if (!this.namedRoamers.length) return
     const store = useGameStore.getState()
@@ -1792,12 +1907,16 @@ export default class OverworldScene extends Phaser.Scene {
     const baseCtx = { runSeed: store.runSeed, wantedLevel: store.wantedLevel }
     const currentPresence = simulateWorldPresence(ids, { ...baseCtx, day: worldClock.day, timeBlockIndex: worldClock.timeBlockIndex })
     const nextPresence = simulateWorldPresence(ids, { ...baseCtx, day: upcoming.day, timeBlockIndex: upcoming.timeBlockIndex })
+    const currentSlots = assignDoorSlots(ids.map((id, i) => ({ characterId: id, buildingId: currentPresence[i].buildingId })))
+    const nextSlots = assignDoorSlots(ids.map((id, i) => ({ characterId: id, buildingId: nextPresence[i].buildingId })))
     const cache = new Map()
     for (let i = 0; i < ids.length; i++) {
       cache.set(ids[i], {
         currentBuildingId: currentPresence[i].buildingId,
         nextBuildingId: nextPresence[i].buildingId,
         action: currentPresence[i].action,
+        currentSlot: currentSlots.get(ids[i]),
+        nextSlot: nextSlots.get(ids[i]),
       })
     }
     this.presenceCache = cache
@@ -1842,9 +1961,15 @@ export default class OverworldScene extends Phaser.Scene {
       // building id (home_<id> or one of the 10 hand-authored ones), so
       // doorA/doorB should always resolve - the final else branch is
       // defensive only, for a roster id that somehow has no disposition.
-      const doorA = presence ? this.buildingDoorPixel(presence.currentBuildingId, roamer.agent.id) : null
-      const doorB = presence ? this.buildingDoorPixel(presence.nextBuildingId, roamer.agent.id) : null
+      const doorA = presence ? this.buildingDoorPixel(presence.currentBuildingId, presence.currentSlot) : null
+      const doorB = presence ? this.buildingDoorPixel(presence.nextBuildingId, presence.nextSlot) : null
       const traveling = doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId
+      // Whichever slot is actually driving the seek target right now (see
+      // dest/doorB selection below) also drives the label's vertical
+      // stagger, so a roamer's name tag moves with them rather than
+      // snapping between two different offsets while they walk.
+      const activeSlot = traveling ? presence?.nextSlot : presence?.currentSlot
+      roamer.labelDy = activeSlot?.labelDy ?? 26
 
       // spawnNamedRoamers() creates every actor at the (-100,-100) off-screen
       // placeholder, potentially thousands of pixels from their real
@@ -1913,7 +2038,7 @@ export default class OverworldScene extends Phaser.Scene {
           // orbited by the bounded sin/cos offset) keeps the roamer
           // genuinely centered on their door instead.
           const tier = doorA ? getDisposition(roamer.agent.id)?.tier : null
-          const drift = doorA ? idleDriftOffset(roamer.agent.id, this.agentClock, tier) : { x: 0, y: 0 }
+          const drift = doorA ? idleDriftOffset(roamer.agent.id, this.agentClock, tier, activeSlot?.crowded) : { x: 0, y: 0 }
           rawPos = seekTo({ x: dest.x + drift.x, y: dest.y + drift.y }).pos
         }
       } else {
@@ -2117,7 +2242,7 @@ export default class OverworldScene extends Phaser.Scene {
       const near = Phaser.Math.Distance.Between(px, py, x, y) < 180
       const wanted = near && roamer.currentAction ? `${roamer.character.name}\n${roamer.currentAction}` : roamer.character.name
       if (roamer.label.text !== wanted) roamer.label.setText(wanted)
-      roamer.label.setPosition(x, y - 26)
+      roamer.label.setPosition(x, y - (roamer.labelDy ?? 26))
       roamer.label.setDepth(y + 500)
     }
   }

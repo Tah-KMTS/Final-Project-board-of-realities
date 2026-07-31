@@ -6,7 +6,13 @@
 // This is a progressive-enhancement layer, not a dependency: the game must
 // work identically with no key present, and endDay() itself never awaits
 // this call (see the fire-and-forget usage in useGameStore.js).
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
+// Responses endpoint, not Chat Completions - this project's OpenAI key only
+// has access to gpt-5.6-luna via /v1/responses (verified against the API;
+// gpt-4o-mini and any /v1/chat/completions call 403 on this key's model
+// allowlist - see backend/main.py's matching note for the NPC-chat backend,
+// which hit the same wall and already uses /v1/responses).
+const OPENAI_URL = 'https://api.openai.com/v1/responses'
+const MODEL = 'gpt-5.6-luna'
 const REQUEST_TIMEOUT_MS = 7000
 const MAX_TOKENS = 70
 // Defensive client-side cap in case the model ignores the max_tokens/prompt
@@ -28,7 +34,7 @@ function buildPrompt({ type, actorName, targetName, amount, archetypeDescription
 
 /**
  * Generates a single punchy in-fiction market-news sentence for one titan
- * event via OpenAI's chat completions API. Never throws - resolves to the
+ * event via OpenAI's Responses API. Never throws - resolves to the
  * generated string on success, or null on ANY failure (no key, network
  * error, timeout, non-2xx response, malformed body). Callers can safely do
  * `generateEventNarration(ctx).then((text) => { if (text) ... })` with no
@@ -53,16 +59,16 @@ export async function generateEventNarration(eventContext) {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
+          model: MODEL,
+          input: [
             {
               role: 'system',
               content: 'You write single punchy in-fiction market-news sentences for a finance-world board game. Respond with exactly one sentence. No quotes, no markdown, no hashtags.',
             },
             { role: 'user', content: prompt },
           ],
-          max_tokens: MAX_TOKENS,
-          temperature: 0.9,
+          reasoning: { effort: 'none' },
+          max_output_tokens: MAX_TOKENS,
         }),
         signal: controller.signal,
       })
@@ -73,7 +79,13 @@ export async function generateEventNarration(eventContext) {
     if (!res || !res.ok) return null
 
     const data = await res.json()
-    const text = data?.choices?.[0]?.message?.content?.trim()
+    // Responses API shape: data.output is an array of items; the text lives
+    // in the first 'message' item's content array, as an 'output_text' part
+    // (there's no output_text convenience field outside the Python/JS SDKs,
+    // which this plain fetch call doesn't use).
+    const messageItem = data?.output?.find((item) => item.type === 'message')
+    const textPart = messageItem?.content?.find((part) => part.type === 'output_text')
+    const text = textPart?.text?.trim()
     if (!text) return null
 
     return text.length > MAX_CHARS ? `${text.slice(0, MAX_CHARS - 1)}…` : text

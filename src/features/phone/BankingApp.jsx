@@ -30,7 +30,7 @@ export default function BankingApp() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`rounded border px-2 py-1 text-[10px] font-bold transition-colors ${
+            className={`rounded border px-2 py-1 text-xs font-bold transition-colors ${
               tab === t.id
                 ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300'
                 : 'border-gray-600 text-gray-400 hover:border-gray-400'

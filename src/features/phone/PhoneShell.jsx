@@ -83,7 +83,7 @@ export default function PhoneShell({ onClose, apps = {} }) {
               place those two are still shown. Two rows: not enough width in
               this 360px frame for all 4 stats plus the back/close buttons on
               one line. */}
-          <div className="mb-3 text-[11px]">
+          <div className="mb-3 text-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 {screen !== 'home' && (
@@ -92,10 +92,10 @@ export default function PhoneShell({ onClose, apps = {} }) {
                     className="mr-1 rounded border border-white/20 p-1 text-gray-300 hover:bg-white/10"
                     title="Back to home screen"
                   >
-                    <ArrowLeft size={12} />
+                    <ArrowLeft size={14} />
                   </button>
                 )}
-                <CalendarClock size={12} className="text-cyan-300" />
+                <CalendarClock size={14} className="text-cyan-300" />
                 <span className="font-bold text-cyan-300">Day {day}</span>
               </div>
               <button
@@ -103,26 +103,26 @@ export default function PhoneShell({ onClose, apps = {} }) {
                 className="rounded border border-white/20 p-1 text-gray-300 hover:bg-white/10"
                 title="Close phone"
               >
-                <X size={12} />
+                <X size={14} />
               </button>
             </div>
 
             <div className="mt-1.5 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
-                <Wallet size={12} className="text-emerald-300" />
+                <Wallet size={14} className="text-emerald-300" />
                 <span>
                   <b className="text-emerald-300">${Math.round(cash).toLocaleString()}</b>
                 </span>
               </div>
               <div className="flex min-w-0 items-center gap-1" title="Net Worth">
-                <TrendingUp size={12} className="shrink-0 text-fuchsia-300" />
+                <TrendingUp size={14} className="shrink-0 text-fuchsia-300" />
                 <span className="truncate">
                   <b className="text-fuchsia-300">${Math.round(netWorth).toLocaleString()}</b>
                   <span className="text-gray-500"> / {netWorthTargetLabel}</span>
                 </span>
               </div>
               <div className="flex shrink-0 items-center gap-1" title="Police Heat / SEC Suspicion">
-                <Siren size={12} className={heatDanger ? 'animate-pulse text-red-500' : 'text-orange-300'} />
+                <Siren size={14} className={heatDanger ? 'animate-pulse text-red-500' : 'text-orange-300'} />
                 <span className={heatDanger ? 'font-bold text-red-400' : 'text-orange-300'}>{heatPct}%</span>
               </div>
             </div>
@@ -143,7 +143,7 @@ export default function PhoneShell({ onClose, apps = {} }) {
                     key={id}
                     disabled={!enabled}
                     onClick={() => enabled && setScreen(id)}
-                    className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 text-[11px] font-bold transition-colors ${
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 text-xs font-bold transition-colors ${
                       enabled
                         ? `${ICON_COLOR_CLASSES[color]} hover:bg-white/10`
                         : 'cursor-not-allowed border-gray-600/50 bg-white/5 text-gray-500 opacity-50'

@@ -47,7 +47,7 @@ export default function SocialApp() {
           then a Post button gated by the same day's-cooldown pattern as
           Temple's Seek Atonement button (disabled={...} + opacity-30). */}
       <div className="mb-2 shrink-0 rounded border border-cyan-500/30 bg-[#0c1024] p-2">
-        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-cyan-400">
+        <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-cyan-400">
           Post to Manipulate Sentiment (20 Energy)
         </div>
 
@@ -56,7 +56,7 @@ export default function SocialApp() {
             <button
               key={t.id}
               onClick={() => setTarget(t.id)}
-              className={`rounded border px-2 py-1 text-[10px] font-bold transition-colors ${
+              className={`rounded border px-2 py-1 text-xs font-bold transition-colors ${
                 target === t.id
                   ? 'border-cyan-400 bg-cyan-400/20 text-cyan-300'
                   : 'border-gray-600 text-gray-400 hover:border-gray-400'
@@ -70,7 +70,7 @@ export default function SocialApp() {
         <div className="mb-1.5 flex gap-1">
           <button
             onClick={() => setDirection('up')}
-            className={`flex-1 rounded border px-2 py-1 text-[10px] font-bold transition-colors ${
+            className={`flex-1 rounded border px-2 py-1 text-xs font-bold transition-colors ${
               direction === 'up'
                 ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300'
                 : 'border-gray-600 text-gray-400 hover:border-gray-400'
@@ -80,7 +80,7 @@ export default function SocialApp() {
           </button>
           <button
             onClick={() => setDirection('down')}
-            className={`flex-1 rounded border px-2 py-1 text-[10px] font-bold transition-colors ${
+            className={`flex-1 rounded border px-2 py-1 text-xs font-bold transition-colors ${
               direction === 'down'
                 ? 'border-red-400 bg-red-400/20 text-red-300'
                 : 'border-gray-600 text-gray-400 hover:border-gray-400'
@@ -93,7 +93,7 @@ export default function SocialApp() {
         <button
           onClick={handlePost}
           disabled={alreadyPostedToday}
-          className="w-full rounded border-2 border-cyan-400 py-1.5 text-xs font-bold text-cyan-300 transition-colors hover:bg-cyan-400 hover:text-black disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-cyan-300"
+          className="w-full rounded border-2 border-cyan-400 py-1.5 text-sm font-bold text-cyan-300 transition-colors hover:bg-cyan-400 hover:text-black disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-cyan-300"
         >
           {alreadyPostedToday ? 'Already Posted Today' : 'Post'}
         </button>

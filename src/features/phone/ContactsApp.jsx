@@ -94,12 +94,12 @@ export default function ContactsApp() {
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="truncate text-xs font-bold text-yellow-300">{npc.name}</span>
+                  <span className="truncate text-sm font-bold text-yellow-300">{npc.name}</span>
                   {isRecruited && (
                     <Briefcase size={10} className="shrink-0 text-emerald-400" title="Recruited Advisor" />
                   )}
                 </div>
-                <div className="truncate text-[10px] text-gray-400">{npc.title}</div>
+                <div className="truncate text-xs text-gray-400">{npc.title}</div>
                 {level > 0 && (
                   <div className="mt-1 flex items-center gap-1.5">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/50">
@@ -108,7 +108,7 @@ export default function ContactsApp() {
                         style={{ width: `${level}%` }}
                       />
                     </div>
-                    <span className={`shrink-0 text-[9px] font-bold ${isSpouse ? 'text-yellow-300' : 'text-fuchsia-300'}`}>
+                    <span className={`shrink-0 text-[11px] font-bold ${isSpouse ? 'text-yellow-300' : 'text-fuchsia-300'}`}>
                       {relationshipLabel(level, isSpouse)}
                     </span>
                   </div>
