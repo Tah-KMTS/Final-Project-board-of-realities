@@ -22,6 +22,7 @@ import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal
 import IndustrialZoneModal from '../features/finance/IndustrialZoneModal'
 import TempleModal from '../features/temple/TempleModal'
 import WharfModal from '../features/wharf/WharfModal'
+import EntertainmentComplexModal from '../features/entertainment/EntertainmentComplexModal'
 import JailEscapeModal from '../features/jail/JailEscapeModal'
 import JailMazeModal from '../features/jail/JailMazeModal'
 import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
@@ -641,6 +642,14 @@ export default function WorldScreen() {
           InteractiveLocationModal since it needs live state/interaction. */}
       {activeModal?.type === 'building' && activeModal.id === 'wharf' && (
         <WharfModal onClose={closeModal} />
+      )}
+      {/* Entertainment Complex (Concert Hall + Sports Stadium stub) - 2-tab
+          hub modal, same shape as the 4 consolidated hubs below. Concert
+          Hall composes Dixon's NamedNpcModal flavor tab with the arrow-key
+          rhythm minigame (RhythmGame.jsx); Sports Stadium is a placeholder
+          pending its own design pass. */}
+      {activeModal?.type === 'building' && activeModal.id === 'entertainmentComplex' && (
+        <EntertainmentComplexModal onClose={closeModal} />
       )}
       {/* The 4 Phase-2/4 consolidated hubs - each is a tabbed modal wrapping
           several formerly-standalone buildings' content via the `embedded`

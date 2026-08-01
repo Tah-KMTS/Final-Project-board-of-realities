@@ -193,6 +193,19 @@ const FINANCE_BUILDING_DEFS = [
   // straight-to-modal pattern as foodCourt (no Phaser interior needed).
   { id: 'wharf', label: 'Bonded Cargo Pier', facadeStyle: 'modernBrick', color: 0x2a5a6a, width: 4, height: 3, zone: 'industry' },
 
+  // Entertainment Complex - the last unbuilt spec category. One building,
+  // 2 tabs (Concert Hall/Sports Stadium - see EntertainmentComplexModal.jsx),
+  // reusing two named characters who were written but previously un-slotted
+  // into any building: Dixon Trujillo (Griselda Empire, "Nightclub
+  // Extortion & Entertainment Fronts") for Concert Hall, Arnold Rothstein
+  // ("fixed the 1919 World Series") for the still-stubbed Sports Stadium.
+  // Concert Hall tab is a real mechanic (arrow-key rhythm minigame,
+  // RhythmGame.jsx) this pass; Sports Stadium is a placeholder pending its
+  // own design pass. Same straight-to-modal shape as the other 4 tabbed
+  // hubs (underworld/businessCenter/governmentBuilding/industrialZone) -
+  // see the triggerInteraction case below, no Phaser interior needed.
+  { id: 'entertainmentComplex', label: 'Entertainment Complex', facadeStyle: 'modernGlass', color: 0x5a3a8a, width: 6, height: 4, zone: 'industry' },
+
   // Court & Prison - one of the last 3 unbuilt spec categories (see the note
   // above). Gives the jail mini-map mechanic (bribeDice/maze, in
   // useGameStore.js's attemptJailBribe/attemptMazeSegment) a real door on
@@ -3617,14 +3630,17 @@ export default class OverworldScene extends Phaser.Scene {
       // WorldScreen.jsx's BUILDING_TO_INTERACTIVE_LOCATION intercept, not a
       // generic walk-in interior. wharf (Cast & Reel fishing) joins for the
       // same reason too, but routes to a bespoke WharfModal instead - see
-      // WorldScreen.jsx's `activeModal.id === 'wharf'` case.
+      // WorldScreen.jsx's `activeModal.id === 'wharf'` case. entertainmentComplex
+      // (Concert Hall/Sports Stadium) joins the same way, routing to
+      // EntertainmentComplexModal.
       if (
         zone.id === 'underworld' ||
         zone.id === 'businessCenter' ||
         zone.id === 'governmentBuilding' ||
         zone.id === 'industrialZone' ||
         zone.id === 'foodCourt' ||
-        zone.id === 'wharf'
+        zone.id === 'wharf' ||
+        zone.id === 'entertainmentComplex'
       ) {
         this.pauseForModal()
         this.bridge.emit('interact', { type: 'building', id: zone.id })
