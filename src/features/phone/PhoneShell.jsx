@@ -1,25 +1,27 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, ArrowLeft, Wallet, Siren, Rss, Heart, Rocket, CalendarClock, TrendingUp } from 'lucide-react'
+import { X, ArrowLeft, Wallet, Siren, Rss, Heart, CalendarClock, TrendingUp } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
 import { NET_WORTH_WIN_TARGET, NET_WORTH_MILESTONES } from '../../features/finance/marketData'
 
-// The 4 apps. Wired to real content (Social/X -> AgentInteractionsModal +
+// The 3 apps. Wired to real content (Social/X -> AgentInteractionsModal +
 // the news ticker, Banking & Portfolio -> PortfolioTab/BankModal/
-// StockExchangeModal, Startups & M&A -> CorporateModal, Contacts & Romance
-// -> per-contact NamedNpcModal - see src/features/phone/
-// {SocialApp,BankingApp,StartupsApp,ContactsApp}.jsx) via the `apps` prop
-// below. Dark Web & Underground (Underworld/Hitman/Syndicate Ops/Narcotics)
-// used to be a 5th app here but was deliberately removed - phone-anywhere
-// access undercut the point of having a physical Underworld building to
-// walk to. That content is standalone-only now (WorldScreen.jsx's
+// StockExchangeModal, Contacts & Romance -> per-contact NamedNpcModal - see
+// src/features/phone/{SocialApp,BankingApp,ContactsApp}.jsx) via the `apps`
+// prop below. Two apps used to live here and were deliberately removed:
+// Dark Web & Underground (Underworld/Hitman/Syndicate Ops/Narcotics) -
+// phone-anywhere access undercut the point of having a physical Underworld
+// building to walk to, that content is standalone-only now (WorldScreen.jsx's
 // 'narcoticsTrade'/'syndicateOperations'/'hitmanContract' modal types, and
-// walking up to the Underworld building), same as before phone integration.
+// walking up to the Underworld building). Startups & M&A (CorporateModal,
+// company acquisitions) - had zero other entry point in the game (its old
+// buildings were deleted in an earlier map-trim pass), so rather than
+// orphaning the feature it was relocated into the Bank & Realty building
+// instead (see BankModal.jsx) alongside Real Estate, both building-only now.
 const APP_DEFS = [
   { id: 'social', label: 'Social/X', Icon: Rss, color: 'cyan', enabled: true },
   { id: 'banking', label: 'Banking', Icon: Wallet, color: 'emerald', enabled: true },
   { id: 'contacts', label: 'Contacts', Icon: Heart, color: 'rose', enabled: true },
-  { id: 'startups', label: 'Startups', Icon: Rocket, color: 'violet', enabled: true },
 ]
 
 const ICON_COLOR_CLASSES = {

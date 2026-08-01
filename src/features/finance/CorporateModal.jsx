@@ -2,10 +2,14 @@ import { useGameStore } from '../../store/useGameStore'
 import { COMPANY_LISTINGS } from './marketData'
 
 // `embedded` (default false): this modal was orphaned (no entry point
-// anywhere in the game) until the Phone's Startups & M&A app wired it in
-// (see src/features/phone/StartupsApp.jsx) - embedded skips the outer
-// fixed-overlay wrapper and the bottom "Leave" button, same convention as
-// every other hub-tab modal in this codebase (CryptoModal.jsx etc).
+// anywhere in the game, its old standalone buildings deleted in an earlier
+// map-trim pass) until it got wired into the Bank & Realty building instead
+// (see BankModal.jsx, embedded alongside Real Estate, both building-only) -
+// embedded skips the outer fixed-overlay wrapper and the bottom "Leave"
+// button, same convention as every other hub-tab modal in this codebase
+// (CryptoModal.jsx etc). A prior pass briefly wired this into the phone's
+// Startups & M&A app instead - that app was removed, this is now the only
+// entry point.
 export default function CorporateModal({ onClose, embedded = false }) {
   const cash = useGameStore((s) => s.cash)
   const world2 = useGameStore((s) => s.world2)
