@@ -70,14 +70,6 @@ export default function AgentInteractionsModal({ onClose, embedded = false }) {
 
   const body = (
     <>
-        {/* Compact single-line header - wordmark + current city, most of the
-            vertical space goes to the feed below rather than a dashboard
-            banner. */}
-        <div className="flex shrink-0 items-center justify-between border-b border-cyan-500/30 pb-1.5">
-          <span className="text-sm font-extrabold tracking-wide text-cyan-300">X</span>
-          <span className="text-xs text-gray-400">{city.name}</span>
-        </div>
-
         {/* Filter chips - slim single-line row, active state is just a
             filled border + text color, no bg-fill blocks. The "Agents"
             roster tab that used to sit next to Feed was removed - the NPC

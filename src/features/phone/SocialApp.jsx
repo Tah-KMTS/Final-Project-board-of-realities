@@ -5,11 +5,23 @@ import { STOCKS, CRYPTO_NAME } from '../finance/marketData'
 
 // The 5 postable targets - preset picker only (no free text), same design
 // rationale as everywhere else in this file: bounded outcomes, no
-// content-moderation surface.
+// content-moderation surface. Carries both `name` (the full company name,
+// what a real post/ticker-tag would actually show) and `ticker` (the
+// cashtag) - the picker used to show raw tickers only ("GRT"), which read
+// as an abbreviation puzzle rather than a real post target.
 const POST_TARGETS = [
-  ...STOCKS.map((s) => ({ id: s.ticker, label: s.ticker })),
-  { id: 'CRYPTO', label: CRYPTO_NAME },
+  ...STOCKS.map((s) => ({ id: s.ticker, name: s.name, ticker: s.ticker })),
+  { id: 'CRYPTO', name: CRYPTO_NAME, ticker: null },
 ]
+
+// Mirrors postToMarket's own templatedText formula in useGameStore.js
+// exactly (target name + optional ticker + bullish/bearish), so the preview
+// shown here is a true preview of the feed card that will actually post,
+// not a separate guess at the wording.
+function buildPreviewText(post, direction) {
+  const tag = post.ticker ? ` ($${post.ticker})` : ''
+  return `You posted about ${post.name}${tag} — sentiment turning ${direction === 'up' ? 'bullish' : 'bearish'}.`
+}
 
 // Phone's Social/X app. This is the former "Titan Feed" header button's
 // content (AgentInteractionsModal, embedded - see that file's `embedded`
@@ -28,6 +40,8 @@ export default function SocialApp() {
   const [result, setResult] = useState(null)
 
   const alreadyPostedToday = lastPostDay != null && day <= lastPostDay
+  const selectedPost = POST_TARGETS.find((t) => t.id === target) || POST_TARGETS[0]
+  const previewText = buildPreviewText(selectedPost, direction)
 
   const handlePost = () => {
     const res = postToMarket({ target, direction })
@@ -44,25 +58,30 @@ export default function SocialApp() {
       )}
 
       {/* Post composer - two-step preset picker (target, then direction),
-          then a Post button gated by the same day's-cooldown pattern as
-          Temple's Seek Atonement button (disabled={...} + opacity-30). */}
+          a live preview card styled exactly like a real feed post (not a
+          settings form), then a Post button gated by the same day's-cooldown
+          pattern as Temple's Seek Atonement button (disabled={...} +
+          opacity-30). Target buttons show the full company name with a
+          small $TICKER badge rather than a bare ticker - the abbreviation-
+          only version read as a puzzle instead of a real post target. */}
       <div className="mb-2 shrink-0 rounded border border-cyan-500/30 bg-[#0c1024] p-2">
         <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-cyan-400">
           Post to Manipulate Sentiment (20 Energy)
         </div>
 
-        <div className="mb-1.5 flex flex-wrap gap-1">
+        <div className="mb-1.5 flex flex-wrap gap-1.5">
           {POST_TARGETS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTarget(t.id)}
-              className={`rounded border px-2 py-1 text-xs font-bold transition-colors ${
+              className={`rounded border px-2 py-1 text-left text-xs font-bold transition-colors ${
                 target === t.id
                   ? 'border-cyan-400 bg-cyan-400/20 text-cyan-300'
                   : 'border-gray-600 text-gray-400 hover:border-gray-400'
               }`}
             >
-              {t.label}
+              {t.name}
+              {t.ticker && <span className="ml-1 font-normal opacity-70">${t.ticker}</span>}
             </button>
           ))}
         </div>
@@ -76,7 +95,7 @@ export default function SocialApp() {
                 : 'border-gray-600 text-gray-400 hover:border-gray-400'
             }`}
           >
-            📈 Talk Up
+            📈 Bullish Take
           </button>
           <button
             onClick={() => setDirection('down')}
@@ -86,8 +105,23 @@ export default function SocialApp() {
                 : 'border-gray-600 text-gray-400 hover:border-gray-400'
             }`}
           >
-            📉 Talk Down
+            📉 Bearish Take
           </button>
+        </div>
+
+        {/* Live preview - same card shape as a real feed post (avatar,
+            name, body text, engagement icon row), so composing reads as
+            "here's the post you're about to send" rather than a form. */}
+        <div className="mb-1.5 rounded border border-gray-700 bg-cyan-950/10 p-2">
+          <div className="flex items-start gap-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-600 bg-gray-800 text-xs font-bold text-cyan-300">
+              You
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-yellow-300">You</div>
+              <div className="text-sm leading-snug text-gray-200">{previewText}</div>
+            </div>
+          </div>
         </div>
 
         <button

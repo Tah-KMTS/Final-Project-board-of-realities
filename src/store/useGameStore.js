@@ -1116,7 +1116,10 @@ export const useGameStore = create((set, get) => ({
     const stock = isCrypto ? null : w2.stocks.find((s) => s.ticker === target)
     const targetName = isCrypto ? CRYPTO_NAME : (stock?.name || target)
     const bullish = direction === 'up'
-    const templatedText = `You posted about ${targetName}${!isCrypto ? ` (${target})` : ''} — sentiment turning ${bullish ? 'bullish' : 'bearish'}.`
+    // $-prefixed cashtag (not bare parens) to read as an actual post, not a
+    // form summary - SocialApp.jsx's composer preview mirrors this exact
+    // string shape, keep them in sync if this ever changes.
+    const templatedText = `You posted about ${targetName}${!isCrypto ? ` ($${target})` : ''} — sentiment turning ${bullish ? 'bullish' : 'bearish'}.`
     const feedId = `player_post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
     set({
