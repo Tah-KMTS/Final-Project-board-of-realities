@@ -42,7 +42,7 @@ export default function SyndicateOperationsModal({ onClose }) {
           <div>
             <span className="rounded bg-red-950 px-2 py-0.5 text-xs font-bold text-red-300 uppercase tracking-wider">CRIME SYNDICATE & CARTEL UNDERWORLD</span>
             <h2 className="text-2xl font-bold text-red-400 mt-1">🩸 CRIME SYNDICATE RACKETS & MONEY LAUNDERING</h2>
-            <p className="text-xs text-gray-300">Medellin Cartel, Chicago Outfit, National Syndicate, Murder Inc., Five Families, Rothstein, Opium Cartel.</p>
+            <p className="text-xs text-gray-300">Medellin Syndicate, Chicago Outfit, National Syndicate, Murder Inc., Five Families, Griselda Empire, Speakeasy Syndicate.</p>
           </div>
         </div>
 
@@ -132,7 +132,7 @@ export default function SyndicateOperationsModal({ onClose }) {
             <div className="space-y-4">
               <div className="rounded border border-purple-500/40 bg-[#191024] p-4 text-xs">
                 <h3 className="text-sm font-bold text-purple-300 uppercase tracking-wider mb-1">💥 Murder, Inc. Contract Homicides</h3>
-                <p className="text-gray-300">Retain Bugsy Siegel & Albert Anastasia's enforcement squad for a discreet contract homicide ($50,000).</p>
+                <p className="text-gray-300">Retain Lepke Buchalter & Albert Anastasia's enforcement squad for a discreet contract homicide ($50,000).</p>
                 <div className="mt-4 flex gap-3 items-center">
                   <input
                     type="text"

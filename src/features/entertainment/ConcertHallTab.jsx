@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import NamedNpcModal from '../finance/NamedNpcModal'
+import LeverageActionPanel from '../finance/LeverageActionPanel'
 import RhythmGame from './RhythmGame'
 
 // Concert Hall - Dixon Trujillo's entertainment front. Composes an NPC-
@@ -11,10 +12,53 @@ import RhythmGame from './RhythmGame'
 // precedent the Narcotics tab established, just applied here instead of
 // Sports Stadium (which is still a stub - see EntertainmentComplexModal.jsx).
 //
-// Zero crime risk by design: no notoriety/wantedLevel/jail interaction at
-// all. Dixon carries the legal exposure (the show is his laundering cover,
-// a good performance is what lets him pad the invoice around it without
-// suspicion) - not the player, who is just the hired act.
+// The Book-a-Show rhythm game itself is zero crime risk by design: no
+// notoriety/wantedLevel/jail interaction at all. Dixon carries the legal
+// exposure there (the show is his laundering cover, a good performance is
+// what lets him pad the invoice around it without suspicion) - not the
+// player, who is just the hired act.
+//
+// The Leverage panel below it is a SEPARATE, deliberately riskier action -
+// see NIGHTCLUB_DUES_STAKES - added to give griselda_empire standing (see
+// syndicateStandingEngine.js) a path upward. Before this, griselda_empire
+// had no branded action anywhere in the game while being on the receiving
+// end of BOTH rivalry pairs (medellin_cartel and national_syndicate each
+// apply -4 to her on every completed job of their own - see RIVALRY_PAIRS
+// in syndicateStandingEngine.js), making her standing strictly
+// net-negative and her Boss-tier content permanently unreachable. Dixon
+// Trujillo is the correct venue for that fix, not a stretch: his syndicate.js
+// entry is syndicateId 'griselda_empire' and his specialty is verbatim
+// "Nightclub Extortion & Entertainment Fronts", with a bio built entirely
+// around collecting weekly nightclub/venue dues ("ensured every nightclub,
+// bar, and gaming den paid weekly dues to La Madrina"). This tab is
+// literally his venue in-game already.
+const NIGHTCLUB_DUES_STAKES = {
+  target: 82,
+  suspicionCap: 100,
+  payout: 780,
+  // Kept at the same "street-tier" shape as Crime Alley/Black Market/Call
+  // Center Ops (districtBuildings.js) rather than the Boss-tier shape
+  // (Hoover/McNamara/Vanderbilt), since this is explicitly a street-level
+  // extortion racket, not a federal-scale operation: notoriety stays at 0
+  // and there's no asset seizure or jail chance on a failed collection run,
+  // matching that same tier's precedent exactly.
+  notorietyIncreaseOnFail: 0,
+  wantedIncreaseOnFail: 2,
+  reputationDeltaOnFail: -3,
+  assetSeizureOnFail: 0,
+  jailChanceOnFail: 0,
+  energyCost: 17,
+  baseSuccessChance: 0.55,
+  syndicateId: 'griselda_empire',
+  // inHomeTurf is false: griselda_empire's territory is "Commercial District
+  // - Nightlife" (syndicate.js/crimeSyndicates.js), but the Entertainment
+  // Complex physically sits in the Industrial District (OverworldScene.js's
+  // FINANCE_BUILDING_DEFS has entertainmentComplex at zone: 'industry', and
+  // this modal's own header literally reads "Industrial District") - a real
+  // mismatch, not an ambiguous case, so no home-turf bonus applies here even
+  // though this is Dixon's own signature racket.
+  inHomeTurf: false,
+}
 
 const SONGS = [
   { id: 'openMic', label: 'Open Mic', notes: 12, bpm: 90, entry: 20, energy: 5 },
@@ -75,6 +119,19 @@ export default function ConcertHallTab() {
           <div className="border-2 border-fuchsia-900 bg-[#170a1e]">
             <NamedNpcModal npcId="dixon" embedded />
           </div>
+          <LeverageActionPanel
+            accentBorderClass="border-fuchsia-500"
+            teaser="Booking fees and bottle service pad Dixon's real ledger. The dues run underneath it - every venue on the strip owes its weekly cut whether or not a show is on the bill tonight."
+            buttonLabel="Collect Weekly Dues"
+            leverage={{
+              title: 'Weekly Venue Dues',
+              markName: 'A Club Owner Behind On Payments',
+              markDescription:
+                "He's a week late on the Griselda cut and has a story ready about a slow month. Dixon doesn't want excuses, he wants the envelope.",
+              buttonLabel: 'Squeeze The Envelope',
+              stakes: NIGHTCLUB_DUES_STAKES,
+            }}
+          />
           <button
             onClick={() => setScreen('songSelect')}
             className="w-full border-2 border-fuchsia-400 py-2 text-sm font-bold text-fuchsia-300 hover:bg-fuchsia-400 hover:text-black"

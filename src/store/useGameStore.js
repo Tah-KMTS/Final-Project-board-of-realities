@@ -24,6 +24,18 @@ import { rollHeadline } from '../features/finance/newsHeadlines'
 import { initializeAgentsState, simulateDailyAgentInteractions, ARCHETYPE_PROFILES } from '../features/finance/agentEngine'
 import { generateEventNarration } from '../features/finance/aiNarrator'
 import { calculateAtonementCost } from '../features/temple/templeEngine'
+import {
+  applyStandingEvent,
+  applyStandingDecayTick,
+  getUnlockedRankTier,
+  getHomeTurfPayoutMultiplier,
+  getHomeTurfBailDiscountMultiplier,
+  getHomeTurfJailChanceReduction,
+  getRivalEncounterChance,
+  getRivalIds,
+  isHomeTurf,
+  SYNDICATE_IDS,
+} from '../features/agents/syndicateStandingEngine'
 import { initializeGovernmentState, simulateGovernmentDailyTick, resolvePresidentialElection, triggerPresidentialElection } from '../features/government/governmentEngine'
 import { buildMasterAgentRegistry } from '../features/agents/agentRegistry'
 import { simulateDynamicSchedules } from '../features/agents/dynamicScheduleEngine'
@@ -204,6 +216,28 @@ function createDefaultState() {
       // Temple (see buyTempleBlessing/getEffectiveLuck) - does not stack,
       // buying again while active just refreshes expiresOnDay.
       templeBlessing: { active: false, bonus: 3, expiresOnDay: null },
+      // Per-syndicate Standing (0-100, default 0) for the 7 canonical crime
+      // syndicates (see syndicateStandingEngine.js) - persistent-but-mutable
+      // like loanBalance above, NOT a sticky one-way ladder like
+      // netWorthMilestones and NOT a timed buff like templeBlessing.
+      // syndicateLastInteractionDay drives the 3-day-no-interaction decay
+      // tick in endDay() below. Both are plain id->number maps rather than
+      // pre-seeded with all 7 ids at 0 - every read goes through
+      // `state.world2.syndicateStanding?.[id] || 0`
+      // (getSyndicateStanding selector below), so a save from before these
+      // fields existed loads as "all zero" instead of crashing.
+      syndicateStanding: {},
+      syndicateLastInteractionDay: {},
+      // Boss-tier signature jobs (Escobar's Air-Drop Route Planner, Lansky's
+      // Offshore Audit, Lepke's Contract Deduction - see EscobarAirDropModal
+      // .jsx/OffshoreAuditModal.jsx/ContractDeductionModal.jsx) each gate at
+      // standing >= RANK_GATE.boss AND a once-per-in-game-day-per-syndicate
+      // cooldown - the cooldown, not difficulty, is what stops grinding one
+      // of these for repeated $10-12k paydays. Plain syndicateId->day map,
+      // same "absent key = never done" convention as syndicateLastInteractionDay
+      // above, so a save from before this field existed loads as "every job
+      // available today" instead of crashing (see isBossJobAvailableToday).
+      bossJobLastDay: {},
       agentsState: initializeAgentsState(),
       agentEventFeed: [],
       governmentState: initializeGovernmentState(),
@@ -891,15 +925,37 @@ export const useGameStore = create((set, get) => ({
   // payout/notoriety/wanted/asset-seizure/jail consequences as the RNG-gated
   // crimes below. executeCrime (unchanged behavior) now just rolls its own
   // isSuccess and hands off to this.
-  applyCrimeOutcome: ({ success, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, assetSeizureOnFail, jailChanceOnFail = 0 }) => {
+  // syndicateId/inHomeTurf are OPTIONAL and additive: every pre-existing
+  // crime action (LeverageMeter negotiations, VaultCrackModal, money
+  // laundering, vehicle theft, etc.) doesn't know which of the 7 named
+  // syndicates it belongs to, so it simply omits these and gets EXACTLY the
+  // old behavior back. Only a caller that DOES know it's running a job for
+  // one of the 7 canonical syndicates (see syndicateStandingEngine.js) opts
+  // into the standing/territory effects below by passing them.
+  applyCrimeOutcome: ({ success, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, assetSeizureOnFail, jailChanceOnFail = 0, syndicateId = null, inHomeTurf = false }) => {
     const state = get()
     const effectiveLuck = get().getEffectiveLuck()
+    const homeStanding = syndicateId ? get().getSyndicateStanding(syndicateId) : 0
 
     if (success) {
-      state.addCash(payout)
-      return { success: true, payout, message: `Success! You got away with $${payout.toLocaleString()}.` }
+      // Home-turf payout multiplier: +50% max at standing 100. Never
+      // applies off your own syndicate's turf.
+      const finalPayout = syndicateId && inHomeTurf
+        ? Math.round(payout * getHomeTurfPayoutMultiplier(homeStanding))
+        : payout
+      state.addCash(finalPayout)
+      if (syndicateId) get().recordSyndicateJobOutcome(syndicateId, 'success')
+      return { success: true, payout: finalPayout, message: `Success! You got away with $${finalPayout.toLocaleString()}.` }
     } else {
       let failMsg = 'You were caught!'
+      // CRITICAL BALANCE CONSTRAINT (see syndicateStandingEngine.js's
+      // getHomeTurfJailChanceReduction comment for the full rationale):
+      // syndicate standing is only ever allowed to touch payout multiplier,
+      // bail cost, and jail *chance* elsewhere in this function. It must
+      // NEVER discount the two lines below - heat keeps accumulating on
+      // every failure no matter how friendly you are with the local
+      // syndicate, or a maxed relationship becomes a risk-free money
+      // printer that can also never gain a Wanted level.
       if (notorietyIncreaseOnFail) state.addNotoriety(notorietyIncreaseOnFail)
       if (wantedIncreaseOnFail) state.addWantedLevel(wantedIncreaseOnFail)
 
@@ -915,23 +971,35 @@ export const useGameStore = create((set, get) => ({
       // Jail roll happens after every other fail-path effect above, so it
       // reads wantedLevel AFTER this fail's own addWantedLevel call already
       // landed - re-read via get(), not the `state` snapshot from function
-      // entry.
+      // entry. Home-turf standing shaves up to -0.2 off this chance at
+      // standing 100 (see getHomeTurfJailChanceReduction) - it only ever
+      // reduces jail *chance*, never the heat added above.
       const wantedLevelAfterFail = get().wantedLevel
+      const homeTurfJailReduction = syndicateId ? getHomeTurfJailChanceReduction(homeStanding, inHomeTurf) : 0
       const jailChance = Math.max(0, Math.min(0.9,
-        jailChanceOnFail + wantedLevelAfterFail * 0.08 - (effectiveLuck - 5) * 0.015
+        jailChanceOnFail + wantedLevelAfterFail * 0.08 - (effectiveLuck - 5) * 0.015 - homeTurfJailReduction
       ))
       let jailed = false
       if (jailChance > 0 && Math.random() < jailChance) {
-        get().sendToJail()
+        get().sendToJail({
+          bailDiscountMultiplier: syndicateId && inHomeTurf ? getHomeTurfBailDiscountMultiplier(homeStanding) : 1,
+        })
         jailed = true
         failMsg += ' You were arrested and thrown in jail!'
+      }
+
+      if (syndicateId) {
+        get().recordSyndicateJobOutcome(syndicateId, jailed ? 'failJail' : 'failNoJail')
       }
 
       return { success: false, fine, jailed, message: failMsg }
     }
   },
 
-  executeCrime: ({ type, baseSuccessChance, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, energyCost, assetSeizureOnFail, jailChanceOnFail = 0 }) => {
+  // syndicateId/inHomeTurf just pass straight through to applyCrimeOutcome
+  // (see its own comment) - optional, so any existing caller that doesn't
+  // know which of the 7 named syndicates a job belongs to is unaffected.
+  executeCrime: ({ type, baseSuccessChance, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, energyCost, assetSeizureOnFail, jailChanceOnFail = 0, syndicateId = null, inHomeTurf = false }) => {
     const state = get()
     if (!state.spendEnergy(energyCost)) return { success: false, reason: 'Not enough energy' }
 
@@ -951,18 +1019,111 @@ export const useGameStore = create((set, get) => ({
       wantedIncreaseOnFail,
       assetSeizureOnFail,
       jailChanceOnFail,
+      syndicateId,
+      inHomeTurf,
+    })
+  },
+
+  // --- Capital Syndicate: Per-Syndicate Standing ------------------------------
+  // Thin call-throughs into syndicateStandingEngine.js's pure functions - see
+  // that file for the full rivalry-graph/decay/balance-constraint reasoning.
+
+  getSyndicateStanding: (syndicateId) => get().world2.syndicateStanding?.[syndicateId] || 0,
+
+  // Exposes the 33/66 rank-gate thresholds through one selector instead of
+  // scattering those magic numbers across every place that needs to know
+  // whether Underboss/Boss content is unlocked for a given syndicate.
+  getSyndicateRankTier: (syndicateId) => getUnlockedRankTier(get().getSyndicateStanding(syndicateId)),
+
+  getSyndicateHomeTurfPayoutMultiplier: (syndicateId) => getHomeTurfPayoutMultiplier(get().getSyndicateStanding(syndicateId)),
+
+  getSyndicateHomeTurfBailDiscount: (syndicateId) => getHomeTurfBailDiscountMultiplier(get().getSyndicateStanding(syndicateId)),
+
+  getSyndicateIsHomeTurf: (syndicateId, currentLocation) => isHomeTurf(syndicateId, currentLocation),
+
+  // Hostile-turf rival-encounter chance for running a job on `turfSyndicateId`'s
+  // ground while working for `actingSyndicateId`. Returns 0 outside an actual
+  // rivalry (own turf, or a syndicate with no beef with the turf owner) - see
+  // the 3-pair rivalry graph in syndicateStandingEngine.js.
+  getSyndicateRivalEncounterChance: (actingSyndicateId, turfSyndicateId) => {
+    if (!turfSyndicateId || turfSyndicateId === actingSyndicateId) return 0
+    if (!getRivalIds(actingSyndicateId).includes(turfSyndicateId)) return 0
+    return getRivalEncounterChance(get().getSyndicateStanding(turfSyndicateId))
+  },
+
+  // Records one job outcome against `syndicateId`'s standing (+8/-3/-8, see
+  // STANDING_DELTA), cascading the -4 rivalry hit to its rival(s) on any
+  // completion (success or either failure flavor - NOT a walk-away). Also
+  // stamps syndicateLastInteractionDay, which is what the endDay() decay
+  // tick below reads. outcomeType is one of 'success' | 'failNoJail' |
+  // 'failJail' | 'walkAway'.
+  recordSyndicateJobOutcome: (syndicateId, outcomeType) => {
+    if (!syndicateId || !SYNDICATE_IDS.includes(syndicateId)) return
+    const state = get()
+    const { standing, lastInteractionDay } = applyStandingEvent(
+      state.world2.syndicateStanding || {},
+      state.world2.syndicateLastInteractionDay || {},
+      syndicateId,
+      outcomeType,
+      state.day
+    )
+    set({
+      world2: { ...state.world2, syndicateStanding: standing, syndicateLastInteractionDay: lastInteractionDay },
+    })
+  },
+
+  // Convenience wrapper for "accepted a syndicate job, then backed out
+  // before resolving it" - the one outcome applyCrimeOutcome never produces
+  // on its own, since it always rolls all the way to success/fail.
+  declineSyndicateJob: (syndicateId) => get().recordSyndicateJobOutcome(syndicateId, 'walkAway'),
+
+  // --- Capital Syndicate: Boss-tier job cooldown ------------------------------
+  // Once-per-in-game-day-per-syndicate gate for the 3 Boss-tier signature jobs
+  // (see world2.bossJobLastDay's own comment above for the full list/rationale).
+  // Deliberately separate from the 33/66 standing gate (RANK_GATE.boss) -
+  // standing decides WHETHER a job is ever offered, this decides whether
+  // TODAY'S slot is still open. Both must pass before a job's briefing screen
+  // lets the player commit (see BossJobGate.jsx).
+  isBossJobAvailableToday: (syndicateId) => {
+    const state = get()
+    const lastDay = state.world2.bossJobLastDay?.[syndicateId]
+    return lastDay == null || lastDay < state.day
+  },
+
+  // Stamped exactly once per job attempt, at the same "locked at start"
+  // moment each job locks in its stat-derived budgets/attempts (mirrors
+  // VaultCrackModal reading INT once via getState() at puzzle start) - win,
+  // lose, soft-abort, and walk-away all consume today's one shot alike.
+  // Retrying WITHIN the same open modal session after that (e.g. Offshore
+  // Audit's "Try Again", Air-Drop's "Fly Another Route") is intentionally
+  // NOT re-blocked here - it's bounded by the energy economy instead (each
+  // retry re-spends the job's energyCost), the same soft limit VaultCrackModal's
+  // own unlimited "Back to Tier Select" already relies on. What this cooldown
+  // actually closes off is the real grind vector: close the modal (or end the
+  // day) and reopen for a second free run at today's job.
+  markBossJobAttempted: (syndicateId) => {
+    const state = get()
+    set({
+      world2: {
+        ...state.world2,
+        bossJobLastDay: { ...(state.world2.bossJobLastDay || {}), [syndicateId]: state.day },
+      },
     })
   },
 
   // --- Jail / Escape ---------------------------------------------------------
 
-  sendToJail: () => {
+  // bailDiscountMultiplier defaults to 1 (no discount) so every existing
+  // caller (jail escape flows, or applyCrimeOutcome when syndicateId is
+  // omitted) is unaffected. Only applyCrimeOutcome's home-turf branch passes
+  // anything else - see getHomeTurfBailDiscountMultiplier.
+  sendToJail: ({ bailDiscountMultiplier = 1 } = {}) => {
     const state = get()
     const wantedLevelAfterFail = state.wantedLevel
     const rawBailCost = Math.min(
       calculateAtonementCost(state.wantedLevel, state.notoriety, state.cash) * 2,
       state.cash * 0.4
-    )
+    ) * bailDiscountMultiplier
     set({
       jail: {
         inJail: true,
@@ -1031,22 +1192,49 @@ export const useGameStore = create((set, get) => ({
     return { success: false }
   },
 
-  // Single committed run through 4 cosmetic segments (jailMaze zone) -
-  // free (no cash cost, unlike the bribe), highest variance, and the only
-  // jail-failure path that raises wantedLevel. segmentIndex is 0-3; the
-  // caller (WorldScreen, via each jailMaze checkpoint interactable) invokes
-  // this once per checkpoint reached and stops advancing on the first
-  // failure. jail.mazeProgress is the store-authoritative "next expected
-  // segment" - an out-of-order call (e.g. the player somehow reaching a
-  // later checkpoint's rect first) is silently ignored rather than resolved,
-  // so checkpoints can't be skipped or re-rolled out of sequence.
-  // mazeAttemptedToday locks out a second run until the sentence ticks over
-  // (see the End Day handling below).
-  attemptMazeSegment: (segmentIndex) => {
+  // Street-level bribe offered at a police stop (PoliceStopModal,
+  // financePoliceEncounter), BEFORE an arrest ever happens - so unlike
+  // attemptJailBribe there's no bailCost yet to price the roll's bribeRatio
+  // against. Per the "real arrest pipeline" spec: reuse attemptJailBribe's
+  // exact 2d6 + bonuses roll verbatim, but price the bribe off wantedLevel
+  // (500 * wantedLevel^2) and compute bribeRatio against that same figure
+  // instead of a bailCost snapshot. Cash is spent regardless of outcome -
+  // same "the money's gone either way" contract as attemptJailBribe. On
+  // success the encounter just ends (no Wanted change - they were never
+  // caught on the books). On failure the caller escalates into combat; no
+  // extra Wanted penalty is applied here since the player is already caught.
+  attemptStreetBribe: (amount) => {
     const state = get()
-    if (!state.jail?.inJail || state.jail.mazeAttemptedToday) return { success: false }
-    if (segmentIndex !== (state.jail.mazeProgress || 0)) return { success: false, outOfOrder: true }
+    if (state.cash < amount) return { success: false, error: 'cash' }
 
+    set({ cash: state.cash - amount })
+
+    const cost = 500 * state.wantedLevel * state.wantedLevel
+    const streetwise = state.player.stats.streetwise || 5
+    const effectiveLuck = get().getEffectiveLuck()
+    const targetNumber = 8 + state.wantedLevel + Math.floor(state.notoriety / 25)
+    const bribeRatio = Math.min(1, amount / Math.max(1, cost))
+    const bribeBonus = Math.round(bribeRatio * 4)
+    const streetwiseBonus = Math.floor(streetwise / 10)
+    const luckBonus = Math.floor((effectiveLuck - 5) / 2)
+    const roll = (1 + Math.floor(Math.random() * 6)) + (1 + Math.floor(Math.random() * 6))
+      + bribeBonus + streetwiseBonus + luckBonus
+
+    return { success: roll >= targetNumber }
+  },
+
+  // Difficulty knob for the 4 jailMaze checkpoints' real input challenges
+  // (see features/jail/JailMazeMinigame.jsx and its four segment
+  // components). This computes EXACTLY the same evadeChance the old
+  // coin-flip used - same AGI/streetwise/effective-Luck/wantedLevel inputs,
+  // same rising per-segment difficulty - and just inverts it into a 0..1
+  // "how hard should the minigame be" number (~0.15-0.85). That's it. The
+  // number only ever feeds difficultyToParams() to size a sweep zone/pick a
+  // sequence length/etc; it is never compared against Math.random()
+  // anywhere downstream. The minigame's own pass/fail is what decides the
+  // checkpoint now - see attemptMazeSegment's playerSucceeded param below.
+  getMazeSegmentDifficulty: (segmentIndex) => {
+    const state = get()
     const agi = state.player.stats.AGI || 5
     const streetwise = state.player.stats.streetwise || 5
     const effectiveLuck = get().getEffectiveLuck()
@@ -1054,8 +1242,31 @@ export const useGameStore = create((set, get) => ({
       0.65 - segmentIndex * 0.08 + (agi - 5) * 0.03 + (streetwise - 5) * 0.01
         + (effectiveLuck - 5) * 0.02 - state.wantedLevel * 0.03
     ))
+    return 1 - evadeChance
+  },
 
-    if (Math.random() < evadeChance) {
+  // Single committed run through 4 checkpoints (jailMaze zone), each now a
+  // real input challenge (see JailMazeMinigame.jsx) - free (no cash cost,
+  // unlike the bribe), highest variance, and the only jail-failure path
+  // that raises wantedLevel. segmentIndex is 0-3; the caller (WorldScreen,
+  // via each jailMaze checkpoint interactable) resolves that segment's
+  // minigame FIRST and only then calls this with the minigame's own
+  // pass/fail as playerSucceeded - this function no longer rolls anything
+  // of its own, it purely applies consequences. Every branch below
+  // (advance mazeProgress, pay out on the final segment, or the failure
+  // penalty) is byte-identical to the old Math.random()-driven version;
+  // only the source of the boolean changed. jail.mazeProgress is still the
+  // store-authoritative "next expected segment" - an out-of-order call
+  // (e.g. the player somehow reaching a later checkpoint's rect first) is
+  // silently ignored rather than resolved, so checkpoints can't be skipped
+  // or re-rolled out of sequence. mazeAttemptedToday locks out a second run
+  // until the sentence ticks over (see the End Day handling below).
+  attemptMazeSegment: (segmentIndex, playerSucceeded) => {
+    const state = get()
+    if (!state.jail?.inJail || state.jail.mazeAttemptedToday) return { success: false }
+    if (segmentIndex !== (state.jail.mazeProgress || 0)) return { success: false, outOfOrder: true }
+
+    if (playerSucceeded) {
       if (segmentIndex >= 3) {
         const cashReward = Math.min(Math.round(state.jail.bailCost * 0.5), 5000)
         set({
@@ -1495,12 +1706,23 @@ export const useGameStore = create((set, get) => ({
       ? { active: false, bonus: 3, expiresOnDay: null }
       : blessing || { active: false, bonus: 3, expiresOnDay: null }
 
+    // Syndicate Standing decay: -1 per 3 days of zero interaction with a
+    // syndicate, floor 0, only for syndicates currently above 0 (see
+    // applyStandingDecayTick in syndicateStandingEngine.js). Ticks against
+    // nextDay (the day this endDay() call is advancing INTO), same
+    // convention templeBlessing's expiry check above uses.
+    const syndicateStanding = applyStandingDecayTick(
+      state.world2.syndicateStanding || {},
+      state.world2.syndicateLastInteractionDay || {},
+      nextDay
+    )
+
     set({
       day: nextDay,
       worldClock,
       newsHeadline: rollHeadline(),
       player: { ...state.player, energy: wasJailed ? 0 : state.player.maxEnergy },
-      world2: { ...state.world2, loanBalance: accruedLoanBalance, templeBlessing },
+      world2: { ...state.world2, loanBalance: accruedLoanBalance, templeBlessing, syndicateStanding },
     })
     get().tickFinanceMarket()
 

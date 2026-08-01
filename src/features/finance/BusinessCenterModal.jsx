@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import NamedNpcModal from './NamedNpcModal'
 import InteractiveLocationModal from '../world/InteractiveLocationModal'
+import LeverageActionPanel from './LeverageActionPanel'
 
 // Building consolidation (Phase 2): Buffett HQ (Biffle Tower) + Vanderbilt
 // Rail Co. + Rusk Industries (Musk) + Oaktree Cycle Capital (Howard Marks) +
@@ -17,6 +18,49 @@ const TABS = [
   { id: 'howardmarks', label: 'Howard Marks' },
   { id: 'jobs', label: 'Jobs' },
 ]
+
+// The Business Center's one skill-checked criminal action: a quiet
+// stock-collusion / insider-arrangement with Vanderbilt - "The Commodore"
+// historically built his fortune on rate-fixing cartels with rival rail
+// barons, so a modern insider arrangement is squarely in character (unlike
+// Buffett/Jobs/Musk, whose bios lean value-investing/product/engineering,
+// not price-fixing). This is the highest-stakes of the three new hub
+// actions (Business Center / Government Building / Industrial Zone): the
+// mark here is a peer, not a victim or a target, so failure isn't "getting
+// caught shaking someone down" - it's a leaked arrangement, hence the
+// biggest reputationDeltaOnFail of the three and a real (if not dominant)
+// jailChanceOnFail for securities fraud. Numbers continue the Underground
+// District's established scaling (payout/target/energyCost up,
+// baseSuccessChance down as the score gets bigger) one rung above that
+// tier's $1,200 ceiling, and comfortably under financeNpcAction's $5,000
+// extort ceiling (see useGameStore.js) since this isn't even the riskiest
+// action in the game.
+//
+// Syndicate branding pass (see syndicateStandingEngine.js/syndicate.js):
+// national_syndicate. Meyer Lansky's whole bio is corporate/financial-skim
+// crime run through legitimate-looking channels ("developed a global
+// gambling empire... pioneering offshore Swiss banking and corporate skim
+// operations") - a quiet insider rate-fixing arrangement with a fellow
+// financial titan is squarely his register, more so than any of the other
+// remaining syndicates' bios (bootlegging, narcotics, contract killing,
+// nightclub rackets). inHomeTurf is true: national_syndicate's territory is
+// "Financial District - Vaults" (crimeSyndicates.js), and this building is
+// explicitly labeled "Financial District" (see the header below) - a real
+// district-prefix match per isHomeTurf(), not an assumed one.
+const VANDERBILT_ARRANGEMENT_STAKES = {
+  target: 130,
+  suspicionCap: 100,
+  payout: 3000,
+  notorietyIncreaseOnFail: 15,
+  wantedIncreaseOnFail: 2,
+  reputationDeltaOnFail: -8,
+  assetSeizureOnFail: 0.12,
+  jailChanceOnFail: 0.15,
+  energyCost: 30,
+  baseSuccessChance: 0.42,
+  syndicateId: 'national_syndicate',
+  inHomeTurf: true,
+}
 
 export default function BusinessCenterModal({ onClose }) {
   const [tab, setTab] = useState('buffett')
@@ -46,7 +90,24 @@ export default function BusinessCenterModal({ onClose }) {
 
         <div className="mb-4 max-h-[520px] overflow-y-auto">
           {tab === 'buffett' && <NamedNpcModal npcId="buffett" embedded />}
-          {tab === 'vanderbilt' && <NamedNpcModal npcId="vanderbilt" embedded />}
+          {tab === 'vanderbilt' && (
+            <>
+              <NamedNpcModal npcId="vanderbilt" embedded />
+              <LeverageActionPanel
+                accentBorderClass="border-slate-400"
+                teaser="A separate matter from the office pleasantries. The Commodore still likes an arrangement over a long lunch - nothing on paper, nothing traced back."
+                buttonLabel="Discuss a Quiet Arrangement"
+                leverage={{
+                  title: 'A Quiet Arrangement',
+                  markName: 'Cornelius Vanderbilt',
+                  markDescription:
+                    "He built the railroads on rate-fixing handshakes with men he called rivals in public. He's amenable to another one - if you can read the room before he decides you can't be trusted with it.",
+                  buttonLabel: 'Push The Arrangement',
+                  stakes: VANDERBILT_ARRANGEMENT_STAKES,
+                }}
+              />
+            </>
+          )}
           {tab === 'musk' && <NamedNpcModal npcId="musk" embedded />}
           {tab === 'howardmarks' && <NamedNpcModal npcId="howardmarks" embedded />}
           {/* Jobs keeps his Apple Glass Design Studio prototype-testing action

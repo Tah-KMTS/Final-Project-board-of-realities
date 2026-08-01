@@ -51,6 +51,13 @@ export default function RiftCombatModal({
   // loss knocks the player out via takeFinanceCombatDamage() instead of
   // wiping the save.
   lethal = true,
+  // Wanted-level delta applied on a variant==='police' win, shared by both
+  // Hunter's Rift (policeEncounter) and Finance (financePoliceEncounter) via
+  // this same modal. Hunter's call site passes -5 (its original "beat the
+  // cops, heat is fully gone" behavior, preserved on purpose); Finance's
+  // fight-now/escalated-from-PoliceStopModal path uses the -1 default so
+  // winning one fight doesn't erase all Wanted heat the way a full reset did.
+  wantedRewardOnWin = -1,
   onClose,
   onVictory,
   onDefeat,
@@ -146,8 +153,8 @@ export default function RiftCombatModal({
     if (newMonsterHp <= 0) {
       appendLog(`${monster.name} is defeated!`)
       if (variant === 'police') {
-        appendLog('The Hunter Cops retreat. Your Wanted Level drops.')
-        setWantedLevel(-5)
+        appendLog('The police retreat. Your Wanted Level drops.')
+        setWantedLevel(wantedRewardOnWin)
       } else {
         grantVictoryRewards()
       }
@@ -224,7 +231,7 @@ export default function RiftCombatModal({
     if (newMonsterHp <= 0) {
       appendLog(`${monster.name} is obliterated!`)
       if (variant === 'police') {
-        setWantedLevel(-5)
+        setWantedLevel(wantedRewardOnWin)
       } else {
         grantVictoryRewards()
       }

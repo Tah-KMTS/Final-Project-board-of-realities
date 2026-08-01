@@ -20,11 +20,13 @@ import UnderworldModal from '../features/finance/UnderworldModal'
 import BusinessCenterModal from '../features/finance/BusinessCenterModal'
 import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal'
 import IndustrialZoneModal from '../features/finance/IndustrialZoneModal'
+import PoliceStopModal from '../features/finance/PoliceStopModal'
 import TempleModal from '../features/temple/TempleModal'
 import WharfModal from '../features/wharf/WharfModal'
 import EntertainmentComplexModal from '../features/entertainment/EntertainmentComplexModal'
 import JailEscapeModal from '../features/jail/JailEscapeModal'
 import JailMazeModal from '../features/jail/JailMazeModal'
+import JailMazeMinigame from '../features/jail/JailMazeMinigame'
 import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
 import ScotusCourtroomModal from '../features/government/ScotusCourtroomModal'
 import IrsHearingModal from '../features/government/IrsHearingModal'
@@ -41,7 +43,7 @@ import HitmanContractModal from '../features/world/HitmanContractModal'
 import { JAPAN_CITIES } from '../features/world/japanCities'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
-import { generateBodyguardMonster, generateStreetTargetMonster, generateSwatSquad } from '../features/finance/financeNpcs'
+import { generateBodyguardMonster, generateStreetTargetMonster } from '../features/finance/financeNpcs'
 import { getAnyCharacter } from '../features/agents/characterLookup'
 import YugiEncounterModal from '../features/yugioh/YugiEncounterModal'
 import KaibaCorpModal from '../features/yugioh/KaibaCorpModal'
@@ -249,17 +251,30 @@ export default function WorldScreen() {
         }
         return
       }
-      // jailMaze checkpoints resolve immediately via the store (no separate
-      // "walk up, then choose an action" step like the guard desk) - an
-      // out-of-order segmentIndex (see attemptMazeSegment's mazeProgress
-      // guard) is silently ignored rather than shown as a result.
+      // jailMaze checkpoints open a real input challenge (JailMazeMinigame)
+      // rather than resolving instantly - the coin-flip that used to sit
+      // behind this event is gone. The out-of-order guard (see
+      // attemptMazeSegment's mazeProgress check in useGameStore.js) is
+      // re-checked here up front too, so a stale/duplicate checkpoint event
+      // never even opens the minigame modal.
       if (payload.type === 'jailMazeCheckpoint') {
-        const result = useGameStore.getState().attemptMazeSegment(payload.segmentIndex)
-        if (result.outOfOrder) {
+        const jailState = useGameStore.getState().jail
+        const outOfOrder =
+          !jailState?.inJail ||
+          jailState.mazeAttemptedToday ||
+          payload.segmentIndex !== (jailState.mazeProgress || 0)
+        if (outOfOrder) {
           bridge.emit('resumeScene')
           return
         }
-        setActiveModal({ type: 'jailMazeResult', ...result, segmentIndex: payload.segmentIndex })
+        // getMazeSegmentDifficulty computes the exact same evadeChance the
+        // old coin-flip used (AGI/streetwise/effective Luck/wantedLevel,
+        // rising per segment) and inverts it into a 0..1 "how hard should
+        // the minigame be" number - it is NOT itself rolled against here or
+        // anywhere downstream. The minigame's own pass/fail decides the
+        // checkpoint (see JailMazeMinigame.jsx).
+        const difficulty = useGameStore.getState().getMazeSegmentDifficulty(payload.segmentIndex)
+        setActiveModal({ type: 'jailMazeMinigame', segmentIndex: payload.segmentIndex, difficulty })
         return
       }
       // Save Point and the KC Tower Security Gate resolve immediately
@@ -476,6 +491,23 @@ export default function WorldScreen() {
       {activeModal?.type === 'jail' && (
         <JailEscapeModal onClose={closeModal} onVictory={() => bridgeRef.current.emit('exitJail')} />
       )}
+      {activeModal?.type === 'jailMazeMinigame' && (
+        <JailMazeMinigame
+          segmentIndex={activeModal.segmentIndex}
+          difficulty={activeModal.difficulty}
+          onResolved={(result) => {
+            if (!result) {
+              // Walk-away before the first input registered - free, no
+              // store call ever happened, no consequence. Bounces back to
+              // the jailMaze zone exactly like never having interacted
+              // with the checkpoint (matches VaultCrackModal's Walk Away).
+              closeModal()
+              return
+            }
+            setActiveModal({ type: 'jailMazeResult', ...result })
+          }}
+        />
+      )}
       {activeModal?.type === 'jailMazeResult' && (
         <JailMazeModal
           result={activeModal}
@@ -600,6 +632,10 @@ export default function WorldScreen() {
           difficulty={activeModal.wantedLevel}
           variant="police"
           monsterOverride={generateHunterPolice(activeModal.wantedLevel)}
+          // Preserve Hunter's Rift's original "beat the cops, Wanted resets
+          // to 0" behavior - the "real arrest pipeline" nerf to -1 is scoped
+          // to Finance's financePoliceEncounter/PoliceStopModal only.
+          wantedRewardOnWin={-5}
           onClose={closeModal}
         />
       )}
@@ -777,13 +813,7 @@ export default function WorldScreen() {
         />
       )}
       {activeModal?.type === 'financePoliceEncounter' && (
-        <RiftCombatModal
-          difficulty={activeModal.wantedLevel}
-          variant="police"
-          lethal={false}
-          monsterOverride={generateSwatSquad(activeModal.wantedLevel)}
-          onClose={closeModal}
-        />
+        <PoliceStopModal wantedLevel={activeModal.wantedLevel} onClose={closeModal} />
       )}
 
       {/* World 3 */}

@@ -64,7 +64,11 @@ export default function NarcoticsTradeModal({ onClose }) {
             <div>
               <span className="rounded bg-red-950 px-2 py-0.5 text-xs font-bold text-red-300 uppercase tracking-wider">MEDELLIN CARTEL & SYNDICATE CONTRABAND</span>
               <h2 className="text-2xl font-bold text-red-400 mt-1">🌿 CARTEL NARCOTICS TRADE</h2>
-              <p className="text-xs text-gray-300">Brokered by Pablo Escobar & Griselda Blanco (The Black Widow).</p>
+              {/* Was 'Brokered by Pablo Escobar & Griselda Blanco (The Black Widow)' -
+                  Blanco heads her own syndicate (griselda_empire), not Escobar's Medellin
+                  Cartel; see the per-item supplier line below for each substance's actual
+                  broker (see narcoticsEngine.js attribution note). */}
+              <p className="text-xs text-gray-300">Suppliers vary by substance - see each listing below.</p>
             </div>
           </div>
         </div>

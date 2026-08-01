@@ -4,13 +4,53 @@ import { useGameStore } from '../../store/useGameStore'
 // Bonded Cargo Pier ("the wharf") - Cast & Reel fishing + manifest-fraud.
 // Self-contained like Slots.jsx/RussianRoulette.jsx: owns its own
 // addCash/spendEnergy calls, no onVictory/onDefeat handshake, just onClose.
-// Pure probability, resolve-then-animate (same shape as Slots' spin) - no
-// real-time input.
+//
+// The bite check (did anything even bite?) is a plain PER-gated dice roll -
+// there's no meaningful input to attach to it, so it stays a resolve-then-
+// animate roll like Slots' spin. Once something bites, the reel phase is a
+// real-time rAF-driven minigame (same live-ref/state-for-render shape as
+// TradeMeter.jsx's timed buy/sell meter): hold Left/Right (or A/D) to keep a
+// drifting fish inside your reel zone before tension maxes out or the clock
+// runs out.
 
 const CAST_ENERGY_COST = 5
 const CAST_CASH_COST = 10
 const CAST_ANIM_MS = 600
 const RECORD_REPUTATION_GAIN = 2 // matches Slots.jsx's big-win-reputation convention (addReputation on the rarest outcome)
+
+// --- Reel minigame tuning ---
+// These four constants are coupled - changing one can silently kill an entire
+// outcome. Let f = the fraction of the reel spent in-zone, T = REEL_MAX_MS/1000:
+//   - tension only stays flat at f = DRAIN/(FILL+DRAIN) = 35/90 ~= 0.611
+//   - surviving T seconds without a tension break needs T*(FILL - (FILL+DRAIN)*f) < 100
+//   - NOT winning within T needs T*f < WIN_IN_ZONE_MS/1000
+// The clock is only a real third outcome when those last two overlap, i.e.
+// roughly T < 6.7s at the current FILL/DRAIN/WIN values. At the original
+// T = 8s there was NO such f: any pace tentative enough to still be reeling at
+// 8s had already broken tension, so "line snapped after 8 seconds" was dead
+// code and the on-screen countdown could never actually run out. T = 6s leaves
+// a genuine (if narrow) f ~= 0.43-0.50 band where an over-cautious player
+// times out, and also tightens pacing for a repeatable side activity. Skilled
+// play is unaffected - tracking the fish closely wins in ~3.3s either way.
+const REEL_MAX_MS = 6000 // hard clock - line snaps if you haven't won or broken tension by then
+const WIN_IN_ZONE_MS = 3000 // accumulate 3.0s of in-zone time to land the fish
+const TENSION_FILL_PER_SEC = 55 // tension gained per second while the fish is outside the zone
+const TENSION_DRAIN_PER_SEC = 35 // tension lost per second while the fish is inside the zone
+// Half-amplitude of the fish's sine drift around its center. Not specified by
+// the design pass, chosen so the fish sweeps roughly [0.15, 0.85] before
+// bias/noise are applied - enough room for the zone to matter without ever
+// pinning the fish flush against either edge of the track.
+const FISH_AMPLITUDE = 0.35
+// How fast (track-widths/sec) the reel-zone cursor moves while a direction
+// key is held. Not specified by the design pass either; tuned by hand so the
+// ~0.12-0.35-wide zone can plausibly chase the fish's sine sweep (whose peak
+// speed near mid-track scales with 1/periodMs) without the zone feeling like
+// it's on rails.
+const CURSOR_SPEED = 1.6
+// Per-frame random-walk step for the small noise term layered onto the sine
+// drift, clamped to +/-0.06 so it roughens the path without swamping it.
+const NOISE_STEP = 0.01
+const NOISE_CLAMP = 0.06
 
 // Weighted catch table, same shape as Slots.jsx's SYMBOLS table. Values are
 // hand-picked to feel like a small-stakes side hustle relative to the $10
@@ -22,13 +62,30 @@ const CATCH_TIERS = [
   { key: 'rare', label: 'Rare catch', weight: 15, value: 120, flavor: 'A genuinely good catch. A dockhand actually glances over.' },
   { key: 'record', label: 'Record catch', weight: 5, value: 400, flavor: 'A record-sized catch. Someone brings out a camera nobody asked for.' },
 ]
-const TOTAL_TIER_WEIGHT = CATCH_TIERS.reduce((a, t) => a + t.weight, 0)
 
-function rollCatchTier() {
-  let r = Math.random() * TOTAL_TIER_WEIGHT
-  for (const t of CATCH_TIERS) {
-    if (r < t.weight) return t
-    r -= t.weight
+// quality (0-1) is how much of the reel phase was spent with the fish inside
+// your zone. It biases the catch-tier weights before rolling - reward skill
+// without making a clean reel a guaranteed record. Table itself, values, and
+// reputation gain are untouched; only the weights going into the roll move.
+function tierWeightMultiplier(key, quality) {
+  if (quality < 0.4) {
+    if (key === 'common' || key === 'uncommon') return 1.3
+    if (key === 'rare' || key === 'record') return 0.4
+  } else if (quality > 0.75) {
+    if (key === 'common') return 0.5
+    if (key === 'rare') return 1.8
+    if (key === 'record') return 3
+  }
+  return 1
+}
+
+function rollCatchTier(quality) {
+  const weighted = CATCH_TIERS.map((t) => ({ tier: t, weight: t.weight * tierWeightMultiplier(t.key, quality) }))
+  const total = weighted.reduce((a, w) => a + w.weight, 0)
+  let r = Math.random() * total
+  for (const w of weighted) {
+    if (r < w.weight) return w.tier
+    r -= w.weight
   }
   return CATCH_TIERS[0]
 }
@@ -47,6 +104,7 @@ const NO_BITE_LINES = [
   'No bite. Somewhere, a customs officer stamps a form.',
   'The line just sits there. So does the paperwork on your desk.',
 ]
+const BITE_LINE = 'The line goes taut. Something is on the other end of it.'
 const GOT_AWAY_LINES = [
   'Something tugs, then thinks better of it.',
   'It gets away. You update the log to say it never existed, which is at least good practice.',
@@ -73,10 +131,136 @@ export default function WharfModal({ onClose }) {
   // gates casting again until the current catch is resolved.
   const [pendingCatch, setPendingCatch] = useState(null)
 
+  // --- Reel minigame render state (live values live in refs; these are only
+  // updated once per rAF frame purely so the JSX has something to read from,
+  // same split TradeMeter.jsx uses for its sweep marker) ---
+  const [reeling, setReeling] = useState(false)
+  const [zoneWidth, setZoneWidth] = useState(0.22)
+  const [fishPos, setFishPos] = useState(0.5)
+  const [zoneStart, setZoneStart] = useState(0.39)
+  const [tension, setTension] = useState(0)
+  const [inZoneMs, setInZoneMs] = useState(0)
+
   const timeoutRef = useRef(null)
+  const reelParamsRef = useRef({ zoneWidth: 0.22, periodMs: 1200, driftCenterBias: 0 })
+  const fishPosRef = useRef(0.5)
+  const zoneStartRef = useRef(0.39)
+  const tensionRef = useRef(0)
+  const inZoneMsRef = useRef(0)
+  const noiseRef = useRef(0)
+  const keysRef = useRef({ left: false, right: false })
+  const startTimeRef = useRef(0)
+  const lastTimeRef = useRef(0)
+  const rafRef = useRef(null)
+
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }, [])
 
-  const canCast = !casting && !pendingCatch && cash >= CAST_CASH_COST && energy >= CAST_ENERGY_COST
+  const canCast = !casting && !reeling && !pendingCatch && cash >= CAST_CASH_COST && energy >= CAST_ENERGY_COST
+
+  const finishReel = (outcome, elapsedAtWinMs) => {
+    setReeling(false)
+    if (outcome === 'lose') {
+      setMessage(randomLine(GOT_AWAY_LINES))
+      return
+    }
+    const quality = Math.max(0, Math.min(1, inZoneMsRef.current / elapsedAtWinMs))
+    const tier = rollCatchTier(quality)
+    if (tier.key === 'record') addReputation(RECORD_REPUTATION_GAIN)
+    setMessage(`${tier.label}! ${tier.flavor}`)
+    setPendingCatch(tier)
+  }
+
+  const startReel = () => {
+    const agi = stats.AGI ?? 5
+    const effectiveLuck = getEffectiveLuck()
+    const nextZoneWidth = Math.max(0.12, Math.min(0.35, 0.22 + (agi - 5) * 0.015))
+    const periodMs = Math.max(800, Math.min(1400, 1400 - (agi - 5) * 40))
+    const driftCenterBias = (effectiveLuck - 5) * 0.01
+
+    reelParamsRef.current = { zoneWidth: nextZoneWidth, periodMs, driftCenterBias }
+    fishPosRef.current = 0.5
+    zoneStartRef.current = Math.max(0, Math.min(1 - nextZoneWidth, 0.5 - nextZoneWidth / 2))
+    tensionRef.current = 0
+    inZoneMsRef.current = 0
+    noiseRef.current = 0
+    keysRef.current = { left: false, right: false }
+    startTimeRef.current = performance.now()
+    lastTimeRef.current = startTimeRef.current
+
+    setZoneWidth(nextZoneWidth)
+    setFishPos(fishPosRef.current)
+    setZoneStart(zoneStartRef.current)
+    setTension(0)
+    setInZoneMs(0)
+    setReeling(true)
+  }
+
+  // Reel loop + key listeners - only live while `reeling` is true, torn down
+  // on outcome, unmount, or modal close (React runs this cleanup in all
+  // three cases since they all unmount/rerun the effect).
+  useEffect(() => {
+    if (!reeling) return undefined
+
+    const handleKeyDown = (e) => {
+      const k = e.key.toLowerCase()
+      if (k === 'arrowleft' || k === 'a') { keysRef.current.left = true; e.preventDefault() }
+      else if (k === 'arrowright' || k === 'd') { keysRef.current.right = true; e.preventDefault() }
+    }
+    const handleKeyUp = (e) => {
+      const k = e.key.toLowerCase()
+      if (k === 'arrowleft' || k === 'a') keysRef.current.left = false
+      else if (k === 'arrowright' || k === 'd') keysRef.current.right = false
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+
+    const tick = (now) => {
+      const dt = Math.min(0.05, (now - lastTimeRef.current) / 1000) // clamp so a stalled tab can't dump a huge dt in one frame
+      lastTimeRef.current = now
+      const elapsed = now - startTimeRef.current
+      const { zoneWidth: zw, periodMs, driftCenterBias } = reelParamsRef.current
+
+      noiseRef.current = Math.max(-NOISE_CLAMP, Math.min(NOISE_CLAMP, noiseRef.current + (Math.random() - 0.5) * NOISE_STEP))
+      const fishPosVal = Math.max(0, Math.min(1,
+        0.5 + driftCenterBias + FISH_AMPLITUDE * Math.sin(elapsed / periodMs) + noiseRef.current
+      ))
+      fishPosRef.current = fishPosVal
+
+      const dir = (keysRef.current.right ? 1 : 0) - (keysRef.current.left ? 1 : 0)
+      zoneStartRef.current = Math.max(0, Math.min(1 - zw, zoneStartRef.current + dir * CURSOR_SPEED * dt))
+
+      const inZone = fishPosVal >= zoneStartRef.current && fishPosVal <= zoneStartRef.current + zw
+      if (inZone) {
+        inZoneMsRef.current += dt * 1000
+        tensionRef.current = Math.max(0, tensionRef.current - TENSION_DRAIN_PER_SEC * dt)
+      } else {
+        tensionRef.current = Math.min(100, tensionRef.current + TENSION_FILL_PER_SEC * dt)
+      }
+
+      setFishPos(fishPosVal)
+      setZoneStart(zoneStartRef.current)
+      setTension(tensionRef.current)
+      setInZoneMs(inZoneMsRef.current)
+
+      if (inZoneMsRef.current >= WIN_IN_ZONE_MS) {
+        finishReel('win', elapsed)
+        return
+      }
+      if (tensionRef.current >= 100 || elapsed >= REEL_MAX_MS) {
+        finishReel('lose')
+        return
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      cancelAnimationFrame(rafRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reeling])
 
   const castLine = () => {
     if (!canCast) return
@@ -89,7 +273,6 @@ export default function WharfModal({ onClose }) {
     timeoutRef.current = setTimeout(() => {
       setCasting(false)
       const per = stats.PER ?? 5
-      const agi = stats.AGI ?? 5
 
       const biteChance = Math.max(0.4, Math.min(0.9, 0.7 + (per - 5) * 0.02))
       if (Math.random() >= biteChance) {
@@ -97,17 +280,8 @@ export default function WharfModal({ onClose }) {
         return
       }
 
-      const effectiveLuck = getEffectiveLuck()
-      const reelChance = Math.max(0.3, Math.min(0.85, 0.55 + (agi - 5) * 0.03 + (effectiveLuck - 5) * 0.01))
-      if (Math.random() >= reelChance) {
-        setMessage(randomLine(GOT_AWAY_LINES))
-        return
-      }
-
-      const tier = rollCatchTier()
-      if (tier.key === 'record') addReputation(RECORD_REPUTATION_GAIN)
-      setMessage(`${tier.label}! ${tier.flavor}`)
-      setPendingCatch(tier)
+      setMessage(BITE_LINE)
+      startReel()
     }, CAST_ANIM_MS)
   }
 
@@ -162,8 +336,30 @@ export default function WharfModal({ onClose }) {
           disabled={!canCast}
           className="mb-3 w-full border-2 border-cyan-400 py-1.5 text-sm font-bold text-cyan-300 hover:bg-cyan-400 hover:text-black disabled:opacity-30"
         >
-          {casting ? 'Casting...' : `Cast Line (5 Energy, $${CAST_CASH_COST} bait)`}
+          {casting ? 'Casting...' : reeling ? 'Line is out...' : `Cast Line (5 Energy, $${CAST_CASH_COST} bait)`}
         </button>
+
+        {reeling && (
+          <div className="mb-4 border-2 border-cyan-700 bg-[#0a141c] p-3">
+            <p className="mb-2 text-[11px] text-cyan-300">
+              Hold Left / Right (or A / D) to keep the fish inside the zone.
+            </p>
+            <div className="relative mb-2 h-5 w-full border border-gray-600 bg-black">
+              <div
+                className="absolute top-0 h-full bg-cyan-700/50"
+                style={{ left: `${zoneStart * 100}%`, width: `${zoneWidth * 100}%` }}
+              />
+              <div className="absolute top-0 h-full w-[3px] bg-yellow-300" style={{ left: `${fishPos * 100}%` }} />
+            </div>
+            <div className="mb-1 flex items-center justify-between text-[10px] text-gray-400">
+              <span>In-zone: {(inZoneMs / 1000).toFixed(1)}s / 3.0s</span>
+              <span>Tension</span>
+            </div>
+            <div className="h-2 w-full border border-gray-600 bg-black">
+              <div className="h-full bg-red-500" style={{ width: `${tension}%` }} />
+            </div>
+          </div>
+        )}
 
         {pendingCatch && (
           <div className="mb-4 flex flex-col gap-2 border-2 border-yellow-600 bg-[#1a1508] p-3">
