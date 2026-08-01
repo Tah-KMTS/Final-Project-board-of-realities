@@ -1,26 +1,22 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { SYNDICATE_OPERATIONS_CATALOG, hireMurderIncHitman } from './syndicateActivitiesEngine'
-import { LAUNDERING_VENUES, launderDirtyCash } from './moneyLaunderingEngine'
+import MoneyLaunderingModal from './MoneyLaunderingModal'
 import { getCharacterPortrait } from '../../data/characterPortraits'
+
+const LAUNDERING_MIN_DECLARE = 5000
+const LAUNDERING_ENERGY_COST = 20
 
 export default function SyndicateOperationsModal({ onClose }) {
   const [activeTab, setActiveTab] = useState('rackets') // 'rackets' | 'laundering' | 'hitmen'
   const [selectedSyndicate, setSelectedSyndicate] = useState(SYNDICATE_OPERATIONS_CATALOG[0])
-  const [selectedVenue, setSelectedVenue] = useState(LAUNDERING_VENUES[0])
-  const [dirtyInput, setDirtyInput] = useState('50000')
   const [targetNameInput, setTargetNameInput] = useState('Rival Executive')
   const [feedbackMsg, setFeedbackMsg] = useState(null)
+  const [showMoneyLaundering, setShowMoneyLaundering] = useState(false)
 
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
-
-  const handleLaunder = () => {
-    const dirtyAmt = parseFloat(dirtyInput) || 50000
-    const res = launderDirtyCash(dirtyAmt, selectedVenue.id)
-    addCash(res.cleanCash - res.amountLaundered) // Replace dirty cash with clean cash minus fee!
-    setFeedbackMsg(res.log)
-  }
+  const player = useGameStore((s) => s.player)
 
   const handleContractHitman = () => {
     const res = hireMurderIncHitman(targetNameInput, cash)
@@ -114,36 +110,22 @@ export default function SyndicateOperationsModal({ onClose }) {
             <div className="space-y-4">
               <div className="rounded border border-emerald-500/40 bg-[#102117] p-4 text-xs">
                 <h3 className="text-sm font-bold text-emerald-300 uppercase tracking-wider mb-1">💵 Money Laundering Operations</h3>
-                <p className="text-gray-300">Launder dirty extortion and narcotics cash through legitimate businesses to clean funds and prevent IRS CID audits!</p>
-                <div className="mt-4 flex gap-3 items-center">
-                  <input
-                    type="number"
-                    value={dirtyInput}
-                    onChange={(e) => setDirtyInput(e.target.value)}
-                    className="w-36 rounded border border-emerald-500 bg-black/60 px-3 py-1.5 text-xs text-white font-mono"
-                    placeholder="Dirty Cash $"
-                  />
-                  <select
-                    value={selectedVenue.id}
-                    onChange={(e) => setSelectedVenue(LAUNDERING_VENUES.find((v) => v.id === e.target.value))}
-                    className="rounded border border-emerald-500 bg-black/60 px-3 py-1.5 text-xs text-white font-mono"
-                  >
-                    {LAUNDERING_VENUES.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} (Cap: ${v.dailyCapacity.toLocaleString()} | Fee: {v.feePercent * 100}%)
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleLaunder}
-                    className="rounded border border-emerald-400 bg-emerald-950 px-5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500 hover:text-black transition-all"
-                  >
-                    Launder Dirty Cash
-                  </button>
-                </div>
+                <p className="text-gray-300">
+                  Route dirty extortion and narcotics cash through up to 4 legitimate venues, hop by hop. Every hop's
+                  audit-heat cost is shown in exact numbers before you confirm it - push your luck for a bigger clean
+                  payout, or cash out early and keep what you've already banked.
+                </p>
+                <button
+                  onClick={() => setShowMoneyLaundering(true)}
+                  disabled={cash < LAUNDERING_MIN_DECLARE || player.energy < LAUNDERING_ENERGY_COST}
+                  className="mt-4 w-full rounded border border-emerald-400 bg-emerald-950 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500 hover:text-black transition-all disabled:opacity-30"
+                >
+                  Launder Cash
+                </button>
               </div>
             </div>
           )}
+          {showMoneyLaundering && <MoneyLaunderingModal onClose={() => setShowMoneyLaundering(false)} />}
 
           {/* TAB 3: HITMEN */}
           {activeTab === 'hitmen' && (
