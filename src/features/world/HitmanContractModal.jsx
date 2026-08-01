@@ -3,13 +3,7 @@ import { useGameStore } from '../../store/useGameStore'
 import { FAMOUS_HITMEN_CATALOG } from './famousHitmenCatalog'
 import { executeHitmanContract } from './hitmanAgentEngine'
 
-// `embedded` (default false): standalone access (via WorldScreen.jsx's
-// 'hitmanContract' modal type) keeps working exactly as before. When true
-// (Phone app -> Dark Web & Underground's "Hitman Contracts" tab - see
-// src/features/phone/DarkWebApp.jsx), skip the outer fixed-overlay wrapper
-// and the bottom close button - same convention as BankModal.jsx/
-// StockExchangeModal.jsx.
-export default function HitmanContractModal({ onClose, embedded = false }) {
+export default function HitmanContractModal({ onClose }) {
   const [selectedHitman, setSelectedHitman] = useState(FAMOUS_HITMEN_CATALOG[0])
   const [targetNameInput, setTargetNameInput] = useState('Corrupt Rival Financier')
   const [framingOption, setFramingOption] = useState('innocent_citizen') // 'innocent_citizen' | 'rival_cartel' | 'none'
@@ -29,8 +23,9 @@ export default function HitmanContractModal({ onClose, embedded = false }) {
     setFeedbackMsg(`💥 CONTRACT EXECUTED: ${result.hitmanName} eliminated ${targetNameInput} using ${result.signatureWeapon}! ${result.framingLog}`)
   }
 
-  const body = (
-    <div className={embedded ? 'w-full font-mono text-white' : 'w-full max-w-4xl border-4 border-red-700/80 bg-[#160608] p-6 shadow-2xl'}>
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 font-mono text-white">
+      <div className="w-full max-w-4xl border-4 border-red-700/80 bg-[#160608] p-6 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-red-700/40 pb-3">
           <div>
@@ -114,24 +109,15 @@ export default function HitmanContractModal({ onClose, embedded = false }) {
         </div>
 
         {/* Footer */}
-        {!embedded && (
-          <div className="border-t border-gray-800 bg-[#0d0304] p-3 text-right">
-            <button
-              onClick={onClose}
-              className="border border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
-            >
-              Close Hitmen Interface
-            </button>
-          </div>
-        )}
-    </div>
-  )
-
-  if (embedded) return body
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 font-mono text-white">
-      {body}
+        <div className="border-t border-gray-800 bg-[#0d0304] p-3 text-right">
+          <button
+            onClick={onClose}
+            className="border border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
+          >
+            Close Hitmen Interface
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -1,22 +1,24 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, ArrowLeft, Wallet, Siren, Rss, Heart, EyeOff, Rocket, CalendarClock, TrendingUp } from 'lucide-react'
+import { X, ArrowLeft, Wallet, Siren, Rss, Heart, Rocket, CalendarClock, TrendingUp } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
 import { NET_WORTH_WIN_TARGET, NET_WORTH_MILESTONES } from '../../features/finance/marketData'
 
-// The 5 planned apps. `social`/`banking`/`startups`/`darkweb` are wired to
-// real content (Social/X -> AgentInteractionsModal + the news ticker,
-// Banking & Portfolio -> BankModal/StockExchangeModal/SyndicateBoardModal,
-// Startups & M&A -> CorporateModal, Dark Web & Underground ->
-// UnderworldModal/HitmanContractModal/SyndicateOperationsModal/
-// NarcoticsTradeModal - see src/features/phone/
-// {SocialApp,BankingApp,StartupsApp,DarkWebApp,ContactsApp}.jsx) via the
-// `apps` prop below. All 5 are now wired.
+// The 4 apps. Wired to real content (Social/X -> AgentInteractionsModal +
+// the news ticker, Banking & Portfolio -> BankModal/StockExchangeModal/
+// SyndicateBoardModal, Startups & M&A -> CorporateModal, Contacts & Romance
+// -> per-contact NamedNpcModal - see src/features/phone/
+// {SocialApp,BankingApp,StartupsApp,ContactsApp}.jsx) via the `apps` prop
+// below. Dark Web & Underground (Underworld/Hitman/Syndicate Ops/Narcotics)
+// used to be a 5th app here but was deliberately removed - phone-anywhere
+// access undercut the point of having a physical Underworld building to
+// walk to. That content is standalone-only now (WorldScreen.jsx's
+// 'narcoticsTrade'/'syndicateOperations'/'hitmanContract' modal types, and
+// walking up to the Underworld building), same as before phone integration.
 const APP_DEFS = [
   { id: 'social', label: 'Social/X', Icon: Rss, color: 'cyan', enabled: true },
   { id: 'banking', label: 'Banking', Icon: Wallet, color: 'emerald', enabled: true },
   { id: 'contacts', label: 'Contacts', Icon: Heart, color: 'rose', enabled: true },
-  { id: 'darkweb', label: 'Dark Web', Icon: EyeOff, color: 'red', enabled: true },
   { id: 'startups', label: 'Startups', Icon: Rocket, color: 'violet', enabled: true },
 ]
 
@@ -24,7 +26,6 @@ const ICON_COLOR_CLASSES = {
   cyan: 'text-cyan-400 border-cyan-400/70 bg-cyan-500/10',
   emerald: 'text-emerald-400 border-emerald-400/70 bg-emerald-500/10',
   rose: 'text-rose-400 border-rose-400/70 bg-rose-500/10',
-  red: 'text-red-500 border-red-500/70 bg-red-500/10',
   violet: 'text-violet-400 border-violet-400/70 bg-violet-500/10',
 }
 
@@ -73,7 +74,18 @@ export default function PhoneShell({ onClose, apps = {} }) {
         exit={{ opacity: 0, scale: 0.4, x: 260, y: 260 }}
         transition={{ type: 'spring', stiffness: 300, damping: 24 }}
         style={{ animation: 'none' }}
-        className="glass-panel neon-ring absolute bottom-6 right-6 flex h-[720px] w-[360px] flex-col overflow-hidden rounded-[2.5rem] border-2 border-violet-400/60 bg-[#0a0b18] p-3 font-mono text-white"
+        // Fixed 720x360 was the bug: on any viewport shorter than ~720px+
+        // margin (a common laptop/windowed-browser height, not just an
+        // actual phone), this panel's top edge got pushed above y=0 -
+        // unreachable, since the outer `fixed inset-0` wrapper doesn't
+        // scroll. Clamping both dimensions to the viewport (with a margin)
+        // keeps the same 720x360 "phone" look on tall/wide screens while
+        // guaranteeing the whole panel - including its bottom close button
+        // and top status tray - stays on-screen everywhere else. Each app's
+        // own content already scrolls internally (`overflow-y-auto` on its
+        // own body, see SocialApp.jsx/BankingApp.jsx/etc.), so shrinking
+        // the frame doesn't lose access to anything, it just scrolls sooner.
+        className="glass-panel neon-ring absolute bottom-6 right-6 flex h-[min(720px,calc(100vh-3rem))] w-[min(360px,calc(100vw-3rem))] flex-col overflow-hidden rounded-[2.5rem] border-2 border-violet-400/60 bg-[#0a0b18] p-3 font-mono text-white"
       >
         {/* Screen area - reuses the game's existing panel gradient */}
         <div className="relative flex h-full w-full flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#1c1d3a] px-4 pb-4 pt-3">

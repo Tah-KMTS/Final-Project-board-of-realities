@@ -66,7 +66,6 @@ import PhoneShell from '../features/phone/PhoneShell'
 import SocialApp from '../features/phone/SocialApp'
 import BankingApp from '../features/phone/BankingApp'
 import StartupsApp from '../features/phone/StartupsApp'
-import DarkWebApp from '../features/phone/DarkWebApp'
 import ContactsApp from '../features/phone/ContactsApp'
 
 const REGION_LABELS = {
@@ -508,14 +507,19 @@ export default function WorldScreen() {
         />
       )}
       {activeModal?.type === 'inventory' && <InventoryModal onClose={closeModal} />}
-      {/* Board of Realities' 5 functional phone apps: Social/X (Titan Feed +
+      {/* Board of Realities' 4 functional phone apps: Social/X (Titan Feed +
           news ticker), Banking & Portfolio (Bank/Stock Exchange/Syndicate
           Board tabs), Startups & M&A (the previously-orphaned CorporateModal),
-          Dark Web & Underground (Underworld/Hitman Contracts/Syndicate Ops/
-          Narcotics tabs), Contacts & Romance (list view over
-          world2.romanceState/recruitedAdvisors, opens NamedNpcModal per
-          contact) - see src/features/phone/
-          {SocialApp,BankingApp,StartupsApp,DarkWebApp,ContactsApp}.jsx. */}
+          Contacts & Romance (list view over world2.romanceState/
+          recruitedAdvisors, opens NamedNpcModal per contact) - see
+          src/features/phone/{SocialApp,BankingApp,StartupsApp,ContactsApp}.jsx.
+          Dark Web & Underground used to be a 5th app here (Underworld/
+          Hitman Contracts/Syndicate Ops/Narcotics tabs) but was removed -
+          phone-anywhere access undercut the point of walking to the
+          physical Underworld building. That content is standalone-only now,
+          same as before phone integration - see the 'narcoticsTrade'/
+          'syndicateOperations'/'hitmanContract' modal types and the
+          'underworld' building case below. */}
       {activeModal?.type === 'phone' && (
         <PhoneShell
           onClose={closeModal}
@@ -523,7 +527,6 @@ export default function WorldScreen() {
             social: () => <SocialApp />,
             banking: () => <BankingApp />,
             startups: () => <StartupsApp />,
-            darkweb: () => <DarkWebApp />,
             contacts: () => <ContactsApp />,
           }}
         />

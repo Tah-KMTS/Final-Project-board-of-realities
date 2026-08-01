@@ -4,13 +4,7 @@ import { SYNDICATE_OPERATIONS_CATALOG, hireMurderIncHitman } from './syndicateAc
 import { LAUNDERING_VENUES, launderDirtyCash } from './moneyLaunderingEngine'
 import { getCharacterPortrait } from '../../data/characterPortraits'
 
-// `embedded` (default false): standalone access (via WorldScreen.jsx's
-// 'syndicateOperations' modal type) keeps working exactly as before. When
-// true (Phone app -> Dark Web & Underground's "Syndicate Ops" tab - see
-// src/features/phone/DarkWebApp.jsx), skip the outer fixed-overlay wrapper
-// and the bottom close button - same convention as BankModal.jsx/
-// StockExchangeModal.jsx.
-export default function SyndicateOperationsModal({ onClose, embedded = false }) {
+export default function SyndicateOperationsModal({ onClose }) {
   const [activeTab, setActiveTab] = useState('rackets') // 'rackets' | 'laundering' | 'hitmen'
   const [selectedSyndicate, setSelectedSyndicate] = useState(SYNDICATE_OPERATIONS_CATALOG[0])
   const [selectedVenue, setSelectedVenue] = useState(LAUNDERING_VENUES[0])
@@ -44,8 +38,9 @@ export default function SyndicateOperationsModal({ onClose, embedded = false }) 
     setFeedbackMsg(`🩸 PROTECTION TOLL COLLECTED: Collected $${toll.toLocaleString()} extortion yield from ${syn.name} (${syn.territory})!`)
   }
 
-  const body = (
-    <div className={embedded ? 'w-full font-mono text-white' : 'w-full max-w-4xl border-4 border-red-600/80 bg-[#12080a] p-6 shadow-2xl'}>
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 font-mono text-white">
+      <div className="w-full max-w-4xl border-4 border-red-600/80 bg-[#12080a] p-6 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-red-600/40 pb-3">
           <div>
@@ -177,24 +172,15 @@ export default function SyndicateOperationsModal({ onClose, embedded = false }) 
         </div>
 
         {/* Footer */}
-        {!embedded && (
-          <div className="border-t border-gray-800 bg-[#0d0506] p-3 text-right">
-            <button
-              onClick={onClose}
-              className="border border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
-            >
-              Close Syndicate Modal
-            </button>
-          </div>
-        )}
-    </div>
-  )
-
-  if (embedded) return body
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 font-mono text-white">
-      {body}
+        <div className="border-t border-gray-800 bg-[#0d0506] p-3 text-right">
+          <button
+            onClick={onClose}
+            className="border border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
+          >
+            Close Syndicate Modal
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
