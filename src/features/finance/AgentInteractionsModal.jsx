@@ -1,16 +1,6 @@
-import { useState } from 'react'
 import { MessageCircle, Repeat2, Heart } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
 import { FINANCE_NPCS } from './financeNpcs'
-import { getCityById } from '../world/japanCities'
-
-const FILTERS = [
-  { id: 'all', label: 'All', activeClasses: 'border-cyan-400 text-cyan-300' },
-  { id: 'butterfly', label: '🦋 Butterfly', activeClasses: 'border-fuchsia-400 text-fuchsia-300' },
-  { id: 'migration', label: '✈️ Migrations', activeClasses: 'border-emerald-400 text-emerald-300' },
-  { id: 'assets', label: '💰 Assets', activeClasses: 'border-yellow-400 text-yellow-300' },
-  { id: 'city', label: '🏙️ In City', activeClasses: 'border-orange-400 text-orange-300' },
-]
 
 // Splits an event's title into its leading emoji (for the fallback avatar)
 // and the remaining category text (e.g. "🦋 Butterfly Effect" -> emoji "🦋",
@@ -54,44 +44,17 @@ function findMentionedNpc(text) {
 // as every other hub-tab modal in this codebase (CryptoModal.jsx etc).
 export default function AgentInteractionsModal({ onClose, embedded = false }) {
   const world2 = useGameStore((s) => s.world2)
-  const currentCityId = useGameStore((s) => s.currentCityId) || 'tokyo'
-  const [filterType, setFilterType] = useState('all') // 'all' | 'butterfly' | 'migration' | 'assets' | 'city'
 
+  // Filter chips (All/Butterfly/Migrations/Assets/In City) were removed -
+  // they didn't fit the phone's 360px-wide frame (overflowed into a
+  // horizontal scrollbar) and ate vertical space the feed itself needed.
+  // Just the feed, unfiltered, now.
   const eventFeed = world2.agentEventFeed || []
-  const city = getCityById(currentCityId)
-
-  const filteredFeed = eventFeed.filter((evt) => {
-    if (filterType === 'butterfly') return evt.title?.includes('Butterfly') || evt.type === 'butterfly'
-    if (filterType === 'migration') return evt.title?.includes('Migration') || evt.type === 'migration'
-    if (filterType === 'assets') return evt.title?.includes('Asset') || evt.type === 'asset'
-    if (filterType === 'city') return evt.city === currentCityId || evt.text?.includes(city.name)
-    return true
-  })
 
   const body = (
     <>
-        {/* Filter chips - slim single-line row, active state is just a
-            filled border + text color, no bg-fill blocks. The "Agents"
-            roster tab that used to sit next to Feed was removed - the NPC
-            routine/simulation data it displayed (TITAN_ROUTINES/agentsState)
-            is backend-only now, feeding the Feed's content rather than
-            having its own player-facing screen. */}
-        <div className="mt-2 flex shrink-0 gap-1.5 overflow-x-auto pb-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilterType(f.id)}
-              className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold transition-colors ${
-                filterType === f.id ? f.activeClasses : 'border-gray-700 text-gray-400 hover:border-gray-500'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
         <div className="mt-2 flex-1 space-y-2 overflow-y-auto">
-          {filteredFeed.length === 0 ? (
+          {eventFeed.length === 0 ? (
             <div className="flex h-64 flex-col items-center justify-center rounded border border-dashed border-gray-800 text-center text-gray-500">
               <span className="text-4xl mb-2">📡</span>
               <p className="text-sm font-bold text-gray-400">No agent interaction logs yet.</p>
@@ -100,7 +63,7 @@ export default function AgentInteractionsModal({ onClose, embedded = false }) {
               </p>
             </div>
           ) : (
-            filteredFeed.map((evt) => {
+            eventFeed.map((evt) => {
               const mentionedNpc = findMentionedNpc(evt.text)
               const { emoji, category } = splitTitleEmoji(evt.title)
               return (

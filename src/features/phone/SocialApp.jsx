@@ -63,8 +63,13 @@ export default function SocialApp() {
           pattern as Temple's Seek Atonement button (disabled={...} +
           opacity-30). Target buttons show the full company name with a
           small $TICKER badge rather than a bare ticker - the abbreviation-
-          only version read as a puzzle instead of a real post target. */}
-      <div className="mb-2 shrink-0 rounded border border-cyan-500/30 bg-[#0c1024] p-2">
+          only version read as a puzzle instead of a real post target.
+          Capped at 45% of the phone's height with its own scroll - on a
+          short browser window (a smaller laptop screen vs. the desktop this
+          was built on) this used to be tall enough to push the feed below
+          it down to zero visible height. Now the composer scrolls
+          internally instead, and the feed's flex-1 area always keeps room. */}
+      <div className="mb-2 max-h-[45%] shrink-0 overflow-y-auto rounded border border-cyan-500/30 bg-[#0c1024] p-2">
         <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-cyan-400">
           Post to Manipulate Sentiment (20 Energy)
         </div>
@@ -142,7 +147,7 @@ export default function SocialApp() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <AgentInteractionsModal embedded />
       </div>
     </div>
