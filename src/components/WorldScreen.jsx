@@ -22,6 +22,7 @@ import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal
 import IndustrialZoneModal from '../features/finance/IndustrialZoneModal'
 import TempleModal from '../features/temple/TempleModal'
 import JailEscapeModal from '../features/jail/JailEscapeModal'
+import JailMazeModal from '../features/jail/JailMazeModal'
 import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
 import ScotusCourtroomModal from '../features/government/ScotusCourtroomModal'
 import IrsHearingModal from '../features/government/IrsHearingModal'
@@ -214,31 +215,50 @@ export default function WorldScreen() {
   }, [blocks])
 
   // Being arrested (jail.inJail flipping false -> true, from any executeCrime
-  // call site - Temple/Bank/Crypto/collude/extort/vehicle theft) force-routes
-  // the player into JailEscapeModal, overriding whatever modal was open at
-  // the moment of arrest (e.g. the Temple/Bank/Crypto modal that triggered
-  // it). Deliberately keyed only on jail?.inJail so it doesn't refire every
-  // render while still jailed - see the interact-handler guard below for how
-  // the player gets routed back in if they close this modal without
-  // resolving it.
+  // call site - Temple/Bank/Crypto/collude/extort/vehicle theft) teleports
+  // the player into the jailCell zone (jail mini-map plan) instead of
+  // force-popping a full-screen modal over whatever they were doing - see
+  // GameCanvas.jsx's 'enterJail' bridge listener and OverworldScene.js's
+  // buildJailCellZone. Deliberately keyed only on jail?.inJail so it doesn't
+  // refire every render while still jailed. The old re-route guard that used
+  // to force JailEscapeModal back open if the player tried Temple/Bank/
+  // Crypto/Stock Exchange while jailed is gone - arrest now physically
+  // removes the player from the overworld, so those buildings' zones are
+  // unreachable anyway.
   useEffect(() => {
-    if (jail?.inJail) setActiveModal({ type: 'jail' })
+    if (jail?.inJail) bridgeRef.current.emit('enterJail')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jail?.inJail])
 
   useEffect(() => {
     const bridge = bridgeRef.current
     const offInteract = bridge.on('interact', (payload) => {
-      // While in jail, Temple/Bank/Crypto (the latter lives inside the
-      // Stock Exchange hub) and the Real Estate wing of Bank are off-limits
-      // - re-route into the jail modal instead of letting the payload open
-      // any of them.
-      if (
-        useGameStore.getState().jail?.inJail &&
-        payload.type === 'building' &&
-        ['temple', 'bank', 'realEstateAgency', 'stockExchange'].includes(payload.id)
-      ) {
-        setActiveModal({ type: 'jail' })
+      // Court & Prison's single 'courtAndPrison' building id is shared by
+      // two mutually-exclusive interactions that can never both be true at
+      // once: walking up to it on the overworld (only possible while free)
+      // vs. the guard desk inside the jailCell zone (only reachable while
+      // jailed) - see OverworldScene.js's courtAndPrison special-case and
+      // buildJailCellZone.
+      if (payload.type === 'building' && payload.id === 'courtAndPrison') {
+        if (useGameStore.getState().jail?.inJail) {
+          setActiveModal({ type: 'jail' })
+        } else {
+          alert('Capital City Central Booking. Best not to go in voluntarily.')
+          bridge.emit('resumeScene')
+        }
+        return
+      }
+      // jailMaze checkpoints resolve immediately via the store (no separate
+      // "walk up, then choose an action" step like the guard desk) - an
+      // out-of-order segmentIndex (see attemptMazeSegment's mazeProgress
+      // guard) is silently ignored rather than shown as a result.
+      if (payload.type === 'jailMazeCheckpoint') {
+        const result = useGameStore.getState().attemptMazeSegment(payload.segmentIndex)
+        if (result.outOfOrder) {
+          bridge.emit('resumeScene')
+          return
+        }
+        setActiveModal({ type: 'jailMazeResult', ...result, segmentIndex: payload.segmentIndex })
         return
       }
       // Save Point and the KC Tower Security Gate resolve immediately
@@ -452,7 +472,39 @@ export default function WorldScreen() {
         Move with WASD/Arrows • E to interact{mode === 'overworld' && activeRegion === 'hunter' ? ' • R to commit crime' : ''}
       </p>
 
-      {activeModal?.type === 'jail' && <JailEscapeModal onClose={closeModal} />}
+      {activeModal?.type === 'jail' && (
+        <JailEscapeModal onClose={closeModal} onVictory={() => bridgeRef.current.emit('exitJail')} />
+      )}
+      {activeModal?.type === 'jailMazeResult' && (
+        <JailMazeModal
+          result={activeModal}
+          onContinue={() => {
+            if (activeModal.success && activeModal.final) {
+              // Final checkpoint clear: jail is already resolved in the
+              // store (attemptMazeSegment cleared it) - swap to the
+              // jailUnderworld backdrop and open the real Underworld hub
+              // modal on top of it, satisfying "auto-open UnderworldModal
+              // once, framed as emerging through the tunnel" with zero new
+              // modal code. Deliberately skips resumeScene here (unlike the
+              // two branches below) - the scene stays paused straight
+              // through into the Underworld modal rather than letting the
+              // player move around the transient backdrop for a frame.
+              setActiveModal({ type: 'building', id: 'underworld', viaJailMaze: true })
+              bridgeRef.current.emit('enterJailUnderworld')
+            } else if (activeModal.success) {
+              // Non-final segment cleared - still standing in jailMaze,
+              // free to walk to the next checkpoint.
+              closeModal()
+            } else {
+              // Failed a segment - bounced back to jailCell with the
+              // harsher penalty already applied by the store.
+              setActiveModal(null)
+              bridgeRef.current.emit('enterJail')
+              bridgeRef.current.emit('resumeScene')
+            }
+          }}
+        />
+      )}
       {activeModal?.type === 'inventory' && <InventoryModal onClose={closeModal} />}
       {/* Board of Realities' 5 functional phone apps: Social/X (Titan Feed +
           news ticker), Banking & Portfolio (Bank/Stock Exchange/Syndicate
@@ -586,7 +638,27 @@ export default function WorldScreen() {
           these building ids exist in DISTRICT_BUILDING_IDS, so they can't
           double-fire the DistrictBuildingModal branch below. */}
       {activeModal?.type === 'building' && activeModal.id === 'underworld' && (
-        <UnderworldModal onClose={closeModal} />
+        <UnderworldModal
+          onClose={
+            // Reached via the jail maze's tunnel rather than the normal
+            // overworld building - the scene is sitting on the transient
+            // jailUnderworld backdrop, not 'overworld', so closing needs to
+            // actually travel back rather than just unpausing in place.
+            activeModal.viaJailMaze
+              ? () => {
+                  setActiveModal(null)
+                  // interactionLocked was set by the pauseForModal() call
+                  // that fired when the final jailMazeCheckpoint was
+                  // triggered, and nothing since has resumed it (unlike the
+                  // failed-segment branch above, which does) - without this,
+                  // the player lands back on the overworld with movement and
+                  // interaction permanently frozen.
+                  bridgeRef.current.emit('resumeScene')
+                  bridgeRef.current.emit('exitJail')
+                }
+              : closeModal
+          }
+        />
       )}
       {activeModal?.type === 'building' && activeModal.id === 'businessCenter' && (
         <BusinessCenterModal onClose={closeModal} />

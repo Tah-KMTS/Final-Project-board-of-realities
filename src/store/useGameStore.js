@@ -118,12 +118,15 @@ function createDefaultState() {
     // Jail: a sibling top-level field to wantedLevel/notoriety, not nested in
     // world2 - being locked up is a cross-world consequence of Heat, not a
     // Finance-only concept, even though every crime that can trigger it
-    // today happens to live in world2. sentenceDaysRemaining is 1-3 days
+    // today happens to live in world2. sentenceDaysRemaining is 1-3+ days
     // (see sendToJail), bailCost is a snapshot taken at arrest time (not
-    // recomputed live), escapeAttemptedToday exists purely so a future
-    // per-day-limit UI affordance has somewhere to read from - the actual
-    // 3-attempts-per-sitting cap is enforced by the calling modal, not here.
-    jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, escapeAttemptedToday: false },
+    // recomputed live). bribeAttemptsToday/mazeAttemptedToday (replacing the
+    // old escapeAttemptedToday) live here rather than in a modal's local
+    // state because the jailCell/jailMaze zones open the resolution modal
+    // via a walk-up interactable that mounts/unmounts per visit - local
+    // component state would silently reset the attempt cap every time the
+    // player walked away from the desk and back.
+    jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 },
     // Capital Syndicate core loop: a persistent day counter (advanced by the
     // "End Day" button), a rolling flavor headline, and Public Reputation/
     // Social Status (0-100). Police Heat/SEC Suspicion is deliberately NOT a
@@ -944,7 +947,9 @@ export const useGameStore = create((set, get) => ({
         inJail: true,
         sentenceDaysRemaining: 1 + Math.floor(wantedLevelAfterFail / 2),
         bailCost: Math.max(0, Math.round(rawBailCost)),
-        escapeAttemptedToday: false,
+        bribeAttemptsToday: 0,
+        mazeAttemptedToday: false,
+        mazeProgress: 0,
       },
       player: { ...state.player, energy: 0 },
     })
@@ -955,45 +960,104 @@ export const useGameStore = create((set, get) => ({
     if (state.cash < state.jail.bailCost) return false
     set({
       cash: state.cash - state.jail.bailCost,
-      jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, escapeAttemptedToday: false },
+      jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 },
     })
     return true
   },
 
-  // Resolves ONE escape round per call - the JailEscapeModal is responsible
-  // for capping a sitting at 3 calls and passing isFinalAttempt=true on the
-  // 3rd, since the harsher on-exhaustion penalty (extra sentence day +
-  // notoriety) is specifically a "3rd failed round in one sitting" penalty,
-  // not a per-call one.
-  attemptJailEscape: (isFinalAttempt = false) => {
+  // Replaces the old flat attemptJailEscape with two distinct resolution
+  // paths (jail mini-map plan): a repeatable, cash-priced bribe roll at the
+  // guard desk, and a free but one-shot multi-segment maze run. bribeAmount
+  // is spent regardless of outcome - only the roll's success is at stake.
+  // isFinalAttempt mirrors the old escape action's contract: the harsher
+  // on-exhaustion penalty (extra sentence day + notoriety) is specifically a
+  // "3rd failed round in one sitting" penalty, so the caller (JailEscapeModal)
+  // still decides when a sitting is exhausted, using jail.bribeAttemptsToday
+  // from the store instead of its own local round counter.
+  attemptJailBribe: (bribeAmount, isFinalAttempt = false) => {
     const state = get()
     if (!state.jail?.inJail) return { success: false }
-    const streetwise = state.player.stats.streetwise || 5
-    const agi = state.player.stats.AGI || 5
-    const effectiveLuck = get().getEffectiveLuck()
-    const escapeRoundChance = Math.max(0.1, Math.min(0.8,
-      0.25 + streetwise * 0.015 + agi * 0.01 + (effectiveLuck - 5) * 0.02 - state.wantedLevel * 0.03
-    ))
+    if (state.jail.bribeAttemptsToday >= 3) return { success: false, exhausted: true }
+    if (state.cash < bribeAmount) return { success: false, error: 'cash' }
 
-    if (Math.random() < escapeRoundChance) {
-      set({ jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, escapeAttemptedToday: false } })
+    set({ cash: state.cash - bribeAmount })
+
+    const streetwise = state.player.stats.streetwise || 5
+    const effectiveLuck = get().getEffectiveLuck()
+    const targetNumber = 8 + state.wantedLevel + Math.floor(state.notoriety / 25)
+    const bribeRatio = Math.min(1, bribeAmount / Math.max(1, state.jail.bailCost))
+    const bribeBonus = Math.round(bribeRatio * 4)
+    const streetwiseBonus = Math.floor(streetwise / 10)
+    const luckBonus = Math.floor((effectiveLuck - 5) / 2)
+    const roll = (1 + Math.floor(Math.random() * 6)) + (1 + Math.floor(Math.random() * 6))
+      + bribeBonus + streetwiseBonus + luckBonus
+
+    if (roll >= targetNumber) {
+      set({ jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 } })
       get().addWantedLevel(-1)
       return { success: true }
     }
 
+    const bribeAttemptsToday = state.jail.bribeAttemptsToday + 1
     if (isFinalAttempt) {
       set({
-        jail: {
-          ...state.jail,
-          sentenceDaysRemaining: state.jail.sentenceDaysRemaining + 1,
-          escapeAttemptedToday: true,
-        },
+        jail: { ...state.jail, sentenceDaysRemaining: state.jail.sentenceDaysRemaining + 1, bribeAttemptsToday },
       })
       get().addNotoriety(5)
       return { success: false, exhausted: true }
     }
+    set({ jail: { ...state.jail, bribeAttemptsToday } })
+    return { success: false }
+  },
 
-    return { success: false, exhausted: false }
+  // Single committed run through 4 cosmetic segments (jailMaze zone) -
+  // free (no cash cost, unlike the bribe), highest variance, and the only
+  // jail-failure path that raises wantedLevel. segmentIndex is 0-3; the
+  // caller (WorldScreen, via each jailMaze checkpoint interactable) invokes
+  // this once per checkpoint reached and stops advancing on the first
+  // failure. jail.mazeProgress is the store-authoritative "next expected
+  // segment" - an out-of-order call (e.g. the player somehow reaching a
+  // later checkpoint's rect first) is silently ignored rather than resolved,
+  // so checkpoints can't be skipped or re-rolled out of sequence.
+  // mazeAttemptedToday locks out a second run until the sentence ticks over
+  // (see the End Day handling below).
+  attemptMazeSegment: (segmentIndex) => {
+    const state = get()
+    if (!state.jail?.inJail || state.jail.mazeAttemptedToday) return { success: false }
+    if (segmentIndex !== (state.jail.mazeProgress || 0)) return { success: false, outOfOrder: true }
+
+    const agi = state.player.stats.AGI || 5
+    const streetwise = state.player.stats.streetwise || 5
+    const effectiveLuck = get().getEffectiveLuck()
+    const evadeChance = Math.max(0.15, Math.min(0.85,
+      0.65 - segmentIndex * 0.08 + (agi - 5) * 0.03 + (streetwise - 5) * 0.01
+        + (effectiveLuck - 5) * 0.02 - state.wantedLevel * 0.03
+    ))
+
+    if (Math.random() < evadeChance) {
+      if (segmentIndex >= 3) {
+        const cashReward = Math.min(Math.round(state.jail.bailCost * 0.5), 5000)
+        set({
+          cash: state.cash + cashReward,
+          jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 },
+        })
+        return { success: true, final: true, cashReward }
+      }
+      set({ jail: { ...state.jail, mazeProgress: segmentIndex + 1 } })
+      return { success: true, segmentIndex, final: false }
+    }
+
+    set({
+      jail: {
+        ...state.jail,
+        sentenceDaysRemaining: state.jail.sentenceDaysRemaining + 1,
+        mazeAttemptedToday: true,
+        mazeProgress: 0,
+      },
+    })
+    get().addNotoriety(8)
+    get().addWantedLevel(1)
+    return { success: false, segmentIndex }
   },
 
   // Chapel Blessing: a flat-cost, non-stacking Luck buff (see world2.
@@ -1435,8 +1499,8 @@ export const useGameStore = create((set, get) => ({
       const sentenceDaysRemaining = jailState.sentenceDaysRemaining - 1
       set({
         jail: sentenceDaysRemaining <= 0
-          ? { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, escapeAttemptedToday: false }
-          : { ...jailState, sentenceDaysRemaining, escapeAttemptedToday: false },
+          ? { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 }
+          : { ...jailState, sentenceDaysRemaining, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 },
       })
     }
 

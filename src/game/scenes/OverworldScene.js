@@ -184,6 +184,18 @@ const FINANCE_BUILDING_DEFS = [
   { id: 'industrialZone', label: 'Industrial Zone', facadeStyle: 'modernGlass', color: 0x3a4a4a, width: 7, height: 4, zone: 'industry' },
   { id: 'trainStation', label: '🚆 Central Train Station', facadeStyle: 'modernGlass', color: 0x4a6fa5, width: 4, height: 2, zone: 'industry' },
 
+  // Court & Prison - one of the last 3 unbuilt spec categories (see the note
+  // above). Gives the jail mini-map mechanic (bribeDice/maze, in
+  // useGameStore.js's attemptJailBribe/attemptMazeSegment) a real door on
+  // the map: arrest teleports the player straight into the jailCell zone
+  // (see triggerInteraction's courtAndPrison special-case and loadZone's
+  // jailCell/jailMaze/jailUnderworld branches below); walking up to it while
+  // NOT in custody is a flavor no-op, not a real entrance - matches the
+  // lore spec's "you don't check into a jail voluntarily" framing. zone:
+  // 'law' puts it in the same column as `underworld`, which the maze's
+  // back-door tunnel dead-ends into.
+  { id: 'courtAndPrison', label: 'Capital City Central Booking', facadeStyle: 'modernBrick', color: 0x4a4a4a, width: 4, height: 3, zone: 'law' },
+
   // --- Character homes & hideouts (generated, see characterHomeBuildings.js) ---
   // Appended after the 10 hub defs above (not interleaved) - layoutFinanceMap
   // below never packs this combined array as one flat pool any more (that
@@ -690,6 +702,13 @@ const INTERIOR_TEMPLATES = {
   amenity: { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter' },
   residence: { floorA: 0x2a3020, floorB: 0x1f2418, deskColor: 0x4a3a2a, deskLabel: 'Study' },
   hideout: { floorA: 0x1f1418, floorB: 0x160e12, deskColor: 0x6a1f3a, deskLabel: 'Back Room' },
+  // Jail mini-map (courtAndPrison) - three palette variants of the same
+  // shared room shape, one per zone: the holding cell itself, the service
+  // corridor (jailMaze) dressed with crate/service-lighting colors per
+  // world-builder, and the Underworld's back room the tunnel dead-ends into.
+  holdingCell: { floorA: 0x28282c, floorB: 0x1e1e22, deskColor: 0x3a3a3a, deskLabel: 'Booking Desk' },
+  jailMaze: { floorA: 0x201c18, floorB: 0x171310, deskColor: 0x5a4a2a, deskLabel: 'Service Corridor' },
+  jailUnderworld: { floorA: 0x1f1418, floorB: 0x160e12, deskColor: 0x6a1f3a, deskLabel: 'Back Room' },
 }
 
 // businessCenter/underworld/governmentBuilding/industrialZone (the 4
@@ -705,6 +724,7 @@ const BUILDING_INTERIOR_TEMPLATE = {
   realEstateAgency: 'officeA',
   trainStation: 'amenity',
   temple: 'amenity',
+  courtAndPrison: 'holdingCell',
 }
 
 // Explicit id lookup first (the 4 hand-authored entries above); falls back
@@ -732,6 +752,12 @@ const ZONES = {
   chapelInterior: { cols: CHAPEL_ROOM.cols, rows: CHAPEL_ROOM.rows },
   chapelExterior: { cols: CHAPEL_EXTERIOR_ROOM.cols, rows: CHAPEL_EXTERIOR_ROOM.rows },
   teaHouseInterior: { cols: TEA_HOUSE_ROOM.cols, rows: TEA_HOUSE_ROOM.rows },
+  // Jail mini-map - all 3 reuse the same shared INTERIOR_COLS x INTERIOR_ROWS
+  // room shape every other interior uses (see buildJailCellZone/
+  // buildJailMazeZone/buildJailUnderworldZone below), not a bespoke size.
+  jailCell: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  jailMaze: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  jailUnderworld: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
 }
 
 // ---------------- shared small helpers ----------------
@@ -1584,6 +1610,9 @@ export default class OverworldScene extends Phaser.Scene {
     else if (zoneId === 'chapelInterior') this.buildChapelInteriorZone()
     else if (zoneId === 'chapelExterior') this.buildChapelExteriorZone()
     else if (zoneId === 'teaHouseInterior') this.buildTeaHouseInteriorZone()
+    else if (zoneId === 'jailCell') this.buildJailCellZone()
+    else if (zoneId === 'jailMaze') this.buildJailMazeZone()
+    else if (zoneId === 'jailUnderworld') this.buildJailUnderworldZone()
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
     const zone = ZONES[zoneId]
@@ -1780,6 +1809,101 @@ export default class OverworldScene extends Phaser.Scene {
     ]
   }
 
+  // Jail mini-map (bespoke, not buildGenericInteriorZone, since this room
+  // needs two distinct interactables rather than one desk + one plain exit -
+  // see useGameStore.js's attemptJailBribe/attemptMazeSegment for the
+  // mechanics these interactables trigger). Entered via the 'enterJail'
+  // bridge event (GameCanvas.jsx) on arrest, not by walking through
+  // triggerInteraction, so the overworld return spawn is computed here
+  // rather than at the usual triggerInteraction call site (mirrors the
+  // stockExchange/casino pattern above, just relocated).
+  buildJailCellZone() {
+    const building = FINANCE_BUILDINGS.find((b) => b.id === 'courtAndPrison')
+    if (building) {
+      this.overworldReturnSpawn = {
+        col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
+        row: building.tiles.r1 + 1,
+      }
+    }
+
+    drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.holdingCell)
+    this.regionLabel.setText('Capital City Central Booking')
+
+    this.zones = [
+      // Guard desk - id 'courtAndPrison' reuses the exact same
+      // 'interiorDesk' -> {type:'building', id, npcId} path every other
+      // desk uses (see triggerInteraction's generic interiorDesk branch
+      // below); WorldScreen.jsx tells this apart from the "walked up to the
+      // building while free" case by checking jail.inJail, since the two
+      // can never both be true at once.
+      {
+        type: 'interiorDesk',
+        id: 'courtAndPrison',
+        label: 'Booking Desk',
+        rect: new Phaser.Geom.Rectangle(
+          INTERIOR_DESK.c0 * TILE_SIZE - TILE_SIZE / 2,
+          INTERIOR_DESK.r0 * TILE_SIZE - TILE_SIZE / 2,
+          (INTERIOR_DESK.c1 - INTERIOR_DESK.c0 + 1) * TILE_SIZE + TILE_SIZE,
+          (INTERIOR_DESK.r1 - INTERIOR_DESK.r0 + 1) * TILE_SIZE + TILE_SIZE
+        ),
+      },
+      // The inmate's hinted escape route (world-builder: "a corridor a
+      // bribed staffer forgot to seal") - a plain 'exit' zone with a custom
+      // target instead of the default overworld, so entering the maze needs
+      // no new triggerInteraction branch at all. Deliberately no ordinary
+      // "exit to overworld" zone here - leaving jail only resolves through
+      // the guard desk (bail/bribe) or a maze clear, never a free walk-out.
+      {
+        type: 'exit',
+        id: 'jailMazeEntry',
+        target: 'jailMaze',
+        label: 'Service Corridor',
+        rect: new Phaser.Geom.Rectangle(
+          INTERIOR_EXIT.c0 * TILE_SIZE,
+          INTERIOR_EXIT.r0 * TILE_SIZE,
+          (INTERIOR_EXIT.c1 - INTERIOR_EXIT.c0 + 1) * TILE_SIZE,
+          (INTERIOR_EXIT.r1 - INTERIOR_EXIT.r0 + 1) * TILE_SIZE
+        ),
+      },
+    ]
+  }
+
+  // 4 checkpoints laid left-to-right across the shared room shape (row 6,
+  // clear of the desk-shaped prop drawInteriorRoom always draws around
+  // INTERIOR_DESK). All 4 are always present rather than revealed one at a
+  // time - useGameStore.js's attemptMazeSegment is the authoritative
+  // sequence gate (silently ignores an out-of-order segmentIndex), so
+  // interacting with a later checkpoint before clearing an earlier one is
+  // harmless rather than something the scene needs to prevent.
+  buildJailMazeZone() {
+    drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.jailMaze)
+    this.regionLabel.setText('Service Corridor')
+
+    const checkpointCols = [2, 4, 6, 8]
+    this.zones = checkpointCols.map((col, segmentIndex) => ({
+      type: 'jailMazeCheckpoint',
+      id: `jailMazeCheckpoint${segmentIndex}`,
+      segmentIndex,
+      label: `Checkpoint ${segmentIndex + 1}/4`,
+      rect: new Phaser.Geom.Rectangle(
+        col * TILE_SIZE - TILE_SIZE / 2,
+        6 * TILE_SIZE - TILE_SIZE / 2,
+        TILE_SIZE * 2,
+        TILE_SIZE * 2
+      ),
+    }))
+  }
+
+  // Transient visual beat only - "framed as emerging through the tunnel"
+  // (world-builder) - WorldScreen.jsx opens the real UnderworldModal on top
+  // of this immediately after loading it, so it needs no interactables of
+  // its own; dressed the same as underworld's own back-room palette.
+  buildJailUnderworldZone() {
+    drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.jailUnderworld)
+    this.regionLabel.setText('The Underworld - Back Room')
+    this.zones = []
+  }
+
   // Real tile-based rooms built from the chapel pack's Walls_Interior
   // tileset via the generic buildTmxWallInteriorZone builder (see
   // src/game/interiors/tmxWallInterior.js) - the `temple` building
@@ -1847,7 +1971,10 @@ export default class OverworldScene extends Phaser.Scene {
     if (
       this.currentZoneId === 'stockExchangeInterior' ||
       this.currentZoneId === 'casinoInterior' ||
-      this.currentZoneId === 'buildingInterior'
+      this.currentZoneId === 'buildingInterior' ||
+      this.currentZoneId === 'jailCell' ||
+      this.currentZoneId === 'jailMaze' ||
+      this.currentZoneId === 'jailUnderworld'
     ) {
       if (col < 0 || col >= INTERIOR_COLS || row < 0 || row >= INTERIOR_ROWS) return true
       const isBorder = row === 0 || col === 0 || row === INTERIOR_ROWS - 1 || col === INTERIOR_COLS - 1
@@ -3491,6 +3618,16 @@ export default class OverworldScene extends Phaser.Scene {
         this.bridge.emit('interact', { type: 'building', id: zone.id })
         return
       }
+      // Court & Prison: walking up while free is a flavor no-op, never a
+      // real entrance (see WorldScreen.jsx's courtAndPrison interact
+      // handler) - joins the list above so it never falls into the generic
+      // walk-in interior below. The real jailCell room is only ever entered
+      // via the 'enterJail' bridge event on arrest (buildJailCellZone).
+      if (zone.id === 'courtAndPrison') {
+        this.pauseForModal()
+        this.bridge.emit('interact', { type: 'building', id: zone.id })
+        return
+      }
 
       const building = FINANCE_BUILDINGS[zone.uid] || FINANCE_BUILDINGS.find((b) => b.id === zone.id)
       
@@ -3530,6 +3667,8 @@ export default class OverworldScene extends Phaser.Scene {
       this.bridge.emit('interact', { type: 'building', id: 'namedRoamer', npcId: zone.roamer.agent.id })
     } else if (zone.type === 'financeAmbientNpc') {
       this.bridge.emit('interact', { type: 'ambientNpc', npcId: zone.npcRef.npcId, npcName: zone.npcRef.npcName })
+    } else if (zone.type === 'jailMazeCheckpoint') {
+      this.bridge.emit('interact', { type: 'jailMazeCheckpoint', segmentIndex: zone.segmentIndex })
     }
   }
 

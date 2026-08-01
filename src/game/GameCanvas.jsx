@@ -66,6 +66,21 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
       sceneRef.current?.resumeFromModal?.()
     })
 
+    // Jail mini-map: arrest/exit/maze-clear are scene-zone swaps rather than
+    // a forced full-screen modal (see WorldScreen.jsx's jail?.inJail effect
+    // and JailEscapeModal/JailMazeModal's continue handlers) - same
+    // "React emits, GameCanvas drives the scene directly" shape as
+    // cityTravel below.
+    const unsubEnterJail = bridge.on('enterJail', () => {
+      sceneRef.current?.loadZone?.('jailCell')
+    })
+    const unsubExitJail = bridge.on('exitJail', () => {
+      sceneRef.current?.loadZone?.('overworld')
+    })
+    const unsubEnterJailUnderworld = bridge.on('enterJailUnderworld', () => {
+      sceneRef.current?.loadZone?.('jailUnderworld')
+    })
+
     const unsubCityTravel = bridge.on('cityTravel', ({ cityId }) => {
       useGameStore.getState().switchCity(cityId)
       if (sceneRef.current) {
@@ -82,6 +97,9 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
 
     return () => {
       unsubResume()
+      unsubEnterJail()
+      unsubExitJail()
+      unsubEnterJailUnderworld()
       unsubCityTravel()
       gameRef.current?.destroy(true)
       gameRef.current = null
