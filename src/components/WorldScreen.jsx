@@ -643,11 +643,12 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id === 'wharf' && (
         <WharfModal onClose={closeModal} />
       )}
-      {/* Entertainment Complex (Concert Hall + Sports Stadium stub) - 2-tab
-          hub modal, same shape as the 4 consolidated hubs below. Concert
-          Hall composes Dixon's NamedNpcModal flavor tab with the arrow-key
-          rhythm minigame (RhythmGame.jsx); Sports Stadium is a placeholder
-          pending its own design pass. */}
+      {/* Entertainment Complex (Concert Hall + Sports Stadium) - 2-tab hub
+          modal, same shape as the 4 consolidated hubs below. Concert Hall
+          composes Dixon's NamedNpcModal flavor tab with the arrow-key
+          rhythm minigame (RhythmGame.jsx); Sports Stadium composes
+          Rothstein's flavor tab with the alternating-key sprint QTE
+          (SprintRace.jsx). */}
       {activeModal?.type === 'building' && activeModal.id === 'entertainmentComplex' && (
         <EntertainmentComplexModal onClose={closeModal} />
       )}
