@@ -31,6 +31,32 @@ const ICON_COLOR_CLASSES = {
   violet: 'text-violet-400 border-violet-400/70 bg-violet-500/10',
 }
 
+// Original mascot decoration for the phone's home screen - purely cosmetic,
+// no gameplay function. Deliberately drawn from scratch in this game's own
+// violet accent color rather than referencing any real toy/character design
+// (floppy rounded ears instead of pointy ones, a soft closed smile instead
+// of a wide jagged grin, blush cheeks) - not a likeness of anything
+// trademarked.
+function PhoneMascot() {
+  return (
+    <svg width="52" height="46" viewBox="0 0 52 46" aria-hidden="true">
+      {/* Ears - floppy rounded flaps, not pointed */}
+      <ellipse cx="10" cy="14" rx="7" ry="10" fill="#7c3aed" stroke="#c4b5fd" strokeWidth="1.5" transform="rotate(-25 10 14)" />
+      <ellipse cx="42" cy="14" rx="7" ry="10" fill="#7c3aed" stroke="#c4b5fd" strokeWidth="1.5" transform="rotate(25 42 14)" />
+      {/* Body - one round blob */}
+      <ellipse cx="26" cy="26" rx="19" ry="17" fill="#8b5cf6" stroke="#c4b5fd" strokeWidth="1.5" />
+      {/* Blush cheeks */}
+      <ellipse cx="14" cy="30" rx="3.5" ry="2.2" fill="#f472b6" opacity="0.55" />
+      <ellipse cx="38" cy="30" rx="3.5" ry="2.2" fill="#f472b6" opacity="0.55" />
+      {/* Eyes - simple round dots */}
+      <circle cx="18" cy="24" r="2.4" fill="#1c1d3a" />
+      <circle cx="34" cy="24" r="2.4" fill="#1c1d3a" />
+      {/* Soft closed smile, not a wide toothy grin */}
+      <path d="M18 32 Q26 37 34 32" stroke="#1c1d3a" strokeWidth="2" fill="none" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 /**
  * Persistent phone overlay shell. This pass only builds the frame + home
  * screen navigation - no real app content yet (that's a follow-up pass).
@@ -150,24 +176,34 @@ export default function PhoneShell({ onClose, apps = {} }) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
-                className="grid flex-1 grid-cols-2 content-start gap-4 pt-2"
+                className="flex flex-1 flex-col"
               >
-                {APP_DEFS.map(({ id, label, Icon, color, enabled }) => (
-                  <button
-                    key={id}
-                    disabled={!enabled}
-                    onClick={() => enabled && setScreen(id)}
-                    className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 text-xs font-bold transition-colors ${
-                      enabled
-                        ? `${ICON_COLOR_CLASSES[color]} hover:bg-white/10`
-                        : 'cursor-not-allowed border-gray-600/50 bg-white/5 text-gray-500 opacity-50'
-                    }`}
-                    title={enabled ? label : `${label} (coming soon)`}
-                  >
-                    <Icon size={22} />
-                    <span>{label}</span>
-                  </button>
-                ))}
+                <div className="grid grid-cols-2 content-start gap-4 pt-2">
+                  {APP_DEFS.map(({ id, label, Icon, color, enabled }) => (
+                    <button
+                      key={id}
+                      disabled={!enabled}
+                      onClick={() => enabled && setScreen(id)}
+                      className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 text-xs font-bold transition-colors ${
+                        enabled
+                          ? `${ICON_COLOR_CLASSES[color]} hover:bg-white/10`
+                          : 'cursor-not-allowed border-gray-600/50 bg-white/5 text-gray-500 opacity-50'
+                      }`}
+                      title={enabled ? label : `${label} (coming soon)`}
+                    >
+                      <Icon size={22} />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+                {/* Original mascot decoration, pinned to the bottom of the
+                    home screen - see PhoneMascot() above for why it's
+                    drawn from scratch rather than referencing any real
+                    toy/character design. */}
+                <div className="mt-auto flex flex-col items-center gap-0.5 pb-1 pt-3">
+                  <PhoneMascot />
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-violet-400/70">Mochi</span>
+                </div>
               </motion.div>
             ) : (
               <motion.div
