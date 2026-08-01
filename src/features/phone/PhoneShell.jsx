@@ -5,8 +5,8 @@ import { useGameStore } from '../../store/useGameStore'
 import { NET_WORTH_WIN_TARGET, NET_WORTH_MILESTONES } from '../../features/finance/marketData'
 
 // The 4 apps. Wired to real content (Social/X -> AgentInteractionsModal +
-// the news ticker, Banking & Portfolio -> BankModal/StockExchangeModal/
-// SyndicateBoardModal, Startups & M&A -> CorporateModal, Contacts & Romance
+// the news ticker, Banking & Portfolio -> PortfolioTab/BankModal/
+// StockExchangeModal, Startups & M&A -> CorporateModal, Contacts & Romance
 // -> per-contact NamedNpcModal - see src/features/phone/
 // {SocialApp,BankingApp,StartupsApp,ContactsApp}.jsx) via the `apps` prop
 // below. Dark Web & Underground (Underworld/Hitman/Syndicate Ops/Narcotics)

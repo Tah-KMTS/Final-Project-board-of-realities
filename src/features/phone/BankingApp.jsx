@@ -3,23 +3,22 @@ import { useGameStore } from '../../store/useGameStore'
 import PortfolioTab from './PortfolioTab'
 import BankModal from '../finance/BankModal'
 import StockExchangeModal from '../finance/StockExchangeModal'
-import SyndicateBoardModal from '../finance/SyndicateBoardModal'
 
 // Phone's Banking & Portfolio app. Portfolio is a read-only "what do I
 // actually own" summary (see PortfolioTab.jsx) and the default landing tab,
-// since the other 3 are all action screens with no single place that shows
-// holdings across all of them at a glance. Those three each embed an
-// existing modal (see each file's `embedded` prop): Bank & Realty
-// (BankModal), Stock Exchange (StockExchangeModal, which itself already
-// embeds a Crypto tab via CryptoModal), and Syndicate Board
-// (SyndicateBoardModal - the former "Board" header button's advisor-
-// recruitment content, folded in here since recruiting financial advisors
-// is a portfolio decision).
+// since the other 2 are both action screens with no single place that shows
+// holdings across all of them at a glance. Those two each embed an existing
+// modal (see each file's `embedded` prop): Bank & Realty (BankModal), Stock
+// Exchange (StockExchangeModal, which itself already embeds a Crypto tab via
+// CryptoModal). Syndicate Board (advisor recruitment) used to be a 3rd tab
+// here but was removed - recruiting financial titans is still fully
+// reachable by walking up to them in the overworld (NamedNpcModal.jsx also
+// calls recruitFinanceNpc), this just drops the "browse everyone remotely"
+// convenience screen.
 const TABS = [
   { id: 'portfolio', label: 'Portfolio' },
   { id: 'bank', label: 'Bank & Realty' },
   { id: 'exchange', label: 'Stock Exchange' },
-  { id: 'board', label: 'Syndicate Board' },
 ]
 
 export default function BankingApp() {
@@ -50,7 +49,6 @@ export default function BankingApp() {
         {tab === 'portfolio' && <PortfolioTab />}
         {tab === 'bank' && <BankModal embedded />}
         {tab === 'exchange' && <StockExchangeModal embedded onDeclareVictory={clearWorld2} />}
-        {tab === 'board' && <SyndicateBoardModal embedded />}
       </div>
     </div>
   )
