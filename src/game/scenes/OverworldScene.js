@@ -191,15 +191,16 @@ const FINANCE_BUILDING_DEFS = [
   // into hub defs (by `zone`) and home defs (by `kind`) itself. Kept as one
   // array anyway (rather than three separate exported lists) so this stays
   // the single roster source-of-truth other files could grep for.
-  // Sorted by residentialStyleKey (stone manor / wood house / pico8 /
-  // serene cottage / brick cottage / hideout) before packing - array order
-  // is preserved straight through packing, so this sort survives into "same
-  // style lands in a contiguous run" once layoutFinanceMap splits it into the
-  // top-band styles (stone/woodHouse/hideout) and bottom-band styles (pico8/
-  // serene/brick) and packs each half, i.e. actual visual clusters rather
-  // than the roster's arbitrary order scattering every style across every
-  // row (reported: a log-cabin home next to a stone manor next to a pico8
-  // warehouse, no grouping at all).
+  // Sorted by residentialStyleKey (stone manor / wood house / hideout /
+  // brick cottage / stoneCottage / sereneRed / sereneGreen / sereneBlue)
+  // before packing - array order is preserved straight through packing, so
+  // this sort survives into "same style lands in a contiguous run" once
+  // layoutFinanceMap splits it into the top-band styles (stone/woodHouse/
+  // hideout) and bottom-band styles (brick/stoneCottage/sereneRed/
+  // sereneGreen/sereneBlue) and packs each half, i.e. actual visual clusters
+  // rather than the roster's arbitrary order scattering every style across
+  // every row (reported: a log-cabin home next to a stone manor next to a
+  // flat-roof warehouse, no grouping at all).
   ...CHARACTER_HOME_BUILDING_DEFS
     .slice()
     .sort((a, b) => residentialStyleKey(a.npcId, a.kind).localeCompare(residentialStyleKey(b.npcId, b.kind))),
@@ -277,10 +278,10 @@ function firstColumnClearOfStreets(col, width, streetCols, colEnd) {
 // ---------------------------------------------------------------------------
 
 // Home style keys that land in the top band vs. the bottom band (see
-// residentialStyleKey in tileGen.js for the 6 possible values - every one is
+// residentialStyleKey in tileGen.js for the 8 possible values - every one is
 // assigned to exactly one of these two sets).
 const TOP_HOME_STYLES = new Set(['stone', 'woodHouse', 'hideout'])
-const BOTTOM_HOME_STYLES = new Set(['pico8', 'serene', 'brick'])
+const BOTTOM_HOME_STYLES = new Set(['brick', 'stoneCottage', 'sereneRed', 'sereneGreen', 'sereneBlue'])
 
 // Bottom-right reservation for ambient habitat animals + wealthy pet pens
 // (see spawnHabitatAnimals/spawnWealthyPetPens/findPenSpot) - sized per the
@@ -350,9 +351,9 @@ function packDefs(defs, colStart, colEnd, rowStart, reservedCols) {
 // zero-gap cluster BLOCKS, one block per residentialStyleKey sub-group,
 // instead of packDefs' flowing row-wrap with a uniform gap between every
 // single home. Two passes:
-//   1. Group `homeDefs` by style key (3 sub-groups per band - see
-//      TOP_HOME_STYLES/BOTTOM_HOME_STYLES). Each group of N homes becomes a
-//      cols x rows square-ish grid (cols = ceil(sqrt(N)), rows =
+//   1. Group `homeDefs` by style key (3 sub-groups in the top band, 5 in the
+//      bottom band - see TOP_HOME_STYLES/BOTTOM_HOME_STYLES). Each group of N
+//      homes becomes a cols x rows square-ish grid (cols = ceil(sqrt(N)), rows =
 //      ceil(N/cols)). Homes within a row sit at col*2 tile offsets - zero
 //      horizontal gap, touching edge to edge, reading as one continuous strip
 //      of houses. Rows themselves are spaced row*(2+ROW_GAP) apart instead of
@@ -435,22 +436,32 @@ function packHomeBand(homeDefs, colStart, colEnd, rowStart, reservedCols) {
 }
 
 // Inserts a full-width, STREET_WIDTH-tall horizontal street centered in the
-// gap below `prevBottomRow`, with BAND_GAP rows of clearance on top of the
+// gap below `prevBottomRow`, with `gap` rows of clearance on top of the
 // street's own width (so facades on either side keep the same "art can
 // overflow its footprint" margin every other street reservation in this file
-// uses) - reuses BAND_GAP/STREET_WIDTH rather than introducing new tuning
-// constants for a 3-band map where every inter-band gap is now known and
-// fixed in advance (the old freeBands scan this replaces existed only
-// because the single flat packer didn't know in advance where its gaps
-// would land).
-function insertStreetGap(prevBottomRow) {
+// uses) - reuses STREET_WIDTH rather than introducing new tuning constants
+// for a 3-band map where every inter-band gap is now known and fixed in
+// advance (the old freeBands scan this replaces existed only because the
+// single flat packer didn't know in advance where its gaps would land).
+// `gap` defaults to BAND_GAP (every non-residential call site keeps that
+// default unchanged); the two home-band call sites below pass a smaller
+// value so residential rows sit close to the road, per the reference image.
+function insertStreetGap(prevBottomRow, gap = BAND_GAP) {
   const gapTop = prevBottomRow + 1
-  const gapRows = BAND_GAP + STREET_WIDTH
+  const gapRows = gap + STREET_WIDTH
   const streetTop = gapTop + Math.floor((gapRows - STREET_WIDTH) / 2)
   const streetRows = []
   for (let r = streetTop; r < streetTop + STREET_WIDTH; r++) streetRows.push(r)
   return { streetRows, nextBandTop: gapTop + gapRows }
 }
+
+// Smaller road-adjacency gap used only where a residential home band meets
+// the street (see the two insertStreetGap call sites below) - the reference
+// mockup shows home rows sitting tight against the road, tighter than the
+// BAND_GAP spacing every other (non-residential) band keeps. Does not touch
+// packHomeBand's own internal cluster-packing gaps (ROW_GAP/CLUSTER_GAP),
+// only the outer gap between a home band and the road.
+const HOME_BAND_STREET_GAP = 1
 
 function layoutFinanceMap(mapCols) {
   const bandColStart = BAND_COL_START
@@ -547,7 +558,10 @@ function layoutFinanceMap(mapCols) {
   const topBandTop = MAP_TOP_MARGIN
   const topBand = packHomeBand(topHomeDefs, bandColStart, bandColEnd, topBandTop, reservedCols)
 
-  const gap1 = insertStreetGap(topBand.contentBottomRow)
+  // Residential band -> road gap tightened (HOME_BAND_STREET_GAP, not
+  // BAND_GAP) so the top home band's homes sit close to the street, per the
+  // reference image - see insertStreetGap's own doc comment.
+  const gap1 = insertStreetGap(topBand.contentBottomRow, HOME_BAND_STREET_GAP)
 
   // ---- Band 2: middle hub band - 4 zone columns, all starting at the same
   // row. Each zone's own column span sits strictly between two street
@@ -563,7 +577,10 @@ function layoutFinanceMap(mapCols) {
   const industry = packDefs(zoneDefs.industry, industryColStart, industryColEnd, hubBandTop, [])
   const hubBandBottom = Math.max(law.contentBottomRow, finance.contentBottomRow, chapelBuilding.tiles.r1, industry.contentBottomRow)
 
-  const gap2 = insertStreetGap(hubBandBottom)
+  // Same road-adjacency tightening as gap1 above, on the OTHER side of this
+  // street - it borders the bottom home band (packed right after gap2,
+  // below), so the same smaller gap is used here too.
+  const gap2 = insertStreetGap(hubBandBottom, HOME_BAND_STREET_GAP)
 
   // ---- Band 3: bottom home band - packed only up to bottomBandColEnd
   // (short of the map's true right edge) so the rightmost FARM_ZONE_W
@@ -827,13 +844,13 @@ function scatterTrees(scene, layout, buildings, count, zoneObjects) {
 // Animated-door scope: ONLY buildings whose facade resolved to a Serene
 // Village cottage prefab (buildingDoorAnimSpec returns non-null exclusively
 // for that family - see tileGen.js) get an overlay sprite here. That's
-// roughly a quarter of the "everyone else" wealth tier's homes (see
-// brickOrPico8HomeKit), not all 98 buildings - deliberately scoped so the
-// animation reads as "this recognizable house style has a working door"
-// rather than a uniform tic applied to every building indiscriminately
-// (district civic buildings, hideouts, and the other two home facade
-// families all keep their door as a static painted-on frame, same as
-// before this change).
+// roughly 3/5ths of the "everyone else" wealth tier's homes (see
+// residentialHomeKit's sereneRed/sereneGreen/sereneBlue styles), not all 98
+// buildings - deliberately scoped so the animation reads as "this
+// recognizable house style has a working door" rather than a uniform tic
+// applied to every building indiscriminately (district civic buildings,
+// hideouts, and the other home facade families all keep their door as a
+// static painted-on frame, same as before this change).
 function drawBuildings(scene, buildings, zoneObjects) {
   for (const b of buildings) {
     const x = b.tiles.c0 * TILE_SIZE
@@ -1144,6 +1161,146 @@ function assignDoorSlots(entries) {
   }
   return slotByCharacterId
 }
+
+// ---------------------------------------------------------------------------
+// Local pacing/loitering for roamers who have already arrived at their
+// resolved building and have nothing to do for the rest of the block (the
+// !traveling branch of updateNamedRoamers below). idleDriftOffset above
+// already gives every such roamer a small mill-in-place fidget; this layers
+// a second, occasional behavior on top for a SUBSET of them: walk out to a
+// short, nearby point, linger, walk back, repeat - real point-to-point
+// locomotion via the same seekTo() step-and-arrive mechanic
+// updateNamedRoamers already uses for door-to-door travel, just with a
+// short local round trip instead of a different building's door.
+//
+// Determinism convention (matches idleDriftHash/presencePhaseOffset above
+// and worldPresenceEngine.js's own house rule): every parameter - whether a
+// character paces at all, which direction, how far, how long they rest
+// between walks - is derived once from a hash of the character's id, never
+// Math.random(). The one thing that ISN'T hash-seeded is the real-time
+// countdown driving state transitions (paceTimer counts down by the actual
+// frame delta) - exactly like idleDriftOffset's own agentClock dependency
+// above, this makes a given character's pacing PERSONALITY reproducible
+// (same odds, distance, cadence every time) without pretending the literal
+// wall-clock moment they start walking is meaningful to reproduce too.
+function paceHash01(characterId, salt) {
+  return (idleDriftHash(`${characterId}:${salt}`) % 1000) / 1000
+}
+
+// Only a minority of roamers pace at all - the brief asked for "a reasonable
+// subset", not everyone, so most of the crowd still reads as settled.
+// Weighted by the same personality tiers idleDriftOffset uses: recluses and
+// fugitives overwhelmingly stay put, socialites/regulars are the ones who
+// plausibly step out and circulate.
+const PACE_ELIGIBILITY_BY_TIER = {
+  recluse: 0.05,
+  fugitive: 0.08,
+  homebody: 0.16,
+  regular: 0.28,
+  socialite: 0.42,
+}
+
+const PACE_DISTANCE_MIN = 55 // px - short enough to stay "in front of the building"
+const PACE_DISTANCE_MAX = 120 // px - stays well under the ~320px min door-to-door gap
+const PACE_REST_MS_MIN = 5000 // how long they mill at the door before walking out
+const PACE_REST_MS_MAX = 11000
+const PACE_LINGER_MS_MIN = 1800 // how long they pause at the far point before returning
+const PACE_LINGER_MS_MAX = 4000
+
+// One-time, per-character pacing "personality" - cached on the roamer the
+// first time it's needed (see updateNamedRoamers). Direction is constrained
+// to the same south-facing cone assignDoorSlots' arc rings fan into (the
+// door already sits just past the building's south edge), so a pacing walk
+// naturally reads as "stepping out front", never back through the building.
+function paceProfileFor(characterId, tier) {
+  const threshold = PACE_ELIGIBILITY_BY_TIER[tier] ?? PACE_ELIGIBILITY_BY_TIER.regular
+  const eligible = paceHash01(characterId, 'paceEligible') < threshold
+  const angle = -ARC_MAX_ANGLE + paceHash01(characterId, 'paceAngle') * (ARC_MAX_ANGLE * 2)
+  const distance = PACE_DISTANCE_MIN + paceHash01(characterId, 'paceDistance') * (PACE_DISTANCE_MAX - PACE_DISTANCE_MIN)
+  const restMs = PACE_REST_MS_MIN + paceHash01(characterId, 'paceRestMs') * (PACE_REST_MS_MAX - PACE_REST_MS_MIN)
+  const lingerMs = PACE_LINGER_MS_MIN + paceHash01(characterId, 'paceLingerMs') * (PACE_LINGER_MS_MAX - PACE_LINGER_MS_MIN)
+  return { eligible, angle, distance, restMs, lingerMs }
+}
+
+// Picks a walkable local pacing destination near `restPos` (the roamer's
+// door+slot position), trying the profile's own angle/distance first and
+// then a couple of shorter fallbacks if that lands inside a building
+// footprint, on a blocked/water tile, or on a tile another creature already
+// occupies (isOccupiedByCreature - the same collision check driving-mode
+// already uses elsewhere in this file). Returns null (stay milling instead)
+// if every attempt is blocked, rather than ever forcing an overlapping or
+// inside-a-wall destination.
+function computePaceTarget(scene, restPos, profile) {
+  const attempts = [1, 0.65, 0.4]
+  for (const scale of attempts) {
+    const dist = profile.distance * scale
+    const tx = restPos.x + Math.sin(profile.angle) * dist
+    const ty = restPos.y + Math.cos(profile.angle) * dist
+    const col = Math.floor(tx / TILE_SIZE)
+    const row = Math.floor(ty / TILE_SIZE)
+    const insideBuilding = FINANCE_BUILDINGS.some(
+      (b) => col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1
+    )
+    if (insideBuilding) continue
+    if (scene.isSingleTileObstacle(col, row)) continue
+    if (scene.isOccupiedByCreature(col, row)) continue
+    return { x: tx, y: ty }
+  }
+  return null
+}
+
+const PACE_PHASE_OUT = 'out'
+const PACE_PHASE_LINGER = 'linger'
+const PACE_PHASE_BACK = 'back'
+
+// Advances one roamer's pacing state machine by `delta` ms and returns the
+// seek target for THIS frame (or null if they should just mill in place via
+// idleDriftOffset, same as before this feature existed). Pure state-machine
+// step - all actual movement still goes through updateNamedRoamers' own
+// seekTo(), so pacing gets the exact same constant walk speed, arrival
+// tolerance, and (via the caller adding it to the moving/facing logic
+// downstream) walk-cycle/facing behavior as any other roamer movement.
+function advanceRoamerPacing(scene, roamer, restPos, delta) {
+  const profile = roamer.paceProfile
+  if (!profile || !profile.eligible) return null
+
+  if (!roamer.paceState) {
+    if (roamer.paceTimer == null) roamer.paceTimer = profile.restMs
+    roamer.paceTimer -= delta
+    if (roamer.paceTimer <= 0) {
+      const target = computePaceTarget(scene, restPos, profile)
+      if (target) roamer.paceState = { phase: PACE_PHASE_OUT, target }
+      else roamer.paceTimer = profile.restMs // no safe spot this cycle - try again next
+    }
+    return null // still milling
+  }
+
+  const arriveTolerance = NAMED_ROAMER_WALK_SPEED_PX_PER_SEC * (delta / 1000) + 1
+
+  if (roamer.paceState.phase === PACE_PHASE_OUT) {
+    const dist = Math.hypot(roamer.actor.x - roamer.paceState.target.x, roamer.actor.y - roamer.paceState.target.y)
+    if (dist <= arriveTolerance) {
+      roamer.paceState = { phase: PACE_PHASE_LINGER, target: roamer.paceState.target, timer: profile.lingerMs }
+    }
+    return roamer.paceState.target
+  }
+
+  if (roamer.paceState.phase === PACE_PHASE_LINGER) {
+    roamer.paceState.timer -= delta
+    if (roamer.paceState.timer <= 0) roamer.paceState = { phase: PACE_PHASE_BACK, target: restPos }
+    return roamer.paceState.target
+  }
+
+  // PACE_PHASE_BACK
+  const dist = Math.hypot(roamer.actor.x - restPos.x, roamer.actor.y - restPos.y)
+  if (dist <= arriveTolerance) {
+    roamer.paceState = null
+    roamer.paceTimer = profile.restMs // rest at the door before the next round trip
+    return null // resume milling this same frame
+  }
+  return restPos
+}
+// ---------------------------------------------------------------------------
 
 function agentAmbientActions(c) {
   const acts = []
@@ -2021,25 +2178,46 @@ export default class OverworldScene extends Phaser.Scene {
         roamer.travelPhase = null
         const dest = doorA || doorB
         if (dest) {
-          // idleDriftOffset must be folded into the SEEK TARGET (door +
-          // offset), not added to the result afterward. seekTo's "from"
-          // point is wherever the actor currently is - which already
-          // includes last frame's drift - so adding a fresh drift value on
-          // top of that every frame doesn't orbit the door, it ACCUMULATES:
-          // roughly the same offset gets re-added frame after frame with no
-          // bound, running away in whatever direction that frame's phase
-          // happened to point. Measured as a nearly-constant drift value
-          // (e.g. {x:-16,y:-9}) compounding into a runaway walk at
-          // 20x the intended speed for whichever roamer's phase gave it a
-          // large offset - explains the reported mix of "some fast, some
-          // stuck at a building, some normal": purely a function of each
-          // character's drift phase at that moment, not their actual
-          // situation. Seeking toward a slowly-moving point (the door,
-          // orbited by the bounded sin/cos offset) keeps the roamer
-          // genuinely centered on their door instead.
           const tier = doorA ? getDisposition(roamer.agent.id)?.tier : null
-          const drift = doorA ? idleDriftOffset(roamer.agent.id, this.agentClock, tier, activeSlot?.crowded) : { x: 0, y: 0 }
-          rawPos = seekTo({ x: dest.x + drift.x, y: dest.y + drift.y }).pos
+          if (!roamer.paceProfile) roamer.paceProfile = paceProfileFor(roamer.agent.id, tier)
+          // A mid-block presence refresh (PRESENCE_RESOLVE_INTERVAL_MS) can
+          // reassign this roamer to a different building without ever
+          // passing through `traveling` (e.g. wantedLevel swings who's
+          // "currently" here) - stale pacing state pointing at the OLD
+          // building's vicinity would walk them toward a target near the
+          // wrong door, so drop it whenever the resting building changes.
+          if (roamer.paceRestBuildingId !== presence.currentBuildingId) {
+            roamer.paceRestBuildingId = presence.currentBuildingId
+            roamer.paceState = null
+            roamer.paceTimer = null
+          }
+          const paceTarget = advanceRoamerPacing(this, roamer, dest, delta)
+          if (paceTarget) {
+            // Mid pacing round-trip (walking out / lingering / walking
+            // back) - reuses the exact same seekTo step-and-arrive used for
+            // door-to-door travel below, just with a short local
+            // destination instead of a different building's door.
+            rawPos = seekTo(paceTarget).pos
+          } else {
+            // idleDriftOffset must be folded into the SEEK TARGET (door +
+            // offset), not added to the result afterward. seekTo's "from"
+            // point is wherever the actor currently is - which already
+            // includes last frame's drift - so adding a fresh drift value on
+            // top of that every frame doesn't orbit the door, it ACCUMULATES:
+            // roughly the same offset gets re-added frame after frame with no
+            // bound, running away in whatever direction that frame's phase
+            // happened to point. Measured as a nearly-constant drift value
+            // (e.g. {x:-16,y:-9}) compounding into a runaway walk at
+            // 20x the intended speed for whichever roamer's phase gave it a
+            // large offset - explains the reported mix of "some fast, some
+            // stuck at a building, some normal": purely a function of each
+            // character's drift phase at that moment, not their actual
+            // situation. Seeking toward a slowly-moving point (the door,
+            // orbited by the bounded sin/cos offset) keeps the roamer
+            // genuinely centered on their door instead.
+            const drift = doorA ? idleDriftOffset(roamer.agent.id, this.agentClock, tier, activeSlot?.crowded) : { x: 0, y: 0 }
+            rawPos = seekTo({ x: dest.x + drift.x, y: dest.y + drift.y }).pos
+          }
         }
       } else {
         // Car-owning roamers used to route VIA their car (walk to it, drive
@@ -2053,6 +2231,11 @@ export default class OverworldScene extends Phaser.Scene {
         // of following them; see the `roamer.inCar`/`carPark` rendering
         // below, unchanged.
         roamer.travelPhase = null
+        // Real door-to-door travel supersedes any in-progress local pacing
+        // round trip - drop it so arriving at the new building starts fresh
+        // (paceRestBuildingId reset forces a re-check next !traveling tick).
+        roamer.paceState = null
+        roamer.paceRestBuildingId = null
         rawPos = seekTo(doorB).pos
       }
       roamer.inCar = !onFoot
@@ -2265,7 +2448,7 @@ export default class OverworldScene extends Phaser.Scene {
   }
 
   spawnFinanceAmbientNpcs() {
-    const npcs = generateAmbientNpcs('finance_ambient', 8)
+    const npcs = generateAmbientNpcs('finance_ambient', 6)
     this.financeAmbientActors = npcs.map((npc, i) => {
       let r, c
       let tries = 0

@@ -1,8 +1,7 @@
 import { SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, HAIR_OPTIONS } from '../game/characterPalettes'
 
 const FIRST_NAMES = [
-  'Mira', 'Toby', 'Suri', 'Dax', 'Elena', 'Kip', 'Nadia', 'Fenn', 'Yara', 'Otis',
-  'Ines', 'Zeke', 'Rosa', 'Milo', 'Ada', 'Basil', 'Junie', 'Reo', 'Petra', 'Sable',
+  'Tah', 'Jeff', 'Ince', 'Franc', 'Tan', 'Poom',
 ]
 
 const PERSONALITY_TAGS = [

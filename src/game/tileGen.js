@@ -14,7 +14,6 @@ import {
 import { MODERN_CITY } from './packs/modernCityTiles'
 import { TINY_TOWN } from './packs/tinyTownTiles'
 import { RPG_URBAN } from './packs/rpgUrbanTiles'
-import { PICO8_CITY } from './packs/pico8CityTiles'
 import { SERENE_VILLAGE_HOMES } from './packs/sereneVillageTiles'
 import { getAnyCharacter } from '../features/agents/characterLookup'
 import { cuteTerrainReady, buildCuteTerrainOverlay, cuteTreesReady, drawCuteTree } from './packs/cuteFantasyTerrain'
@@ -172,10 +171,10 @@ export function placeFencePen(scene, x, y, wPx, hPx, TILE_SIZE) {
 }
 
 // ---------------------------------------------------------------------------
-// Kenney pack zoning (rpg-urban / roguelike-modern-city / tiny-town / pico-8-city)
+// Kenney pack zoning (rpg-urban / roguelike-modern-city / tiny-town / serene-village)
 // ---------------------------------------------------------------------------
 // The packs clash tonally on purpose-built art (pastel village vs. grim
-// concrete city vs. medieval fantasy vs. tiny retro top-down), so each is
+// concrete city vs. medieval fantasy vs. top-down JRPG cottages), so each is
 // assigned a COHERENT ZONE / PURPOSE rather than being mixed on one structure:
 //
 //   roguelike-modern-city -> the three "city" district bands. It is the only
@@ -187,11 +186,16 @@ export function placeFencePen(scene, x, y, wPx, hPx, TILE_SIZE) {
 //     reskin, the closest existing tonal match) plus MOST of the 88 character
 //     homes/hideouts, which read as village residences rather than office
 //     towers.
-//   pico-8-city -> an ADDITIVE variety layer inside the tiny-town home bucket
-//     only (see brickOrPico8HomeKit/packFacadeFor below), not its own zone. Its buildings are
-//     flat top-down rooftops (fixed-size prefabs, not wall nine-slices - see
-//     pico8CityTiles.js), so it reads as "a different little building on the
-//     block" dropped in among the cottages rather than a clashing district.
+//   serene-village -> an ADDITIVE color-variety layer inside the tiny-town
+//     home bucket only (see residentialHomeKit/packFacadeFor below), not its
+//     own zone. Its cottages are front-facing pitched-roof prefabs in the
+//     same tonal family as tiny-town's own brick/stone cottages, just in
+//     more color families (red/green/blue), so they read as "a different
+//     house on the block" rather than a clashing district. (A pico-8-city
+//     "warehouse" variant used to sit in this same rotation but was removed:
+//     that pack is a top-down CITY kit, structurally incapable of drawing a
+//     front-facing gabled roof, so it always read as a flat grey/purple
+//     warehouse regardless of color - wrong style, not just wrong color.)
 //     Hideouts are deliberately excluded (their brick+open-archway look is
 //     the "seedier" identity signal and shouldn't get diluted), and the
 //     billionaire stone tier is also excluded (stone is the wealth signal;
@@ -275,66 +279,65 @@ function hashId(id) {
 }
 
 // Homes below the billionaire/stone tier mostly keep the tiny-town brick
-// cottage, but a quarter (id-hashed, stable) draw a pico8-city prefab
-// instead - a flat-roof warehouse block or a detailed portico townhouse,
-// each in one of two color variants - and a further quarter draw a Serene
-// Village cottage prefab (see sereneVillageTiles.js) in one of three roof
-// colors. Both are purely to break up the visual monotony of ~80+
-// near-identical brick cottages sitting side by side (half the bucket still
-// stays plain brick, so brick remains the visible majority "everyone else"
-// look, not a minority option). This is an ADDITIVE variety layer only: it
-// never touches the wealth signal (stone is still exclusively the
-// billionaire tier, wood-house still exclusively the $10M-$999M tier) and
-// never applies to hideouts (see packFacadeFor). The pico8 prefabs are
-// natively 4x3/4x4 world tiles and the Serene Village cottages are natively
-// 3x4, all larger than a home's fixed 2x2 footprint - drawPrefabFacade's
+// cottage, but rotate (id-hashed, stable) through a wider pool of
+// front-facing pitched-roof cottage styles to break up the visual monotony
+// of ~80+ near-identical brick cottages sitting side by side: tiny-town's
+// own stoneCottage (blue-grey) plus Serene Village's red/green/blue cottage
+// prefab (see sereneVillageTiles.js), in addition to brick. This is an
+// ADDITIVE variety layer only: it never touches the wealth signal (the
+// billionaire tier's stone manor is a SEPARATE 'stone' residentialStyleKey,
+// below, so it never gets confused with this pool's own stoneCottage entry;
+// wood-house stays exclusively the $10M-$999M tier) and never applies to
+// hideouts (see packFacadeFor). A pico8-city "warehouse" variant used to sit
+// in this rotation too but was removed entirely: that pack is a top-down
+// CITY kit, structurally incapable of drawing a front-facing gabled roof, so
+// every pico8 home read as a flat grey/purple warehouse regardless of which
+// color was picked - the wrong STYLE, not something an extra palette entry
+// could have fixed. The Serene Village cottages are natively 3x4 world
+// tiles, larger than a home's fixed 2x2 footprint - drawPrefabFacade's
 // documented house rule centers the prefab on the footprint rather than
 // distorting it, so these draw slightly oversized. That overflow was
 // checked against OverworldScene.js's actual home packing (HOME_GAP=2 tiles
 // horizontal, BAND_GAP=4 tiles between rows) and fits inside the existing
-// gaps without overlapping a neighboring building - see report for the
-// arithmetic (Serene Village's 3x4 overflows by 1 tile at the sides and 2 at
-// the top, the same safe margin already proven out by the pico8 tier).
-const PICO8_HOME_VARIANTS = [
-  PICO8_CITY.warehouse.purple,
-  PICO8_CITY.warehouse.grey,
-  PICO8_CITY.manor.purple,
-  PICO8_CITY.manor.pink,
-]
+// gaps without overlapping a neighboring building.
+const RESIDENTIAL_STYLE_POOL = ['brick', 'stoneCottage', 'sereneRed', 'sereneGreen', 'sereneBlue']
 
-const SERENE_HOME_VARIANTS = [SERENE_VILLAGE_HOMES.cottage.red, SERENE_VILLAGE_HOMES.cottage.green, SERENE_VILLAGE_HOMES.cottage.blue]
+// Deterministic per-id bucket into RESIDENTIAL_STYLE_POOL above - the single
+// source of truth shared by residentialHomeKit (resolves the actual
+// sheet/kit to draw) and residentialStyleKey (only needs the style-family
+// label for clustering), so a given npcId always lands in the same pool
+// entry in both places. One shared lookup instead of two independent
+// `hashId(id) % N` calls is what keeps a home's CLUSTER membership and its
+// actually-drawn color from disagreeing - the same fixed-per-npcId (not
+// re-rolled per building) mechanism that already guarantees "one uniform
+// color per cluster" (see packHomeBand in OverworldScene.js, which groups
+// homes by residentialStyleKey's return value).
+function residentialStyleBucket(npcId) {
+  return RESIDENTIAL_STYLE_POOL[hashId(npcId || '') % RESIDENTIAL_STYLE_POOL.length]
+}
 
-function brickOrPico8HomeKit(npcId) {
-  const h = hashId(npcId || '')
-  const bucket = h % 4
-  if (bucket === 0) {
-    // Map overhaul: this used to pick 1 of 4 color variants per-character
-    // (`(h >>> 2) % length`), so a single 'pico8' style cluster rendered as a
-    // scramble of different colors instead of the reference mockup's solid
-    // one-color-per-cluster blocks. Fixed to always the same variant - every
-    // home clustered under this style key now looks alike. Pick a different
-    // index into PICO8_HOME_VARIANTS above if this specific one (warehouse,
-    // purple) isn't the shade wanted.
-    const variant = PICO8_HOME_VARIANTS[0]
-    return { sheetKey: PACK_SHEET_KEYS.pico8City, kit: variant, prefab: true }
+// Serene Village cottages carry a documented door slot (see
+// sereneVillageTiles.js) - recorded on the returned spec as `doorSlot` so
+// buildingDoorAnimSpec below can find it without re-deriving the style
+// choice a second time (it just calls residentialHomeKit again via
+// packFacadeFor).
+function sereneHomeKit(variant) {
+  return {
+    sheetKey: PACK_SHEET_KEYS.sereneVillage,
+    kit: variant,
+    prefab: true,
+    doorSlot: variant?.door ? { cols: variant.cols, rows: variant.rows, col: variant.door.col, row: variant.door.row } : null,
   }
-  if (bucket === 1) {
-    // Serene Village cottages carry a documented door slot (see
-    // sereneVillageTiles.js) - recorded on the returned spec as `doorSlot`
-    // so buildingDoorAnimSpec below can find it without re-deriving the
-    // bucket/variant choice a second time (it just calls this same function
-    // again via packFacadeFor). Same map-overhaul fix as the pico8 branch
-    // above - one fixed variant per style key instead of a per-character
-    // scramble. Index 2 (blue) picked to match one of the reference mockup's
-    // clusters; swap the index into SERENE_HOME_VARIANTS above if wrong.
-    const variant = SERENE_HOME_VARIANTS[2]
-    return {
-      sheetKey: PACK_SHEET_KEYS.sereneVillage,
-      kit: variant,
-      prefab: true,
-      doorSlot: variant?.door ? { cols: variant.cols, rows: variant.rows, col: variant.door.col, row: variant.door.row } : null,
-    }
+}
+
+function residentialHomeKit(npcId) {
+  const style = residentialStyleBucket(npcId)
+  if (style === 'stoneCottage') {
+    return { sheetKey: PACK_SHEET_KEYS.tinyTown, kit: cottageKit(TINY_TOWN.stoneCottage), peaked: true }
   }
+  if (style === 'sereneRed') return sereneHomeKit(SERENE_VILLAGE_HOMES.cottage.red)
+  if (style === 'sereneGreen') return sereneHomeKit(SERENE_VILLAGE_HOMES.cottage.green)
+  if (style === 'sereneBlue') return sereneHomeKit(SERENE_VILLAGE_HOMES.cottage.blue)
   return { sheetKey: PACK_SHEET_KEYS.tinyTown, kit: cottageKit(TINY_TOWN.brickCottage), peaked: true }
 }
 
@@ -350,10 +353,7 @@ export function residentialStyleKey(npcId, kind) {
   const netWorth = getAnyCharacter(npcId)?.netWorth ?? 0
   if (netWorth >= WEALTH_STONE_THRESHOLD) return 'stone'
   if (netWorth >= WEALTH_WOOD_HOUSE_THRESHOLD) return 'woodHouse'
-  const bucket = hashId(npcId || '') % 4
-  if (bucket === 0) return 'pico8'
-  if (bucket === 1) return 'serene'
-  return 'brick'
+  return residentialStyleBucket(npcId)
 }
 
 // Resolves which pack + kit a building draws with. Returns null for anything
@@ -379,7 +379,7 @@ function packFacadeFor(building) {
     if (netWorth >= WEALTH_WOOD_HOUSE_THRESHOLD) {
       return { prefabImage: true, imageKey: HABITAT_ASSET_KEYS.houseWood }
     }
-    return brickOrPico8HomeKit(building.npcId)
+    return residentialHomeKit(building.npcId)
   }
 
   const spec = BUILDING_FACADE_STYLE[building.facadeStyle]
@@ -392,12 +392,13 @@ function packFacadeFor(building) {
 
 // Resolves the world-pixel position of an animated-door overlay sprite for a
 // building, if (and only if) that building's facade resolved to a Serene
-// Village cottage prefab with a documented door slot (brickOrPico8HomeKit's
-// bucket 1, above) - null for every other facade family (district civic
-// buildings, hideouts, the stone/wood-house wealth tiers, brick cottages,
-// pico8 prefabs). Those all keep their door as a static frame baked into the
-// wall/prefab art with nothing overlaid on it - see OverworldScene.js's
-// drawBuildings for why the animation is scoped to just this one family.
+// Village cottage prefab with a documented door slot (residentialHomeKit's
+// sereneRed/sereneGreen/sereneBlue styles, above) - null for every other
+// facade family (district civic buildings, hideouts, the stone/wood-house
+// wealth tiers, brick/stoneCottage). Those all keep their door as a static
+// frame baked into the wall/prefab art with nothing overlaid on it - see
+// OverworldScene.js's drawBuildings for why the animation is scoped to just
+// this one family.
 // Called with the SAME (x, y, w, h) already passed to placeBuildingFacade
 // for this building, so prefabTileWorldPos agrees exactly with where that
 // call actually drew the cottage.

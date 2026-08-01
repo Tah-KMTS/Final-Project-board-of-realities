@@ -99,8 +99,14 @@ function deriveTier(character, ctx) {
   const h = hashId(character.id)
 
   if (isPublicFacingCategory(ctx.category)) {
+    // Swarm fix: was 60% socialite / 30% regular / 10% homebody, which put
+    // ~30 characters (all 10 Presidents/Fed Chairmen/FTC Chairmen) almost
+    // entirely "out" at once during business hours (socialite's homeAffinity
+    // floor is near 0) - the other half of what caused the building
+    // pile-ups alongside the missing WORK_BUILDING_OVERRIDES above. Public
+    // figures still skew visible, just not near-universally so.
     const r = h % 10
-    return r < 6 ? 'socialite' : r < 9 ? 'regular' : 'homebody'
+    return r < 4 ? 'socialite' : r < 8 ? 'regular' : 'homebody'
   }
 
   if (ctx.archetype === 'tech_disruptor') {
@@ -221,6 +227,60 @@ const WORK_BUILDING_OVERRIDES = {
   mueller: ['governmentBuilding', 'underworld'],
   andrews: ['governmentBuilding', 'realEstateAgency'],
   marshall: ['industrialZone', 'trainStation'],
+
+  // Swarm fix: the 30 US Presidents/Federal Reserve Chairmen/FTC Chairmen
+  // (governmentRoster.js) had NO entries here, so every one of them fell
+  // through to fallbackWorkBuildings()'s flat REAL_BUILDING_IDS pool - the
+  // same undifferentiated 10-building list every other uncovered character
+  // draws from. Combined with isPublicFacingCategory skewing 60% of them
+  // 'socialite' (business-hours homeAffinity floor near 0), that's what put
+  // Presidents and Fed Chairmen visually piling onto the casino/real-estate
+  // agency in practice - not a rendering bug, a scheduling one. Each entry
+  // below is picked for thematic fit (a president's stated
+  // executivePriority, a Fed chair's policyBias, an FTC chair's bias/
+  // description) and, as a group, deliberately spread across most of the 10
+  // real buildings rather than left to converge on whichever one wins the
+  // hash lottery.
+  washington: ['bank', 'governmentBuilding'],
+  lincoln: ['industrialZone', 'governmentBuilding'],
+  fdr: ['governmentBuilding', 'bank', 'stockExchange'],
+  jfk: ['stockExchange', 'businessCenter'],
+  reagan: ['businessCenter', 'realEstateAgency'],
+  tr: ['governmentBuilding', 'industrialZone'],
+  jefferson: ['realEstateAgency', 'temple'],
+  eisenhower: ['industrialZone', 'trainStation'],
+  obama: ['governmentBuilding', 'stockExchange'],
+  clinton: ['stockExchange', 'businessCenter'],
+
+  volcker: ['bank', 'governmentBuilding'],
+  greenspan: ['stockExchange', 'realEstateAgency'],
+  bernanke: ['stockExchange', 'bank'],
+  yellen: ['bank', 'governmentBuilding'],
+  powell: ['stockExchange', 'bank'],
+  eccles: ['governmentBuilding', 'industrialZone'],
+  martin: ['bank', 'stockExchange'],
+  burns: ['bank', 'businessCenter'],
+  miller: ['stockExchange', 'industrialZone'],
+  meyer: ['bank', 'governmentBuilding'],
+
+  khan: ['businessCenter', 'governmentBuilding'],
+  ramirez: ['businessCenter', 'bank'],
+  simons_ftc: ['stockExchange', 'businessCenter'],
+  // muris's own description ("targets Underground call center scams and
+  // illicit criminal money laundering") is a direct, already-real reason to
+  // send him to the 'underworld' building - enforcement, not a night out.
+  muris: ['underworld', 'governmentBuilding'],
+  pertschuk: ['businessCenter', 'governmentBuilding'],
+  // kirkpatrick's description ("illegal syndicate stock pools") is the same
+  // kind of direct tie-in.
+  kirkpatrick: ['stockExchange', 'underworld'],
+  kovacic: ['governmentBuilding', 'businessCenter'],
+  majoras: ['realEstateAgency', 'businessCenter'],
+  leibowitz: ['businessCenter', 'underworld'],
+  // pitofsky's description names Rockefeller Oil and Carnegie Steel by
+  // name - both now folded into industrialZone (see rockefeller/carnegie
+  // above), so this is a direct continuity match, not a guess.
+  pitofsky: ['industrialZone', 'governmentBuilding'],
 }
 
 function fallbackWorkBuildings(character, isCrime) {
