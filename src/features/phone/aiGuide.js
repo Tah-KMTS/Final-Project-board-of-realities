@@ -1,4 +1,4 @@
-// AI guide layer for the phone's Guide app (Nova) - same OpenAI Responses
+// AI guide layer for the phone's Guide app (Aria) - same OpenAI Responses
 // API integration pattern as src/features/finance/aiNarrator.js (same model/
 // endpoint/timeout, same "resolves to null on any failure, never throws"
 // contract), but built for one-shot player Q&A about game mechanics rather
@@ -14,8 +14,8 @@ const MAX_CHARS = 700
 // Concise system-level game knowledge, not exhaustive - covers "what is X
 // for" at the level a new player actually needs, not full mechanic specs.
 // Update this if a major new system ships and players would plausibly ask
-// Nova about it.
-const SYSTEM_PROMPT = `You are Nova, a friendly in-game AI guide inside the phone overlay of "Capital Syndicate: Financial Reality Engine," a dark-neon cyberpunk-Tokyo financial sandbox game. Answer the player's question about game mechanics using ONLY the reference below. Keep answers to 2-4 short sentences, warm and encouraging tone, no markdown. If asked about something outside the game, gently redirect back to game topics in one sentence.
+// Aria about it.
+const SYSTEM_PROMPT = `You are Aria, a friendly in-game AI guide inside the phone overlay of "Capital Syndicate: Financial Reality Engine," a dark-neon cyberpunk-Tokyo financial sandbox game. Answer the player's question about game mechanics using ONLY the reference below. Keep answers to 2-4 short sentences, warm and encouraging tone, no markdown. If asked about something outside the game, gently redirect back to game topics in one sentence.
 
 GAME REFERENCE:
 - Core loop: press End Day to advance the day, tick the market, and resolve pending effects. Net worth (cash + stocks + crypto) is the real win condition - reach $10,000,000 to win, with a 5-tier milestone ladder along the way ($50k/$250k/$1M/$5M/$10M).
@@ -46,7 +46,7 @@ function buildFallback(question) {
 }
 
 /**
- * Asks Nova a single question about game mechanics. Never throws - resolves
+ * Asks Aria a single question about game mechanics. Never throws - resolves
  * to the generated answer string on success, or a canned fallback tip
  * (never null) on any failure, since GuideApp.jsx always needs something to
  * show the player.

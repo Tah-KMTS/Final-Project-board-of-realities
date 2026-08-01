@@ -7,7 +7,7 @@ import { NET_WORTH_WIN_TARGET, NET_WORTH_MILESTONES } from '../../features/finan
 // The 4 apps. Wired to real content (Social/X -> AgentInteractionsModal +
 // the news ticker, Banking & Portfolio -> PortfolioTab/BankModal/
 // StockExchangeModal, Contacts & Romance -> per-contact NamedNpcModal, Guide
-// -> Nova, an original AI helper character (see GuideApp.jsx/aiGuide.js -
+// -> Aria, an original AI helper character (see GuideApp.jsx/aiGuide.js -
 // deliberately an original persona, not a real public figure) - see
 // src/features/phone/{SocialApp,BankingApp,ContactsApp,GuideApp}.jsx) via
 // the `apps` prop below. Two apps used to live here and were deliberately

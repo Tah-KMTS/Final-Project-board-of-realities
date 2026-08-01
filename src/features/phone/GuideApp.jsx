@@ -2,11 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
 import { askGuide } from './aiGuide'
 
-// Nova's avatar - an original stylized idol-styled face, drawn from scratch
+// Aria's avatar - an original stylized idol-styled face, drawn from scratch
 // (star hair clip, two-tone hair, simple round features) rather than
 // referencing any real performer's likeness. Same "original character, not
 // a real-person reference" posture as PhoneMascot in PhoneShell.jsx.
-function NovaAvatar({ size = 34 }) {
+function AriaAvatar({ size = 34 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true" className="shrink-0">
       <circle cx="20" cy="20" r="19" fill="#1c1230" stroke="#f472b6" strokeWidth="1.2" />
@@ -34,7 +34,7 @@ const STARTER_PROMPTS = [
 ]
 
 // Phone's Guide app - an in-game AI helper for "what can I do / how does X
-// work" questions, answered by Nova (see aiGuide.js for the API call this
+// work" questions, answered by Aria (see aiGuide.js for the API call this
 // wraps - same OpenAI Responses integration pattern as
 // src/features/finance/aiNarrator.js). Stateless per question (no
 // conversation-history threading into the API context) - each question gets
@@ -42,7 +42,7 @@ const STARTER_PROMPTS = [
 // same simplicity as every other LLM call in this project.
 export default function GuideApp() {
   const [messages, setMessages] = useState([
-    { role: 'nova', text: "Hi, I'm Nova! Ask me anything about how the game works - the economy, crime, the phone, all of it." },
+    { role: 'aria', text: "Hi, I'm Aria! Ask me anything about how the game works - the economy, crime, the phone, all of it." },
   ])
   const [input, setInput] = useState('')
   const [asking, setAsking] = useState(false)
@@ -59,16 +59,16 @@ export default function GuideApp() {
     setInput('')
     setAsking(true)
     const answer = await askGuide(trimmed)
-    setMessages((prev) => [...prev, { role: 'nova', text: answer }])
+    setMessages((prev) => [...prev, { role: 'aria', text: answer }])
     setAsking(false)
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="mb-2 flex shrink-0 items-center gap-2">
-        <NovaAvatar />
+        <AriaAvatar />
         <div>
-          <div className="text-sm font-bold text-pink-300">Nova</div>
+          <div className="text-sm font-bold text-pink-300">Aria</div>
           <div className="text-[10px] text-gray-500">Your in-game guide</div>
         </div>
       </div>
@@ -76,7 +76,7 @@ export default function GuideApp() {
       <div ref={scrollRef} className="mb-2 flex-1 space-y-2 overflow-y-auto">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'player' ? 'justify-end' : 'justify-start'}`}>
-            {m.role === 'nova' && <NovaAvatar size={22} />}
+            {m.role === 'aria' && <AriaAvatar size={22} />}
             <div
               className={`ml-1.5 max-w-[78%] rounded-lg px-2.5 py-1.5 text-xs leading-relaxed ${
                 m.role === 'player'
@@ -90,9 +90,9 @@ export default function GuideApp() {
         ))}
         {asking && (
           <div className="flex justify-start">
-            <NovaAvatar size={22} />
+            <AriaAvatar size={22} />
             <div className="ml-1.5 rounded-lg bg-pink-950/30 px-2.5 py-1.5 text-xs italic text-pink-200/70">
-              Nova is thinking…
+              Aria is thinking…
             </div>
           </div>
         )}
@@ -119,7 +119,7 @@ export default function GuideApp() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && sendQuestion(input)}
           disabled={asking}
-          placeholder="Ask Nova something..."
+          placeholder="Ask Aria something..."
           className="min-w-0 flex-1 rounded border border-gray-600 bg-black px-2 py-1.5 text-xs text-white disabled:opacity-50"
         />
         <button

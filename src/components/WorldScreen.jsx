@@ -511,7 +511,7 @@ export default function WorldScreen() {
           news ticker), Banking & Portfolio (Portfolio/Bank & Realty/Stock
           Exchange tabs), Contacts & Romance (list view over
           world2.romanceState/recruitedAdvisors, opens NamedNpcModal per
-          contact), Guide (Nova, an original AI helper character answering
+          contact), Guide (Aria, an original AI helper character answering
           "how does X work" questions - see GuideApp.jsx/aiGuide.js) - see
           src/features/phone/{SocialApp,BankingApp,ContactsApp,GuideApp}.jsx.
           Two apps used to live here and were both deliberately removed:
