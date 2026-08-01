@@ -884,20 +884,18 @@ export const useGameStore = create((set, get) => ({
     return state.player.stats.luck + (blessing?.active ? blessing.bonus : 0)
   },
 
-  executeCrime: ({ type, baseSuccessChance, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, energyCost, assetSeizureOnFail, jailChanceOnFail = 0 }) => {
+  // Shared success/fail resolution for any crime-flavored action, extracted
+  // out of executeCrime so actions that determine their own success (e.g.
+  // VaultCrackModal's Mastermind puzzle - the player's guesses decide the
+  // outcome, not a dice roll) can still apply the exact same
+  // payout/notoriety/wanted/asset-seizure/jail consequences as the RNG-gated
+  // crimes below. executeCrime (unchanged behavior) now just rolls its own
+  // isSuccess and hands off to this.
+  applyCrimeOutcome: ({ success, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, assetSeizureOnFail, jailChanceOnFail = 0 }) => {
     const state = get()
-    if (!state.spendEnergy(energyCost)) return { success: false, reason: 'Not enough energy' }
-
-    // Streetwise increases success chance, Notoriety decreases it, Luck
-    // (base 5, so a Luck of 5 is a no-op) nudges it either way.
-    const streetwise = state.player.stats.streetwise || 5
     const effectiveLuck = get().getEffectiveLuck()
-    const successProb = baseSuccessChance + (streetwise * 0.02) - (state.notoriety * 0.002) + (effectiveLuck - 5) * 0.01
-    const clampedProb = Math.max(0.05, Math.min(0.95, successProb))
 
-    const isSuccess = Math.random() < clampedProb
-
-    if (isSuccess) {
+    if (success) {
       state.addCash(payout)
       return { success: true, payout, message: `Success! You got away with $${payout.toLocaleString()}.` }
     } else {
@@ -931,6 +929,29 @@ export const useGameStore = create((set, get) => ({
 
       return { success: false, fine, jailed, message: failMsg }
     }
+  },
+
+  executeCrime: ({ type, baseSuccessChance, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, energyCost, assetSeizureOnFail, jailChanceOnFail = 0 }) => {
+    const state = get()
+    if (!state.spendEnergy(energyCost)) return { success: false, reason: 'Not enough energy' }
+
+    // Streetwise increases success chance, Notoriety decreases it, Luck
+    // (base 5, so a Luck of 5 is a no-op) nudges it either way.
+    const streetwise = state.player.stats.streetwise || 5
+    const effectiveLuck = get().getEffectiveLuck()
+    const successProb = baseSuccessChance + (streetwise * 0.02) - (state.notoriety * 0.002) + (effectiveLuck - 5) * 0.01
+    const clampedProb = Math.max(0.05, Math.min(0.95, successProb))
+
+    const isSuccess = Math.random() < clampedProb
+
+    return get().applyCrimeOutcome({
+      success: isSuccess,
+      payout,
+      notorietyIncreaseOnFail,
+      wantedIncreaseOnFail,
+      assetSeizureOnFail,
+      jailChanceOnFail,
+    })
   },
 
   // --- Jail / Escape ---------------------------------------------------------
