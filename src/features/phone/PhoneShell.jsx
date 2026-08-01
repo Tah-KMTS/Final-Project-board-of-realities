@@ -1,27 +1,31 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, ArrowLeft, Wallet, Siren, Rss, Heart, CalendarClock, TrendingUp } from 'lucide-react'
+import { X, ArrowLeft, Wallet, Siren, Rss, Heart, Sparkles, CalendarClock, TrendingUp } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
 import { NET_WORTH_WIN_TARGET, NET_WORTH_MILESTONES } from '../../features/finance/marketData'
 
-// The 3 apps. Wired to real content (Social/X -> AgentInteractionsModal +
+// The 4 apps. Wired to real content (Social/X -> AgentInteractionsModal +
 // the news ticker, Banking & Portfolio -> PortfolioTab/BankModal/
-// StockExchangeModal, Contacts & Romance -> per-contact NamedNpcModal - see
-// src/features/phone/{SocialApp,BankingApp,ContactsApp}.jsx) via the `apps`
-// prop below. Two apps used to live here and were deliberately removed:
-// Dark Web & Underground (Underworld/Hitman/Syndicate Ops/Narcotics) -
-// phone-anywhere access undercut the point of having a physical Underworld
-// building to walk to, that content is standalone-only now (WorldScreen.jsx's
-// 'narcoticsTrade'/'syndicateOperations'/'hitmanContract' modal types, and
-// walking up to the Underworld building). Startups & M&A (CorporateModal,
-// company acquisitions) - had zero other entry point in the game (its old
-// buildings were deleted in an earlier map-trim pass), so rather than
-// orphaning the feature it was relocated into the Bank & Realty building
-// instead (see BankModal.jsx) alongside Real Estate, both building-only now.
+// StockExchangeModal, Contacts & Romance -> per-contact NamedNpcModal, Guide
+// -> Nova, an original AI helper character (see GuideApp.jsx/aiGuide.js -
+// deliberately an original persona, not a real public figure) - see
+// src/features/phone/{SocialApp,BankingApp,ContactsApp,GuideApp}.jsx) via
+// the `apps` prop below. Two apps used to live here and were deliberately
+// removed: Dark Web & Underground (Underworld/Hitman/Syndicate Ops/
+// Narcotics) - phone-anywhere access undercut the point of having a
+// physical Underworld building to walk to, that content is standalone-only
+// now (WorldScreen.jsx's 'narcoticsTrade'/'syndicateOperations'/
+// 'hitmanContract' modal types, and walking up to the Underworld building).
+// Startups & M&A (CorporateModal, company acquisitions) - had zero other
+// entry point in the game (its old buildings were deleted in an earlier
+// map-trim pass), so rather than orphaning the feature it was relocated
+// into the Bank & Realty building instead (see BankModal.jsx) alongside
+// Real Estate, both building-only now.
 const APP_DEFS = [
   { id: 'social', label: 'Social/X', Icon: Rss, color: 'cyan', enabled: true },
   { id: 'banking', label: 'Banking', Icon: Wallet, color: 'emerald', enabled: true },
   { id: 'contacts', label: 'Contacts', Icon: Heart, color: 'rose', enabled: true },
+  { id: 'guide', label: 'Guide', Icon: Sparkles, color: 'pink', enabled: true },
 ]
 
 const ICON_COLOR_CLASSES = {
@@ -29,6 +33,7 @@ const ICON_COLOR_CLASSES = {
   emerald: 'text-emerald-400 border-emerald-400/70 bg-emerald-500/10',
   rose: 'text-rose-400 border-rose-400/70 bg-rose-500/10',
   violet: 'text-violet-400 border-violet-400/70 bg-violet-500/10',
+  pink: 'text-pink-400 border-pink-400/70 bg-pink-500/10',
 }
 
 // Original mascot decoration for the phone's home screen - purely cosmetic,

@@ -66,6 +66,7 @@ import PhoneShell from '../features/phone/PhoneShell'
 import SocialApp from '../features/phone/SocialApp'
 import BankingApp from '../features/phone/BankingApp'
 import ContactsApp from '../features/phone/ContactsApp'
+import GuideApp from '../features/phone/GuideApp'
 
 const REGION_LABELS = {
   hunter: "The Hunter's Rift",
@@ -506,24 +507,25 @@ export default function WorldScreen() {
         />
       )}
       {activeModal?.type === 'inventory' && <InventoryModal onClose={closeModal} />}
-      {/* Board of Realities' 3 functional phone apps: Social/X (Titan Feed +
+      {/* Board of Realities' 4 functional phone apps: Social/X (Titan Feed +
           news ticker), Banking & Portfolio (Portfolio/Bank & Realty/Stock
           Exchange tabs), Contacts & Romance (list view over
           world2.romanceState/recruitedAdvisors, opens NamedNpcModal per
-          contact) - see src/features/phone/
-          {SocialApp,BankingApp,ContactsApp}.jsx. Two apps used to live here
-          and were both deliberately removed: Dark Web & Underground
-          (Underworld/Hitman Contracts/Syndicate Ops/Narcotics tabs) - phone-
-          anywhere access undercut the point of walking to the physical
-          Underworld building, that content is standalone-only now, same as
-          before phone integration (see the 'narcoticsTrade'/
-          'syndicateOperations'/'hitmanContract' modal types and the
-          'underworld' building case below). Startups & M&A (CorporateModal,
-          company acquisitions) - relocated into the Bank & Realty building
-          instead of orphaned, since it had no other entry point in the game
-          (see BankModal.jsx). Syndicate Board (advisor recruitment) was also
-          removed from Banking around the same time - still reachable by
-          walking up to a titan NPC in the overworld. */}
+          contact), Guide (Nova, an original AI helper character answering
+          "how does X work" questions - see GuideApp.jsx/aiGuide.js) - see
+          src/features/phone/{SocialApp,BankingApp,ContactsApp,GuideApp}.jsx.
+          Two apps used to live here and were both deliberately removed:
+          Dark Web & Underground (Underworld/Hitman Contracts/Syndicate Ops/
+          Narcotics tabs) - phone-anywhere access undercut the point of
+          walking to the physical Underworld building, that content is
+          standalone-only now, same as before phone integration (see the
+          'narcoticsTrade'/'syndicateOperations'/'hitmanContract' modal types
+          and the 'underworld' building case below). Startups & M&A
+          (CorporateModal, company acquisitions) - relocated into the Bank &
+          Realty building instead of orphaned, since it had no other entry
+          point in the game (see BankModal.jsx). Syndicate Board (advisor
+          recruitment) was also removed from Banking around the same time -
+          still reachable by walking up to a titan NPC in the overworld. */}
       {activeModal?.type === 'phone' && (
         <PhoneShell
           onClose={closeModal}
@@ -531,6 +533,7 @@ export default function WorldScreen() {
             social: () => <SocialApp />,
             banking: () => <BankingApp />,
             contacts: () => <ContactsApp />,
+            guide: () => <GuideApp />,
           }}
         />
       )}
