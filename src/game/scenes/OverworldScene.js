@@ -197,13 +197,12 @@ const FINANCE_BUILDING_DEFS = [
   // 2 tabs (Concert Hall/Sports Stadium - see EntertainmentComplexModal.jsx),
   // reusing two named characters who were written but previously un-slotted
   // into any building: Dixon Trujillo (Griselda Empire, "Nightclub
-  // Extortion & Entertainment Fronts") for Concert Hall, Arnold Rothstein
-  // ("fixed the 1919 World Series") for the still-stubbed Sports Stadium.
-  // Concert Hall tab is a real mechanic (arrow-key rhythm minigame,
-  // RhythmGame.jsx) this pass; Sports Stadium is a placeholder pending its
-  // own design pass. Same straight-to-modal shape as the other 4 tabbed
-  // hubs (underworld/businessCenter/governmentBuilding/industrialZone) -
-  // see the triggerInteraction case below, no Phaser interior needed.
+  // Extortion & Entertainment Fronts") for Concert Hall's arrow-key rhythm
+  // minigame (RhythmGame.jsx), Arnold Rothstein ("fixed the 1919 World
+  // Series") for Sports Stadium's alternating-key sprint QTE (SprintRace.jsx).
+  // Same straight-to-modal shape as the other 4 tabbed hubs (underworld/
+  // businessCenter/governmentBuilding/industrialZone) - see the
+  // triggerInteraction case below, no Phaser interior needed.
   { id: 'entertainmentComplex', label: 'Entertainment Complex', facadeStyle: 'modernGlass', color: 0x5a3a8a, width: 6, height: 4, zone: 'industry' },
 
   // Court & Prison - one of the last 3 unbuilt spec categories (see the note
