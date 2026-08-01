@@ -20,7 +20,13 @@ function MoneyField({ value, onChange, disabled }) {
 // Banking & Portfolio's "Bank & Realty" tab - see src/features/phone/
 // BankingApp.jsx), skip the outer fixed-overlay wrapper and the bottom
 // "Leave" button - the wrapping hub (BankingApp / the phone shell) supplies
-// both, same convention as CryptoModal.jsx/GovernmentModal.jsx.
+// both, same convention as CryptoModal.jsx/GovernmentModal.jsx. Work Shift,
+// Rob Vault, AND Real Estate are ALSO gated to !embedded (building-only) -
+// only deposits/withdrawals/loans stay phone-reachable now. Clocking in for
+// a shift, holding up the vault, or touring/buying a property all only make
+// sense standing in the building; real estate holdings you already own
+// still show up in the phone's Portfolio tab (PortfolioTab.jsx), this just
+// moves the *buying* action itself to a building visit.
 export default function BankModal({ onClose, embedded = false }) {
   const cash = useGameStore((s) => s.cash)
   const world2 = useGameStore((s) => s.world2)
@@ -53,20 +59,27 @@ export default function BankModal({ onClose, embedded = false }) {
     <>
         <h2 className="mb-2 text-xl font-bold text-blue-300">Bank & Realty Office</h2>
 
-        <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3">
-          <p className="mb-2 text-sm font-bold">Job: {tier.label}</p>
-          <p className="mb-2 text-xs text-gray-400">
-            Pay ${tier.pay}/shift • costs {JOB_ENERGY_COST} energy • next tier needs
-            {' '}{tier.id === 'executive' ? 'nothing - top tier' : 'more INT/Reputation'}
-          </p>
-          <button
-            onClick={workShift}
-            disabled={!canWork}
-            className="w-full border-2 border-green-400 bg-green-500 py-1 text-sm font-bold text-black hover:bg-green-400 disabled:opacity-40"
-          >
-            {canWork ? `Work Shift (+$${tier.pay})` : `Not enough energy (${player.energy}/${JOB_ENERGY_COST})`}
-          </button>
-        </div>
+        {/* Work Shift and Rob Vault (below) are both building-only now - you
+            physically clock in or physically hold up the vault, neither
+            makes sense to do remotely from a phone. Everything else here
+            (deposit/withdraw/loans/real estate) stays available from the
+            phone's Bank & Realty tab. */}
+        {!embedded && (
+          <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3">
+            <p className="mb-2 text-sm font-bold">Job: {tier.label}</p>
+            <p className="mb-2 text-xs text-gray-400">
+              Pay ${tier.pay}/shift • costs {JOB_ENERGY_COST} energy • next tier needs
+              {' '}{tier.id === 'executive' ? 'nothing - top tier' : 'more INT/Reputation'}
+            </p>
+            <button
+              onClick={workShift}
+              disabled={!canWork}
+              className="w-full border-2 border-green-400 bg-green-500 py-1 text-sm font-bold text-black hover:bg-green-400 disabled:opacity-40"
+            >
+              {canWork ? `Work Shift (+$${tier.pay})` : `Not enough energy (${player.energy}/${JOB_ENERGY_COST})`}
+            </button>
+          </div>
+        )}
 
         <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3">
           <p className="mb-2 text-sm font-bold">Bank Account</p>
@@ -126,54 +139,58 @@ export default function BankModal({ onClose, embedded = false }) {
           </div>
         </div>
 
-        <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3">
-          <p className="mb-2 text-sm font-bold">Real Estate</p>
-          {REAL_ESTATE_LISTINGS.map((listing) => {
-            const owned = world2.realEstate.includes(listing.id)
-            const milestoneLocked = listing.requiresMilestone && !(world2.netWorthMilestones || []).includes(listing.requiresMilestone)
-            return (
-              <div key={listing.id} className="mb-2 flex items-center justify-between border-b border-gray-700 pb-2 text-xs">
-                <div>
-                  <p className="font-bold">{listing.name}</p>
-                  <p className="text-gray-400">${listing.price.toLocaleString()} • rent ${listing.rentPerTick}/tick</p>
-                  {milestoneLocked && (
-                    <p className="text-purple-400">Requires Conglomerate Threshold milestone ($1,000,000 net worth)</p>
+        {!embedded && (
+          <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3">
+            <p className="mb-2 text-sm font-bold">Real Estate</p>
+            {REAL_ESTATE_LISTINGS.map((listing) => {
+              const owned = world2.realEstate.includes(listing.id)
+              const milestoneLocked = listing.requiresMilestone && !(world2.netWorthMilestones || []).includes(listing.requiresMilestone)
+              return (
+                <div key={listing.id} className="mb-2 flex items-center justify-between border-b border-gray-700 pb-2 text-xs">
+                  <div>
+                    <p className="font-bold">{listing.name}</p>
+                    <p className="text-gray-400">${listing.price.toLocaleString()} • rent ${listing.rentPerTick}/tick</p>
+                    {milestoneLocked && (
+                      <p className="text-purple-400">Requires Conglomerate Threshold milestone ($1,000,000 net worth)</p>
+                    )}
+                  </div>
+                  {owned ? (
+                    <span className="text-green-400">Owned</span>
+                  ) : (
+                    <button
+                      onClick={() => buyRealEstate(listing)}
+                      disabled={cash < listing.price || milestoneLocked}
+                      className="border border-green-400 px-2 py-1 text-green-400 hover:bg-green-400 hover:text-black disabled:opacity-30"
+                    >
+                      Buy
+                    </button>
                   )}
                 </div>
-                {owned ? (
-                  <span className="text-green-400">Owned</span>
-                ) : (
-                  <button
-                    onClick={() => buyRealEstate(listing)}
-                    disabled={cash < listing.price || milestoneLocked}
-                    className="border border-green-400 px-2 py-1 text-green-400 hover:bg-green-400 hover:text-black disabled:opacity-30"
-                  >
-                    Buy
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
 
-        <button
-          onClick={() => {
-            const res = executeCrime({
-              type: 'rob',
-              baseSuccessChance: 0.4, // 40% base
-              payout: 25000,
-              notorietyIncreaseOnFail: 25,
-              wantedIncreaseOnFail: 3,
-              energyCost: 30,
-              assetSeizureOnFail: 0.2, // lose 20% of cash
-              jailChanceOnFail: 0.30,
-            })
-            setFeedbackMsg(res.message || res.reason)
-          }}
-          className="mb-4 w-full border-4 border-red-500 bg-red-900 py-2 font-bold text-white hover:bg-red-700"
-        >
-          Rob Vault (30 Energy)
-        </button>
+        {!embedded && (
+          <button
+            onClick={() => {
+              const res = executeCrime({
+                type: 'rob',
+                baseSuccessChance: 0.4, // 40% base
+                payout: 25000,
+                notorietyIncreaseOnFail: 25,
+                wantedIncreaseOnFail: 3,
+                energyCost: 30,
+                assetSeizureOnFail: 0.2, // lose 20% of cash
+                jailChanceOnFail: 0.30,
+              })
+              setFeedbackMsg(res.message || res.reason)
+            }}
+            className="mb-4 w-full border-4 border-red-500 bg-red-900 py-2 font-bold text-white hover:bg-red-700"
+          >
+            Rob Vault (30 Energy)
+          </button>
+        )}
 
         {feedbackMsg && <p className="mb-4 text-xs italic text-red-300">{feedbackMsg}</p>}
 
