@@ -174,7 +174,19 @@ export default function PhoneShell({ onClose, apps = {} }) {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.14 }}
-                className="flex flex-1 flex-col"
+                // min-h-0 is load-bearing, not decorative: a flex item's
+                // default min-height is `auto`, which means "never shrink
+                // below your content's natural size" - so when an app's
+                // content (e.g. SocialApp's composer + feed) wants more
+                // room than the phone frame actually has, this div would
+                // balloon past its flex-1 share instead of shrinking to
+                // fit, and the excess gets silently clipped by an ancestor
+                // overflow-hidden further up - which is exactly what made
+                // the Social/X feed disappear on a shorter window even
+                // after the composer itself was height-capped, since every
+                // downstream h-full/flex-1 calculation was already working
+                // from this element's wrong, inflated height.
+                className="flex min-h-0 flex-1 flex-col"
               >
                 {renderActiveApp ? (
                   renderActiveApp()
