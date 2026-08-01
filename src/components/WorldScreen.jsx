@@ -21,6 +21,7 @@ import BusinessCenterModal from '../features/finance/BusinessCenterModal'
 import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal'
 import IndustrialZoneModal from '../features/finance/IndustrialZoneModal'
 import TempleModal from '../features/temple/TempleModal'
+import WharfModal from '../features/wharf/WharfModal'
 import JailEscapeModal from '../features/jail/JailEscapeModal'
 import JailMazeModal from '../features/jail/JailMazeModal'
 import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
@@ -631,6 +632,15 @@ export default function WorldScreen() {
       )}
       {activeModal?.type === 'building' && activeModal.id === 'temple' && (
         <TempleModal onClose={closeModal} />
+      )}
+      {/* Bonded Cargo Pier (Dock/Pier spec category) - Cast & Reel fishing +
+          Declare Honest/Pad the Manifest, entirely self-contained in
+          WharfModal.jsx (own addCash/spendEnergy/executeCrime calls, no
+          onVictory/onDefeat handshake) - same "straight-to-modal, no Phaser
+          interior" shape as foodCourt, but a bespoke component instead of
+          InteractiveLocationModal since it needs live state/interaction. */}
+      {activeModal?.type === 'building' && activeModal.id === 'wharf' && (
+        <WharfModal onClose={closeModal} />
       )}
       {/* The 4 Phase-2/4 consolidated hubs - each is a tabbed modal wrapping
           several formerly-standalone buildings' content via the `embedded`

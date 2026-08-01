@@ -184,6 +184,15 @@ const FINANCE_BUILDING_DEFS = [
   { id: 'industrialZone', label: 'Industrial Zone', facadeStyle: 'modernGlass', color: 0x3a4a4a, width: 7, height: 4, zone: 'industry' },
   { id: 'trainStation', label: '🚆 Central Train Station', facadeStyle: 'modernGlass', color: 0x4a6fa5, width: 4, height: 2, zone: 'industry' },
 
+  // Dock/Pier - one of the last unbuilt spec categories (see the note
+  // above). Marine cargo insurance/customs-manifest fraud, deliberately NOT
+  // a smuggling loop (that's already owned by NarcoticsTradeModal.jsx/
+  // SyndicateOperationsModal.jsx, reachable via the phone). Cast & Reel
+  // fishing + a post-catch Declare Honest/Pad the Manifest choice, entirely
+  // in WharfModal.jsx - see the triggerInteraction case below, same
+  // straight-to-modal pattern as foodCourt (no Phaser interior needed).
+  { id: 'wharf', label: 'Bonded Cargo Pier', facadeStyle: 'modernBrick', color: 0x2a5a6a, width: 4, height: 3, zone: 'industry' },
+
   // Court & Prison - one of the last 3 unbuilt spec categories (see the note
   // above). Gives the jail mini-map mechanic (bribeDice/maze, in
   // useGameStore.js's attemptJailBribe/attemptMazeSegment) a real door on
@@ -3606,13 +3615,16 @@ export default class OverworldScene extends Phaser.Scene {
       // zone load. foodCourt (header cleanup pass) joins this list for the
       // same reason - it routes straight to InteractiveLocationModal via
       // WorldScreen.jsx's BUILDING_TO_INTERACTIVE_LOCATION intercept, not a
-      // generic walk-in interior.
+      // generic walk-in interior. wharf (Cast & Reel fishing) joins for the
+      // same reason too, but routes to a bespoke WharfModal instead - see
+      // WorldScreen.jsx's `activeModal.id === 'wharf'` case.
       if (
         zone.id === 'underworld' ||
         zone.id === 'businessCenter' ||
         zone.id === 'governmentBuilding' ||
         zone.id === 'industrialZone' ||
-        zone.id === 'foodCourt'
+        zone.id === 'foodCourt' ||
+        zone.id === 'wharf'
       ) {
         this.pauseForModal()
         this.bridge.emit('interact', { type: 'building', id: zone.id })
