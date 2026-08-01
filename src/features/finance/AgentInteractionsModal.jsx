@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { MessageCircle, Repeat2, Heart } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
-import { TITAN_ROUTINES } from '../agents/agentMovementEngine'
 import { FINANCE_NPCS } from './financeNpcs'
 import { getCityById } from '../world/japanCities'
 
@@ -57,7 +56,6 @@ export default function AgentInteractionsModal({ onClose, embedded = false }) {
   const world2 = useGameStore((s) => s.world2)
   const currentCityId = useGameStore((s) => s.currentCityId) || 'tokyo'
   const [filterType, setFilterType] = useState('all') // 'all' | 'butterfly' | 'migration' | 'assets' | 'city'
-  const [tab, setTab] = useState('feed') // 'feed' | 'roster'
 
   const eventFeed = world2.agentEventFeed || []
   const city = getCityById(currentCityId)
@@ -70,26 +68,6 @@ export default function AgentInteractionsModal({ onClose, embedded = false }) {
     return true
   })
 
-  // Build a roster of all finance NPCs with their routine data
-  const npcRoster = FINANCE_NPCS.map((npc) => {
-    const routine = TITAN_ROUTINES[npc.id]
-    const agentState = (world2.agentsState || {})[npc.id]
-    const isRecruited = (world2.recruitedAdvisors || []).includes(npc.id)
-    const currentStep = routine?.schedule?.[0]
-    return {
-      ...npc,
-      homeCity: routine?.homeCity || 'tokyo',
-      currentAction: agentState?.currentAction || currentStep?.action || '📊 Monitoring Markets',
-      currentLocation: agentState?.currentLocation || currentStep?.location || 'Capital District',
-      currentMood: agentState?.currentMood || 'Bullish',
-      isRecruited,
-      isInCurrentCity: (routine?.homeCity || 'tokyo') === currentCityId,
-    }
-  })
-
-  const cityResidents = npcRoster.filter((n) => n.isInCurrentCity)
-  const otherNpcs = npcRoster.filter((n) => !n.isInCurrentCity)
-
   const body = (
     <>
         {/* Compact single-line header - wordmark + current city, most of the
@@ -100,112 +78,72 @@ export default function AgentInteractionsModal({ onClose, embedded = false }) {
           <span className="text-xs text-gray-400">{city.name}</span>
         </div>
 
-        {/* Slim underline tabs - no colored fill blocks. */}
-        <div className="flex shrink-0 gap-4 border-b border-gray-800 text-xs font-bold">
-          <button
-            onClick={() => setTab('feed')}
-            className={`border-b-2 px-1 py-1.5 transition-colors ${
-              tab === 'feed' ? 'border-cyan-400 text-cyan-300' : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            Feed
-          </button>
-          <button
-            onClick={() => setTab('roster')}
-            className={`border-b-2 px-1 py-1.5 transition-colors ${
-              tab === 'roster' ? 'border-cyan-400 text-cyan-300' : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            Agents
-          </button>
+        {/* Filter chips - slim single-line row, active state is just a
+            filled border + text color, no bg-fill blocks. The "Agents"
+            roster tab that used to sit next to Feed was removed - the NPC
+            routine/simulation data it displayed (TITAN_ROUTINES/agentsState)
+            is backend-only now, feeding the Feed's content rather than
+            having its own player-facing screen. */}
+        <div className="mt-2 flex shrink-0 gap-1.5 overflow-x-auto pb-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilterType(f.id)}
+              className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold transition-colors ${
+                filterType === f.id ? f.activeClasses : 'border-gray-700 text-gray-400 hover:border-gray-500'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
 
-        {tab === 'feed' && (
-          <>
-            {/* Filter chips - slim single-line row, active state is just a
-                filled border + text color, no bg-fill blocks. */}
-            <div className="mt-2 flex shrink-0 gap-1.5 overflow-x-auto pb-1">
-              {FILTERS.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setFilterType(f.id)}
-                  className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold transition-colors ${
-                    filterType === f.id ? f.activeClasses : 'border-gray-700 text-gray-400 hover:border-gray-500'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
+        <div className="mt-2 flex-1 space-y-2 overflow-y-auto">
+          {filteredFeed.length === 0 ? (
+            <div className="flex h-64 flex-col items-center justify-center rounded border border-dashed border-gray-800 text-center text-gray-500">
+              <span className="text-4xl mb-2">📡</span>
+              <p className="text-sm font-bold text-gray-400">No agent interaction logs yet.</p>
+              <p className="text-xs max-w-md mt-1 text-gray-500">
+                Press <span className="text-cyan-300 font-bold">End Day</span> to trigger autonomous agent interactions, butterfly chain reactions, and town migrations!
+              </p>
             </div>
-
-            <div className="mt-2 flex-1 space-y-2 overflow-y-auto">
-              {filteredFeed.length === 0 ? (
-                <div className="flex h-64 flex-col items-center justify-center rounded border border-dashed border-gray-800 text-center text-gray-500">
-                  <span className="text-4xl mb-2">📡</span>
-                  <p className="text-sm font-bold text-gray-400">No agent interaction logs yet.</p>
-                  <p className="text-xs max-w-md mt-1 text-gray-500">
-                    Press <span className="text-cyan-300 font-bold">End Day</span> to trigger autonomous agent interactions, butterfly chain reactions, and town migrations!
-                  </p>
-                </div>
-              ) : (
-                filteredFeed.map((evt) => {
-                  const mentionedNpc = findMentionedNpc(evt.text)
-                  const { emoji, category } = splitTitleEmoji(evt.title)
-                  return (
-                    <div key={evt.id} className="rounded border border-cyan-500/30 bg-cyan-950/10 p-2.5 shadow-md">
-                      <div className="flex items-start gap-2">
-                        {mentionedNpc ? (
-                          <div
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-600 text-xs font-bold"
-                            style={{ backgroundColor: mentionedNpc.palette?.outfit || '#1a1a1a', color: '#ffffff' }}
-                          >
-                            {mentionedNpc.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
-                          </div>
-                        ) : (
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-600 bg-gray-800 text-sm">
-                            {emoji}
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-bold text-yellow-300">
-                            {mentionedNpc ? mentionedNpc.name : 'Market Intel'}
-                          </div>
-                          <div className="truncate text-xs text-gray-500">{category}</div>
-                        </div>
+          ) : (
+            filteredFeed.map((evt) => {
+              const mentionedNpc = findMentionedNpc(evt.text)
+              const { emoji, category } = splitTitleEmoji(evt.title)
+              return (
+                <div key={evt.id} className="rounded border border-cyan-500/30 bg-cyan-950/10 p-2.5 shadow-md">
+                  <div className="flex items-start gap-2">
+                    {mentionedNpc ? (
+                      <div
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-600 text-xs font-bold"
+                        style={{ backgroundColor: mentionedNpc.palette?.outfit || '#1a1a1a', color: '#ffffff' }}
+                      >
+                        {mentionedNpc.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
                       </div>
-                      <div className="mt-1.5 text-base leading-relaxed text-gray-100">{evt.text}</div>
-                      <div className="mt-2 flex items-center gap-4 text-gray-600">
-                        <MessageCircle size={13} />
-                        <Repeat2 size={13} />
-                        <Heart size={13} />
+                    ) : (
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-600 bg-gray-800 text-sm">
+                        {emoji}
                       </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-bold text-yellow-300">
+                        {mentionedNpc ? mentionedNpc.name : 'Market Intel'}
+                      </div>
+                      <div className="truncate text-xs text-gray-500">{category}</div>
                     </div>
-                  )
-                })
-              )}
-            </div>
-          </>
-        )}
-
-        {tab === 'roster' && (
-          <div className="mt-2 flex-1 overflow-y-auto space-y-2">
-            {/* City residents first */}
-            <div className="text-xs font-bold text-cyan-300 mb-2 border-b border-cyan-800 pb-1">
-              🏙️ {city.name.split('(')[0].trim()} Residents ({cityResidents.length})
-            </div>
-            {cityResidents.map((npc) => (
-              <NpcRosterCard key={npc.id} npc={npc} highlight />
-            ))}
-
-            {/* Other city agents */}
-            <div className="text-xs font-bold text-gray-400 mt-4 mb-2 border-b border-gray-800 pb-1">
-              🌏 Agents in Other Cities ({otherNpcs.length})
-            </div>
-            {otherNpcs.map((npc) => (
-              <NpcRosterCard key={npc.id} npc={npc} highlight={false} />
-            ))}
-          </div>
-        )}
+                  </div>
+                  <div className="mt-1.5 text-base leading-relaxed text-gray-100">{evt.text}</div>
+                  <div className="mt-2 flex items-center gap-4 text-gray-600">
+                    <MessageCircle size={13} />
+                    <Repeat2 size={13} />
+                    <Heart size={13} />
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
 
         {/* Footer */}
         {!embedded && (
@@ -230,38 +168,6 @@ export default function AgentInteractionsModal({ onClose, embedded = false }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
       <div className="flex h-[90vh] w-full max-w-4xl flex-col border-4 border-cyan-500/70 bg-[#0c1024] text-white shadow-2xl">
         {body}
-      </div>
-    </div>
-  )
-}
-
-function NpcRosterCard({ npc, highlight }) {
-  const CITY_LABELS = { tokyo: '🏛️ Tokyo', kyoto: '⛩️ Kyoto', osaka: '🐙 Osaka', sapporo: '❄️ Sapporo' }
-  const MOOD_COLORS = {
-    'Bullish': 'text-emerald-300', 'Bearish': 'text-red-400',
-    'Aggressive Raid': 'text-orange-400', 'Defensive Hold': 'text-blue-300', 'Opportunistic': 'text-yellow-300',
-  }
-  return (
-    <div className={`rounded border px-3 py-2 flex items-start gap-3 text-xs ${highlight ? 'border-cyan-500/40 bg-cyan-950/15' : 'border-gray-700/40 bg-gray-900/30'}`}>
-      {/* Color swatch based on outfit palette */}
-      <div
-        className="shrink-0 w-8 h-8 rounded border border-gray-600 flex items-center justify-center text-xs font-bold"
-        style={{ backgroundColor: npc.palette?.outfit || '#1a1a1a', color: '#ffffff' }}
-      >
-        {npc.name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-bold text-sm text-yellow-300">{npc.name}</span>
-          <span className="text-gray-400 text-xs">{npc.title}</span>
-          {npc.isRecruited && <span className="text-emerald-400 font-bold text-xs border border-emerald-600 px-1 rounded">BOARD MEMBER</span>}
-        </div>
-        <div className="text-gray-300 mt-0.5 truncate">{npc.currentAction}</div>
-        <div className="flex gap-3 mt-0.5 text-xs">
-          <span className="text-gray-500">📍 {npc.currentLocation}</span>
-          <span className="text-gray-500">{CITY_LABELS[npc.homeCity] || npc.homeCity}</span>
-          <span className={MOOD_COLORS[npc.currentMood] || 'text-gray-400'}>{npc.currentMood}</span>
-        </div>
       </div>
     </div>
   )
