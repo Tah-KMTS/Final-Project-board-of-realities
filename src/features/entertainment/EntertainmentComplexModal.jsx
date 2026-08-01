@@ -1,18 +1,17 @@
 import { useState } from 'react'
 import ConcertHallTab from './ConcertHallTab'
+import SportsStadiumTab from './SportsStadiumTab'
 
 // Entertainment Complex - one physical building, 2 tabs, same TABS-modal
 // pattern as IndustrialZoneModal.jsx/UnderworldModal.jsx/
 // BusinessCenterModal.jsx/GovernmentBuildingModal.jsx. Critically, tabs are
 // conditionally rendered/unmounted when inactive ({tab === 'x' && <X/>}),
-// not hidden via CSS - load-bearing for RhythmGame.jsx's keydown-listener/
-// rAF-loop cleanup inside the Concert Hall tab.
+// not hidden via CSS - load-bearing for RhythmGame.jsx's (Concert Hall) and
+// SprintRace.jsx's (Sports Stadium) keydown-listener/rAF-loop cleanup.
 //
-// Only Concert Hall (Dixon Trujillo's laundering-front venue + the arrow-key
-// rhythm minigame) is built in this pass. Sports Stadium (Arnold Rothstein's
-// fixed-odds operation, per production/next-session-plan.md) is a
-// deliberate stub - the user has not yet decided its minigame, so nothing
-// beyond a placeholder tab body is invented here.
+// Concert Hall (Dixon Trujillo's laundering-front venue + the arrow-key
+// rhythm minigame) and Sports Stadium (Arnold Rothstein's fixed-odds
+// operation + the arrow-key sprint QTE) are both real mini-games.
 const TABS = [
   { id: 'concertHall', label: 'Concert Hall' },
   { id: 'sportsStadium', label: 'Sports Stadium' },
@@ -47,15 +46,7 @@ export default function EntertainmentComplexModal({ onClose }) {
 
         <div className="mb-4 max-h-[560px] overflow-y-auto">
           {tab === 'concertHall' && <ConcertHallTab />}
-          {tab === 'sportsStadium' && (
-            <div className="flex flex-col items-center gap-2 border-2 border-dashed border-gray-700 p-8 text-center">
-              <p className="text-sm font-bold text-gray-400">Sports Stadium</p>
-              <p className="text-xs text-gray-500">
-                Arnold Rothstein's fixed-odds operation is moving in - the box office just isn't open yet. Check
-                back once this tab's mini-game gets its own design pass.
-              </p>
-            </div>
-          )}
+          {tab === 'sportsStadium' && <SportsStadiumTab />}
         </div>
 
         <button onClick={onClose} className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500">
