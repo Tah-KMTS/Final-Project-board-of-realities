@@ -2,6 +2,22 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { DISTRICT_BUILDINGS_CONFIG } from './districtBuildings'
 import LeverageMeter from './LeverageMeter'
+import LookoutWatchModal from './LookoutWatchModal'
+import FencesTableModal from './FencesTableModal'
+import CallCenterQTEModal from './CallCenterQTEModal'
+
+// Maps each Underground District action's `minigame` field (districtBuildings.js)
+// to the racket-specific component it opens instead of the shared
+// LeverageMeter - see those 3 files' own header comments for what makes
+// each one distinct. Falls back to LeverageMeter for any action that
+// doesn't set `minigame` (none currently do, but this keeps a future
+// flat-leverage action from silently crashing if this map isn't updated
+// alongside it).
+const MINIGAME_COMPONENTS = {
+  lookoutWatch: LookoutWatchModal,
+  fencesTable: FencesTableModal,
+  callCenterQte: CallCenterQTEModal,
+}
 
 // Single reusable modal for every flavor-tier building added by the
 // Tokyo-inspired 4-district expansion (Commercial/Underground/Government &
@@ -56,6 +72,9 @@ export default function DistrictBuildingModal({ buildingId, onClose, embedded = 
   const activeLeverageAction = config.actions.find(
     (action) => action.type === 'leverage' && action.label === activeLeverageLabel
   )
+  const ActiveMinigame = activeLeverageAction
+    ? MINIGAME_COMPONENTS[activeLeverageAction.minigame] || LeverageMeter
+    : null
 
   const body = (
     <>
@@ -66,9 +85,9 @@ export default function DistrictBuildingModal({ buildingId, onClose, embedded = 
         {activeLeverageAction ? (
           // embedded here too: this whole DistrictBuildingModal body may
           // itself already be embedded inside UnderworldModal, so nesting
-          // LeverageMeter's own full-screen overlay would stack a second
-          // one on top. Always render it in-place instead.
-          <LeverageMeter embedded onClose={() => setActiveLeverageLabel(null)} {...activeLeverageAction.leverage} />
+          // the minigame's own full-screen overlay would stack a second one
+          // on top. Always render it in-place instead.
+          <ActiveMinigame embedded onClose={() => setActiveLeverageLabel(null)} {...activeLeverageAction.leverage} />
         ) : (
           <>
             <div className="mb-4 flex flex-col gap-2">

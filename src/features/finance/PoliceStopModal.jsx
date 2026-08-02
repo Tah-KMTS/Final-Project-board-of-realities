@@ -109,6 +109,18 @@ export default function PoliceStopModal({ wantedLevel, onClose }) {
         // documents above for Bribe/Flee.
         onVictory={() => addWantedLevel(-1)}
         onDefeat={() => sendToJail()}
+        // Retreat used to be a free, instant escape from an active arrest -
+        // strictly better than both Bribe (costs cash) and Flee (real skill
+        // risk), so nobody had a reason to ever pick either. +1 Wanted for
+        // bailing on the fight (resisting, then running) makes Retreat a
+        // real third option with its own cost, not a dominant one - and
+        // since maybeSpawnPolice's re-encounter roll is driven by
+        // wantedLevel, this is also the fix for encounters feeling like
+        // they "pop right back" after a consequence-free retreat: now
+        // retreating is the one option that actively raises how likely the
+        // next one is, instead of the choice being invisible to that system.
+        onRetreat={() => addWantedLevel(1)}
+        retreatLabel="Break and Run (+1 Wanted)"
       />
     )
   }

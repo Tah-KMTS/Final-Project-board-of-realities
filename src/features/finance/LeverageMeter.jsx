@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
+import { computeFavorability } from './crimeDifficulty'
 
 // Leverage - the shared "dual-meter race" negotiation minigame. Built to
 // replace the flat Math.random() < 0.5 coin-flip DistrictBuildingModal
@@ -70,29 +71,20 @@ function clamp(min, max, v) {
   return Math.max(min, Math.min(max, v))
 }
 
-// Locked-at-start difficulty derivation. Mirrors executeCrime's
-// successProb formula in useGameStore.js almost verbatim, just fed into
-// meter tuning instead of a single Math.random() roll:
+// Locked-at-start difficulty derivation. favorability itself now lives in
+// crimeDifficulty.js (shared with the 4 racket-specific minigames this
+// generation of Underworld actions grew alongside LeverageMeter - see that
+// file's header comment); this just maps favorability into THIS meter's own
+// pressure/suspicion knobs, same as it always did:
 //
-//   favorability = clamp(0.05, 0.95,
-//     baseSuccessChance + streetwise*0.02 - notoriety*0.002 + (luck-5)*0.01)
 //   pressurePerTap         = round(6 + (favorability - 0.5) * 8)   // ~2..10
 //   passiveSuspicionPerSec = round(9 - (favorability - 0.5) * 10)  // ~4..14
 //
-// Reads getEffectiveLuck() (not stats.luck raw) so the Temple's Chapel
-// Blessing buff applies here exactly like it does everywhere else Luck
-// matters. Computed once, at the moment the player commits (spends
-// energy), and never recalculated mid-race - same "locked at start"
-// convention VaultCrackModal uses for its INT-derived attempt count.
+// Computed once, at the moment the player commits (spends energy), and
+// never recalculated mid-race - same "locked at start" convention
+// VaultCrackModal uses for its INT-derived attempt count.
 function computeLockedParams(baseSuccessChance) {
-  const state = useGameStore.getState()
-  const streetwise = state.player.stats.streetwise ?? 5
-  const effectiveLuck = state.getEffectiveLuck()
-  const favorability = clamp(
-    0.05,
-    0.95,
-    baseSuccessChance + streetwise * 0.02 - state.notoriety * 0.002 + (effectiveLuck - 5) * 0.01
-  )
+  const favorability = computeFavorability(baseSuccessChance)
   const pressurePerTap = Math.round(6 + (favorability - 0.5) * 8)
   const passiveSuspicionPerSec = Math.round(9 - (favorability - 0.5) * 10)
   return { favorability, pressurePerTap, passiveSuspicionPerSec }

@@ -3,6 +3,7 @@ import DistrictBuildingModal from './DistrictBuildingModal'
 import NamedNpcModal from './NamedNpcModal'
 import InteractiveLocationModal from '../world/InteractiveLocationModal'
 import LeverageActionPanel from './LeverageActionPanel'
+import TheCircuitModal from './TheCircuitModal'
 import SyndicateStandingPanel from './SyndicateStandingPanel'
 import EscobarAirDropModal from './EscobarAirDropModal'
 import OffshoreAuditModal from './OffshoreAuditModal'
@@ -161,8 +162,8 @@ const TABS = [
   { id: 'standing', label: 'Standing' },
 ]
 
-export default function UnderworldModal({ onClose }) {
-  const [tab, setTab] = useState('blackMarket')
+export default function UnderworldModal({ onClose, initialTab = 'blackMarket' }) {
+  const [tab, setTab] = useState(initialTab)
   // Which Boss job (if any) is currently open within the Boss Jobs tab -
   // null shows BossJobsMenu instead. Reset whenever the player leaves the
   // tab entirely so switching away and back always starts at the menu.
@@ -198,7 +199,15 @@ export default function UnderworldModal({ onClose }) {
         </div>
 
         <div className="mb-4 max-h-[460px] overflow-y-auto">
-          {tab === 'blackMarket' && <DistrictBuildingModal buildingId="blackMarket" embedded />}
+          {tab === 'blackMarket' && (
+            <div className="flex flex-col gap-4">
+              <DistrictBuildingModal buildingId="blackMarket" embedded />
+              <div className="border-t-2 border-gray-700 pt-4">
+                <p className="mb-2 text-xs uppercase tracking-widest text-gray-500">Behind the counter</p>
+                <NamedNpcModal npcId="ochoa" embedded />
+              </div>
+            </div>
+          )}
           {tab === 'callCenterOps' && <DistrictBuildingModal buildingId="callCenterOps" embedded />}
           {tab === 'crimeAlley' && (
             <div className="flex flex-col gap-4">
@@ -216,6 +225,7 @@ export default function UnderworldModal({ onClose }) {
                 accentBorderClass="border-red-500"
                 teaser="Capone doesn't run the tables himself, but the club's take owes him a cut every night regardless. Somebody has to go collect it in person."
                 buttonLabel="Run the Squeeze"
+                component={TheCircuitModal}
                 leverage={{
                   title: 'Bootleg & Protection Squeeze',
                   markName: "Al Capone's Club Circuit",

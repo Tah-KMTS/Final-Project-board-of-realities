@@ -71,6 +71,7 @@ import SocialApp from '../features/phone/SocialApp'
 import BankingApp from '../features/phone/BankingApp'
 import ContactsApp from '../features/phone/ContactsApp'
 import GuideApp from '../features/phone/GuideApp'
+import WorldMapOverview from '../features/phone/WorldMapOverview'
 
 const REGION_LABELS = {
   hunter: "The Hunter's Rift",
@@ -570,6 +571,7 @@ export default function WorldScreen() {
             banking: () => <BankingApp />,
             contacts: () => <ContactsApp />,
             guide: () => <GuideApp />,
+            map: () => <WorldMapOverview />,
           }}
         />
       )}
@@ -708,6 +710,14 @@ export default function WorldScreen() {
           double-fire the DistrictBuildingModal branch below. */}
       {activeModal?.type === 'building' && activeModal.id === 'underworld' && (
         <UnderworldModal
+          // Set by the underworldInterior zone's desk interactables
+          // (OverworldScene.js's 'underworldDesk' zone type) so walking up
+          // to a specific racket opens UnderworldModal straight to that
+          // tab, instead of always landing on Black Market. Undefined for
+          // every other entry point (jail-tunnel arrival, anything else
+          // that opens this modal), which UnderworldModal's own
+          // `initialTab = 'blackMarket'` default already covers.
+          initialTab={activeModal.initialTab}
           onClose={
             // Reached via the jail maze's tunnel rather than the normal
             // overworld building - the scene is sitting on the transient

@@ -730,6 +730,15 @@ const INTERIOR_TEMPLATES = {
   holdingCell: { floorA: 0x28282c, floorB: 0x1e1e22, deskColor: 0x3a3a3a, deskLabel: 'Booking Desk' },
   jailMaze: { floorA: 0x201c18, floorB: 0x171310, deskColor: 0x5a4a2a, deskLabel: 'Service Corridor' },
   jailUnderworld: { floorA: 0x1f1418, floorB: 0x160e12, deskColor: 0x6a1f3a, deskLabel: 'Back Room' },
+  // Underworld's walkable interior (buildUnderworldInteriorZone below) -
+  // the fixed INTERIOR_DESK slot drawInteriorRoom always renders IS the
+  // Boss Jobs + Standing back office (world-builder: no reason for these
+  // two to be separate stops, Standing has no physical form of its own
+  // beyond the ledger the Bosses already transact with you from). Purple
+  // family matching the building's own exterior color (0x3a1f3a,
+  // FINANCE_BUILDING_DEFS) and its escape-tunnel back room (jailUnderworld
+  // above, same 0x6a1f3a-family maroon) for visual continuity across all 3.
+  underworldInterior: { floorA: 0x241729, floorB: 0x1a0f1e, deskColor: 0x5a2f5a, deskLabel: 'Boss Jobs & Standing' },
 }
 
 // businessCenter/underworld/governmentBuilding/industrialZone (the 4
@@ -779,6 +788,13 @@ const ZONES = {
   jailCell: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   jailMaze: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   jailUnderworld: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  // Underworld's walkable interior - same shared room shape too. Deliberately
+  // NOT named 'underworld': that string is already a live zone.id value
+  // elsewhere (this building's own overworld footprint id, read by
+  // triggerInteraction below) and 'jailUnderworld' above is a DIFFERENT
+  // existing zone (the jail escape tunnel's transient back-room backdrop) -
+  // reusing either name here would collide with real, already-working code.
+  underworldInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
 }
 
 // ---------------- shared small helpers ----------------
@@ -1661,6 +1677,7 @@ export default class OverworldScene extends Phaser.Scene {
     else if (zoneId === 'jailCell') this.buildJailCellZone()
     else if (zoneId === 'jailMaze') this.buildJailMazeZone()
     else if (zoneId === 'jailUnderworld') this.buildJailUnderworldZone()
+    else if (zoneId === 'underworldInterior') this.buildUnderworldInteriorZone()
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
     const zone = ZONES[zoneId]
@@ -1994,6 +2011,60 @@ export default class OverworldScene extends Phaser.Scene {
     this.zones = []
   }
 
+  // Underworld's walkable interior - the first tabbed hub building
+  // (Business Center/Government Building/Industrial Zone stay straight-to-
+  // modal) to get one. Layout per the scoping pass: the front counter
+  // (Black Market) and the two side rackets (Call Center Ops, Crime Alley)
+  // sit in the open floor; Speakeasy Hotel by the stairs-down flavor; the
+  // fixed INTERIOR_DESK slot drawInteriorRoom always renders (the room's
+  // one "real" desk facade + label, same prominence jail's guard desk gets)
+  // IS the Boss Jobs + Standing back office - no separate Standing stop,
+  // see INTERIOR_TEMPLATES.underworldInterior's own comment for why. All 5
+  // interactables use the bespoke 'underworldDesk' zone.type (see
+  // triggerInteraction) rather than the generic 'interiorDesk' one, so none
+  // of their ids can collide with DISTRICT_BUILDING_IDS.
+  buildUnderworldInteriorZone() {
+    drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.underworldInterior)
+    this.regionLabel.setText('The Underworld')
+
+    const deskSpots = [
+      { col: 3, row: 4, initialTab: 'blackMarket', label: 'Black Market' },
+      { col: 8, row: 4, initialTab: 'callCenterOps', label: 'Call Center Ops' },
+      { col: 3, row: 6, initialTab: 'crimeAlley', label: 'Crime Alley' },
+      { col: 8, row: 6, initialTab: 'speakeasy', label: 'Speakeasy Hotel' },
+    ]
+
+    this.zones = [
+      // The room's built-in desk facade (INTERIOR_DESK, same rect shape
+      // buildJailCellZone's guard desk uses) - Boss Jobs + Standing.
+      {
+        type: 'underworldDesk',
+        id: 'underworldBossJobs',
+        initialTab: 'bossJobs',
+        label: 'Boss Jobs & Standing',
+        rect: new Phaser.Geom.Rectangle(
+          INTERIOR_DESK.c0 * TILE_SIZE - TILE_SIZE / 2,
+          INTERIOR_DESK.r0 * TILE_SIZE - TILE_SIZE / 2,
+          (INTERIOR_DESK.c1 - INTERIOR_DESK.c0 + 1) * TILE_SIZE + TILE_SIZE,
+          (INTERIOR_DESK.r1 - INTERIOR_DESK.r0 + 1) * TILE_SIZE + TILE_SIZE
+        ),
+      },
+      ...deskSpots.map((spot) => ({
+        type: 'underworldDesk',
+        id: `underworld${spot.initialTab}`,
+        initialTab: spot.initialTab,
+        label: spot.label,
+        rect: new Phaser.Geom.Rectangle(
+          spot.col * TILE_SIZE - TILE_SIZE,
+          spot.row * TILE_SIZE - TILE_SIZE,
+          TILE_SIZE * 2,
+          TILE_SIZE * 2
+        ),
+      })),
+      interiorExitZone(),
+    ]
+  }
+
   // Real tile-based rooms built from the chapel pack's Walls_Interior
   // tileset via the generic buildTmxWallInteriorZone builder (see
   // src/game/interiors/tmxWallInterior.js) - the `temple` building
@@ -2064,7 +2135,8 @@ export default class OverworldScene extends Phaser.Scene {
       this.currentZoneId === 'buildingInterior' ||
       this.currentZoneId === 'jailCell' ||
       this.currentZoneId === 'jailMaze' ||
-      this.currentZoneId === 'jailUnderworld'
+      this.currentZoneId === 'jailUnderworld' ||
+      this.currentZoneId === 'underworldInterior'
     ) {
       if (col < 0 || col >= INTERIOR_COLS || row < 0 || row >= INTERIOR_ROWS) return true
       const isBorder = row === 0 || col === 0 || row === INTERIOR_ROWS - 1 || col === INTERIOR_COLS - 1
@@ -3696,7 +3768,7 @@ export default class OverworldScene extends Phaser.Scene {
         this.bridge.emit('interact', { type: 'townTravel' })
         return
       }
-      // The 4 Phase-2/4 consolidated hubs (Underworld/Business Center/
+      // The 3 remaining Phase-2/4 consolidated hubs (Business Center/
       // Government Building/Industrial Zone) are multi-tenant tabbed React
       // modals, not a walk-in interior - same pattern as trainStation above:
       // open the modal straight from the overworld footprint, no interior
@@ -3707,9 +3779,10 @@ export default class OverworldScene extends Phaser.Scene {
       // same reason too, but routes to a bespoke WharfModal instead - see
       // WorldScreen.jsx's `activeModal.id === 'wharf'` case. entertainmentComplex
       // (Concert Hall/Sports Stadium) joins the same way, routing to
-      // EntertainmentComplexModal.
+      // EntertainmentComplexModal. Underworld left this list - it's now a
+      // real walk-in interior (see the stockExchange/casino-style branch
+      // below), the first tabbed hub to get one.
       if (
-        zone.id === 'underworld' ||
         zone.id === 'businessCenter' ||
         zone.id === 'governmentBuilding' ||
         zone.id === 'industrialZone' ||
@@ -3747,6 +3820,14 @@ export default class OverworldScene extends Phaser.Scene {
         this.loadZone('casinoInterior')
         return
       }
+      if (zone.id === 'underworld') {
+        this.overworldReturnSpawn = {
+          col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
+          row: building.tiles.r1 + 1,
+        }
+        this.loadZone('underworldInterior')
+        return
+      }
       
       this.overworldReturnSpawn = {
         col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
@@ -3772,6 +3853,18 @@ export default class OverworldScene extends Phaser.Scene {
       this.bridge.emit('interact', { type: 'ambientNpc', npcId: zone.npcRef.npcId, npcName: zone.npcRef.npcName })
     } else if (zone.type === 'jailMazeCheckpoint') {
       this.bridge.emit('interact', { type: 'jailMazeCheckpoint', segmentIndex: zone.segmentIndex })
+    } else if (zone.type === 'underworldDesk') {
+      // Deliberately its own zone.type rather than reusing 'interiorDesk'
+      // (which emits `id: zone.id` verbatim): 'blackMarket'/'callCenterOps'/
+      // 'crimeAlley' are already live keys in DISTRICT_BUILDING_IDS
+      // (districtBuildings.js), so a desk literally named one of those would
+      // ALSO match WorldScreen.jsx's DistrictBuildingModal branch and pop a
+      // second, bare modal alongside the real tabbed UnderworldModal - the
+      // exact "two conditions match one activeModal" bug this file's own
+      // Crime Alley comment already documents having been hit and fixed
+      // once before. Always emits the literal building id 'underworld' plus
+      // which tab this desk should open to.
+      this.bridge.emit('interact', { type: 'building', id: 'underworld', initialTab: zone.initialTab })
     }
   }
 

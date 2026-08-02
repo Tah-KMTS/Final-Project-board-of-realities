@@ -36,6 +36,16 @@ export default function FinanceSkirmishModal({
   onClose,
   onVictory,
   onDefeat,
+  // Fires once, right before onClose, only when the player clicks Retreat
+  // specifically (not on victory/defeat). Undefined for the two ambient/
+  // bodyguard call sites (WorldScreen.jsx's financeCombat/ambientCombat) -
+  // walking away from a street fight has no reason to cost anything.
+  // PoliceStopModal's combat phase is the one caller that passes this, to
+  // add a Wanted bump - without it, Retreat was a zero-cost, instant escape
+  // from an active arrest attempt, which made Bribe/Flee's real risk
+  // pointless to ever take (see PoliceStopModal.jsx for the consequence).
+  onRetreat,
+  retreatLabel = 'Retreat',
 }) {
   const player = useGameStore((s) => s.player)
   const takeFinanceCombatDamage = useGameStore((s) => s.takeFinanceCombatDamage)
@@ -217,6 +227,7 @@ export default function FinanceSkirmishModal({
   }
 
   const handleRetreat = () => {
+    onRetreat?.()
     onClose()
   }
 
@@ -323,7 +334,7 @@ export default function FinanceSkirmishModal({
               disabled={busy}
               className="border-4 border-gray-500 py-1 text-sm font-bold hover:bg-gray-500 disabled:opacity-50"
             >
-              Retreat
+              {retreatLabel}
             </button>
           </div>
         )}
