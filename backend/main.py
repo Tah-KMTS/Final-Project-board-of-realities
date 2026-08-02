@@ -11,13 +11,15 @@ actually agree to what the player asked, plus how the exchange shifted
 their opinion of the player.
 
 Run with (from the project root):
-    uvicorn backend.main:app --reload --port 8079
+    uvicorn backend.main:app --reload --port 8091
 
 The frontend (Vite dev server on http://localhost:5173) calls this via
-src/utils/npcChatClient.js -> POST http://localhost:8079/npc-interact
+src/utils/npcChatClient.js -> POST http://localhost:8091/npc-interact
 
-(Port 8079, not the more obvious 8000 - 8000 is already occupied on dev
-machines that run other local FastAPI services alongside this repo.)
+(Port 8091, not the more obvious 8000 - 8000 is already occupied on dev
+machines that run other local FastAPI services alongside this repo. Also not
+8079, this project's original port - abandoned after a dev-machine-specific
+orphaned socket on 8079 wouldn't release even under a forceful process kill.)
 
 The OpenAI API key is read from the project's root `.env` (OPENAI_API_KEY)
 and never leaves this process - the browser never sees it.
@@ -56,7 +58,13 @@ app = FastAPI(title="Board of Realities - NPC Chat Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    # Vite's dev server falls back to 5174/5175/... whenever 5173 is already
+    # taken (common when a previous run didn't shut down cleanly) - a fixed
+    # single-origin allowlist would silently CORS-block every request from
+    # the browser the moment that happens, with no server-side error to show
+    # for it. A localhost-any-port regex is safe here since this backend
+    # never runs anywhere but a dev machine (see module docstring).
+    allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
@@ -435,6 +443,72 @@ def build_system_prompt(npc_id: str, relationship_tier: float, character: Option
         "breaking character, no mentioning you are an AI or a language "
         "model. Keep replies concise (1-4 sentences)."
     )
+
+
+# ---------------------------------------------------------------------------
+# Guide app (Aria) - a meta/out-of-fiction "how does X work" Q&A assistant,
+# not an in-world NPC. Doesn't fit /npc-interact's persona-roleplay +
+# persuasion-verdict shape at all (no character, no agreed/relationshipDelta),
+# so it gets its own tiny endpoint instead of being forced through that one.
+# Moved here from the frontend (src/features/phone/aiGuide.js used to call
+# OpenAI directly with a VITE_-prefixed key) for the same reason every other
+# LLM call in this project goes through this backend: a Vite `VITE_*` env var
+# is bundled into the shipped client JS, so it would ship the OpenAI key
+# straight to the browser in production. Same "never throws, resolves to a
+# fallback" contract as before - see GuideApp.jsx/aiGuide.js.
+# ---------------------------------------------------------------------------
+
+GUIDE_SYSTEM_PROMPT = """You are Aria, a friendly in-game AI guide inside the phone overlay of "Capital Syndicate: Financial Reality Engine," a dark-neon cyberpunk-Tokyo financial sandbox game. Answer the player's question about game mechanics using ONLY the reference below. Keep answers to 2-4 short sentences, warm and encouraging tone, no markdown. If asked about something outside the game, gently redirect back to game topics in one sentence.
+
+GAME REFERENCE:
+- Core loop: press End Day to advance the day, tick the market, and resolve pending effects. Net worth (cash + stocks + crypto) is the real win condition - reach $10,000,000 to win, with a 5-tier milestone ladder along the way ($50k/$250k/$1M/$5M/$10M).
+- Bank & Realty building: deposit/withdraw cash (deposited cash is "protected" from being seized on a failed crime), take/repay loans, Work Shift for guaranteed pay, Rob Vault for a risky payout, and buy Real Estate or acquire Companies for passive daily income - the last four (Work/Rob/Real Estate/Companies) only work by physically visiting the building, not from the phone.
+- Stock Exchange building/phone tab: buy/sell/short stocks and crypto (ShrimpCoin). Trades use a timing meter - clicking Execute in the green zone gets a better price.
+- Casino: Slots, Blackjack, Poker, Roulette, and Russian Roulette - all balanced to the same house edge so no one game is strictly best.
+- The Underworld building (standalone only, not on the phone): Black Market, Call Center Ops, Crime Alley, Speakeasy Hotel, plus Hitman Contracts, Syndicate Ops, and Narcotics trading elsewhere in the world - all raise Wanted Level/notoriety if you get caught.
+- Getting arrested sends you to Capital City Central Booking: pay bail outright, try bribing the desk (costs cash, capped success), or risk the escape maze (free but the only path that raises Wanted Level further on failure) which can lead to the Underworld through a back tunnel.
+- Temple: pray for a Luck blessing, or embezzle for quick cash at some notoriety risk.
+- Wharf (Bonded Cargo Pier): a fishing minigame, with an honest-or-fraudulent choice on each catch.
+- Entertainment Complex: Concert Hall (arrow-key rhythm minigame) and Sports Stadium (alternating-key sprint race against AI runners), both skill-based.
+- The phone has 3 apps: Social/X (news feed, plus posting to nudge market sentiment once per day), Banking & Portfolio (a Portfolio tab showing everything you own, plus Bank & Realty deposits/loans and the Stock Exchange), and Contacts (people you're dating, married to, or recruited as financial advisors - they show up automatically once you have a relationship, no manual add).
+- Recruiting financial-titan advisors for passive income and dating/marrying NPCs both happen by walking up to them in the overworld and interacting.
+- Wanted Level/notoriety rise from crimes and cool down over time; high Wanted Level increases police encounter risk and jail chances on future crimes."""
+
+
+class GuideAskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=500)
+
+
+class GuideAskResponse(BaseModel):
+    reply: str
+
+
+@app.post("/guide-ask", response_model=GuideAskResponse)
+def guide_ask(req: GuideAskRequest):
+    if _client is None:
+        raise HTTPException(
+            status_code=500,
+            detail="OPENAI_API_KEY is not configured on the backend (.env at project root).",
+        )
+
+    try:
+        resp = _client.responses.create(
+            model=MODEL,
+            input=[
+                {"role": "system", "content": GUIDE_SYSTEM_PROMPT},
+                {"role": "user", "content": req.question},
+            ],
+            reasoning={"effort": "none"},
+            max_output_tokens=220,
+        )
+        text = (resp.output_text or "").strip()
+    except Exception as exc:  # noqa: BLE001 - surface any OpenAI/client error uniformly
+        raise HTTPException(status_code=502, detail=f"OpenAI request failed: {exc}") from exc
+
+    if not text:
+        raise HTTPException(status_code=502, detail="OpenAI returned an empty reply.")
+
+    return GuideAskResponse(reply=text[:700])
 
 
 # ---------------------------------------------------------------------------

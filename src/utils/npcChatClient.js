@@ -3,13 +3,16 @@
 // file just POSTs the player's text and the NPC's reply comes back.
 //
 // Requires the backend running locally: `npm run dev:backend`
-// (uvicorn backend.main:app --reload --port 8079 - not 8000, which is
-// already in use by other local services on dev machines). If it's not
-// running, or the request fails for any reason, this resolves to a
-// graceful in-character-ish fallback instead of throwing, so the dialogue
-// UI never crashes because the Python process isn't up.
+// (uvicorn backend.main:app --reload --port 8091 - not 8000 (already in use
+// by other local services on dev machines) and not 8079 (this project's
+// original port, abandoned after a dev-machine-specific orphaned socket on
+// 8079 couldn't be freed even with a forceful kill - see git history/PR
+// notes if that recurs elsewhere). If the backend isn't running, or the
+// request fails for any reason, this resolves to a graceful
+// in-character-ish fallback instead of throwing, so the dialogue UI never
+// crashes because the Python process isn't up.
 
-const NPC_CHAT_URL = 'http://localhost:8079/npc-interact'
+const NPC_CHAT_URL = 'http://localhost:8091/npc-interact'
 
 const FALLBACK_REPLY = "(...they don't seem to hear you. Try again in a moment.)"
 
