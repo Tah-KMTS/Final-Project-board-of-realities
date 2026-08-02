@@ -12,7 +12,7 @@ were invented, because they are not distinguishable by looking at the data.
 
 | Field | Status | Notes |
 |---|---|---|
-| `name` | **Factual** | All 88 name real people, except 2 (below). |
+| `name` | **Factual** | All 88 name real people (see correction below re: the Trujillos). |
 | `category` / `title` | **Factual** | Real roles: SEC Chair, Fed Chair, cartel boss, etc. |
 | `age` | **Mostly factual** | Age at death for historical figures, current age for the living. Two deliberate exceptions below. |
 | `gender` | **Factual** | 6 female, 82 male. Verified individually. |
@@ -54,14 +54,16 @@ real named person "High Romance Risk" with no evidence is an allegation, so
 non-documented entries were left on neutral values rather than being filled in
 with something more colourful.
 
-## FABRICATED — two characters entirely
+## CORRECTION — Osvaldo and Dixon Trujillo are real, not fabricated
 
-| Name | Role | Note |
-|---|---|---|
-| Osvaldo Trujillo | Crime Syndicate Underboss | No such Medellín figure. Invented. |
-| Dixon Trujillo | Crime Syndicate Capo | Invented. |
+An earlier version of this doc called these two "invented, no such Medellín
+figures" without checking. That was wrong. Verified by web search: they are two
+of Griselda Blanco's four real sons, born to her and first husband Carlos
+Trujillo (alongside Uber Trujillo and Michael Corleone Blanco, neither of whom
+is on this roster). Osvaldo was killed outside a Colombian nightclub in 1992;
+Dixon also died.
 
-Every other name on the roster is a real person.
+**Every name on the roster is a real person. 88 of 88.**
 
 ## Deliberate non-facts (period choices, not errors)
 
@@ -102,8 +104,9 @@ A romance mechanic is a different thing. It attaches **invented sexual
 orientation and fabricated fidelity** to named living individuals and invites the
 player to pursue them. Two suggestions, neither of which blocks the feature:
 
-1. **Scope romance to the deceased and the fictional.** Historical figures and
-   the two invented Trujillos carry far less of this problem than living ones.
+1. **Scope romance to the deceased.** Historical figures carry far less of this
+   problem than living ones — every character on this roster is a real person,
+   so there is no "fictional" carve-out left to lean on.
 2. **If living figures stay in scope, keep it non-sexual** — alliances, favours,
    rivalry, patronage. The disposition system already models that well, and
    `fidelity` already reads as an alliance stat for the regulators.
