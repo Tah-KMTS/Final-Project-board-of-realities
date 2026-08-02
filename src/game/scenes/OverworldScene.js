@@ -1254,6 +1254,14 @@ const PACE_REST_MS_MAX = 11000
 const PACE_LINGER_MS_MIN = 1800 // how long they pause at the far point before returning
 const PACE_LINGER_MS_MAX = 4000
 
+// Fraction of eligible pacers whose round trips are a real "home errand"
+// (walk all the way to their own home building's door, linger, walk back)
+// rather than the short local point-and-return below - see
+// computeErrandOrPaceTarget. A stable per-character personality trait, not
+// re-rolled per trip, so a given character reads consistently as "the type
+// who steps out to swing by home" or not.
+const PACE_HOME_ERRAND_CHANCE = 0.4
+
 // One-time, per-character pacing "personality" - cached on the roamer the
 // first time it's needed (see updateNamedRoamers). Direction is constrained
 // to the same south-facing cone assignDoorSlots' arc rings fan into (the
@@ -1266,7 +1274,8 @@ function paceProfileFor(characterId, tier) {
   const distance = PACE_DISTANCE_MIN + paceHash01(characterId, 'paceDistance') * (PACE_DISTANCE_MAX - PACE_DISTANCE_MIN)
   const restMs = PACE_REST_MS_MIN + paceHash01(characterId, 'paceRestMs') * (PACE_REST_MS_MAX - PACE_REST_MS_MIN)
   const lingerMs = PACE_LINGER_MS_MIN + paceHash01(characterId, 'paceLingerMs') * (PACE_LINGER_MS_MAX - PACE_LINGER_MS_MIN)
-  return { eligible, angle, distance, restMs, lingerMs }
+  const isHomeErrand = paceHash01(characterId, 'paceIsHomeErrand') < PACE_HOME_ERRAND_CHANCE
+  return { eligible, angle, distance, restMs, lingerMs, isHomeErrand }
 }
 
 // Picks a walkable local pacing destination near `restPos` (the roamer's
@@ -1296,6 +1305,24 @@ function computePaceTarget(scene, restPos, profile) {
   return null
 }
 
+// Chooses the OUT-leg destination for a fresh pacing round trip: a real
+// walk to the character's own home door (homeDoorPixel) for the
+// isHomeErrand-rolled subset of pacers (see paceProfileFor above) - giving
+// eligible roamers a visible "stepped out to swing by home" beat DURING the
+// current time block, not just the once-per-End-Day block-to-block glide
+// (see the house rule above nextTimeBlock()) - falling back to the existing
+// short local point (computePaceTarget) whenever there's no usable home
+// door, or the roamer is already resting at home (nothing to errand to).
+// The BACK leg (advanceRoamerPacing's PACE_PHASE_BACK) always returns to
+// restPos regardless of which of these the OUT leg used, so an errand never
+// disturbs worldPresenceEngine.js's ground truth of which building this
+// roamer is actually resolved to for the block - it's a there-and-back
+// visit layered on top, exactly like the short local pace it replaces.
+function computeErrandOrPaceTarget(scene, restPos, profile, homeDoorPixel, atHome) {
+  if (profile.isHomeErrand && homeDoorPixel && !atHome) return homeDoorPixel
+  return computePaceTarget(scene, restPos, profile)
+}
+
 const PACE_PHASE_OUT = 'out'
 const PACE_PHASE_LINGER = 'linger'
 const PACE_PHASE_BACK = 'back'
@@ -1307,7 +1334,7 @@ const PACE_PHASE_BACK = 'back'
 // seekTo(), so pacing gets the exact same constant walk speed, arrival
 // tolerance, and (via the caller adding it to the moving/facing logic
 // downstream) walk-cycle/facing behavior as any other roamer movement.
-function advanceRoamerPacing(scene, roamer, restPos, delta) {
+function advanceRoamerPacing(scene, roamer, restPos, delta, homeDoorPixel, atHome) {
   const profile = roamer.paceProfile
   if (!profile || !profile.eligible) return null
 
@@ -1315,7 +1342,7 @@ function advanceRoamerPacing(scene, roamer, restPos, delta) {
     if (roamer.paceTimer == null) roamer.paceTimer = profile.restMs
     roamer.paceTimer -= delta
     if (roamer.paceTimer <= 0) {
-      const target = computePaceTarget(scene, restPos, profile)
+      const target = computeErrandOrPaceTarget(scene, restPos, profile, homeDoorPixel, atHome)
       if (target) roamer.paceState = { phase: PACE_PHASE_OUT, target }
       else roamer.paceTimer = profile.restMs // no safe spot this cycle - try again next
     }
@@ -1637,11 +1664,31 @@ export default class OverworldScene extends Phaser.Scene {
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
     const zone = ZONES[zoneId]
-    this.cameras.main.setBounds(0, 0, zone.cols * TILE_SIZE, zone.rows * TILE_SIZE)
+    const roomWidth = zone.cols * TILE_SIZE
+    const roomHeight = zone.rows * TILE_SIZE
+    // Phaser's camera bounds-clamp (Camera.clampX/clampY) has no built-in
+    // centering: when bounds are smaller than the viewport on an axis, it
+    // clamps scroll to exactly 0 on that axis, pinning the room to the
+    // viewport's top-left corner instead of centering it - every interior
+    // room here (480x360, INTERIOR_COLS/ROWS) is smaller than the 1200x600
+    // canvas, so without this every building interior/jail room/maze
+    // rendered flush top-left with dead space filling the rest of the
+    // canvas. Padding the bounds rect symmetrically out to viewport size
+    // (while leaving the room's own tile-coordinate origin at (0,0), and
+    // physics.world.setBounds below untouched) makes that same clamp lock
+    // scroll to the padding offset instead of 0, which centers the room -
+    // for zones already bigger than the viewport (just 'overworld' today)
+    // pad is 0 on both axes and behavior is unchanged from before.
+    const padX = Math.max(0, (this.cameras.main.width - roomWidth) / 2)
+    const padY = Math.max(0, (this.cameras.main.height - roomHeight) / 2)
+    this.cameras.main.setBounds(-padX, -padY, roomWidth + padX * 2, roomHeight + padY * 2)
     // Arcade Physics world bounds default to the 800x500 canvas size, not
     // the zone size - without this the player's collideWorldBounds body
-    // gets clamped back inside that small box while walking.
-    this.physics.world.setBounds(0, 0, zone.cols * TILE_SIZE, zone.rows * TILE_SIZE)
+    // gets clamped back inside that small box while walking. Deliberately
+    // NOT padded like the camera bounds above - collision must stay keyed
+    // to the room's real tile coordinates (origin (0,0)), which is what
+    // every wall/desk/zone rect in this file already assumes.
+    this.physics.world.setBounds(0, 0, roomWidth, roomHeight)
     if (teleportPlayer) {
       // chapelInterior/teaHouseInterior carry their own room-specific spawn
       // tile (their rooms aren't INTERIOR_COLS/ROWS-shaped) - every other
@@ -1913,6 +1960,28 @@ export default class OverworldScene extends Phaser.Scene {
         TILE_SIZE * 2
       ),
     }))
+
+    // "Retreat" exit back to the cell, at the same door position every
+    // other room's exit uses (INTERIOR_EXIT) - matches the entry the player
+    // just walked in through from buildJailCellZone. This is a pure zone
+    // swap with zero store call, so it's always free: no checkpoint state
+    // (mazeProgress/mazeAttemptedToday) is touched, unlike failing or
+    // walking away mid-checkpoint (JailMazeMinigame.jsx), which already
+    // route through the store's real failure consequence. Without this the
+    // corridor had no way back at all short of engaging checkpoint 1 - see
+    // production/backlog.md's 2026-08-02 note.
+    this.zones.push({
+      type: 'exit',
+      id: 'jailMazeRetreat',
+      target: 'jailCell',
+      label: 'Back to Holding Cell',
+      rect: new Phaser.Geom.Rectangle(
+        INTERIOR_EXIT.c0 * TILE_SIZE,
+        INTERIOR_EXIT.r0 * TILE_SIZE,
+        (INTERIOR_EXIT.c1 - INTERIOR_EXIT.c0 + 1) * TILE_SIZE,
+        (INTERIOR_EXIT.r1 - INTERIOR_EXIT.r0 + 1) * TILE_SIZE
+      ),
+    })
   }
 
   // Transient visual beat only - "framed as emerging through the tunnel"
@@ -2339,7 +2408,14 @@ export default class OverworldScene extends Phaser.Scene {
             roamer.paceState = null
             roamer.paceTimer = null
           }
-          const paceTarget = advanceRoamerPacing(this, roamer, dest, delta)
+          // Resolved once per roamer per frame (cheap - same category of
+          // lookup as getDisposition/npcVehicleFor just above/below) rather
+          // than cached, since which building counts as "home" never changes
+          // but which building they're CURRENTLY resting at does.
+          const homeDef = getHomeBuildingDef(roamer.agent.id)
+          const homeDoorPixel = homeDef ? this.buildingDoorPixel(homeDef.id) : null
+          const atHome = homeDef ? presence.currentBuildingId === homeDef.id : true
+          const paceTarget = advanceRoamerPacing(this, roamer, dest, delta, homeDoorPixel, atHome)
           if (paceTarget) {
             // Mid pacing round-trip (walking out / lingering / walking
             // back) - reuses the exact same seekTo step-and-arrive used for

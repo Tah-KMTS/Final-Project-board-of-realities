@@ -37,9 +37,13 @@ export function resolveMatchup(move1, move2) {
   if (move1 === 'heavy' && move2 === 'attack') return { dmg1: 15, dmg2: 0, arm1: false, arm2: false }
   if (move1 === 'heavy' && move2 === 'guard') return { dmg1: 0, dmg2: 25, arm1: false, arm2: false }
   if (move1 === 'guard' && move2 === 'heavy') return { dmg1: 25, dmg2: 0, arm1: false, arm2: false }
-  if ((move1 === 'guard' && move2 === 'attack') || (move1 === 'attack' && move2 === 'guard')) {
-    return { dmg1: 0, dmg2: 0, arm1: false, arm2: false }
-  }
+  // Guard Counter: a Guard that beats an Attack isn't just a free block any
+  // more - it reflects 5 chip damage onto the attacker and staggers them
+  // (stun1/stun2, consumed by the caller the same way Exhaustion Stagger's
+  // stun is - see computeAttackStreakPenalty below) so a blocked attacker
+  // can't just throw the same Attack again next turn for free.
+  if (move1 === 'guard' && move2 === 'attack') return { dmg1: 0, dmg2: 5, arm1: false, arm2: false, stun2: true }
+  if (move1 === 'attack' && move2 === 'guard') return { dmg1: 5, dmg2: 0, arm1: false, arm2: false, stun1: true }
   if (move1 === 'dodge' && move2 === 'attack') return { dmg1: 0, dmg2: 0, arm1: true, arm2: false }
   if (move1 === 'attack' && move2 === 'dodge') return { dmg1: 0, dmg2: 0, arm1: false, arm2: true }
   if (move1 === 'dodge' && move2 === 'heavy') return { dmg1: 0, dmg2: 0, arm1: true, arm2: false }
@@ -87,6 +91,26 @@ export function counterFor(playerLastMove, aiStamina) {
       return 'guard'
     default:
       return null
+  }
+}
+
+// Anti-spam: repeating Attack costs escalating extra Stamina on top of
+// whatever payMoveCost already charges for losing, and from the 3rd
+// consecutive use onward staggers the spammer - the same "stunned entering
+// next turn, damage dealt zeroed once" flag Guard Counter's stun1/stun2
+// sets, so the caller only needs one stun-handling code path. Streak is
+// purely about repeated MOVE CHOICE, independent of whether Attack won or
+// lost that turn; playing anything else resets it to 0.
+const STREAK_STAMINA_THRESHOLD = 2
+const STAGGER_THRESHOLD = 3
+
+export function computeAttackStreakPenalty(move, streakBefore) {
+  if (move !== 'attack') return { newStreak: 0, extraStaminaCost: 0, staggered: false }
+  const newStreak = streakBefore + 1
+  return {
+    newStreak,
+    extraStaminaCost: newStreak >= STREAK_STAMINA_THRESHOLD ? 1 : 0,
+    staggered: newStreak >= STAGGER_THRESHOLD,
   }
 }
 

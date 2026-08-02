@@ -78,7 +78,7 @@ export default function GuideApp() {
           <div key={i} className={`flex ${m.role === 'player' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'aria' && <AriaAvatar size={22} />}
             <div
-              className={`ml-1.5 max-w-[78%] rounded-lg px-2.5 py-1.5 text-xs leading-relaxed ${
+              className={`ml-1.5 max-w-[78%] rounded-lg px-2.5 py-1.5 text-sm leading-relaxed ${
                 m.role === 'player'
                   ? 'bg-cyan-500/20 text-cyan-100'
                   : 'bg-pink-950/30 text-pink-50'
@@ -91,7 +91,7 @@ export default function GuideApp() {
         {asking && (
           <div className="flex justify-start">
             <AriaAvatar size={22} />
-            <div className="ml-1.5 rounded-lg bg-pink-950/30 px-2.5 py-1.5 text-xs italic text-pink-200/70">
+            <div className="ml-1.5 rounded-lg bg-pink-950/30 px-2.5 py-1.5 text-sm italic text-pink-200/70">
               Aria is thinking…
             </div>
           </div>
@@ -120,7 +120,7 @@ export default function GuideApp() {
           onKeyDown={(e) => e.key === 'Enter' && sendQuestion(input)}
           disabled={asking}
           placeholder="Ask Aria something..."
-          className="min-w-0 flex-1 rounded border border-gray-600 bg-black px-2 py-1.5 text-xs text-white disabled:opacity-50"
+          className="min-w-0 flex-1 rounded border border-gray-600 bg-black px-2 py-1.5 text-sm text-white disabled:opacity-50"
         />
         <button
           onClick={() => sendQuestion(input)}

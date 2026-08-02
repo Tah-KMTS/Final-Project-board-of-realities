@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { playHitSound, playTakeDamageSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
-import { MOVE_LABELS, resolveMatchup, payMoveCost, pickAiMove } from './financeSkirmishEngine'
+import { MOVE_LABELS, resolveMatchup, payMoveCost, pickAiMove, computeAttackStreakPenalty } from './financeSkirmishEngine'
 
 // Finance world's 4-choice discrete-move combat: Attack / Heavy / Guard /
 // Dodge, simultaneous reveal, stamina-gated. This is a deliberately
@@ -49,6 +49,13 @@ export default function FinanceSkirmishModal({
   const [monsterStamina, setMonsterStamina] = useState(3)
   const [playerBoost, setPlayerBoost] = useState(false)
   const [monsterBoost, setMonsterBoost] = useState(false)
+  // Staggered (Guard Counter's stun1/stun2, or Exhaustion Stagger from 3+
+  // consecutive Attacks - see computeAttackStreakPenalty) zeroes the
+  // stunned side's own damage output on the turn it's consumed, then clears.
+  const [playerStunned, setPlayerStunned] = useState(false)
+  const [monsterStunned, setMonsterStunned] = useState(false)
+  const [playerAttackStreak, setPlayerAttackStreak] = useState(0)
+  const [monsterAttackStreak, setMonsterAttackStreak] = useState(0)
   const [lastPlayerMove, setLastPlayerMove] = useState(null)
   const [turnCount, setTurnCount] = useState(0)
 
@@ -84,6 +91,15 @@ export default function FinanceSkirmishModal({
       let dmgToPlayer = matchup.dmg1
       let dmgToMonster = matchup.dmg2
 
+      // Staggered from LAST turn's Guard Counter or Exhaustion Stagger:
+      // zero this side's own damage output for this one turn, then the
+      // stun is cleared below (setPlayerStunned/setMonsterStunned) rather
+      // than carrying over.
+      const playerWasStunned = playerStunned
+      const monsterWasStunned = monsterStunned
+      if (playerWasStunned) dmgToMonster = 0
+      if (monsterWasStunned) dmgToPlayer = 0
+
       // Counter Boost (armed by a Dodge that beat Attack/Heavy last turn):
       // multiplies the damage THAT side deals this turn, then is consumed
       // regardless of whether it actually landed.
@@ -97,24 +113,34 @@ export default function FinanceSkirmishModal({
       dmgToPlayer += playerCost.chipDamage
       dmgToMonster += monsterCost.chipDamage
 
+      // Stamina Penalty (anti-spam): repeating Attack costs escalating
+      // extra Stamina on top of whatever payMoveCost already charged for
+      // losing, clamped at 0 rather than going negative.
+      const playerStreak = computeAttackStreakPenalty(playerMove, playerAttackStreak)
+      const monsterStreak = computeAttackStreakPenalty(aiMove, monsterAttackStreak)
+      const playerStaminaAfterStreak = Math.max(0, playerCost.staminaAfterCost - playerStreak.extraStaminaCost)
+      const monsterStaminaAfterStreak = Math.max(0, monsterCost.staminaAfterCost - monsterStreak.extraStaminaCost)
+
       // Regen only fires for a side that spent ZERO stamina this turn -
       // otherwise a side paying 1 stamina every turn (sustained Heavy/Dodge,
       // or repeated whiffed Attacks) would have that cost fully cancelled by
       // regen every single turn and could never actually run out. A side
       // that paid stamina carries its post-cost value into next turn
       // unchanged (no +1); a side that paid nothing regens as normal.
-      const playerPaidStamina = playerCost.staminaAfterCost < playerStamina
-      const monsterPaidStamina = monsterCost.staminaAfterCost < monsterStamina
+      const playerPaidStamina = playerStaminaAfterStreak < playerStamina
+      const monsterPaidStamina = monsterStaminaAfterStreak < monsterStamina
 
       const newPlayerStamina = playerPaidStamina
-        ? playerCost.staminaAfterCost
-        : Math.min(3, playerCost.staminaAfterCost + 1)
+        ? playerStaminaAfterStreak
+        : Math.min(3, playerStaminaAfterStreak + 1)
       const newMonsterStamina = monsterPaidStamina
-        ? monsterCost.staminaAfterCost
-        : Math.min(3, monsterCost.staminaAfterCost + 1)
+        ? monsterStaminaAfterStreak
+        : Math.min(3, monsterStaminaAfterStreak + 1)
 
       // --- Log lines ---
       if (wasRead) appendLog(`${monster.name} reads your last move and reacts with ${MOVE_LABELS[aiMove]}!`)
+      if (playerWasStunned) appendLog("Still staggered - your move lands with no force this turn.")
+      if (monsterWasStunned) appendLog(`${monster.name} is still staggered and can't capitalize this turn.`)
       if (matchup.knockdown) {
         appendLog(`Both sides trade Heavy Strikes - a bone-jarring knockdown clash!`)
       } else if (dmgToMonster > 0 && dmgToPlayer > 0) {
@@ -133,6 +159,13 @@ export default function FinanceSkirmishModal({
       if (playerBoostConsumed && dmgToMonster > matchup.dmg2) appendLog('Your Counter Boost detonates for extra damage!')
       else if (playerBoostConsumed) appendLog('Your primed Counter Boost goes unused this turn.')
       if (monsterBoostConsumed && dmgToPlayer > matchup.dmg1) appendLog(`${monster.name}'s Counter Boost detonates!`)
+      if (matchup.stun1) appendLog("Your Attack is caught by their Guard, reflected, and you're left staggered!")
+      if (matchup.stun2) appendLog(`${monster.name}'s Attack is caught by your Guard, reflected, and they're staggered!`)
+      if (playerStreak.extraStaminaCost > 0 && !playerStreak.staggered) {
+        appendLog('Repeating Attack costs extra Stamina - vary your moves.')
+      }
+      if (playerStreak.staggered) appendLog("Exhaustion Stagger! Too many Attacks in a row - you're stunned next turn.")
+      if (monsterStreak.staggered) appendLog(`${monster.name} is staggered from overusing Attack!`)
 
       const newMonsterHp = Math.max(0, monsterHp - dmgToMonster)
       setMonsterHp(newMonsterHp)
@@ -154,6 +187,10 @@ export default function FinanceSkirmishModal({
       setMonsterStamina(newMonsterStamina)
       setPlayerBoost(matchup.arm1)
       setMonsterBoost(matchup.arm2)
+      setPlayerStunned(Boolean(matchup.stun1) || playerStreak.staggered)
+      setMonsterStunned(Boolean(matchup.stun2) || monsterStreak.staggered)
+      setPlayerAttackStreak(playerStreak.newStreak)
+      setMonsterAttackStreak(monsterStreak.newStreak)
       setLastPlayerMove(playerMove)
       setTurnCount(turnNumber)
 
@@ -216,6 +253,7 @@ export default function FinanceSkirmishModal({
             <div className="h-3 bg-red-500 transition-all" style={{ width: `${(monsterHp / monster.maxHp) * 100}%` }} />
           </div>
           {monsterBoost && <div className="mt-1 text-xs text-purple-300">⚡ Counter Boost primed</div>}
+          {monsterStunned && <div className="mt-1 text-xs text-yellow-300">💫 Staggered - no damage next turn</div>}
           {monsterFloats.map((f) => (
             <span key={f.id} className="animate-float-up-fade pointer-events-none absolute right-3 top-1 font-bold text-red-400">
               {f.text}
@@ -232,6 +270,7 @@ export default function FinanceSkirmishModal({
             <div className="h-3 bg-green-500 transition-all" style={{ width: `${Math.max(0, (player.hp / player.maxHp) * 100)}%` }} />
           </div>
           {playerBoost && <div className="mt-1 text-xs text-purple-300">⚡ Counter Boost primed</div>}
+          {playerStunned && <div className="mt-1 text-xs text-yellow-300">💫 Staggered - no damage next turn</div>}
           {playerFloats.map((f) => (
             <span key={f.id} className="animate-float-up-fade pointer-events-none absolute right-3 top-1 font-bold text-red-400">
               {f.text}

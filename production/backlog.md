@@ -40,6 +40,7 @@ Last updated after the map rework (flattened single-city layout, tight residenti
 
 - No automated test coverage anywhere (no test files; `npm run lint` is oxlint only) - all regression checking is manual playtesting or live browser/screenshot verification.
 - If you're testing via a headless/automated browser, `document.hidden`/`visibilityState` can end up `"hidden"` even when the tab looks active, which suspends Phaser's `requestAnimationFrame` loop - movement/animation will look completely frozen even though the underlying logic is correct.
+- Confirmed 2026-08-02 via claude-in-chrome: even after force-overriding `document.hidden`/`visibilityState` to unfreeze rendering (previous bullet), WASD/arrow-key player movement still didn't register through the extension's synthetic key events - not even a manually held `keydown`->`keyup` dispatched directly via JS with correct `code`/`keyCode`. Rendering and game-loop ticking (`update()`) were confirmed live (NPC idle-animation frames changed between screenshots), and the same movement worked immediately for a real human keypress in the same running dev server. So this is an automation-input artifact on top of the visibility one, not a real bug in `OverworldScene.js`'s `cursors`/`wasd` handling - don't chase it, just verify movement with a real keypress instead of scripted browser-automation input.
 - Git commits need `user.name`/`user.email` configured locally - a fresh machine won't have this set.
 
 ## Open items, roughly in priority order
