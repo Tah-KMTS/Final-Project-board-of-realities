@@ -76,6 +76,7 @@ export default function NamedNpcModal({ npcId, onClose, onAttack, embedded = fal
   }
 
   const [feedbackMsg, setFeedbackMsg] = useState(null)
+  const [showBio, setShowBio] = useState(false)
   const [lineIndex, setLineIndex] = useState(0)
   const [chatHistory, setChatHistory] = useState([])
   const [chatInput, setChatInput] = useState('')
@@ -229,46 +230,64 @@ export default function NamedNpcModal({ npcId, onClose, onAttack, embedded = fal
           </div>
         </div>
 
-        {/* Character Portrait + Biography */}
-        <div className="my-3 rounded border border-yellow-500/30 bg-[#0e1130] p-3 flex items-start gap-3">
-          <img src={portraitSrc} alt={npc.name} className="h-20 w-20 shrink-0 rounded-lg border-2 border-yellow-400 object-contain bg-slate-900" />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-bold text-yellow-300 mb-1">📜 Biography</div>
-            <p className="text-sm text-gray-300 leading-relaxed">{bio.bio}</p>
-            <div className="mt-1.5 text-xs text-gray-500">
-              {bio.orientation && <span className="mr-2">Orientation: <span className="text-cyan-400">{bio.orientation}</span></span>}
-              {bio.maritalStatus && <span>Status: <span className="text-emerald-400">{bio.maritalStatus}</span></span>}
-            </div>
-          </div>
-        </div>
+        {/* Bio/quotes/AI-response toggle - these three blocks are pure
+            flavor (no gameplay action lives in them), and stacked always-
+            visible they were the single biggest reason this modal ran
+            taller than the viewport with nothing to scroll it. Collapsed
+            by default; the always-visible stuff below (chat, relationship,
+            action buttons) is what actually needs to be reachable without
+            scrolling past a wall of text first. */}
+        <button
+          onClick={() => setShowBio((v) => !v)}
+          className="my-2 w-full border border-yellow-500/40 bg-[#161a38] py-1.5 text-sm font-bold text-yellow-300 hover:bg-yellow-900/40"
+        >
+          {showBio ? '▾ Hide Bio & Dialogue' : `▸ Show Bio & Dialogue`}
+        </button>
 
-        {/* Scripted Dialogue Lines Carousel */}
-        {scriptedLines.length > 0 && (
-          <div className="my-3 rounded border border-cyan-500/40 bg-[#0c1a2e] p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold text-cyan-300">💬 {npc.name}:</span>
-              {scriptedLines.length > 1 && (
-                <button
-                  onClick={handleNextLine}
-                  className="text-xs text-gray-400 border border-gray-700 px-2 py-0.5 rounded hover:bg-gray-800"
-                >
-                  Next Quote ({lineIndex + 1}/{scriptedLines.length})
-                </button>
-              )}
+        {showBio && (
+          <>
+            {/* Character Portrait + Biography */}
+            <div className="my-3 rounded border border-yellow-500/30 bg-[#0e1130] p-3 flex items-start gap-3">
+              <img src={portraitSrc} alt={npc.name} className="h-20 w-20 shrink-0 rounded-lg border-2 border-yellow-400 object-contain bg-slate-900" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-yellow-300 mb-1">📜 Biography</div>
+                <p className="text-sm text-gray-300 leading-relaxed">{bio.bio}</p>
+                <div className="mt-1.5 text-xs text-gray-500">
+                  {bio.orientation && <span className="mr-2">Orientation: <span className="text-cyan-400">{bio.orientation}</span></span>}
+                  {bio.maritalStatus && <span>Status: <span className="text-emerald-400">{bio.maritalStatus}</span></span>}
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-cyan-100 italic leading-relaxed">
-              "{currentText}"
-            </p>
-          </div>
+
+            {/* Scripted Dialogue Lines Carousel */}
+            {scriptedLines.length > 0 && (
+              <div className="my-3 rounded border border-cyan-500/40 bg-[#0c1a2e] p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold text-cyan-300">💬 {npc.name}:</span>
+                  {scriptedLines.length > 1 && (
+                    <button
+                      onClick={handleNextLine}
+                      className="text-xs text-gray-400 border border-gray-700 px-2 py-0.5 rounded hover:bg-gray-800"
+                    >
+                      Next Quote ({lineIndex + 1}/{scriptedLines.length})
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm text-cyan-100 italic leading-relaxed">
+                  "{currentText}"
+                </p>
+              </div>
+            )}
+
+            {/* Dynamic AI Context-Aware Speech */}
+            <div className="my-2 rounded border border-yellow-500/30 bg-[#171a38] p-3">
+              <div className="text-sm font-bold text-yellow-300 mb-1">🤖 AI Situational Response:</div>
+              <p className="text-sm text-gray-200 italic leading-relaxed">
+                "{dynamicSpeech}"
+              </p>
+            </div>
+          </>
         )}
-
-        {/* Dynamic AI Context-Aware Speech */}
-        <div className="my-2 rounded border border-yellow-500/30 bg-[#171a38] p-3">
-          <div className="text-sm font-bold text-yellow-300 mb-1">🤖 AI Situational Response:</div>
-          <p className="text-sm text-gray-200 italic leading-relaxed">
-            "{dynamicSpeech}"
-          </p>
-        </div>
 
         {/* Free-Text Persuasion Chat - real LLM conversation, not scripted.
             Try to convince this specific character (in their own words) to
@@ -422,7 +441,7 @@ export default function NamedNpcModal({ npcId, onClose, onAttack, embedded = fal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
-      <div className="w-full max-w-xl border-4 border-yellow-500/70 bg-[#121429] p-6 text-white shadow-2xl">
+      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto border-4 border-yellow-500/70 bg-[#121429] p-6 text-white shadow-2xl">
         {body}
       </div>
     </div>
