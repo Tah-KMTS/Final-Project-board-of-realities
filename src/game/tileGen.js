@@ -144,6 +144,13 @@ export const HABITAT_ASSET_KEYS = {
 export const BUILDING_IMAGE_ASSET_KEYS = {
   underworld: 'bldg_underworld',
   casino: 'bldg_casino',
+  bank: 'bldg_bank',
+  courtAndPrison: 'bldg_courtAndPrison',
+  foodCourt: 'bldg_foodCourt',
+  stockExchange: 'bldg_stockExchange',
+  governmentBuilding: 'bldg_government',
+  wharf: 'bldg_wharf',
+  industrialZone: 'bldg_industrialZone',
 }
 
 // Frame indices into the 4x4 16px Fences.png grid (frame = row*4+col) - see
@@ -184,6 +191,27 @@ function preloadBuildingImages(scene) {
   }
   if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.casino)) {
     scene.load.image(BUILDING_IMAGE_ASSET_KEYS.casino, '/assets/buildings/casino.png')
+  }
+  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.bank)) {
+    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.bank, '/assets/buildings/bank.png')
+  }
+  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.courtAndPrison)) {
+    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.courtAndPrison, '/assets/buildings/courtAndPrison.png')
+  }
+  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.foodCourt)) {
+    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.foodCourt, '/assets/buildings/foodCourt.png')
+  }
+  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.stockExchange)) {
+    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.stockExchange, '/assets/buildings/stockExchange.png')
+  }
+  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.governmentBuilding)) {
+    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.governmentBuilding, '/assets/buildings/government.png')
+  }
+  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.wharf)) {
+    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.wharf, '/assets/buildings/wharf.png')
+  }
+  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.industrialZone)) {
+    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.industrialZone, '/assets/buildings/industrialZone.png')
   }
 }
 
@@ -390,27 +418,21 @@ export function residentialStyleKey(npcId, kind) {
 function packFacadeFor(building) {
   if (!building || typeof building !== 'object') return null
 
-  // Underworld gets a bespoke single-image facade instead of the generic
-  // modernBrick nine-slice its facadeStyle tag still carries (that tag is
-  // now dead for this building specifically, kept only so nothing else
-  // reading FINANCE_BUILDING_DEFS breaks). Same "one flat baked image, drawn
-  // at native size" mechanism the wood-house wealth tier below already uses,
-  // just keyed by building.id instead of kind/wealth. If the image somehow
-  // failed to load, placeBuildingFacade's `spec?.prefabImage &&
-  // scene.textures.exists(...)` check fails and this spec has no sheetKey
-  // for its sibling nine-slice branch to catch either - it falls all the way
-  // through to that function's generic default facade, not back to
-  // modernBrick specifically. Acceptable: the image is a real, preloaded
-  // local file (public/assets/buildings/), not a runtime-fetched asset that
-  // could plausibly 404.
-  if (building.id === 'underworld') {
-    return { prefabImage: true, imageKey: BUILDING_IMAGE_ASSET_KEYS.underworld }
-  }
-  // Casino gets the same bespoke-image treatment - "Neon Play Palace"
-  // custom art instead of the modernBrick nine-slice its facadeStyle tag
-  // still carries (same harmless-dead-tag reasoning as underworld above).
-  if (building.id === 'casino') {
-    return { prefabImage: true, imageKey: BUILDING_IMAGE_ASSET_KEYS.casino }
+  // Any building with an entry in BUILDING_IMAGE_ASSET_KEYS gets a bespoke
+  // single-image facade instead of the generic nine-slice its facadeStyle
+  // tag still carries (that tag is now dead for these buildings
+  // specifically, kept only so nothing else reading FINANCE_BUILDING_DEFS
+  // breaks). Same "one flat baked image, drawn at native size" mechanism the
+  // wood-house wealth tier below already uses, just keyed by building.id
+  // instead of kind/wealth. If the image somehow failed to load,
+  // placeBuildingFacade's `spec?.prefabImage && scene.textures.exists(...)`
+  // check fails and this spec has no sheetKey for its sibling nine-slice
+  // branch to catch either - it falls all the way through to that
+  // function's generic default facade. Acceptable: these are real,
+  // preloaded local files (public/assets/buildings/), not
+  // runtime-fetched assets that could plausibly 404.
+  if (BUILDING_IMAGE_ASSET_KEYS[building.id]) {
+    return { prefabImage: true, imageKey: BUILDING_IMAGE_ASSET_KEYS[building.id] }
   }
 
   if (building.kind === 'home' || building.kind === 'hideout') {
