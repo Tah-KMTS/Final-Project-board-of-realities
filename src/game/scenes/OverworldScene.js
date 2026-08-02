@@ -921,18 +921,6 @@ function drawBuildings(scene, buildings, zoneObjects) {
     const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
     zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color, b))
-    // Map overhaul Phase 3: no name label above residential buildings
-    // (homes/hideouts, i.e. anything with a truthy `kind`) - with 88 of them
-    // now clustered into dense same-style blocks, a label over every single
-    // one was visual noise nobody could read anyway. Hub/civic buildings
-    // (the 10 hand-authored defs, none of which set `kind`) keep theirs.
-    if (!b.kind) {
-      const label = scene.add
-        .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
-        .setOrigin(0.5, 1)
-        .setDepth(y + h + 10)
-      zoneObjects.push(label)
-    }
 
     const doorSpec = buildingDoorAnimSpec(b, x, y, w, h)
     if (doorSpec && scene.textures.exists(SERENE_VILLAGE_DOOR_KEY)) {

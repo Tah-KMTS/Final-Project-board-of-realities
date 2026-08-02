@@ -141,16 +141,27 @@ export const HABITAT_ASSET_KEYS = {
 // check). Own small asset key map since these aren't tied to habitat
 // decoration at all - just co-located near it as the closest existing
 // "load a single flat image, not a spritesheet" precedent.
-export const BUILDING_IMAGE_ASSET_KEYS = {
-  underworld: 'bldg_underworld',
-  casino: 'bldg_casino',
-  bank: 'bldg_bank',
-  courtAndPrison: 'bldg_courtAndPrison',
-  foodCourt: 'bldg_foodCourt',
-  stockExchange: 'bldg_stockExchange',
-  governmentBuilding: 'bldg_government',
-  wharf: 'bldg_wharf',
-  industrialZone: 'bldg_industrialZone',
+// building.id -> filename in public/assets/buildings/. Texture key is
+// derived as `bldg_${id}` (see buildingImageTextureKey) rather than stored
+// per entry, since id already uniquely determines it.
+export const BUILDING_IMAGE_FILES = {
+  underworld: 'underworld.png',
+  casino: 'casino.png',
+  bank: 'bank.png',
+  courtAndPrison: 'courtAndPrison.png',
+  foodCourt: 'foodCourt.png',
+  stockExchange: 'stockExchange.png',
+  governmentBuilding: 'government.png',
+  wharf: 'wharf.png',
+  industrialZone: 'industrialZone.png',
+  trainStation: 'trainStation.png',
+  entertainmentComplex: 'entertainmentComplex.png',
+  realEstateAgency: 'realEstateAgency.png',
+  businessCenter: 'businessCenter.png',
+}
+
+function buildingImageTextureKey(id) {
+  return `bldg_${id}`
 }
 
 // Frame indices into the 4x4 16px Fences.png grid (frame = row*4+col) - see
@@ -186,32 +197,9 @@ function preloadHabitatAssets(scene) {
 // asset source unrelated to the Kenney tile packs. Called unconditionally
 // from preloadTerrainAssets below.
 function preloadBuildingImages(scene) {
-  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.underworld)) {
-    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.underworld, '/assets/buildings/underworld.png')
-  }
-  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.casino)) {
-    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.casino, '/assets/buildings/casino.png')
-  }
-  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.bank)) {
-    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.bank, '/assets/buildings/bank.png')
-  }
-  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.courtAndPrison)) {
-    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.courtAndPrison, '/assets/buildings/courtAndPrison.png')
-  }
-  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.foodCourt)) {
-    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.foodCourt, '/assets/buildings/foodCourt.png')
-  }
-  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.stockExchange)) {
-    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.stockExchange, '/assets/buildings/stockExchange.png')
-  }
-  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.governmentBuilding)) {
-    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.governmentBuilding, '/assets/buildings/government.png')
-  }
-  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.wharf)) {
-    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.wharf, '/assets/buildings/wharf.png')
-  }
-  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.industrialZone)) {
-    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.industrialZone, '/assets/buildings/industrialZone.png')
+  for (const [id, file] of Object.entries(BUILDING_IMAGE_FILES)) {
+    const key = buildingImageTextureKey(id)
+    if (!scene.textures.exists(key)) scene.load.image(key, `/assets/buildings/${file}`)
   }
 }
 
@@ -418,7 +406,7 @@ export function residentialStyleKey(npcId, kind) {
 function packFacadeFor(building) {
   if (!building || typeof building !== 'object') return null
 
-  // Any building with an entry in BUILDING_IMAGE_ASSET_KEYS gets a bespoke
+  // Any building with an entry in BUILDING_IMAGE_FILES gets a bespoke
   // single-image facade instead of the generic nine-slice its facadeStyle
   // tag still carries (that tag is now dead for these buildings
   // specifically, kept only so nothing else reading FINANCE_BUILDING_DEFS
@@ -431,8 +419,8 @@ function packFacadeFor(building) {
   // function's generic default facade. Acceptable: these are real,
   // preloaded local files (public/assets/buildings/), not
   // runtime-fetched assets that could plausibly 404.
-  if (BUILDING_IMAGE_ASSET_KEYS[building.id]) {
-    return { prefabImage: true, imageKey: BUILDING_IMAGE_ASSET_KEYS[building.id] }
+  if (BUILDING_IMAGE_FILES[building.id]) {
+    return { prefabImage: true, imageKey: buildingImageTextureKey(building.id) }
   }
 
   if (building.kind === 'home' || building.kind === 'hideout') {
