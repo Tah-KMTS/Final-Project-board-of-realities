@@ -37,6 +37,7 @@ import { buildChapelExteriorZone, preloadChapelExterior, updateChapelGate, chape
 import { preloadChapelPack } from '../packs/chapelPixelTiles'
 import { preloadCuteTerrain, preloadCuteTrees, GRASS_TYPES } from '../packs/cuteFantasyTerrain'
 import { preloadTopDownVehicles, NPC_VEHICLE_TIERS, vehiclePerformance, VEHICLE_LAUNCH_FRACTION } from '../packs/topDownVehicles'
+import { preloadNpcRealSprites } from '../packs/npcRealSprites'
 
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
@@ -1547,6 +1548,7 @@ export default class OverworldScene extends Phaser.Scene {
   preload() {
     preloadTerrainAssets(this)
     preloadPlayerSheet(this)
+    preloadNpcRealSprites(this)
     preloadVehicleAssets(this)
     preloadChapelPack(this)
     preloadChapelMap(this)

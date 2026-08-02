@@ -1,4 +1,5 @@
 import { PLAYER_ART_FRAME_W, PLAYER_ART_FRAME_H, PLAYER_ART_SCALE, drawPlayerArtFrame } from './playerSpriteArt'
+import { hasRealSprite, realSpriteRenderInfo } from './packs/npcRealSprites'
 
 const USE_PROCEDURAL_GRAPHICS = true;
 // Every texture key the player actually uses across scenes (each scene
@@ -279,6 +280,14 @@ export function procedural_ensurePlayerTexture(scene, key, palette) {
 // shares one texture for every actor and differentiates via tint + the
 // left-mirrored-to-right trick (see the file header comment).
 export function getActorRenderInfo(scene, key, palette) {
+  // Trial real-art override, checked before either rendering mode. `key` for
+  // named roamers is "npc_<characterId>" (see OverworldScene.js's
+  // `new SpriteActor(this, x, y, 'npc_' + character.id, ...)` call site) -
+  // strip the prefix and check the opt-in list in npcRealSprites.js.
+  const characterId = key.startsWith('npc_') ? key.slice(4) : null
+  if (characterId && hasRealSprite(characterId) && scene.textures.exists('npcReal_princeThai')) {
+    return realSpriteRenderInfo()
+  }
   if (USE_PROCEDURAL_GRAPHICS) {
     procedural_ensurePlayerTexture(scene, key, palette)
     const isPlayerArt = PLAYER_TEXTURE_KEYS.has(key)

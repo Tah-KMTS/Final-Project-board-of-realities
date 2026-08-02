@@ -36,3 +36,10 @@ __pycache__/
 public/assets/packs/TopDown Vehicles v1.17/
 public/assets/packs/Harvest Sumer Free Ver. Pack/
 public/assets/packs/Pixel 16 v2 village free/
+
+# Raw AI-generated NPC reference sheets: baked-in titles/grid-lines/labels and
+# solid white backgrounds, unusable as game sprites as-is (see
+# src/game/packs/npcRealSprites.js's header). Salvaged, game-ready sheets are
+# cropped from these by hand and committed under packs/npc/processed/ instead
+# - only that subfolder is tracked, not the raw originals sitting beside it.
+public/assets/packs/npc/*.png
