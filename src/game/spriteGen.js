@@ -1,5 +1,5 @@
 import { PLAYER_ART_FRAME_W, PLAYER_ART_FRAME_H, PLAYER_ART_SCALE, drawPlayerArtFrame } from './playerSpriteArt'
-import { hasRealSprite, realSpriteRenderInfo } from './packs/npcRealSprites'
+import { hasRealSprite, realSpriteRenderInfo, realSpriteTextureKey } from './packs/npcRealSprites'
 
 const USE_PROCEDURAL_GRAPHICS = true;
 // Every texture key the player actually uses across scenes (each scene
@@ -285,8 +285,8 @@ export function getActorRenderInfo(scene, key, palette) {
   // `new SpriteActor(this, x, y, 'npc_' + character.id, ...)` call site) -
   // strip the prefix and check the opt-in list in npcRealSprites.js.
   const characterId = key.startsWith('npc_') ? key.slice(4) : null
-  if (characterId && hasRealSprite(characterId) && scene.textures.exists('npcReal_princeThai')) {
-    return realSpriteRenderInfo()
+  if (characterId && hasRealSprite(characterId) && scene.textures.exists(realSpriteTextureKey(characterId))) {
+    return realSpriteRenderInfo(characterId)
   }
   if (USE_PROCEDURAL_GRAPHICS) {
     procedural_ensurePlayerTexture(scene, key, palette)
