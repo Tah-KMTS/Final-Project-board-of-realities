@@ -57,8 +57,16 @@ export default function Slots() {
   const addReputation = useGameStore((s) => s.addReputation)
   const spendEnergy = useGameStore((s) => s.spendEnergy)
   const energy = useGameStore((s) => s.player.energy)
+  const getEffectiveLuck = useGameStore((s) => s.getEffectiveLuck)
 
   const [bet, setBet] = useState(MIN_BET)
+  // Raw text buffer for the bet <input> so the player can freely type/clear
+  // digits (e.g. backspace to an empty string) without the field snapping
+  // back to a clamped number on every keystroke - only committed/clamped
+  // into `bet` on blur, same "type freely, validate on blur" split Blackjack
+  // avoids needing by clamping inline (its input never allows an
+  // in-progress invalid state to persist past a render).
+  const [betInput, setBetInput] = useState(String(MIN_BET))
   const [reels, setReels] = useState([null, null, null])
   const [spinning, setSpinning] = useState(false)
   const [message, setMessage] = useState('')
@@ -100,7 +108,19 @@ export default function Slots() {
           setMessage(`Winner! ${matchedSymbol.glyph} pays ${multiplier}x - $${payout.toLocaleString()}.`)
         }
       } else {
-        setMessage('No match. Better luck next spin.')
+        // Post-loss "lucky save": Luck can turn a loss into a wash (bet
+        // refunded, no reputation change) but never into an actual win - the
+        // reel weights/payouts above stay untouched. Zero at default Luck
+        // (5), clamped to a 15% ceiling that isn't reachable at the real
+        // Luck cap of 8 (Chapel Blessing) - 6% at cap today.
+        const effectiveLuck = getEffectiveLuck()
+        const luckSaveChance = Math.max(0, Math.min(0.15, (effectiveLuck - 5) * 0.02))
+        if (Math.random() < luckSaveChance) {
+          addCash(bet)
+          setMessage('No match... but a stray coin rolls back out of the tray. Push - your bet is returned.')
+        } else {
+          setMessage('No match. Better luck next spin.')
+        }
       }
     }, SPIN_ANIM_MS)
   }
@@ -127,7 +147,11 @@ export default function Slots() {
           value={betInput}
           disabled={spinning}
           onChange={(e) => setBetInput(e.target.value)}
-          onBlur={() => setBetInput(String(bet))}
+          onBlur={() => {
+            const clamped = Math.max(MIN_BET, Math.floor(Number(betInput)) || MIN_BET)
+            setBet(clamped)
+            setBetInput(String(clamped))
+          }}
           className="w-24 border border-gray-600 bg-black px-1 py-1 text-white disabled:opacity-50"
         />
         <button

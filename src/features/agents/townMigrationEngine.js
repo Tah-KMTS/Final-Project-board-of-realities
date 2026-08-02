@@ -10,13 +10,6 @@ import { getHomeBuildingDef } from '../world/characterHomeBuildings'
 const FLEE_HEAT_THRESHOLD = 0.55
 const RETURN_HEAT_THRESHOLD = 0.3
 
-const DISTRICT_TO_CITY = {
-  'Tokyo District': 'Tokyo',
-  'Kyoto District': 'Kyoto',
-  'Osaka District': 'Osaka',
-  'Sapporo District': 'Sapporo',
-}
-
 // Financial Titans with a signature landmark - kept from the original file's
 // flavor (not part of this rewrite's fugitive-heat mechanic).
 const TITAN_HOME_CITY = {
@@ -79,7 +72,10 @@ function simulateCrimeFugitive(agent, day, govState, wantedLevel, migrationLogs)
   copy.hideoutBuildingId = disposition.homeBuildingId
 
   if (nowFleeing && !wasFleeing) {
-    copy.currentCity = DISTRICT_TO_CITY[disposition.district] || copy.currentCity
+    // Map flattening: fleeing used to relocate currentCity to the fugitive's
+    // home district's city (DISTRICT_TO_CITY[disposition.district]) - that
+    // concept is gone (disposition no longer carries a district), so
+    // currentCity is simply left as whatever it already was.
     copy.currentWorkHQ = hideoutLabel
     migrationLogs.push({
       id: `migration_flee_${day}_${agent.id}`,

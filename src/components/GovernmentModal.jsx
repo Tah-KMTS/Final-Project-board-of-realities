@@ -10,7 +10,14 @@ import { CONGRESS_LEADERS } from '../features/government/congressEngine'
 import { TREASURY_SECRETARIES } from '../features/government/treasuryEngine'
 import { getCharacterPortrait } from '../data/characterPortraits'
 
-export default function GovernmentModal({ onClose }) {
+// `embedded` (default false): the status-bar "Open Gov" button in
+// FinanceStatusBar.jsx keeps working exactly as before, standalone. When
+// true (GovernmentBuildingModal's "Government Affairs" tab), skip the outer
+// overlay + the footer's "Close Government Modal" button - the wrapping hub
+// modal supplies both. GovernmentModal's own internal elections/Fed/FTC/
+// SCOTUS/Congress/Treasury/agencies/crime tab bar is kept either way - that's
+// the content actually being embedded, not something this flattens away.
+export default function GovernmentModal({ onClose, embedded = false }) {
   const world2 = useGameStore((s) => s.world2)
   const castPresidentialVote = useGameStore((s) => s.castPresidentialVote)
   const triggerElection = useGameStore((s) => s.triggerElection)
@@ -49,9 +56,8 @@ export default function GovernmentModal({ onClose }) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono text-white">
-      <div className="flex h-[90vh] w-full max-w-5xl flex-col border-4 border-amber-500/80 bg-[#0b0d1e] shadow-2xl rounded-lg overflow-hidden">
+  const body = (
+    <>
         {/* Header */}
         <div className="flex items-center justify-between border-b-2 border-amber-500/40 bg-[#141733] px-6 py-4">
           <div>
@@ -547,17 +553,32 @@ export default function GovernmentModal({ onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-800 bg-[#101229] p-4 flex items-center justify-between">
-          <div className="text-xs text-gray-400">
-            Capital Syndicate Elections & Federal Oversight Panel
+        {!embedded && (
+          <div className="border-t border-gray-800 bg-[#101229] p-4 flex items-center justify-between">
+            <div className="text-xs text-gray-400">
+              Capital Syndicate Elections & Federal Oversight Panel
+            </div>
+            <button
+              onClick={onClose}
+              className="border-2 border-amber-500/60 bg-amber-500/20 px-6 py-2 text-xs font-bold text-amber-300 hover:bg-amber-500 hover:text-black transition-colors rounded"
+            >
+              Close Government Modal
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="border-2 border-amber-500/60 bg-amber-500/20 px-6 py-2 text-xs font-bold text-amber-300 hover:bg-amber-500 hover:text-black transition-colors rounded"
-          >
-            Close Government Modal
-          </button>
-        </div>
+        )}
+    </>
+  )
+
+  // Embedded mode drops the fixed h-[90vh] overlay panel entirely - the
+  // wrapping GovernmentBuildingModal tab already gives this its own
+  // scrollable area, same reasoning as InteractiveLocationModal's embedded
+  // branch.
+  if (embedded) return <div className="text-white max-h-[70vh] overflow-y-auto">{body}</div>
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono text-white">
+      <div className="flex h-[90vh] w-full max-w-5xl flex-col border-4 border-amber-500/80 bg-[#0b0d1e] shadow-2xl rounded-lg overflow-hidden">
+        {body}
       </div>
     </div>
   )

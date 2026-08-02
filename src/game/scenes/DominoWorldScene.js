@@ -42,8 +42,12 @@ export default class DominoWorldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys()
     this.wasd = this.input.keyboard.addKeys('W,A,S,D,E')
 
+    // Same fixed-camera prompt as OverworldScene.js - centered/anchored via
+    // this.scale rather than the old hardcoded (320, 460), which only lined
+    // up with the previous 800x500 logical resolution (canvas widened to
+    // 1200x600 in GameCanvas.jsx, shared by both scenes).
     this.promptText = this.add
-      .text(320, 460, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffe066' })
+      .text(this.scale.width / 2, this.scale.height - 40, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffe066' })
       .setScrollFactor(0)
       .setOrigin(0.5)
       .setDepth(2000)

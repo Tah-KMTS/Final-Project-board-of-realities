@@ -3,15 +3,22 @@ import { useGameStore } from '../../store/useGameStore'
 import Blackjack from './Blackjack'
 import Poker from './Poker'
 import Slots from './Slots'
+import RussianRoulette from './RussianRoulette'
 import ChallengeNpc from './ChallengeNpc'
+import ArcadeModal from '../arcade/ArcadeModal'
 
 const TABS = [
   { id: 'blackjack', label: 'Blackjack' },
   { id: 'poker', label: 'Poker' },
   { id: 'slots', label: 'Slots' },
+  { id: 'roulette', label: 'Russian Roulette' },
   { id: 'challenge', label: 'Challenge an NPC' },
   { id: 'host_blackjack', label: 'Host Blackjack (House Edge)' },
   { id: 'host_poker', label: 'Host Poker (House Edge)' },
+  // Building consolidation (Phase 2): Pixel Palace Arcade merged into the
+  // Casino building - its content is unchanged, just reached as a tab here
+  // instead of its own building/modal (see ArcadeModal.jsx's `embedded` prop).
+  { id: 'arcade', label: 'Pixel Palace Arcade' },
 ]
 
 export default function CasinoModal({ onClose }) {
@@ -49,9 +56,11 @@ export default function CasinoModal({ onClose }) {
           {tab === 'blackjack' && <Blackjack variant="house" />}
           {tab === 'poker' && <Poker variant="house" />}
           {tab === 'slots' && <Slots />}
+          {tab === 'roulette' && <RussianRoulette />}
           {tab === 'challenge' && <ChallengeNpc />}
           {tab === 'host_blackjack' && <Blackjack variant="playerHouse" dealerName="The Challenger" />}
           {tab === 'host_poker' && <Poker variant="playerHouse" />}
+          {tab === 'arcade' && <ArcadeModal embedded />}
         </div>
 
         <button onClick={onClose} className="w-full border-4 border-gray-500 py-2 font-bold hover:bg-gray-500">

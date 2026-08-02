@@ -10,10 +10,13 @@ export default function TempleModal({ onClose }) {
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
   const addNotoriety = useGameStore((s) => s.addNotoriety)
   const executeCrime = useGameStore((s) => s.executeCrime)
+  const buyTempleBlessing = useGameStore((s) => s.buyTempleBlessing)
+  const templeBlessing = useGameStore((s) => s.world2.templeBlessing)
 
   const [feedbackMsg, setFeedbackMsg] = useState(null)
 
   const atonementCost = calculateAtonementCost(wantedLevel, notoriety, cash)
+  const BLESSING_COST = 3000
 
   const handleDonate = () => {
     if (cash < atonementCost) {
@@ -27,22 +30,35 @@ export default function TempleModal({ onClose }) {
   }
 
   const handleEmbezzle = () => {
+    // payout cut from 50000 -> 20000 per the balance pass that added jail as
+    // a real downside to crime - 50000 no longer had a credible risk-adjusted
+    // downside once jail was in the picture, per design.
     const res = executeCrime({
       type: 'rob',
       baseSuccessChance: 0.3,
-      payout: 50000,
+      payout: 20000,
       notorietyIncreaseOnFail: 40,
       wantedIncreaseOnFail: 3,
       energyCost: 20,
-      assetSeizureOnFail: 0
+      assetSeizureOnFail: 0,
+      jailChanceOnFail: 0.35,
     })
-    
+
     if (res.success) {
       setFeedbackMsg(`You embezzled the donation box! You gained $${res.payout.toLocaleString()}, but the monks will remember this.`)
       // It's a temple, so massive notoriety hit even if successful
       addNotoriety(20)
     } else {
       setFeedbackMsg(`The monks caught you! ${res.message}`)
+    }
+  }
+
+  const handleBlessing = () => {
+    const ok = buyTempleBlessing()
+    if (ok) {
+      setFeedbackMsg('The monks bless you with good fortune. +3 Luck for the next 2 days.')
+    } else {
+      setFeedbackMsg("You don't have enough for a blessing.")
     }
   }
 
@@ -59,6 +75,9 @@ export default function TempleModal({ onClose }) {
           <p>Cash: <span className="text-green-400">${Math.round(cash).toLocaleString()}</span></p>
           <p>Wanted Level: <span className="text-red-400">{wantedLevel}</span></p>
           <p>Notoriety: <span className="text-orange-400">{notoriety}/100</span></p>
+          {templeBlessing?.active && (
+            <p>Chapel Blessing: <span className="text-yellow-300">+{templeBlessing.bonus} Luck</span> (until day {templeBlessing.expiresOnDay})</p>
+          )}
         </div>
 
         <div className="mb-4 flex flex-col gap-2">
@@ -69,7 +88,15 @@ export default function TempleModal({ onClose }) {
           >
             Seek Atonement (Cost: ${atonementCost.toLocaleString()})
           </button>
-          
+
+          <button
+            onClick={handleBlessing}
+            disabled={cash < BLESSING_COST}
+            className="border-2 border-yellow-400 py-1.5 text-sm font-bold text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:opacity-30"
+          >
+            Chapel Blessing (${BLESSING_COST.toLocaleString()}) — +3 Luck for 2 days
+          </button>
+
           <button
             onClick={handleEmbezzle}
             className="border-2 border-red-500 bg-red-950 py-1.5 text-sm font-bold text-red-400 hover:bg-red-500 hover:text-black"

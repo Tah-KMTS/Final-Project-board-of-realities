@@ -9,8 +9,10 @@ import { shouldGrantFortify } from '../features/hunter/skillEffects'
 import {
   STOCKS,
   CRYPTO_BASE_PRICE,
+  CRYPTO_NAME,
   randomWalk,
-  NET_WORTH_WIN_TARGET,
+  FINANCE_VICTORY_TARGET,
+  NET_WORTH_MILESTONES,
   REAL_ESTATE_LISTINGS,
   COMPANY_LISTINGS,
   JOB_TIERS,
@@ -19,7 +21,21 @@ import {
 } from '../features/finance/marketData'
 import { FINANCE_NPCS } from '../features/finance/financeNpcs'
 import { rollHeadline } from '../features/finance/newsHeadlines'
-import { initializeAgentsState, simulateDailyAgentInteractions } from '../features/finance/agentEngine'
+import { initializeAgentsState, simulateDailyAgentInteractions, ARCHETYPE_PROFILES } from '../features/finance/agentEngine'
+import { generateEventNarration } from '../features/finance/aiNarrator'
+import { calculateAtonementCost } from '../features/temple/templeEngine'
+import {
+  applyStandingEvent,
+  applyStandingDecayTick,
+  getUnlockedRankTier,
+  getHomeTurfPayoutMultiplier,
+  getHomeTurfBailDiscountMultiplier,
+  getHomeTurfJailChanceReduction,
+  getRivalEncounterChance,
+  getRivalIds,
+  isHomeTurf,
+  SYNDICATE_IDS,
+} from '../features/agents/syndicateStandingEngine'
 import { initializeGovernmentState, simulateGovernmentDailyTick, resolvePresidentialElection, triggerPresidentialElection } from '../features/government/governmentEngine'
 import { buildMasterAgentRegistry } from '../features/agents/agentRegistry'
 import { simulateDynamicSchedules } from '../features/agents/dynamicScheduleEngine'
@@ -111,6 +127,18 @@ function createDefaultState() {
     cash: 100,
     wantedLevel: 0,
     notoriety: 0, // 0-100 stat for crime visibility
+    // Jail: a sibling top-level field to wantedLevel/notoriety, not nested in
+    // world2 - being locked up is a cross-world consequence of Heat, not a
+    // Finance-only concept, even though every crime that can trigger it
+    // today happens to live in world2. sentenceDaysRemaining is 1-3+ days
+    // (see sendToJail), bailCost is a snapshot taken at arrest time (not
+    // recomputed live). bribeAttemptsToday/mazeAttemptedToday (replacing the
+    // old escapeAttemptedToday) live here rather than in a modal's local
+    // state because the jailCell/jailMaze zones open the resolution modal
+    // via a walk-up interactable that mounts/unmounts per visit - local
+    // component state would silently reset the attempt cap every time the
+    // player walked away from the desk and back.
+    jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 },
     // Capital Syndicate core loop: a persistent day counter (advanced by the
     // "End Day" button), a rolling flavor headline, and Public Reputation/
     // Social Status (0-100). Police Heat/SEC Suspicion is deliberately NOT a
@@ -154,6 +182,7 @@ function createDefaultState() {
       marketInitialized: false,
       stocks: [],
       portfolio: {},
+      shortPositions: {},
       cryptoPrice: CRYPTO_BASE_PRICE,
       cryptoHype: 0,
       cryptoHoldings: 0,
@@ -161,6 +190,15 @@ function createDefaultState() {
       companies: [],
       npcStatus: {},
       ambientKillCount: 0,
+      // Social/X "post to manipulate market sentiment" mechanic (see
+      // postToMarket()/endDay()'s pendingPost consumption below, and
+      // SocialApp.jsx for the UI). lastPostDay gates one post per day.
+      // pendingPost holds the single in-flight post (posting again before it
+      // resolves is blocked by lastPostDay, so this is always at most one
+      // entry deep). postCounts drives the per-target repeat-post decay.
+      lastPostDay: null,
+      pendingPost: null,
+      postCounts: {},
       // bankedAmount is a protected sub-bucket of `cash`, not a separate
       // pool - deposit/withdraw move value in and out of it. loanBalance is
       // real debt, added to cash when borrowed and accruing interest each
@@ -168,6 +206,38 @@ function createDefaultState() {
       bankedAmount: 0,
       loanBalance: 0,
       recruitedAdvisors: [],
+      // Sticky, one-way net worth milestone ladder (see NET_WORTH_MILESTONES
+      // in marketData.js and checkNetWorthMilestones() below) - once a tier
+      // id lands in here it is never removed, same permanence contract as
+      // recruitedAdvisors/npcStatus above, even if net worth later dips back
+      // below the threshold.
+      netWorthMilestones: [],
+      // Chapel Blessing: a temporary, additive Luck buff bought at the
+      // Temple (see buyTempleBlessing/getEffectiveLuck) - does not stack,
+      // buying again while active just refreshes expiresOnDay.
+      templeBlessing: { active: false, bonus: 3, expiresOnDay: null },
+      // Per-syndicate Standing (0-100, default 0) for the 7 canonical crime
+      // syndicates (see syndicateStandingEngine.js) - persistent-but-mutable
+      // like loanBalance above, NOT a sticky one-way ladder like
+      // netWorthMilestones and NOT a timed buff like templeBlessing.
+      // syndicateLastInteractionDay drives the 3-day-no-interaction decay
+      // tick in endDay() below. Both are plain id->number maps rather than
+      // pre-seeded with all 7 ids at 0 - every read goes through
+      // `state.world2.syndicateStanding?.[id] || 0`
+      // (getSyndicateStanding selector below), so a save from before these
+      // fields existed loads as "all zero" instead of crashing.
+      syndicateStanding: {},
+      syndicateLastInteractionDay: {},
+      // Boss-tier signature jobs (Escobar's Air-Drop Route Planner, Lansky's
+      // Offshore Audit, Lepke's Contract Deduction - see EscobarAirDropModal
+      // .jsx/OffshoreAuditModal.jsx/ContractDeductionModal.jsx) each gate at
+      // standing >= RANK_GATE.boss AND a once-per-in-game-day-per-syndicate
+      // cooldown - the cooldown, not difficulty, is what stops grinding one
+      // of these for repeated $10-12k paydays. Plain syndicateId->day map,
+      // same "absent key = never done" convention as syndicateLastInteractionDay
+      // above, so a save from before this field existed loads as "every job
+      // available today" instead of crashing (see isBossJobAvailableToday).
+      bossJobLastDay: {},
       agentsState: initializeAgentsState(),
       agentEventFeed: [],
       governmentState: initializeGovernmentState(),
@@ -317,6 +387,38 @@ export const useGameStore = create((set, get) => ({
     set({ screen: 'gameOver' })
   },
 
+  // Non-lethal counterpart to takeDamage(), for Finance-world encounters
+  // (ambient muggings, named-tycoon bodyguard fights, SWAT/police ambushes)
+  // that route through the same RiftCombatModal as Hunter's Rift dungeon
+  // crawl. Rift's permadeath/save-wipe stakes are intentional for that
+  // world's dungeon crawl, but were never meant to apply to these optional
+  // side fights - losing an optional "rob this guy's guards" encounter
+  // shouldn't be able to erase a multi-hour econ-grind save. Returns true
+  // while the player is still standing (mirrors takeDamage's early-return
+  // shape), false once they've been knocked out - the caller decides how to
+  // present that in the modal.
+  takeFinanceCombatDamage: (amount) => {
+    const state = get()
+    const newHp = state.player.hp - amount
+    if (newHp > 0) {
+      set({ player: { ...state.player, hp: newHp } })
+      return true
+    }
+    // Beaten down, not killed: you get patched up/bribed off (a cut of your
+    // cash), wake up with a partial HP floor instead of 0, and lose the
+    // rest of the day's energy - a real, felt setback with no save wipe.
+    const hospitalBill = Math.round(state.cash * 0.15)
+    set({
+      cash: Math.max(0, state.cash - hospitalBill),
+      player: {
+        ...state.player,
+        hp: Math.max(1, Math.round(state.player.maxHp * 0.25)),
+        energy: 0,
+      },
+    })
+    return false
+  },
+
   // --- World 1: Hunter's Rift ---------------------------------------------
 
   assignStartingProfession: () => {
@@ -337,6 +439,10 @@ export const useGameStore = create((set, get) => ({
   // it, same shape as every existing `if (cash < cost) return false` guard.
   spendEnergy: (amount) => {
     const state = get()
+    // Defense-in-depth backstop: a jailed player has 0 energy already (set
+    // by sendToJail), but this guard makes the lockout explicit and immune
+    // to any future action that doesn't cost energy at all.
+    if (state.jail?.inJail) return false
     if (state.player.energy < amount) return false
     set({ player: { ...state.player, energy: state.player.energy - amount } })
     return true
@@ -596,6 +702,54 @@ export const useGameStore = create((set, get) => ({
     return true
   },
 
+  // Short-selling: the inverse of buyStock/sellStock. Opening a short
+  // "borrows shares and sells them now" - proceeds are credited to cash
+  // immediately, no cash check needed since nothing is being spent. Covering
+  // later buys the shares back at whatever the price is then; if the price
+  // rose since opening, covering costs MORE than was received, so a short
+  // can leave the player unable to afford closing it out - a real,
+  // unbounded-downside liability that computeNetWorth must account for.
+  //
+  // priceMultiplier follows the same convention as buyStock/sellStock: the
+  // Stock Exchange's timed-meter mini-game passes a bonus (>1, priced like
+  // sellStock - a HIGH entry price is good when opening a short) or discount
+  // (<1, priced like buyStock - a LOW cover price is good); plain callers
+  // omit it and get exactly stock.price*shares.
+  openShort: (ticker, shares, priceMultiplier = 1) => {
+    const state = get()
+    const stock = state.world2.stocks.find((s) => s.ticker === ticker)
+    if (!stock) return false
+    const currentShorts = state.world2.shortPositions || {}
+    const proceeds = stock.price * shares * priceMultiplier
+    const existing = currentShorts[ticker] || { shares: 0, entryPrice: 0 }
+    const totalShares = existing.shares + shares
+    const entryPrice = (existing.shares * existing.entryPrice + proceeds) / totalShares
+    set({
+      cash: state.cash + proceeds,
+      world2: {
+        ...state.world2,
+        shortPositions: { ...currentShorts, [ticker]: { shares: totalShares, entryPrice } },
+      },
+    })
+    return true
+  },
+
+  coverShort: (ticker, shares, priceMultiplier = 1) => {
+    const state = get()
+    const stock = state.world2.stocks.find((s) => s.ticker === ticker)
+    const currentShorts = state.world2.shortPositions || {}
+    const position = currentShorts[ticker]
+    if (!stock || !position || position.shares < shares) return false
+    const cost = stock.price * shares * priceMultiplier
+    if (state.cash < cost) return false
+    const remaining = position.shares - shares
+    const shortPositions = { ...currentShorts }
+    if (remaining <= 0) delete shortPositions[ticker]
+    else shortPositions[ticker] = { ...position, shares: remaining }
+    set({ cash: state.cash - cost, world2: { ...state.world2, shortPositions } })
+    return true
+  },
+
   buyCrypto: (usdAmount) => {
     const state = get()
     if (state.cash < usdAmount || usdAmount <= 0) return false
@@ -632,6 +786,8 @@ export const useGameStore = create((set, get) => ({
 
   buyRealEstate: (listing) => {
     const state = get()
+    const milestones = state.world2.netWorthMilestones || []
+    if (listing.requiresMilestone && !milestones.includes(listing.requiresMilestone)) return false
     if (state.cash < listing.price || state.world2.realEstate.includes(listing.id)) return false
     set({
       cash: state.cash - listing.price,
@@ -642,6 +798,8 @@ export const useGameStore = create((set, get) => ({
 
   buyCompany: (listing) => {
     const state = get()
+    const milestones = state.world2.netWorthMilestones || []
+    if (listing.requiresMilestone && !milestones.includes(listing.requiresMilestone)) return false
     if (state.cash < listing.price || state.world2.companies.includes(listing.id)) return false
     set({
       cash: state.cash - listing.price,
@@ -710,8 +868,18 @@ export const useGameStore = create((set, get) => ({
   },
 
   loanTier: () => {
+    const state = get()
     const score = get().creditScore()
-    return LOAN_TIERS.find((t) => score >= t.minCreditScore) || LOAN_TIERS[LOAN_TIERS.length - 1]
+    const milestones = state.world2.netWorthMilestones || []
+    // Filter out any tier the player hasn't earned the milestone gate for
+    // yet (see LOAN_TIERS' comment in marketData.js), THEN pick the first
+    // remaining match by credit score - this is what lets the milestone
+    // tier sit ahead of the plain 70-score tier without being reachable
+    // before "made_player" is actually earned.
+    const eligibleTiers = LOAN_TIERS.filter(
+      (t) => !t.requiresMilestone || milestones.includes(t.requiresMilestone)
+    )
+    return eligibleTiers.find((t) => score >= t.minCreditScore) || eligibleTiers[eligibleTiers.length - 1]
   },
 
   takeLoan: (amount) => {
@@ -739,25 +907,58 @@ export const useGameStore = create((set, get) => ({
     set((state) => ({ notoriety: Math.max(0, Math.min(100, state.notoriety + amount)) }))
   },
 
-  executeCrime: ({ type, baseSuccessChance, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, energyCost, assetSeizureOnFail }) => {
+  // player.stats.luck was read by nothing until this pass. Every formula that
+  // wants Luck must call this instead of reading player.stats.luck raw, so
+  // the Chapel Blessing (a temporary bonus, added at read time - never
+  // mutates the base stat, same pattern getInventoryStatBonus already uses
+  // in RiftCombatModal.jsx) actually applies everywhere Luck matters.
+  getEffectiveLuck: () => {
     const state = get()
-    if (!state.spendEnergy(energyCost)) return { success: false, reason: 'Not enough energy' }
+    const blessing = state.world2.templeBlessing
+    return state.player.stats.luck + (blessing?.active ? blessing.bonus : 0)
+  },
 
-    // Streetwise increases success chance, Notoriety decreases it.
-    const streetwise = state.player.stats.streetwise || 5
-    const successProb = baseSuccessChance + (streetwise * 0.02) - (state.notoriety * 0.002)
-    const clampedProb = Math.max(0.05, Math.min(0.95, successProb))
+  // Shared success/fail resolution for any crime-flavored action, extracted
+  // out of executeCrime so actions that determine their own success (e.g.
+  // VaultCrackModal's Mastermind puzzle - the player's guesses decide the
+  // outcome, not a dice roll) can still apply the exact same
+  // payout/notoriety/wanted/asset-seizure/jail consequences as the RNG-gated
+  // crimes below. executeCrime (unchanged behavior) now just rolls its own
+  // isSuccess and hands off to this.
+  // syndicateId/inHomeTurf are OPTIONAL and additive: every pre-existing
+  // crime action (LeverageMeter negotiations, VaultCrackModal, money
+  // laundering, vehicle theft, etc.) doesn't know which of the 7 named
+  // syndicates it belongs to, so it simply omits these and gets EXACTLY the
+  // old behavior back. Only a caller that DOES know it's running a job for
+  // one of the 7 canonical syndicates (see syndicateStandingEngine.js) opts
+  // into the standing/territory effects below by passing them.
+  applyCrimeOutcome: ({ success, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, assetSeizureOnFail, jailChanceOnFail = 0, syndicateId = null, inHomeTurf = false }) => {
+    const state = get()
+    const effectiveLuck = get().getEffectiveLuck()
+    const homeStanding = syndicateId ? get().getSyndicateStanding(syndicateId) : 0
 
-    const isSuccess = Math.random() < clampedProb
-
-    if (isSuccess) {
-      state.addCash(payout)
-      return { success: true, payout, message: `Success! You got away with $${payout.toLocaleString()}.` }
+    if (success) {
+      // Home-turf payout multiplier: +50% max at standing 100. Never
+      // applies off your own syndicate's turf.
+      const finalPayout = syndicateId && inHomeTurf
+        ? Math.round(payout * getHomeTurfPayoutMultiplier(homeStanding))
+        : payout
+      state.addCash(finalPayout)
+      if (syndicateId) get().recordSyndicateJobOutcome(syndicateId, 'success')
+      return { success: true, payout: finalPayout, message: `Success! You got away with $${finalPayout.toLocaleString()}.` }
     } else {
       let failMsg = 'You were caught!'
+      // CRITICAL BALANCE CONSTRAINT (see syndicateStandingEngine.js's
+      // getHomeTurfJailChanceReduction comment for the full rationale):
+      // syndicate standing is only ever allowed to touch payout multiplier,
+      // bail cost, and jail *chance* elsewhere in this function. It must
+      // NEVER discount the two lines below - heat keeps accumulating on
+      // every failure no matter how friendly you are with the local
+      // syndicate, or a maxed relationship becomes a risk-free money
+      // printer that can also never gain a Wanted level.
       if (notorietyIncreaseOnFail) state.addNotoriety(notorietyIncreaseOnFail)
       if (wantedIncreaseOnFail) state.addWantedLevel(wantedIncreaseOnFail)
-      
+
       let fine = 0
       if (assetSeizureOnFail) {
         fine = Math.floor(state.cash * assetSeizureOnFail)
@@ -766,8 +967,420 @@ export const useGameStore = create((set, get) => ({
           failMsg += ` Seized $${fine.toLocaleString()}.`
         }
       }
-      return { success: false, fine, message: failMsg }
+
+      // Jail roll happens after every other fail-path effect above, so it
+      // reads wantedLevel AFTER this fail's own addWantedLevel call already
+      // landed - re-read via get(), not the `state` snapshot from function
+      // entry. Home-turf standing shaves up to -0.2 off this chance at
+      // standing 100 (see getHomeTurfJailChanceReduction) - it only ever
+      // reduces jail *chance*, never the heat added above.
+      const wantedLevelAfterFail = get().wantedLevel
+      const homeTurfJailReduction = syndicateId ? getHomeTurfJailChanceReduction(homeStanding, inHomeTurf) : 0
+      const jailChance = Math.max(0, Math.min(0.9,
+        jailChanceOnFail + wantedLevelAfterFail * 0.08 - (effectiveLuck - 5) * 0.015 - homeTurfJailReduction
+      ))
+      let jailed = false
+      if (jailChance > 0 && Math.random() < jailChance) {
+        get().sendToJail({
+          bailDiscountMultiplier: syndicateId && inHomeTurf ? getHomeTurfBailDiscountMultiplier(homeStanding) : 1,
+        })
+        jailed = true
+        failMsg += ' You were arrested and thrown in jail!'
+      }
+
+      if (syndicateId) {
+        get().recordSyndicateJobOutcome(syndicateId, jailed ? 'failJail' : 'failNoJail')
+      }
+
+      return { success: false, fine, jailed, message: failMsg }
     }
+  },
+
+  // syndicateId/inHomeTurf just pass straight through to applyCrimeOutcome
+  // (see its own comment) - optional, so any existing caller that doesn't
+  // know which of the 7 named syndicates a job belongs to is unaffected.
+  executeCrime: ({ type, baseSuccessChance, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, energyCost, assetSeizureOnFail, jailChanceOnFail = 0, syndicateId = null, inHomeTurf = false }) => {
+    const state = get()
+    if (!state.spendEnergy(energyCost)) return { success: false, reason: 'Not enough energy' }
+
+    // Streetwise increases success chance, Notoriety decreases it, Luck
+    // (base 5, so a Luck of 5 is a no-op) nudges it either way.
+    const streetwise = state.player.stats.streetwise || 5
+    const effectiveLuck = get().getEffectiveLuck()
+    const successProb = baseSuccessChance + (streetwise * 0.02) - (state.notoriety * 0.002) + (effectiveLuck - 5) * 0.01
+    const clampedProb = Math.max(0.05, Math.min(0.95, successProb))
+
+    const isSuccess = Math.random() < clampedProb
+
+    return get().applyCrimeOutcome({
+      success: isSuccess,
+      payout,
+      notorietyIncreaseOnFail,
+      wantedIncreaseOnFail,
+      assetSeizureOnFail,
+      jailChanceOnFail,
+      syndicateId,
+      inHomeTurf,
+    })
+  },
+
+  // --- Capital Syndicate: Per-Syndicate Standing ------------------------------
+  // Thin call-throughs into syndicateStandingEngine.js's pure functions - see
+  // that file for the full rivalry-graph/decay/balance-constraint reasoning.
+
+  getSyndicateStanding: (syndicateId) => get().world2.syndicateStanding?.[syndicateId] || 0,
+
+  // Exposes the 33/66 rank-gate thresholds through one selector instead of
+  // scattering those magic numbers across every place that needs to know
+  // whether Underboss/Boss content is unlocked for a given syndicate.
+  getSyndicateRankTier: (syndicateId) => getUnlockedRankTier(get().getSyndicateStanding(syndicateId)),
+
+  getSyndicateHomeTurfPayoutMultiplier: (syndicateId) => getHomeTurfPayoutMultiplier(get().getSyndicateStanding(syndicateId)),
+
+  getSyndicateHomeTurfBailDiscount: (syndicateId) => getHomeTurfBailDiscountMultiplier(get().getSyndicateStanding(syndicateId)),
+
+  getSyndicateIsHomeTurf: (syndicateId, currentLocation) => isHomeTurf(syndicateId, currentLocation),
+
+  // Hostile-turf rival-encounter chance for running a job on `turfSyndicateId`'s
+  // ground while working for `actingSyndicateId`. Returns 0 outside an actual
+  // rivalry (own turf, or a syndicate with no beef with the turf owner) - see
+  // the 3-pair rivalry graph in syndicateStandingEngine.js.
+  getSyndicateRivalEncounterChance: (actingSyndicateId, turfSyndicateId) => {
+    if (!turfSyndicateId || turfSyndicateId === actingSyndicateId) return 0
+    if (!getRivalIds(actingSyndicateId).includes(turfSyndicateId)) return 0
+    return getRivalEncounterChance(get().getSyndicateStanding(turfSyndicateId))
+  },
+
+  // Records one job outcome against `syndicateId`'s standing (+8/-3/-8, see
+  // STANDING_DELTA), cascading the -4 rivalry hit to its rival(s) on any
+  // completion (success or either failure flavor - NOT a walk-away). Also
+  // stamps syndicateLastInteractionDay, which is what the endDay() decay
+  // tick below reads. outcomeType is one of 'success' | 'failNoJail' |
+  // 'failJail' | 'walkAway'.
+  recordSyndicateJobOutcome: (syndicateId, outcomeType) => {
+    if (!syndicateId || !SYNDICATE_IDS.includes(syndicateId)) return
+    const state = get()
+    const { standing, lastInteractionDay } = applyStandingEvent(
+      state.world2.syndicateStanding || {},
+      state.world2.syndicateLastInteractionDay || {},
+      syndicateId,
+      outcomeType,
+      state.day
+    )
+    set({
+      world2: { ...state.world2, syndicateStanding: standing, syndicateLastInteractionDay: lastInteractionDay },
+    })
+  },
+
+  // Convenience wrapper for "accepted a syndicate job, then backed out
+  // before resolving it" - the one outcome applyCrimeOutcome never produces
+  // on its own, since it always rolls all the way to success/fail.
+  declineSyndicateJob: (syndicateId) => get().recordSyndicateJobOutcome(syndicateId, 'walkAway'),
+
+  // --- Capital Syndicate: Boss-tier job cooldown ------------------------------
+  // Once-per-in-game-day-per-syndicate gate for the 3 Boss-tier signature jobs
+  // (see world2.bossJobLastDay's own comment above for the full list/rationale).
+  // Deliberately separate from the 33/66 standing gate (RANK_GATE.boss) -
+  // standing decides WHETHER a job is ever offered, this decides whether
+  // TODAY'S slot is still open. Both must pass before a job's briefing screen
+  // lets the player commit (see BossJobGate.jsx).
+  isBossJobAvailableToday: (syndicateId) => {
+    const state = get()
+    const lastDay = state.world2.bossJobLastDay?.[syndicateId]
+    return lastDay == null || lastDay < state.day
+  },
+
+  // Stamped exactly once per job attempt, at the same "locked at start"
+  // moment each job locks in its stat-derived budgets/attempts (mirrors
+  // VaultCrackModal reading INT once via getState() at puzzle start) - win,
+  // lose, soft-abort, and walk-away all consume today's one shot alike.
+  // Retrying WITHIN the same open modal session after that (e.g. Offshore
+  // Audit's "Try Again", Air-Drop's "Fly Another Route") is intentionally
+  // NOT re-blocked here - it's bounded by the energy economy instead (each
+  // retry re-spends the job's energyCost), the same soft limit VaultCrackModal's
+  // own unlimited "Back to Tier Select" already relies on. What this cooldown
+  // actually closes off is the real grind vector: close the modal (or end the
+  // day) and reopen for a second free run at today's job.
+  markBossJobAttempted: (syndicateId) => {
+    const state = get()
+    set({
+      world2: {
+        ...state.world2,
+        bossJobLastDay: { ...(state.world2.bossJobLastDay || {}), [syndicateId]: state.day },
+      },
+    })
+  },
+
+  // --- Jail / Escape ---------------------------------------------------------
+
+  // bailDiscountMultiplier defaults to 1 (no discount) so every existing
+  // caller (jail escape flows, or applyCrimeOutcome when syndicateId is
+  // omitted) is unaffected. Only applyCrimeOutcome's home-turf branch passes
+  // anything else - see getHomeTurfBailDiscountMultiplier.
+  sendToJail: ({ bailDiscountMultiplier = 1 } = {}) => {
+    const state = get()
+    const wantedLevelAfterFail = state.wantedLevel
+    const rawBailCost = Math.min(
+      calculateAtonementCost(state.wantedLevel, state.notoriety, state.cash) * 2,
+      state.cash * 0.4
+    ) * bailDiscountMultiplier
+    set({
+      jail: {
+        inJail: true,
+        sentenceDaysRemaining: 1 + Math.floor(wantedLevelAfterFail / 2),
+        bailCost: Math.max(0, Math.round(rawBailCost)),
+        bribeAttemptsToday: 0,
+        mazeAttemptedToday: false,
+        mazeProgress: 0,
+      },
+      player: { ...state.player, energy: 0 },
+    })
+  },
+
+  payBail: () => {
+    const state = get()
+    if (state.cash < state.jail.bailCost) return false
+    set({
+      cash: state.cash - state.jail.bailCost,
+      jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 },
+    })
+    return true
+  },
+
+  // Replaces the old flat attemptJailEscape with two distinct resolution
+  // paths (jail mini-map plan): a repeatable, cash-priced bribe roll at the
+  // guard desk, and a free but one-shot multi-segment maze run. bribeAmount
+  // is spent regardless of outcome - only the roll's success is at stake.
+  // isFinalAttempt mirrors the old escape action's contract: the harsher
+  // on-exhaustion penalty (extra sentence day + notoriety) is specifically a
+  // "3rd failed round in one sitting" penalty, so the caller (JailEscapeModal)
+  // still decides when a sitting is exhausted, using jail.bribeAttemptsToday
+  // from the store instead of its own local round counter.
+  attemptJailBribe: (bribeAmount, isFinalAttempt = false) => {
+    const state = get()
+    if (!state.jail?.inJail) return { success: false }
+    if (state.jail.bribeAttemptsToday >= 3) return { success: false, exhausted: true }
+    if (state.cash < bribeAmount) return { success: false, error: 'cash' }
+
+    set({ cash: state.cash - bribeAmount })
+
+    const streetwise = state.player.stats.streetwise || 5
+    const effectiveLuck = get().getEffectiveLuck()
+    const targetNumber = 8 + state.wantedLevel + Math.floor(state.notoriety / 25)
+    const bribeRatio = Math.min(1, bribeAmount / Math.max(1, state.jail.bailCost))
+    const bribeBonus = Math.round(bribeRatio * 4)
+    const streetwiseBonus = Math.floor(streetwise / 10)
+    const luckBonus = Math.floor((effectiveLuck - 5) / 2)
+    const roll = (1 + Math.floor(Math.random() * 6)) + (1 + Math.floor(Math.random() * 6))
+      + bribeBonus + streetwiseBonus + luckBonus
+
+    if (roll >= targetNumber) {
+      set({ jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 } })
+      get().addWantedLevel(-1)
+      return { success: true }
+    }
+
+    const bribeAttemptsToday = state.jail.bribeAttemptsToday + 1
+    if (isFinalAttempt) {
+      set({
+        jail: { ...state.jail, sentenceDaysRemaining: state.jail.sentenceDaysRemaining + 1, bribeAttemptsToday },
+      })
+      get().addNotoriety(5)
+      return { success: false, exhausted: true }
+    }
+    set({ jail: { ...state.jail, bribeAttemptsToday } })
+    return { success: false }
+  },
+
+  // Street-level bribe offered at a police stop (PoliceStopModal,
+  // financePoliceEncounter), BEFORE an arrest ever happens - so unlike
+  // attemptJailBribe there's no bailCost yet to price the roll's bribeRatio
+  // against. Per the "real arrest pipeline" spec: reuse attemptJailBribe's
+  // exact 2d6 + bonuses roll verbatim, but price the bribe off wantedLevel
+  // (500 * wantedLevel^2) and compute bribeRatio against that same figure
+  // instead of a bailCost snapshot. Cash is spent regardless of outcome -
+  // same "the money's gone either way" contract as attemptJailBribe. On
+  // success the encounter just ends (no Wanted change - they were never
+  // caught on the books). On failure the caller escalates into combat; no
+  // extra Wanted penalty is applied here since the player is already caught.
+  attemptStreetBribe: (amount) => {
+    const state = get()
+    if (state.cash < amount) return { success: false, error: 'cash' }
+
+    set({ cash: state.cash - amount })
+
+    const cost = 500 * state.wantedLevel * state.wantedLevel
+    const streetwise = state.player.stats.streetwise || 5
+    const effectiveLuck = get().getEffectiveLuck()
+    const targetNumber = 8 + state.wantedLevel + Math.floor(state.notoriety / 25)
+    const bribeRatio = Math.min(1, amount / Math.max(1, cost))
+    const bribeBonus = Math.round(bribeRatio * 4)
+    const streetwiseBonus = Math.floor(streetwise / 10)
+    const luckBonus = Math.floor((effectiveLuck - 5) / 2)
+    const roll = (1 + Math.floor(Math.random() * 6)) + (1 + Math.floor(Math.random() * 6))
+      + bribeBonus + streetwiseBonus + luckBonus
+
+    return { success: roll >= targetNumber }
+  },
+
+  // Difficulty knob for the 4 jailMaze checkpoints' real input challenges
+  // (see features/jail/JailMazeMinigame.jsx and its four segment
+  // components). This computes EXACTLY the same evadeChance the old
+  // coin-flip used - same AGI/streetwise/effective-Luck/wantedLevel inputs,
+  // same rising per-segment difficulty - and just inverts it into a 0..1
+  // "how hard should the minigame be" number (~0.15-0.85). That's it. The
+  // number only ever feeds difficultyToParams() to size a sweep zone/pick a
+  // sequence length/etc; it is never compared against Math.random()
+  // anywhere downstream. The minigame's own pass/fail is what decides the
+  // checkpoint now - see attemptMazeSegment's playerSucceeded param below.
+  getMazeSegmentDifficulty: (segmentIndex) => {
+    const state = get()
+    const agi = state.player.stats.AGI || 5
+    const streetwise = state.player.stats.streetwise || 5
+    const effectiveLuck = get().getEffectiveLuck()
+    const evadeChance = Math.max(0.15, Math.min(0.85,
+      0.65 - segmentIndex * 0.08 + (agi - 5) * 0.03 + (streetwise - 5) * 0.01
+        + (effectiveLuck - 5) * 0.02 - state.wantedLevel * 0.03
+    ))
+    return 1 - evadeChance
+  },
+
+  // Single committed run through 4 checkpoints (jailMaze zone), each now a
+  // real input challenge (see JailMazeMinigame.jsx) - free (no cash cost,
+  // unlike the bribe), highest variance, and the only jail-failure path
+  // that raises wantedLevel. segmentIndex is 0-3; the caller (WorldScreen,
+  // via each jailMaze checkpoint interactable) resolves that segment's
+  // minigame FIRST and only then calls this with the minigame's own
+  // pass/fail as playerSucceeded - this function no longer rolls anything
+  // of its own, it purely applies consequences. Every branch below
+  // (advance mazeProgress, pay out on the final segment, or the failure
+  // penalty) is byte-identical to the old Math.random()-driven version;
+  // only the source of the boolean changed. jail.mazeProgress is still the
+  // store-authoritative "next expected segment" - an out-of-order call
+  // (e.g. the player somehow reaching a later checkpoint's rect first) is
+  // silently ignored rather than resolved, so checkpoints can't be skipped
+  // or re-rolled out of sequence. mazeAttemptedToday locks out a second run
+  // until the sentence ticks over (see the End Day handling below).
+  attemptMazeSegment: (segmentIndex, playerSucceeded) => {
+    const state = get()
+    if (!state.jail?.inJail || state.jail.mazeAttemptedToday) return { success: false }
+    if (segmentIndex !== (state.jail.mazeProgress || 0)) return { success: false, outOfOrder: true }
+
+    if (playerSucceeded) {
+      if (segmentIndex >= 3) {
+        const cashReward = Math.min(Math.round(state.jail.bailCost * 0.5), 5000)
+        set({
+          cash: state.cash + cashReward,
+          jail: { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 },
+        })
+        return { success: true, final: true, cashReward }
+      }
+      set({ jail: { ...state.jail, mazeProgress: segmentIndex + 1 } })
+      return { success: true, segmentIndex, final: false }
+    }
+
+    set({
+      jail: {
+        ...state.jail,
+        sentenceDaysRemaining: state.jail.sentenceDaysRemaining + 1,
+        mazeAttemptedToday: true,
+        mazeProgress: 0,
+      },
+    })
+    get().addNotoriety(8)
+    get().addWantedLevel(1)
+    return { success: false, segmentIndex }
+  },
+
+  // Chapel Blessing: a flat-cost, non-stacking Luck buff (see world2.
+  // templeBlessing / getEffectiveLuck). Buying again while already active
+  // just refreshes the 2-day window rather than stacking bonuses.
+  buyTempleBlessing: () => {
+    const state = get()
+    const cost = 3000
+    if (state.cash < cost) return false
+    set({
+      cash: state.cash - cost,
+      world2: {
+        ...state.world2,
+        templeBlessing: { active: true, bonus: 3, expiresOnDay: state.day + 2 },
+      },
+    })
+    return true
+  },
+
+  // --- Social/X: market sentiment posts -------------------------------------
+  // Bounded preset-only "talk up/down" mechanic (see SocialApp.jsx - two-step
+  // target+direction picker, no free text, so there's no content-moderation
+  // surface). One post per day (lastPostDay guard below). The post itself
+  // costs energy and shows an instant templated feed line, but its actual
+  // market effect is deliberately NOT applied here - it's queued as
+  // pendingPost and only resolved on a later endDay() tick (see that
+  // function's pendingPost consumption), so a post can never be chained into
+  // an instant same-day trade around its own guaranteed effect. Reputation
+  // is read-only input to the magnitude here and is never written by this
+  // action. Repeat posts about the same target decay geometrically
+  // (0.6^postCount) via postCounts, so spamming one ticker/day quickly stops
+  // moving the needle.
+  postToMarket: ({ target, direction }) => {
+    const state = get()
+    if (!state.spendEnergy(20)) return { success: false, reason: 'Not enough energy' }
+    const w2 = get().world2 // re-read post-spendEnergy (spendEnergy only touches player, but stay consistent with the rest of this file's re-get() pattern)
+    if (w2.lastPostDay != null && state.day <= w2.lastPostDay) {
+      return { success: false, reason: 'Already posted today' }
+    }
+
+    const reputation = state.reputation ?? 50
+    const postCounts = w2.postCounts || {}
+    const priorPosts = postCounts[target] || 0
+    const decay = 0.6 ** priorPosts
+    const isCrypto = target === 'CRYPTO'
+    // Crypto: 0.04 at rep 0, 0.10 at rep 100 (a cryptoHype delta - hype is a
+    // future-crash-probability multiplier, NOT a direct price lever, see
+    // tickFinanceMarket()'s hype-driven crash roll - so 'down' here reduces
+    // hype/crash-risk rather than "dumping the price").
+    // Stocks: 0.03 at rep 0, 0.07 at rep 100 (a direct price %).
+    const baseValue = isCrypto
+      ? 0.04 + (reputation / 100) * 0.06
+      : 0.03 + (reputation / 100) * 0.04
+    const decayedValue = baseValue * decay
+
+    const stock = isCrypto ? null : w2.stocks.find((s) => s.ticker === target)
+    const targetName = isCrypto ? CRYPTO_NAME : (stock?.name || target)
+    const bullish = direction === 'up'
+    // $-prefixed cashtag (not bare parens) to read as an actual post, not a
+    // form summary - SocialApp.jsx's composer preview mirrors this exact
+    // string shape, keep them in sync if this ever changes.
+    const templatedText = `You posted about ${targetName}${!isCrypto ? ` ($${target})` : ''} — sentiment turning ${bullish ? 'bullish' : 'bearish'}.`
+    const feedId = `player_post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+    set({
+      world2: {
+        ...w2,
+        lastPostDay: state.day,
+        pendingPost: { target, direction, pct: decayedValue, postedOnDay: state.day },
+        agentEventFeed: [
+          { id: feedId, title: '📱 Your Post', text: templatedText },
+          ...(w2.agentEventFeed || []),
+        ].slice(0, 40),
+      },
+    })
+
+    // Fire-and-forget AI flavor rewrite of the templated line above - never
+    // awaited (postToMarket already returned synchronously by the time this
+    // resolves or fails), same contract as endDay()'s flagship-event
+    // narration. Reuses enrichEventNarration verbatim, no new action.
+    generateEventNarration({
+      type: 'player_post',
+      actorName: 'You',
+      targetName,
+      direction,
+      fallbackText: templatedText,
+    }).then((text) => {
+      if (text) get().enrichEventNarration(feedId, text)
+    })
+
+    return { success: true }
   },
 
   financeNpcAction: (npcId, action) => {
@@ -790,7 +1403,8 @@ export const useGameStore = create((set, get) => ({
         notorietyIncreaseOnFail: 10,
         wantedIncreaseOnFail: 2,
         energyCost: 0, // already spent in financeNpcAction check
-        assetSeizureOnFail: 0
+        assetSeizureOnFail: 0,
+        jailChanceOnFail: 0.10,
       })
     } else if (action === 'extort') {
       get().executeCrime({
@@ -800,7 +1414,8 @@ export const useGameStore = create((set, get) => ({
         notorietyIncreaseOnFail: 20,
         wantedIncreaseOnFail: 4,
         energyCost: 0, // already spent in financeNpcAction check
-        assetSeizureOnFail: 0
+        assetSeizureOnFail: 0,
+        jailChanceOnFail: 0.20,
       })
     }
   },
@@ -832,7 +1447,16 @@ export const useGameStore = create((set, get) => ({
       return sum + (stock ? stock.price * holding.shares : 0)
     }, 0)
     const cryptoValue = w2.cryptoHoldings * w2.cryptoPrice
-    return state.cash + stockValue + cryptoValue
+    // Open shorts are a liability, not free cash: the proceeds from opening
+    // one already landed in `cash` above, but covering it back costs
+    // whatever the stock is worth NOW, so that cost must be subtracted here
+    // or the $1B win condition could be met by opening huge shorts and never
+    // covering them.
+    const shortLiability = Object.entries(w2.shortPositions || {}).reduce((sum, [ticker, short]) => {
+      const stock = w2.stocks.find((s) => s.ticker === ticker)
+      return sum + (stock ? stock.price * short.shares : 0)
+    }, 0)
+    return state.cash + stockValue + cryptoValue - shortLiability
   },
 
   isSoleSurvivor: () => {
@@ -847,7 +1471,110 @@ export const useGameStore = create((set, get) => ({
     }
   },
 
-  financeNetWorthWinMet: () => get().computeNetWorth() >= NET_WORTH_WIN_TARGET,
+  // Sticky, one-way net worth milestone ladder (see NET_WORTH_MILESTONES in
+  // marketData.js) - mirrors isSoleSurvivor()/checkSoleSurvivor()'s pattern
+  // of a pure computeNetWorth()-driven check called from endDay(), except
+  // this one has 5 permanent tiers instead of a single flag. Loops the
+  // WHOLE ladder every call (not just the next unearned tier) so a single
+  // big windfall between End Day presses can cross multiple tiers in one go.
+  checkNetWorthMilestones: () => {
+    const state = get()
+    const netWorth = get().computeNetWorth()
+    const earned = state.world2.netWorthMilestones || []
+    const newlyEarned = NET_WORTH_MILESTONES.filter(
+      (tier) => netWorth >= tier.threshold && !earned.includes(tier.id)
+    )
+    if (newlyEarned.length === 0) return
+
+    const announcements = {
+      first_comma: 'First Comma — your net worth just cracked $50,000.',
+      made_player: "Made Player — you've broken a quarter million in net worth. The Syndicate Board is starting to notice.",
+      conglomerate_threshold: 'Conglomerate Threshold — net worth tops $1,000,000. Skyscrapers and multinational acquisitions are now within reach.',
+      titan_apprentice: 'Titan Apprentice — $5,000,000 net worth. Reputation surges as the industry titans start returning your calls.',
+      true_tycoon: 'True Tycoon — $10,000,000 net worth. You could credibly declare yourself the richest person alive.',
+    }
+    const feedEntries = newlyEarned.map((tier) => ({
+      id: `milestone_${tier.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      title: `Milestone: ${tier.name}`,
+      text: announcements[tier.id] || `${tier.name} — your net worth just crossed $${tier.threshold.toLocaleString()}.`,
+    }))
+
+    set((s) => ({
+      world2: {
+        ...s.world2,
+        netWorthMilestones: [...earned, ...newlyEarned.map((t) => t.id)],
+        agentEventFeed: [...feedEntries, ...(s.world2.agentEventFeed || [])].slice(0, 40),
+      },
+    }))
+
+    // Tier 4 (titan_apprentice) one-time Reputation bonus - guarded by
+    // newlyEarned (this tick's "just crossed" set) rather than re-checking
+    // membership in the ladder, so repeated endDay() calls after the tier is
+    // already banked never re-fire it.
+    if (newlyEarned.some((t) => t.id === 'titan_apprentice')) {
+      get().addReputation(15)
+    }
+
+    // A milestone crossing draws the single most aggressive Titan not
+    // already on the player's Board - they raid the player directly, hitting
+    // whichever stock the player is holding the most value in. Reuses the
+    // exact same mechanical clamp as the Titan-vs-Titan raid effect in
+    // endDay() (raidImpact in the same $1,000-$9,000 range, capped at a 15%
+    // price hit) - this is the ONLY player-facing reaction hook added here,
+    // deliberately not a broader "Titans track player notoriety" system.
+    const agentsState = state.world2.agentsState || {}
+    const recruitedAdvisors = state.world2.recruitedAdvisors || []
+    const raiderEntry = Object.entries(agentsState)
+      .filter(([npcId]) => !recruitedAdvisors.includes(npcId))
+      .sort((a, b) => (b[1]?.aggression || 0) - (a[1]?.aggression || 0))[0]
+
+    if (raiderEntry) {
+      const [raiderId] = raiderEntry
+      const raiderNpc = FINANCE_NPCS.find((n) => n.id === raiderId)
+      const portfolio = state.world2.portfolio || {}
+      const stocks = state.world2.stocks || []
+      let biggestTicker = null
+      let biggestValue = 0
+      for (const [ticker, holding] of Object.entries(portfolio)) {
+        const stock = stocks.find((s) => s.ticker === ticker)
+        const value = stock ? stock.price * holding.shares : 0
+        if (value > biggestValue) {
+          biggestValue = value
+          biggestTicker = ticker
+        }
+      }
+
+      if (raiderNpc && biggestTicker) {
+        const raidImpact = Math.round(1000 + Math.random() * 9000)
+        const pct = Math.min(0.15, raidImpact / 60000)
+        const stockName = stocks.find((s) => s.ticker === biggestTicker)?.name || biggestTicker
+        set((s) => ({
+          world2: {
+            ...s.world2,
+            stocks: s.world2.stocks.map((st) =>
+              st.ticker === biggestTicker ? { ...st, price: Math.max(0.01, st.price * (1 - pct)) } : st
+            ),
+            agentEventFeed: [
+              {
+                id: `player_raid_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                title: '⚔️ Titan Raid',
+                text: `${raiderNpc.name} moved against your position in ${stockName}, hitting it for $${raidImpact.toLocaleString()}!`,
+              },
+              ...(s.world2.agentEventFeed || []),
+            ].slice(0, 40),
+          },
+        }))
+      }
+    }
+  },
+
+  // Live, reversible win-condition check (NOT a sticky milestone) - always
+  // re-evaluated against current net worth, so it can flip back to false if
+  // net worth dips back under the target after crossing it. FINANCE_VICTORY_
+  // TARGET ($10M) is a different constant from NET_WORTH_WIN_TARGET ($1B,
+  // kept as the flavor-only "Ascend as a Titan of Industry" flex goal - see
+  // StockExchangeModal.jsx).
+  financeNetWorthWinMet: () => get().computeNetWorth() >= FINANCE_VICTORY_TARGET,
 
   clearWorld2: () => {
     get().clearBlock('finance')
@@ -864,6 +1591,15 @@ export const useGameStore = create((set, get) => ({
     if (!npc) return { success: false, reason: 'NPC not found' }
     const recruited = state.world2.recruitedAdvisors || []
     if (recruited.includes(npcId)) return { success: false, reason: 'Already recruited to Syndicate Board' }
+    // Simons and Buffett are the two strongest passive-income advisors
+    // (Buffett's 5%-of-cash/day compounding perk in particular can blow past
+    // every other balance number given enough free endDay() presses), so
+    // both are gated behind the Titan Apprentice milestone ($5M net worth)
+    // in addition to the usual cash check below.
+    const milestones = state.world2.netWorthMilestones || []
+    if ((npcId === 'simons' || npcId === 'buffett') && !milestones.includes('titan_apprentice')) {
+      return { success: false, reason: 'Requires the Titan Apprentice milestone ($5,000,000 net worth)' }
+    }
     if (state.cash < npc.recruitCost) return { success: false, reason: `Need $${npc.recruitCost.toLocaleString()} cash` }
 
     const newRecruited = [...recruited, npcId]
@@ -880,7 +1616,12 @@ export const useGameStore = create((set, get) => ({
     } else if (npcId === 'walker') {
       set((s) => ({ reputation: Math.min(100, s.reputation + 20) }))
     } else if (npcId === 'musk') {
-      set((s) => ({ world2: { ...s.world2, cryptoHype: Math.min(100, s.world2.cryptoHype + 25) } }))
+      // cryptoHype is a 0-1 scale everywhere else (tickFinanceMarket,
+      // crypto-hype-buy) - this used to jump it on a 0-100 scale, which was
+      // a bug (see endDay()'s cryptoHypeDelta fix below for the same class
+      // of bug). +0.25 preserves the same relative jump size on the
+      // correct scale.
+      set((s) => ({ world2: { ...s.world2, cryptoHype: Math.min(1, s.world2.cryptoHype + 0.25) } }))
     }
 
     return { success: true }
@@ -952,22 +1693,61 @@ export const useGameStore = create((set, get) => ({
       ? Math.round(loanBalance * (1 + get().loanTier().interestPerDay))
       : 0
 
+    // A jailed player's energy stays pinned at 0 through this tick - the
+    // normal "refill to max" reset below is exactly what a day in jail is
+    // supposed to deny them. Read before the set() below overwrites jail.
+    const wasJailed = !!(state.jail && state.jail.inJail)
+
+    // Chapel Blessing expiry: compared against nextDay (the day this endDay
+    // call rolls into), so "+3 Luck for 2 days" covers the day it was bought
+    // plus one more full day before lapsing the following End Day press.
+    const blessing = state.world2.templeBlessing
+    const templeBlessing = blessing?.active && nextDay >= blessing.expiresOnDay
+      ? { active: false, bonus: 3, expiresOnDay: null }
+      : blessing || { active: false, bonus: 3, expiresOnDay: null }
+
+    // Syndicate Standing decay: -1 per 3 days of zero interaction with a
+    // syndicate, floor 0, only for syndicates currently above 0 (see
+    // applyStandingDecayTick in syndicateStandingEngine.js). Ticks against
+    // nextDay (the day this endDay() call is advancing INTO), same
+    // convention templeBlessing's expiry check above uses.
+    const syndicateStanding = applyStandingDecayTick(
+      state.world2.syndicateStanding || {},
+      state.world2.syndicateLastInteractionDay || {},
+      nextDay
+    )
+
     set({
       day: nextDay,
       worldClock,
       newsHeadline: rollHeadline(),
-      player: { ...state.player, energy: state.player.maxEnergy },
-      world2: { ...state.world2, loanBalance: accruedLoanBalance },
+      player: { ...state.player, energy: wasJailed ? 0 : state.player.maxEnergy },
+      world2: { ...state.world2, loanBalance: accruedLoanBalance, templeBlessing, syndicateStanding },
     })
     get().tickFinanceMarket()
 
     if (state.wantedLevel > 0 && Math.random() < 0.4) {
       get().addWantedLevel(-1)
     }
-    
+
     // Notoriety cools down slowly every day
     if (state.notoriety > 0) {
       get().addNotoriety(-5)
+    }
+
+    // Jail: sentence ticks down once per End Day, and Heat cools by an
+    // ADDITIONAL guaranteed point on top of the probabilistic wanted-level
+    // decay above (jail time is meant to visibly work off Heat faster than
+    // staying free does). Auto-releases at no cost once the sentence hits 0.
+    if (wasJailed) {
+      const jailState = state.jail
+      get().addWantedLevel(-1)
+      const sentenceDaysRemaining = jailState.sentenceDaysRemaining - 1
+      set({
+        jail: sentenceDaysRemaining <= 0
+          ? { inJail: false, sentenceDaysRemaining: 0, bailCost: 0, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 }
+          : { ...jailState, sentenceDaysRemaining, bribeAttemptsToday: 0, mazeAttemptedToday: false, mazeProgress: 0 },
+      })
     }
 
     if (recruited.includes('hamilton') && nextDay % 2 === 0 && state.wantedLevel > 0) {
@@ -979,7 +1759,13 @@ export const useGameStore = create((set, get) => ({
 
     // Simulate multi-agent titan interactions
     const { updatedAgents, eventFeed } = simulateDailyAgentInteractions(state.world2.agentsState || {}, nextDay)
-    
+
+    // Deterministic mechanical fallout from this tick's raid/hype titan
+    // events - no AI, no network, entirely derived from eventFeed above.
+    // Alliance events stay narrative-only by design (no mechanical effect).
+    const raidEvents = eventFeed.filter((e) => e.type === 'raid')
+    const hypeEvents = eventFeed.filter((e) => e.type === 'hype')
+
     // Simulate Government, Fed, FTC, and Crime Syndicates
     const currentGov = state.world2.governmentState || initializeGovernmentState()
     const { updatedGovState, cashDelta, wantedDelta, cryptoHypeDelta } = simulateGovernmentDailyTick(
@@ -1026,21 +1812,48 @@ export const useGameStore = create((set, get) => ({
       state.wantedLevel
     )
 
-    // Trigger Butterfly Effect Chain Reactions
-    const { updatedAgents: finalButterflyAgents, butterflyLogs } = triggerButterflyEffect(
-      { type: 'FED_RATE_TICK' },
-      finalMigratedAgents,
-      nextDay
-    )
-
-    // Simulate 5 Expanded Government Agencies (IRS, SEC, FBI, DOD, EPA) & Subdepartments
+    // Simulate 5 Expanded Government Agencies (IRS, SEC, FBI, DOD, EPA) -
+    // moved above the Butterfly Effect trigger below (it used to run after)
+    // so its agencyLogs are available to derive fbiRaided from real data.
+    // Safe to move: this only reads state.cash/state.wantedLevel, neither of
+    // which is affected by anything between its old and new call sites.
     const { agencyLogs, cashPenalty, wantedChange } = simulateExpandedAgenciesTick(nextDay, state.cash, state.wantedLevel)
+    if (cashPenalty !== 0) get().addCash(-cashPenalty)
+    if (wantedChange !== 0) get().addWantedLevel(wantedChange)
+
+    // Trigger Butterfly Effect Chain Reactions - previously hardcoded to a
+    // `{ type: 'FED_RATE_TICK' }` event that no branch in
+    // butterflyEffectEngine.js ever matched (it only checks FED_RATE_HIKE/
+    // FBI_RAID/BUFFETT_BUY), so this never fired once in any playthrough.
+    // Now derives up to 3 real booleans from data already computed above/this
+    // tick and fires once per true one, chaining `updatedAgents` from each
+    // call into the next so effects compose instead of overwrite.
+    const rateHiked = updatedGovState.interestRate > currentGov.interestRate
+    const fbiRaided = agencyLogs.some((l) => l.agency === 'FBI')
+    const buffettBought = eventFeed.some((e) => e.type === 'alliance' && e.actorId === 'buffett')
+
+    let butterflyAgents = finalMigratedAgents
+    let butterflyLogs = []
+    if (rateHiked) {
+      const res = triggerButterflyEffect({ type: 'FED_RATE_HIKE' }, butterflyAgents, nextDay)
+      butterflyAgents = res.updatedAgents
+      butterflyLogs = butterflyLogs.concat(res.butterflyLogs)
+    }
+    if (fbiRaided) {
+      const res = triggerButterflyEffect({ type: 'FBI_RAID' }, butterflyAgents, nextDay)
+      butterflyAgents = res.updatedAgents
+      butterflyLogs = butterflyLogs.concat(res.butterflyLogs)
+    }
+    if (buffettBought) {
+      const res = triggerButterflyEffect({ type: 'BUFFETT_BUY' }, butterflyAgents, nextDay)
+      butterflyAgents = res.updatedAgents
+      butterflyLogs = butterflyLogs.concat(res.butterflyLogs)
+    }
+    const finalButterflyAgents = butterflyAgents
+
     const subLogs = simulateSubdepartmentsTick(nextDay)
     const scotusLogs = simulateScotusJudicialReview(nextDay)
     const congressLogs = simulateCongressTick(nextDay)
-
-    if (cashPenalty !== 0) get().addCash(-cashPenalty)
-    if (wantedChange !== 0) get().addWantedLevel(wantedChange)
 
     // Trigger Autonomous Capital Accumulation & Asset Purchasing
     const { updatedAgents: finalAssetAgents, assetLogs } = simulateAgentAssetPurchasing(finalButterflyAgents, nextDay)
@@ -1074,16 +1887,141 @@ export const useGameStore = create((set, get) => ({
       agencyLogs: [...scotusLogs, ...congressLogs, ...subLogs, ...agencyLogs, ...(updatedGovState.agencyLogs || [])].slice(0, 30),
     }
 
-    set((s) => ({
-      world2: {
-        ...s.world2,
-        agentsState: updatedAgents,
-        agentEventFeed: [...combinedEventLogs, ...(s.world2.agentEventFeed || [])].slice(0, 40),
-        governmentState: finalGovState,
-        masterAgents: finalAssetAgents,
-        cryptoHype: Math.max(0, Math.min(100, s.world2.cryptoHype + cryptoHypeDelta)),
-      },
-    }))
+    set((s) => {
+      // Raid events hit a random stock's price, scaled by the raid's dollar
+      // impact (~$1,000-$9,000 per agentEngine.js), capped at a 15% hit so a
+      // single raid can't zero out a stock. Reads s.world2.stocks (the
+      // post-tickFinanceMarket value from earlier in this same endDay()
+      // call) rather than the stale `state` captured at the top of endDay().
+      let stocks = s.world2.stocks
+      for (const raid of raidEvents) {
+        if (!stocks.length) break
+        const idx = Math.floor(Math.random() * stocks.length)
+        const pct = Math.min(0.15, raid.raidImpact / 60000)
+        stocks = stocks.map((st, i) => (i === idx ? { ...st, price: Math.max(0.01, st.price * (1 - pct)) } : st))
+      }
+
+      // cryptoHype is a 0-1 scale everywhere in this codebase
+      // (tickFinanceMarket, crypto-hype-buy, the musk perk above). This used
+      // to add cryptoHypeDelta (a flat "+3" from simulateGovernmentDailyTick,
+      // meant as "+3 percentage points") on a 0-100 scale via
+      // Math.min(100, ...), which silently overshot the real 0-1 field by
+      // 300% on every Fed rate cut - dividing by 100 here fixes the scale
+      // without touching governmentEngine.js's own units.
+      let cryptoHype = Math.max(0, Math.min(1, s.world2.cryptoHype + cryptoHypeDelta / 100))
+      // Hype events (agentEngine.js's hypeDelta is a 5-20 range, meant as
+      // "+5% to +20%") nudge cryptoHype up the same way.
+      for (const hype of hypeEvents) {
+        cryptoHype = Math.min(1, cryptoHype + hype.hypeDelta / 100)
+      }
+
+      // Player market-sentiment post (see postToMarket()) resolves here,
+      // exactly once, on the first End Day press after it was made. Compared
+      // against `nextDay` (the day this endDay() call is advancing INTO)
+      // rather than the `state.day` captured at function entry (which still
+      // equals pendingPost.postedOnDay on that first press, since posting
+      // only ever happens earlier on the SAME day this endDay() call started
+      // on) - using state.day here would mean a post made today never
+      // resolves on tomorrow's first End Day press (only the one after,
+      // since postToMarket's own lastPostDay guard would have already let a
+      // second post overwrite the still-pending first one by then). nextDay
+      // is what actually delivers "resolves the day after you post, not the
+      // instant you post" without silently dropping posts.
+      let pendingPost = s.world2.pendingPost
+      let postCounts = s.world2.postCounts || {}
+      const postResolutionFeed = []
+      if (pendingPost && pendingPost.postedOnDay < nextDay) {
+        const { target, direction, pct } = pendingPost
+        const isCrypto = target === 'CRYPTO'
+        if (isCrypto) {
+          cryptoHype = Math.max(0, Math.min(1, cryptoHype + (direction === 'up' ? pct : -pct)))
+          postResolutionFeed.push({
+            id: `post_resolve_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            title: '📈 Sentiment Shift',
+            text: `${CRYPTO_NAME}'s speculative buzz ${direction === 'up' ? 'rose' : 'cooled'} following your post.`,
+          })
+        } else {
+          const idx = stocks.findIndex((st) => st.ticker === target)
+          if (idx !== -1) {
+            const stock = stocks[idx]
+            const newPrice = Math.max(0.01, stock.price * (1 + (direction === 'up' ? pct : -pct)))
+            stocks = stocks.map((st, i) => (i === idx ? { ...st, price: newPrice } : st))
+            postResolutionFeed.push({
+              id: `post_resolve_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              title: '📈 Sentiment Shift',
+              text: `${stock.name} moved ${(pct * 100).toFixed(1)}% following your post.`,
+            })
+          }
+        }
+        postCounts = { ...postCounts, [target]: (postCounts[target] || 0) + 1 }
+        pendingPost = null
+      }
+
+      return {
+        world2: {
+          ...s.world2,
+          stocks,
+          agentsState: updatedAgents,
+          agentEventFeed: [...postResolutionFeed, ...combinedEventLogs, ...(s.world2.agentEventFeed || [])].slice(0, 40),
+          governmentState: finalGovState,
+          masterAgents: finalAssetAgents,
+          cryptoHype,
+          pendingPost,
+          postCounts,
+        },
+      }
+    })
+
+    // Net worth milestone ladder check - once per End Day press, after every
+    // other cash/portfolio-affecting effect above has already landed, so it
+    // reads a fully-settled computeNetWorth() for this tick.
+    get().checkNetWorthMilestones()
+
+    // Fire-and-forget AI narration for exactly one "flagship" event this
+    // tick - never awaited, so endDay() above has already fully resolved
+    // synchronously with today's templated text visible instantly. If/when
+    // this resolves, it may swap that one feed entry's text for a richer
+    // AI-generated line (see enrichEventNarration below); on any failure (no
+    // key, network, timeout, bad response) generateEventNarration resolves
+    // to null and nothing happens - the templated text already on screen
+    // stands as final. This does not affect the mechanical effects above,
+    // which are already fully applied and independent of this call.
+    const titanEvents = eventFeed.filter((e) => e.type === 'raid' || e.type === 'hype' || e.type === 'alliance')
+    if (titanEvents.length) {
+      const flagship = [...raidEvents].sort((a, b) => b.raidImpact - a.raidImpact)[0] || titanEvents[0]
+      const actorNpc = FINANCE_NPCS.find((n) => n.id === flagship.actorId)
+      const targetNpc = FINANCE_NPCS.find((n) => n.id === flagship.targetId)
+      const archetypeDescription = actorNpc ? ARCHETYPE_PROFILES[actorNpc.archetype]?.description : null
+      const amount = flagship.type === 'raid' ? flagship.raidImpact : flagship.type === 'hype' ? flagship.hypeDelta : null
+
+      generateEventNarration({
+        type: flagship.type,
+        actorName: actorNpc?.name,
+        targetName: targetNpc?.name,
+        amount,
+        archetypeDescription,
+        fallbackText: flagship.text,
+      }).then((text) => {
+        if (text) get().enrichEventNarration(flagship.id, text)
+      })
+    }
+  },
+
+  // Swaps one agentEventFeed entry's `text` for a richer AI-generated
+  // version (see aiNarrator.js / endDay()'s fire-and-forget call), if that
+  // entry is still present - a slow response may arrive after the 40-entry
+  // feed has already trimmed it off, in which case this is a silent no-op
+  // (nothing else in the game depends on this entry; it's a pure narration
+  // upgrade, never load-bearing for any mechanic).
+  enrichEventNarration: (eventId, newText) => {
+    set((s) => {
+      const feed = s.world2.agentEventFeed || []
+      const idx = feed.findIndex((e) => e.id === eventId)
+      if (idx === -1) return {}
+      const nextFeed = [...feed]
+      nextFeed[idx] = { ...nextFeed[idx], text: newText }
+      return { world2: { ...s.world2, agentEventFeed: nextFeed } }
+    })
   },
 
   // Exposes the store's worldClock as the { index, key, label } shape UI
@@ -1204,6 +2142,7 @@ export const useGameStore = create((set, get) => ({
         wantedIncreaseOnFail: 1,
         energyCost: 10,
         assetSeizureOnFail: 0,
+        jailChanceOnFail: 0.10,
       })
       if (result.success) {
         get().addOwnedVehicle(vehicle)
@@ -1222,6 +2161,7 @@ export const useGameStore = create((set, get) => ({
       wantedIncreaseOnFail: 3,
       energyCost: 15,
       assetSeizureOnFail: 0,
+      jailChanceOnFail: 0.20,
     })
     if (result.success) {
       get().addOwnedVehicle(vehicle)
@@ -1429,10 +2369,10 @@ export const useGameStore = create((set, get) => ({
 
   saveGame: () => {
     const state = get()
-    const { screen, player, inventory, cash, wantedLevel, day, runSeed, worldClock, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 } = state
+    const { screen, player, inventory, cash, wantedLevel, notoriety, jail, day, runSeed, worldClock, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 } = state
     localStorage.setItem(
       SAVE_KEY,
-      JSON.stringify({ screen: screen === 'world' ? 'world' : screen, player, inventory, cash, wantedLevel, day, runSeed, worldClock, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 })
+      JSON.stringify({ screen: screen === 'world' ? 'world' : screen, player, inventory, cash, wantedLevel, notoriety, jail, day, runSeed, worldClock, reputation, shadowMonarch, blocks, currentBlockId, world1, world2, world3, world4 })
     )
   },
 

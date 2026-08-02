@@ -3,6 +3,15 @@ import { useGameStore } from '../../store/useGameStore'
 import { NARCOTICS_DATABASE, calculateCartelResale } from './narcoticsEngine'
 import { getCharacterPortrait } from '../../data/characterPortraits'
 
+// Stable module-level no-op so the `healPlayer` fallback below doesn't
+// allocate a new function reference every render. useGameStore has no
+// `healPlayer` action: `(s) => s.healPlayer || (() => {})` created a new
+// function each render, which useSyncExternalStore/zustand detects as an
+// unstable snapshot and loops forever. Pharmaceutical "Consume" is
+// effectively a no-op until a real heal action exists in the store - not
+// adding one here per the "don't touch useGameStore.js" constraint.
+const NOOP = () => {}
+
 export default function NarcoticsTradeModal({ onClose }) {
   const [selectedItem, setSelectedItem] = useState(NARCOTICS_DATABASE[0])
   const [tradeQuantity, setTradeQuantity] = useState(1)
@@ -11,7 +20,7 @@ export default function NarcoticsTradeModal({ onClose }) {
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
-  const healPlayer = useGameStore((s) => s.healPlayer || (() => {}))
+  const healPlayer = useGameStore((s) => s.healPlayer) || NOOP
 
   const handleBuyWholesale = () => {
     const cost = selectedItem.wholesalePrice * tradeQuantity
@@ -55,7 +64,11 @@ export default function NarcoticsTradeModal({ onClose }) {
             <div>
               <span className="rounded bg-red-950 px-2 py-0.5 text-xs font-bold text-red-300 uppercase tracking-wider">MEDELLIN CARTEL & SYNDICATE CONTRABAND</span>
               <h2 className="text-2xl font-bold text-red-400 mt-1">🌿 CARTEL NARCOTICS TRADE</h2>
-              <p className="text-xs text-gray-300">Brokered by Pablo Escobar & Griselda Blanco (The Black Widow).</p>
+              {/* Was 'Brokered by Pablo Escobar & Griselda Blanco (The Black Widow)' -
+                  Blanco heads her own syndicate (griselda_empire), not Escobar's Medellin
+                  Cartel; see the per-item supplier line below for each substance's actual
+                  broker (see narcoticsEngine.js attribution note). */}
+              <p className="text-xs text-gray-300">Suppliers vary by substance - see each listing below.</p>
             </div>
           </div>
         </div>

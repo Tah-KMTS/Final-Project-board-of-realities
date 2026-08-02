@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { INTERACTIVE_LOCATIONS } from './interactiveLocations'
 
-export default function InteractiveLocationModal({ locationId, onClose, onAcquireVehicle }) {
+// `embedded` (default false): the standalone 'interactiveLocation' modal
+// case in WorldScreen.jsx (mcdonalds_diner/ford_factory/transit_hub) is
+// unaffected. When true (BusinessCenterModal's Jobs tab reusing apple_lab,
+// UnderworldModal's Speakeasy Hotel tab reusing speakeasy_club), skip the
+// outer overlay + "Leave Location" footer button - the wrapping hub modal
+// supplies both.
+export default function InteractiveLocationModal({ locationId, onClose, onAcquireVehicle, embedded = false }) {
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
@@ -45,9 +51,8 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono text-white">
-      <div className="flex h-[80vh] w-full max-w-3xl flex-col border-4 border-amber-400 bg-[#0e1126] shadow-2xl">
+  const body = (
+    <>
         {/* Header */}
         <div className="flex items-center justify-between border-b-2 border-amber-500/40 bg-[#161a38] px-6 py-4">
           <div className="flex items-center gap-3">
@@ -148,14 +153,28 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-800 bg-[#101229] p-4 text-right">
-          <button
-            onClick={onClose}
-            className="border border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
-          >
-            Leave Location
-          </button>
-        </div>
+        {!embedded && (
+          <div className="border-t border-gray-800 bg-[#101229] p-4 text-right">
+            <button
+              onClick={onClose}
+              className="border border-gray-600 bg-gray-800 px-6 py-2 text-xs font-bold text-white hover:bg-gray-700 transition-colors"
+            >
+              Leave Location
+            </button>
+          </div>
+        )}
+    </>
+  )
+
+  // Embedded mode drops the fixed-height (h-[80vh]) flex-col overlay panel
+  // entirely - the wrapping hub modal already gives this tab its own
+  // scrollable area, so this just flows as plain content inside it.
+  if (embedded) return <div className="text-white">{body}</div>
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono text-white">
+      <div className="flex h-[80vh] w-full max-w-3xl flex-col border-4 border-amber-400 bg-[#0e1126] shadow-2xl">
+        {body}
       </div>
     </div>
   )

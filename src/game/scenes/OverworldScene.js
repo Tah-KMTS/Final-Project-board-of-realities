@@ -4,7 +4,6 @@ import { resolvePalette } from '../characterPalettes'
 import { generateAmbientNpcs } from '../../utils/npcGenerator'
 import { getAllCharacters, getAnyCharacter } from '../../features/agents/characterLookup'
 import { getDisposition } from '../../features/agents/characterDispositions'
-import { TITAN_ROUTINES } from '../../features/agents/agentMovementEngine'
 import { TIME_BLOCKS, simulateWorldPresence } from '../../features/agents/worldPresenceEngine'
 import { CHARACTER_HOME_BUILDING_DEFS, getHomeBuildingDef } from '../../features/world/characterHomeBuildings'
 import { SpriteActor } from '../actor'
@@ -23,6 +22,7 @@ import {
   HABITAT_ASSET_KEYS,
   WEALTH_STONE_THRESHOLD,
   buildingDoorAnimSpec,
+  residentialStyleKey,
 } from '../tileGen'
 import {
   SERENE_VILLAGE_DOOR_KEY,
@@ -50,7 +50,7 @@ import { preloadTopDownVehicles, NPC_VEHICLE_TIERS, vehiclePerformance, VEHICLE_
 // back to a `residence`/`hideout` template by the building's `kind` for the
 // 88 character home/hideout buildings that aren't hand-listed there (see
 // interiorTemplateFor).
-// Walking up to any of the 129 buildings (41 hand-authored + 88 character
+// Walking up to any of the 98 buildings (10 hand-authored + 88 character
 // homes/hideouts from characterHomeBuildings.js) and pressing E swaps into
 // its interior in place (same scene, same Phaser.Game instance, same
 // technique DominoWorldScene uses for its own rooms); the desk inside emits
@@ -68,90 +68,175 @@ const TILE_SIZE = 40
 // clear of the HUD without touching the band/gap layout math at all.
 const DEFAULT_SPAWN = { col: 7, row: 3 }
 
-// ---------------- Capital Syndicate: 4-district Financial region ----------------
-// Each district is a self-contained horizontal band, stacked top to bottom
-// in DISTRICT_ORDER, with a grass gap (>= BAND_GAP tiles) between bands for
-// a street. Buildings within a band are packed left-to-right and wrap to a
-// second row once they'd cross BAND_COL_END - laid out by layoutFinanceMap()
-// below rather than hand-placed, so there's no risk of two buildings (or a
-// building and the map border) overlapping as the roster changes. Verified
-// with a standalone overlap/bounds check before wiring this in, not just
-// eyeballed.
-const DISTRICT_ORDER = ['Tokyo District', 'Kyoto District', 'Osaka District', 'Sapporo District']
+// ---------------- Capital Syndicate: unified Financial region ----------------
+// Map overhaul Phase 1 (flattening): this used to be 4 stacked district
+// bands (Tokyo/Kyoto/Osaka/Sapporo), each its own self-contained row-band
+// with its own street gap. That grouping is gone - FINANCE_BUILDING_DEFS
+// below is now ONE flat pool, packed left-to-right/top-to-bottom by
+// layoutFinanceMap() with no district concept at all, so the whole roster
+// reads as one continuous city. The "--- Tokyo District ---"-style comments
+// still splitting the list below are leftover roster organisation only
+// (keeps related HQs/amenities grouped in the source for readability) - they
+// no longer correspond to any physical region of the map; a building's
+// position is purely wherever the packer's cursor happens to land.
+//
+// Buildings are packed left-to-right and wrap to a new row once they'd cross
+// bandColEnd - laid out by layoutFinanceMap() below rather than hand-placed,
+// so there's no risk of two buildings (or a building and the map border)
+// overlapping as the roster changes. Verified with a standalone overlap/
+// bounds check before wiring this in, not just eyeballed.
 
-// House rule: 2x2 character homes/hideouts packed at the same BAND_GAP=4 as
-// the hand-authored buildings below measured out to a 154-row map (verified
-// with a standalone layout script) - way too tall to be playable. Giving
-// home/hideout defs their own tighter `gap` (per-def override, see
-// layoutFinanceMap) instead keeps the map at 73 rows for the same 88 homes.
-const HOME_GAP = 2
+// Map overhaul Phase 4 (tight residential clusters): homes used to be
+// row-wrap packed with a uniform 1-tile gap between every single home
+// (HOME_GAP), which reads as a loose flowing grid rather than the reference
+// mockup's solid blocks of touching houses with visible separation only
+// BETWEEN clusters/rows. Replaced by packHomeBand() below - see its header
+// comment - which packs each style sub-group into its own square-ish grid of
+// ROWS (each row a strip of houses touching edge to edge, zero horizontal
+// gap), with ROW_GAP of walkable clearance between one row and the next so
+// the cluster reads as parallel walkable rows rather than one solid
+// impassable block, then packs those (up to 3) cluster rectangles across the
+// band with CLUSTER_GAP between them (bigger than ROW_GAP, so a cluster
+// boundary still reads as more of a break than a between-row gap). The old
+// HOME_GAP constant and the `.map((d) => ({ ...d, gap: HOME_GAP }))` that
+// applied it are gone - packHomeBand never reads a def's `gap` field.
+const CLUSTER_GAP = 3
+const ROW_GAP = 2
 
+// Map overhaul Phase 4 (trim to the 14-main-building-category spec): the
+// roster below used to carry 31 hand-authored hub defs (Phase 3). 9 of the
+// 14 spec'd main-building categories already map 1:1 to a real building here
+// (stockExchange/casino/bank/realEstateAgency/temple/underworld/
+// trainStation/governmentBuilding/businessCenter); a 10th, Industrial Zones,
+// is now `industrialZone` below - one multi-tenant hub absorbing the 5
+// former single-tenant industrialist HQs (fordRougeComplex/carnegieSteelMill/
+// standardOilRefinery/pentagonDodHQ/epaHQ), same TABS-modal pattern Phase 2
+// already used 3 times for underworld/businessCenter/governmentBuilding -
+// see IndustrialZoneModal.jsx. The remaining 4 spec categories (Court &
+// Prison, Food Center, Dock/Pier, Entertainment Complex) are still unbuilt -
+// out of scope for this pass. Every other Phase-3 hub def that didn't map to
+// one of the 14 categories (parliament/hotel/park/dockVaults/teaHouse/
+// machiyaEstate/zenGarden/silkMarket/sakeBrewery/artisanShop/
+// dotonboriArcade/fishMarket/takoyakiStand/sapporoBrewery/alpineLodge/
+// corporateOffice/vcHub - 17 buildings) is deleted outright, not folded into
+// a hub - there's no natural absorbing building for any of them the way the
+// Phase 2 consolidations had one.
+//
+// Every remaining non-home def below still carries a `zone` tag - one of
+// 'law' (left column), 'finance' (center-left column), 'chapel' (center,
+// fixed 30-wide reservation - temple is the sole occupant), or 'industry'
+// (right column) - see layoutFinanceMap() for how each zone is packed into
+// its own column region of the middle hub band.
 const FINANCE_BUILDING_DEFS = [
-  // --- Tokyo District ---
-  { id: 'stockExchange', label: 'Tokyo Stock Exchange', district: 'Tokyo District', color: 0x1f5f3a, width: 3, height: 3 },
-  { id: 'buffettHQ', label: 'Buffett Tower', district: 'Tokyo District', color: 0x555555, width: 3, height: 3, npcId: 'buffett' },
-  { id: 'vanderbiltHQ', label: 'Vanderbilt Rail Co.', district: 'Tokyo District', color: 0x6b4a2a, width: 3, height: 3, npcId: 'vanderbilt' },
-  { id: 'muskHQ', label: 'Musk Industries', district: 'Tokyo District', color: 0x2a2a2a, width: 3, height: 3, npcId: 'musk' },
-  { id: 'howardMarksHQ', label: 'Oaktree Cycle Capital', district: 'Tokyo District', color: 0x2a4f4a, width: 4, height: 3, npcId: 'howardmarks' },
-  { id: 'appleHQ', label: 'Apple Glass HQ', district: 'Tokyo District', color: 0xc0c0c0, width: 4, height: 3, npcId: 'jobs' },
-  { id: 'cryptoExchange', label: 'Crypto HQ', district: 'Tokyo District', color: 0x8a5a1f, width: 4, height: 3 },
-  { id: 'corporateOffice', label: 'Corporate Holdings', district: 'Tokyo District', color: 0x4a3a5f, width: 4, height: 3 },
-  { id: 'vcHub', label: 'Venture Capital Hub', district: 'Tokyo District', color: 0x2a3a6b, width: 3, height: 3 },
-  { id: 'bank', label: 'Bank & Realty Office', district: 'Tokyo District', color: 0x1f3a5f, width: 4, height: 3 },
-  { id: 'realEstateAgency', label: 'Real Estate Agency', district: 'Tokyo District', color: 0x3a5f4a, width: 4, height: 3 },
-  { id: 'parliament', label: 'Parliament Hall', district: 'Tokyo District', color: 0x3a3a6a, width: 4, height: 3 },
+  // --- Financial HQs ---
+  { id: 'stockExchange', label: 'Tokyo Stock Exchange', facadeStyle: 'modernGlass', color: 0x1f5f3a, width: 3, height: 3, zone: 'finance' },
+  // Consolidation (Phase 2): Buffett/Vanderbilt/Musk/Howard Marks/Jobs each
+  // used to be their own single-tenant HQ. Folded into one denser
+  // multi-tenant hub (see BusinessCenterModal.jsx's 5 tabs) - footprint is
+  // bigger than any one of the old towers to read as "several tenants share
+  // this building", not just a relabeled single HQ.
+  { id: 'businessCenter', label: 'Capital Business Center', facadeStyle: 'modernGlass', color: 0x3a3a4a, width: 7, height: 4, zone: 'finance' },
+  { id: 'bank', label: 'Bank & Realty Office', facadeStyle: 'modernGlass', color: 0x1f3a5f, width: 4, height: 3, zone: 'finance' },
+  { id: 'realEstateAgency', label: 'Real Estate Agency', facadeStyle: 'modernGlass', color: 0x3a5f4a, width: 4, height: 3, zone: 'finance' },
+  // Consolidation (Phase 2): FBI HQ (Hoover) + IRS HQ (Caplin) folded into one
+  // federal hub (see GovernmentBuildingModal.jsx's 3 tabs, the 3rd of which
+  // also gives the existing status-bar-only GovernmentModal a physical
+  // building).
+  { id: 'governmentBuilding', label: 'Federal Government Building', facadeStyle: 'modernGlass', color: 0x2a3a5a, width: 6, height: 4, zone: 'law' },
 
-  // --- Kyoto District ---
-  { id: 'irsHQ', label: 'IRS Internal Revenue', district: 'Kyoto District', color: 0x5a5a5a, width: 4, height: 3, npcId: 'caplin' },
-  { id: 'teaHouse', label: 'Cherry Coke Tea House', district: 'Kyoto District', color: 0x8a4a2a, width: 3, height: 2 },
-  { id: 'machiyaEstate', label: 'Machiya Executive Estate', district: 'Kyoto District', color: 0x6a5a3a, width: 4, height: 3 },
-  { id: 'zenGarden', label: 'Zen Rock Garden', district: 'Kyoto District', color: 0x8a8a6a, width: 3, height: 2 },
-  { id: 'silkMarket', label: 'Silk & Kimono Market', district: 'Kyoto District', color: 0x8a2a4a, width: 3, height: 2 },
-  { id: 'sakeBrewery', label: 'Fushimi Sake Brewery', district: 'Kyoto District', color: 0x6a4a2a, width: 3, height: 2 },
-  { id: 'artisanShop', label: 'Kiyomizu Artisan Shop', district: 'Kyoto District', color: 0x4a6a5a, width: 3, height: 2 },
-  { id: 'hotel', label: 'Ryokan Mountain Inn', district: 'Kyoto District', color: 0x5a4a3a, width: 4, height: 3 },
-  { id: 'park', label: 'Serenity Park', district: 'Kyoto District', color: 0x2a5f2a, width: 4, height: 2 },
-  // Distinct indigo/violet exterior (every other Kyoto building above is a
-  // muted brown/grey/green earth-tone) so this reads as the grand chapel
-  // it now has an interior for (see buildChapelInteriorZone in this file
-  // and src/game/interiors/tmxWallInterior.js) rather than blending into
-  // the district as just another plain amenity building - reported gap:
-  // the interior existed but nothing on the map signaled it. Label now
-  // says "Chapel" outright while keeping "Whispering Temple" as the
-  // flavor name TempleModal.jsx already displays.
+  // Distinct indigo/violet exterior so this reads as the grand chapel it has
+  // an interior for (see buildChapelInteriorZone in this file and
+  // src/game/interiors/tmxWallInterior.js) rather than blending into the
+  // district as just another plain amenity building. Label now says
+  // "Chapel" outright while keeping "Whispering Temple" as the flavor name
+  // TempleModal.jsx already displays.
   // 16x14 matches the authored chapel art exactly (House/Wings/Dragon layers,
   // cols 6-21 x rows 2-15 of Exterior.tmx) so the facade fills its footprint
   // with no overflow onto neighbours - see drawChapelExteriorFacade.
-  { id: 'temple', label: 'Whispering Temple Chapel', district: 'Kyoto District', color: 0x3a2a6a, width: 30, height: 22 },
+  // zone: 'chapel' - the sole occupant of the fixed 30-wide center-column
+  // reservation (its own width) in the middle hub band; see layoutFinanceMap.
+  { id: 'temple', label: 'Whispering Temple Chapel', facadeStyle: 'traditionalCottage', color: 0x3a2a6a, width: 30, height: 22, zone: 'chapel' },
 
-  // --- Osaka District ---
-  { id: 'casino', label: 'Neon Dragon Casino', district: 'Osaka District', color: 0x8a1f6a, width: 4, height: 3 },
-  { id: 'arcade', label: 'Pixel Palace Arcade', district: 'Osaka District', color: 0x1f6a8a, width: 3, height: 3 },
-  { id: 'speakeasyHotel', label: 'Chicago Speakeasy Hotel', district: 'Osaka District', color: 0x6a3a2a, width: 4, height: 3, npcId: 'capone' },
-  { id: 'fbiHQ', label: 'FBI Headquarters', district: 'Osaka District', color: 0x2a3a5a, width: 4, height: 3, npcId: 'hoover' },
-  { id: 'dotonboriArcade', label: 'Dotonbori Merchant Arcade', district: 'Osaka District', color: 0x8a6a2a, width: 4, height: 2 },
-  { id: 'fishMarket', label: 'Kuromon Fish Market', district: 'Osaka District', color: 0x2a5a6a, width: 3, height: 2 },
-  { id: 'takoyakiStand', label: 'Takoyaki Street Food', district: 'Osaka District', color: 0x8a4a1f, width: 2, height: 2 },
-  { id: 'crimeAlley', label: 'Crime Alley', district: 'Osaka District', color: 0x6a1f1f, width: 4, height: 2, npcId: 'luciano' },
-  { id: 'blackMarket', label: 'Black Market', district: 'Osaka District', color: 0x4a1f6a, width: 3, height: 2 },
-  { id: 'callCenterOps', label: 'Call Center Ops', district: 'Osaka District', color: 0x6a5a1f, width: 3, height: 2 },
-  { id: 'dockVaults', label: 'Dock Underground Vaults', district: 'Osaka District', color: 0x2a2a3a, width: 4, height: 2 },
+  { id: 'casino', label: 'Neon Dragon Casino', facadeStyle: 'modernBrick', color: 0x8a1f6a, width: 4, height: 3, zone: 'finance' },
+  // New 11th hub building (header cleanup pass): FinanceStatusBar's "Places &
+  // Transit" button is gone (header stripped to Phone + End Day only), so
+  // its mcdonalds_diner content (previously only reachable via that button -
+  // see WorldScreen.jsx's BUILDING_TO_INTERACTIVE_LOCATION comment) needed a
+  // real building. Sized/styled like the other small finance-zone amenities
+  // (bank/casino) rather than one of the multi-tenant tabbed hubs, since it's
+  // a single InteractiveLocationModal entry, not several tenants.
+  { id: 'foodCourt', label: 'Food Court', facadeStyle: 'modernBrick', color: 0xa05a1f, width: 4, height: 3, zone: 'finance' },
+  // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
+  // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
+  // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 4 multi-tenant hubs
+  // footprint-wise since it absorbs 4 former buildings, not 2-5 tenants
+  // sharing offices - reads as a sprawling underworld block rather than a
+  // single storefront.
+  { id: 'underworld', label: 'The Underworld', facadeStyle: 'modernBrick', color: 0x3a1f3a, width: 6, height: 4, zone: 'law' },
 
-  // --- Sapporo District ---
-  { id: 'fordRougeComplex', label: 'Ford River Rouge Complex', district: 'Sapporo District', color: 0x3a4a5a, width: 4, height: 3, npcId: 'ford' },
-  { id: 'carnegieSteelMill', label: 'Homestead Steel Mill', district: 'Sapporo District', color: 0x5a3a2a, width: 4, height: 3, npcId: 'carnegie' },
-  { id: 'standardOilRefinery', label: 'Standard Oil Refinery', district: 'Sapporo District', color: 0x2a3a3a, width: 4, height: 3, npcId: 'rockefeller' },
-  { id: 'pentagonDodHQ', label: 'Pentagon Procurement HQ', district: 'Sapporo District', color: 0x2a4a6a, width: 4, height: 3, npcId: 'mcnamara' },
-  { id: 'epaHQ', label: 'EPA Regulation Agency', district: 'Sapporo District', color: 0x2a5a3a, width: 4, height: 3, npcId: 'ruckelshaus' },
-  { id: 'sapporoBrewery', label: 'Alpine Snow Brewery', district: 'Sapporo District', color: 0x8a6a2a, width: 3, height: 2 },
-  { id: 'alpineLodge', label: 'Mount Yotei Alpine Lodge', district: 'Sapporo District', color: 0x6a4a3a, width: 4, height: 3 },
-  { id: 'trainStation', label: '🚆 Central Train Station', district: 'Sapporo District', color: 0x4a6fa5, width: 4, height: 2 },
+  // Consolidation (Phase 4): Ford River Rouge Complex + Homestead Steel Mill
+  // + Standard Oil Refinery + Pentagon Procurement HQ + EPA Regulation
+  // Agency - 5 former single-tenant industrialist/regulator HQs - folded
+  // into one Industrial Zone hub, the 10th of the spec's 14 main-building
+  // categories (see IndustrialZoneModal.jsx's 5 tabs). Sized like
+  // businessCenter (7x4 for 5 tenants) for the same "reads as several
+  // tenants share this building" reason.
+  { id: 'industrialZone', label: 'Industrial Zone', facadeStyle: 'modernGlass', color: 0x3a4a4a, width: 7, height: 4, zone: 'industry' },
+  { id: 'trainStation', label: '🚆 Central Train Station', facadeStyle: 'modernGlass', color: 0x4a6fa5, width: 4, height: 2, zone: 'industry' },
+
+  // Dock/Pier - one of the last unbuilt spec categories (see the note
+  // above). Marine cargo insurance/customs-manifest fraud, deliberately NOT
+  // a smuggling loop (that's already owned by NarcoticsTradeModal.jsx/
+  // SyndicateOperationsModal.jsx, reachable via the phone). Cast & Reel
+  // fishing + a post-catch Declare Honest/Pad the Manifest choice, entirely
+  // in WharfModal.jsx - see the triggerInteraction case below, same
+  // straight-to-modal pattern as foodCourt (no Phaser interior needed).
+  { id: 'wharf', label: 'Bonded Cargo Pier', facadeStyle: 'modernBrick', color: 0x2a5a6a, width: 4, height: 3, zone: 'industry' },
+
+  // Entertainment Complex - the last unbuilt spec category. One building,
+  // 2 tabs (Concert Hall/Sports Stadium - see EntertainmentComplexModal.jsx),
+  // reusing two named characters who were written but previously un-slotted
+  // into any building: Dixon Trujillo (Griselda Empire, "Nightclub
+  // Extortion & Entertainment Fronts") for Concert Hall's arrow-key rhythm
+  // minigame (RhythmGame.jsx), Arnold Rothstein ("fixed the 1919 World
+  // Series") for Sports Stadium's alternating-key sprint QTE (SprintRace.jsx).
+  // Same straight-to-modal shape as the other 4 tabbed hubs (underworld/
+  // businessCenter/governmentBuilding/industrialZone) - see the
+  // triggerInteraction case below, no Phaser interior needed.
+  { id: 'entertainmentComplex', label: 'Entertainment Complex', facadeStyle: 'modernGlass', color: 0x5a3a8a, width: 6, height: 4, zone: 'industry' },
+
+  // Court & Prison - one of the last 3 unbuilt spec categories (see the note
+  // above). Gives the jail mini-map mechanic (bribeDice/maze, in
+  // useGameStore.js's attemptJailBribe/attemptMazeSegment) a real door on
+  // the map: arrest teleports the player straight into the jailCell zone
+  // (see triggerInteraction's courtAndPrison special-case and loadZone's
+  // jailCell/jailMaze/jailUnderworld branches below); walking up to it while
+  // NOT in custody is a flavor no-op, not a real entrance - matches the
+  // lore spec's "you don't check into a jail voluntarily" framing. zone:
+  // 'law' puts it in the same column as `underworld`, which the maze's
+  // back-door tunnel dead-ends into.
+  { id: 'courtAndPrison', label: 'Capital City Central Booking', facadeStyle: 'modernBrick', color: 0x4a4a4a, width: 4, height: 3, zone: 'law' },
 
   // --- Character homes & hideouts (generated, see characterHomeBuildings.js) ---
-  // Appended after the 41 defs above (not interleaved) so the already-
-  // verified district layout stays first and unaffected; layoutFinanceMap
-  // packs each into its def's district band same as any other building.
-  ...CHARACTER_HOME_BUILDING_DEFS.map((d) => ({ ...d, gap: HOME_GAP })),
+  // Appended after the 10 hub defs above (not interleaved) - layoutFinanceMap
+  // below never packs this combined array as one flat pool any more (that
+  // was the pre-Phase-3 scheme); it re-filters FINANCE_BUILDING_DEFS back
+  // into hub defs (by `zone`) and home defs (by `kind`) itself. Kept as one
+  // array anyway (rather than three separate exported lists) so this stays
+  // the single roster source-of-truth other files could grep for.
+  // Sorted by residentialStyleKey (stone manor / wood house / hideout /
+  // brick cottage / stoneCottage / sereneRed / sereneGreen / sereneBlue)
+  // before packing - array order is preserved straight through packing, so
+  // this sort survives into "same style lands in a contiguous run" once
+  // layoutFinanceMap splits it into the top-band styles (stone/woodHouse/
+  // hideout) and bottom-band styles (brick/stoneCottage/sereneRed/
+  // sereneGreen/sereneBlue) and packs each half, i.e. actual visual clusters
+  // rather than the roster's arbitrary order scattering every style across
+  // every row (reported: a log-cabin home next to a stone manor next to a
+  // flat-roof warehouse, no grouping at all).
+  ...CHARACTER_HOME_BUILDING_DEFS
+    .slice()
+    .sort((a, b) => residentialStyleKey(a.npcId, a.kind).localeCompare(residentialStyleKey(b.npcId, b.kind))),
 ]
 
 const BAND_COL_START = 2
@@ -167,43 +252,26 @@ const BAND_GAP = 4 // default tiles between buildings (a def can override its ow
 // already-verified column/gap layout below is untouched, just offset.
 const MAP_TOP_MARGIN = 4
 
-// STEP 1 of the map coherence overhaul (production/next-session-plan.md).
-//
-// The problem this fixes: FINANCE_V_STREETS used to be a hardcoded list of
-// single columns ([7, 20, 34, 47, 60, 73]) that layoutFinanceMap knew nothing
-// about, so buildings were packed straight over them and their facades drew
-// on top of the road - the "building is built on the road" the human
-// reported. Streets were also 1 tile wide, too narrow to read as roads or to
-// drive on.
-//
-// Now: street columns are DERIVED from the map width, streets are
-// STREET_WIDTH tiles wide, and the packer treats them as reserved - it skips
-// a building past any street block it would overlap.
+// Streets are STREET_WIDTH tiles wide (wide enough to read as a road and to
+// drive on) and the packer treats every street block as reserved - it skips
+// a building past any street block it would overlap, so a facade can never
+// draw on top of a road.
 const STREET_WIDTH = 3
-// Distance between street-block starts. The clear gap is
-// V_STREET_SPACING - STREET_WIDTH, and that gap MUST exceed the widest
-// building plus its 1-tile art margin on each side, or that building can
-// never be placed. Raised from 26 when the chapel grew to 30 tiles wide:
-// 26 left a 23-column gap, the packer could not fit it anywhere, and it
-// came out with null coordinates. checkMapLayout.mjs catches this.
-const V_STREET_SPACING = 38
-const V_STREET_FIRST_COL = 6
-
-function verticalStreetColumns(mapCols) {
-  const cols = []
-  for (let start = V_STREET_FIRST_COL; start + STREET_WIDTH - 1 < mapCols - 1; start += V_STREET_SPACING) {
-    for (let d = 0; d < STREET_WIDTH; d++) cols.push(start + d)
-  }
-  return cols
-}
+// 1-tile clear margin reserved on either side of every street block. Facade
+// ART is allowed to overflow its footprint (prefab facades draw taller/wider
+// than the tiles they own - see packRender), so a building whose footprint
+// merely touches a street still LOOKS like it's built on the road without
+// this margin. Packing-only: these margin columns/rows are ordinary grass,
+// not road.
+const STREET_MARGIN = 1
 
 // Smallest column >= `col` where a `width`-wide building clears every street
-// block, or null if it can't fit before `bandColEnd` (caller then wraps to a
-// new row). V_STREET_SPACING guarantees the gaps between streets are wider
-// than any building, so wrapping always eventually succeeds.
-function firstColumnClearOfStreets(col, width, streetCols, bandColEnd) {
+// block in `streetCols` (already padded with STREET_MARGIN on each side by
+// the caller - see reservedCols below), or null if it can't fit before
+// `colEnd` (caller then wraps to a new row).
+function firstColumnClearOfStreets(col, width, streetCols, colEnd) {
   let c = col
-  while (c + width - 1 <= bandColEnd) {
+  while (c + width - 1 <= colEnd) {
     let hit = -1
     for (let x = c; x <= c + width - 1; x++) {
       if (streetCols.includes(x)) { hit = x; break }
@@ -214,101 +282,384 @@ function firstColumnClearOfStreets(col, width, streetCols, bandColEnd) {
   return null
 }
 
-function layoutFinanceMap(mapCols) {
-  const streetCols = verticalStreetColumns(mapCols)
-  // Facade ART is allowed to overflow its footprint (prefab facades draw
-  // taller/wider than the tiles they own - see packRender), so a building
-  // whose footprint merely touches a street still LOOKS like it's built on
-  // the road. Reserving one extra column either side of every street block
-  // keeps that overhang off the tarmac. Packing-only: these margin columns
-  // are ordinary grass, not road.
-  const reservedCols = []
-  for (const c of streetCols) {
-    reservedCols.push(c - 1, c, c + 1)
-  }
-  const bandColEnd = mapCols - BAND_COL_END_FROM_RIGHT
-  const buildings = []
-  const districtBandRows = {}
-  let cursorRow = MAP_TOP_MARGIN
-  for (const district of DISTRICT_ORDER) {
-    const defs = FINANCE_BUILDING_DEFS.filter((b) => b.district === district)
-    let col = BAND_COL_START
-    let row = cursorRow
-    let rowMaxHeight = 0
-    const bandTop = cursorRow
-    for (const b of defs) {
-      if (col + b.width - 1 > bandColEnd) {
-        col = BAND_COL_START
-        row += rowMaxHeight + BAND_GAP
-        rowMaxHeight = 0
-      }
-      // Reserve the vertical streets: shift right past any street block this
-      // building would straddle, wrapping to the next row if it no longer
-      // fits on this one.
-      let clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
-      if (clear === null) {
-        col = BAND_COL_START
-        row += rowMaxHeight + BAND_GAP
-        rowMaxHeight = 0
-        clear = firstColumnClearOfStreets(col, b.width, reservedCols, bandColEnd)
-      }
-      if (clear === null) {
-        // Unreachable while V_STREET_SPACING is wide enough for the widest
-        // building (see its comment). Failing loudly beats silently writing
-        // null tile coords, which is what produced a building at column
-        // `null` when the chapel outgrew the street spacing.
-        throw new Error(
-          `layoutFinanceMap: "${b.label ?? b.id}" is ${b.width} tiles wide and cannot fit between vertical streets ` +
-            `(clear gap is ${V_STREET_SPACING - STREET_WIDTH} columns). Raise V_STREET_SPACING.`
-        )
-      }
-      col = clear
-      const c0 = col
-      const r0 = row
-      const c1 = col + b.width - 1
-      const r1 = row + b.height - 1
-      buildings.push({ ...b, tiles: { c0, r0, c1, r1 } })
-      col += b.width + (b.gap ?? BAND_GAP)
-      rowMaxHeight = Math.max(rowMaxHeight, b.height)
-    }
-    const bandBottom = row + rowMaxHeight - 1
-    districtBandRows[district] = { top: bandTop, bottom: bandBottom }
-    cursorRow = bandBottom + BAND_GAP + 1
-  }
-  const lastBottom = districtBandRows[DISTRICT_ORDER[DISTRICT_ORDER.length - 1]].bottom
-  const mapRows = lastBottom + 3 // clear buffer row + bottom wall row
+// ---------------------------------------------------------------------------
+// Map overhaul Phase 3: rebuilds the map's spatial layout to a fixed 3-band
+// mockup (a cross of 2 main horizontal roads dividing the map into 3
+// horizontal bands) instead of the old single left-to-right/row-wrap pass:
+//
+//   1. Top home band    - residential clusters (stone/woodHouse/hideout style
+//                          homes only), packed same as before.
+//   2. Middle hub band   - all 10 hand-authored "hub" buildings (Phase 4
+//                          trimmed this from 31 - see the header comment
+//                          above FINANCE_BUILDING_DEFS), arranged in
+//                          4 column-zones left to right (law, finance,
+//                          chapel, industry - see the `zone` tags on
+//                          FINANCE_BUILDING_DEFS above), separated by
+//                          vertical road gaps. The chapel zone is a fixed
+//                          30-wide reservation (its own width) rather than a
+//                          packed group, since `temple` is a single building
+//                          with an authored footprint. Placed dead-center as
+//                          a landmark.
+//   3. Bottom home band  - residential clusters (pico8/serene/brick style
+//                          homes - the bulk of the 88), packed same as band 1.
+//
+// A full-width horizontal street sits between band 1->2 and band 2->3 (see
+// insertStreetGap). A reserved rectangle in the bottom-right corner of band 3
+// (FINANCE_FARM_ZONE, computed after this function returns) is carved out of
+// the bottom band's own packable width for the ambient habitat animals/
+// wealthy pet pens - see spawnHabitatAnimals/spawnWealthyPetPens below.
+// ---------------------------------------------------------------------------
 
-  // One horizontal street laid across the middle of the grass gap between
-  // each pair of adjacent bands.
-  // Flat list of every street ROW (not just the centre line) so existing
-  // consumers keep working with plain .includes(r) / random indexing, while
-  // the street is now STREET_WIDTH tiles tall. Clamped into the grass gap so
-  // a street never touches a band's buildings.
-  const hStreets = []
-  for (let i = 0; i < DISTRICT_ORDER.length - 1; i++) {
-    const gapTop = districtBandRows[DISTRICT_ORDER[i]].bottom + 1
-    const gapBottom = districtBandRows[DISTRICT_ORDER[i + 1]].top - 1
-    const centre = Math.round((gapTop + gapBottom) / 2)
-    const half = Math.floor(STREET_WIDTH / 2)
-    for (let r = centre - half; r <= centre - half + STREET_WIDTH - 1; r++) {
-      if (r >= gapTop && r <= gapBottom) hStreets.push(r)
-    }
-  }
+// Home style keys that land in the top band vs. the bottom band (see
+// residentialStyleKey in tileGen.js for the 8 possible values - every one is
+// assigned to exactly one of these two sets).
+const TOP_HOME_STYLES = new Set(['stone', 'woodHouse', 'hideout'])
+const BOTTOM_HOME_STYLES = new Set(['brick', 'stoneCottage', 'sereneRed', 'sereneGreen', 'sereneBlue'])
 
-  return { buildings, mapRows, hStreets, districtBandRows, vStreets: streetCols }
+// Bottom-right reservation for ambient habitat animals + wealthy pet pens
+// (see spawnHabitatAnimals/spawnWealthyPetPens/findPenSpot) - sized per the
+// map-overhaul brief ("last ~20 columns x last ~15 rows"), carved out of the
+// bottom home band's own packable width so it's guaranteed clear rather than
+// hoping the row-wrap packer happens to leave the corner empty.
+const FARM_ZONE_W = 20
+const FARM_ZONE_H = 15
+// Clear gap between the farm reservation and the bottom band's own packed
+// home content, same margin motivation as STREET_MARGIN above.
+const FARM_ZONE_MARGIN = 2
+
+// Core row-wrap packer, shared by every band/zone below - the same "walk a
+// cursor left to right, wrap to a new row on overflow or a street hit"
+// algorithm the old single-pass packer used, just scoped to an explicit
+// [colStart, colEnd] column range and starting row instead of always
+// spanning the whole map. `reservedCols` is the (already STREET_MARGIN-
+// padded) list of street columns to dodge - pass an empty array for a region
+// that by construction contains no street (e.g. one hub zone's own column
+// span, which sits strictly between two street reservations).
+function packDefs(defs, colStart, colEnd, rowStart, reservedCols) {
+  const packed = []
+  let col = colStart
+  let row = rowStart
+  let rowMaxHeight = 0
+  for (const b of defs) {
+    if (col + b.width - 1 > colEnd) {
+      col = colStart
+      row += rowMaxHeight + (b.gap ?? BAND_GAP)
+      rowMaxHeight = 0
+    }
+    let clear = firstColumnClearOfStreets(col, b.width, reservedCols, colEnd)
+    if (clear === null) {
+      col = colStart
+      row += rowMaxHeight + (b.gap ?? BAND_GAP)
+      rowMaxHeight = 0
+      clear = firstColumnClearOfStreets(col, b.width, reservedCols, colEnd)
+    }
+    if (clear === null) {
+      // Unreachable as long as the caller sized [colStart, colEnd] wider
+      // than the widest def in `defs` (see layoutFinanceMap's zone-width
+      // math) - failing loudly beats silently writing null tile coords.
+      throw new Error(
+        `packDefs: "${b.label ?? b.id}" is ${b.width} tiles wide and cannot fit within columns ` +
+          `${colStart}-${colEnd} clear of the reserved streets.`
+      )
+    }
+    col = clear
+    const c0 = col
+    const r0 = row
+    const c1 = col + b.width - 1
+    const r1 = row + b.height - 1
+    packed.push({ ...b, tiles: { c0, r0, c1, r1 } })
+    col += b.width + (b.gap ?? BAND_GAP)
+    rowMaxHeight = Math.max(rowMaxHeight, b.height)
+  }
+  // Bottom-most occupied row. Monotonic: `row` only ever increases (each
+  // wrap adds the previous row's rowMaxHeight + a gap), so the last row
+  // processed is always the one with the greatest r1 - same assumption the
+  // pre-Phase-3 single-pass packer's own `mapRows` derivation relied on.
+  const contentBottomRow = defs.length ? row + rowMaxHeight - 1 : rowStart - 1
+  return { buildings: packed, contentBottomRow }
 }
 
-const MAP_COLS = 160
+// Map overhaul Phase 4: packs a home band's defs (every one 2x2 tiles - see
+// characterHomeBuildings.js's buildDef, no size variation) into tight,
+// zero-gap cluster BLOCKS, one block per residentialStyleKey sub-group,
+// instead of packDefs' flowing row-wrap with a uniform gap between every
+// single home. Two passes:
+//   1. Group `homeDefs` by style key (3 sub-groups in the top band, 5 in the
+//      bottom band - see TOP_HOME_STYLES/BOTTOM_HOME_STYLES). Each group of N
+//      homes becomes a cols x rows square-ish grid (cols = ceil(sqrt(N)), rows =
+//      ceil(N/cols)). Homes within a row sit at col*2 tile offsets - zero
+//      horizontal gap, touching edge to edge, reading as one continuous strip
+//      of houses. Rows themselves are spaced row*(2+ROW_GAP) apart instead of
+//      row*2, so there's a walkable corridor between one row and the next
+//      (reported: a solid zero-gap-in-every-direction block reads as one
+//      impassable building, not a neighborhood you can walk through).
+//      `homeDefs` arrives pre-sorted by style key (see FINANCE_BUILDING_DEFS's
+//      own sort), so groups come out in a stable, deterministic order.
+//   2. Pack the (up to 3) resulting cluster rectangles left to right across
+//      [colStart, colEnd] with CLUSTER_GAP between adjacent clusters - same
+//      row-wrap-on-overflow-or-street-hit shape packDefs uses, just against
+//      a whole cluster's footprint width instead of one building's width, so
+//      the wrap-to-a-new-row case (defensively handled, not assumed
+//      unreachable) still respects `reservedCols`.
+function packHomeBand(homeDefs, colStart, colEnd, rowStart, reservedCols) {
+  const groups = new Map()
+  for (const d of homeDefs) {
+    const key = residentialStyleKey(d.npcId, d.kind)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(d)
+  }
+
+  const clusters = []
+  for (const [key, defs] of groups) {
+    const n = defs.length
+    const cols = Math.ceil(Math.sqrt(n))
+    const rows = Math.ceil(n / cols)
+    const placedDefs = defs.map((def, i) => ({
+      def,
+      dc: (i % cols) * 2,
+      dr: Math.floor(i / cols) * (2 + ROW_GAP),
+    }))
+    // Height spans every row's own 2 tiles plus ROW_GAP between rows only -
+    // (rows - 1) gaps for `rows` rows, not `rows` gaps, so there's no trailing
+    // walkable strip hanging off the cluster's own last row.
+    const height = rows * 2 + (rows - 1) * ROW_GAP
+    clusters.push({ key, count: n, cols, rows, width: cols * 2, height, defs: placedDefs })
+  }
+
+  const packed = []
+  let col = colStart
+  let row = rowStart
+  let rowMaxHeight = 0
+  for (const cluster of clusters) {
+    if (col + cluster.width - 1 > colEnd) {
+      col = colStart
+      row += rowMaxHeight + CLUSTER_GAP
+      rowMaxHeight = 0
+    }
+    let clear = firstColumnClearOfStreets(col, cluster.width, reservedCols, colEnd)
+    if (clear === null) {
+      col = colStart
+      row += rowMaxHeight + CLUSTER_GAP
+      rowMaxHeight = 0
+      clear = firstColumnClearOfStreets(col, cluster.width, reservedCols, colEnd)
+    }
+    if (clear === null) {
+      // Unreachable as long as [colStart, colEnd] is wider than the widest
+      // cluster - see layoutFinanceMap's band-width math - but fail loudly
+      // rather than silently write null tile coords, same convention as
+      // packDefs above.
+      throw new Error(
+        `packHomeBand: cluster "${cluster.key}" (${cluster.width}x${cluster.height}, ${cluster.count} homes) cannot fit ` +
+          `within columns ${colStart}-${colEnd} clear of the reserved streets.`
+      )
+    }
+    col = clear
+    const c0 = col
+    const r0 = row
+    for (const { def, dc, dr } of cluster.defs) {
+      const bc0 = c0 + dc
+      const br0 = r0 + dr
+      packed.push({ ...def, tiles: { c0: bc0, r0: br0, c1: bc0 + def.width - 1, r1: br0 + def.height - 1 } })
+    }
+    col += cluster.width + CLUSTER_GAP
+    rowMaxHeight = Math.max(rowMaxHeight, cluster.height)
+  }
+  const contentBottomRow = clusters.length ? row + rowMaxHeight - 1 : rowStart - 1
+  return { buildings: packed, contentBottomRow, clusters }
+}
+
+// Inserts a full-width, STREET_WIDTH-tall horizontal street centered in the
+// gap below `prevBottomRow`, with `gap` rows of clearance on top of the
+// street's own width (so facades on either side keep the same "art can
+// overflow its footprint" margin every other street reservation in this file
+// uses) - reuses STREET_WIDTH rather than introducing new tuning constants
+// for a 3-band map where every inter-band gap is now known and fixed in
+// advance (the old freeBands scan this replaces existed only because the
+// single flat packer didn't know in advance where its gaps would land).
+// `gap` defaults to BAND_GAP (every non-residential call site keeps that
+// default unchanged); the two home-band call sites below pass a smaller
+// value so residential rows sit close to the road, per the reference image.
+function insertStreetGap(prevBottomRow, gap = BAND_GAP) {
+  const gapTop = prevBottomRow + 1
+  const gapRows = gap + STREET_WIDTH
+  const streetTop = gapTop + Math.floor((gapRows - STREET_WIDTH) / 2)
+  const streetRows = []
+  for (let r = streetTop; r < streetTop + STREET_WIDTH; r++) streetRows.push(r)
+  return { streetRows, nextBandTop: gapTop + gapRows }
+}
+
+// Smaller road-adjacency gap used only where a residential home band meets
+// the street (see the two insertStreetGap call sites below) - the reference
+// mockup shows home rows sitting tight against the road, tighter than the
+// BAND_GAP spacing every other (non-residential) band keeps. Does not touch
+// packHomeBand's own internal cluster-packing gaps (ROW_GAP/CLUSTER_GAP),
+// only the outer gap between a home band and the road.
+const HOME_BAND_STREET_GAP = 1
+
+function layoutFinanceMap(mapCols) {
+  const bandColStart = BAND_COL_START
+  const bandColEnd = mapCols - BAND_COL_END_FROM_RIGHT
+
+  const homeDefs = FINANCE_BUILDING_DEFS.filter((d) => Boolean(d.kind))
+  const hubDefs = FINANCE_BUILDING_DEFS.filter((d) => !d.kind)
+  const topHomeDefs = homeDefs.filter((d) => TOP_HOME_STYLES.has(residentialStyleKey(d.npcId, d.kind)))
+  const bottomHomeDefs = homeDefs.filter((d) => BOTTOM_HOME_STYLES.has(residentialStyleKey(d.npcId, d.kind)))
+
+  const zoneDefs = { law: [], finance: [], chapel: [], industry: [] }
+  for (const d of hubDefs) {
+    if (!zoneDefs[d.zone]) {
+      throw new Error(`layoutFinanceMap: "${d.id}" has no valid zone tag (got ${JSON.stringify(d.zone)})`)
+    }
+    zoneDefs[d.zone].push(d)
+  }
+  const chapelDef = zoneDefs.chapel[0]
+  const chapelWidth = chapelDef.width // 30 - temple's own width, the zone's fixed reservation.
+
+  // 3 street gaps separate the 4 zone columns (law | finance | chapel |
+  // industry). Zone widths are allocated proportionally to each zone's own
+  // packed-content "weight" (sum of building widths + the gaps between them,
+  // as if laid out in one row) rather than split evenly - industry has by
+  // far the most buildings (17, vs. law's 6 and finance's 7), so an even
+  // split would leave it packing into many more rows than law/finance and
+  // make it the tallest zone by a wide margin. Weighting by content also
+  // happens to keep the chapel roughly centered: it's preceded by 2 zones
+  // (law, finance) and followed by only 1 (industry), so industry needs to
+  // end up noticeably wider than law+finance combined for the chapel not to
+  // be pushed off-center - which is exactly what content-weighting produces
+  // here, since industry's weight so heavily outweighs the other two.
+  const perStreetSpan = STREET_WIDTH + STREET_MARGIN * 2
+  const usableWidth = bandColEnd - bandColStart + 1
+  const remainingForZones = usableWidth - perStreetSpan * 3 - chapelWidth
+  if (remainingForZones < 30) {
+    throw new Error(
+      `layoutFinanceMap: only ${remainingForZones} columns left for the law/finance/industry zones after reserving ` +
+        `the chapel + 3 streets - map is too narrow. Raise MAP_COLS.`
+    )
+  }
+  const zoneContentWeight = (defs) => defs.reduce((s, d) => s + d.width, 0) + Math.max(0, defs.length - 1) * BAND_GAP
+  const lawWeight = zoneContentWeight(zoneDefs.law)
+  const financeWeight = zoneContentWeight(zoneDefs.finance)
+  const industryWeight = zoneContentWeight(zoneDefs.industry)
+  const totalWeight = lawWeight + financeWeight + industryWeight
+  const minZoneWidth = (defs) => Math.max(...defs.map((d) => d.width))
+  const lawWidth = Math.max(minZoneWidth(zoneDefs.law), Math.round((remainingForZones * lawWeight) / totalWeight))
+  const financeWidth = Math.max(minZoneWidth(zoneDefs.finance), Math.round((remainingForZones * financeWeight) / totalWeight))
+  // Industry takes whatever's left rather than its own rounded share, so the
+  // 3 widths always sum to exactly remainingForZones with no rounding gap or
+  // overlap - safe because industry is always the largest-weight zone by far,
+  // so "whatever's left" is always generous, never starved.
+  const industryWidth = remainingForZones - lawWidth - financeWidth
+  const industryMin = minZoneWidth(zoneDefs.industry)
+  if (industryWidth < industryMin) {
+    throw new Error(`layoutFinanceMap: industry zone only got ${industryWidth} columns (needs >= ${industryMin}) - map is too narrow. Raise MAP_COLS.`)
+  }
+
+  let cursor = bandColStart
+  const lawColStart = cursor
+  const lawColEnd = lawColStart + lawWidth - 1
+  cursor = lawColEnd + 1 + STREET_MARGIN
+  const street1Start = cursor
+  cursor = street1Start + STREET_WIDTH + STREET_MARGIN
+  const financeColStart = cursor
+  const financeColEnd = financeColStart + financeWidth - 1
+  cursor = financeColEnd + 1 + STREET_MARGIN
+  const street2Start = cursor
+  cursor = street2Start + STREET_WIDTH + STREET_MARGIN
+  const chapelColStart = cursor
+  const chapelColEnd = chapelColStart + chapelWidth - 1
+  cursor = chapelColEnd + 1 + STREET_MARGIN
+  const street3Start = cursor
+  cursor = street3Start + STREET_WIDTH + STREET_MARGIN
+  const industryColStart = cursor
+  const industryColEnd = bandColEnd // soaks up any rounding slack here rather than leaving a gap before the right map margin
+
+  const vStreetCols = []
+  for (const start of [street1Start, street2Start, street3Start]) {
+    for (let d = 0; d < STREET_WIDTH; d++) vStreetCols.push(start + d)
+  }
+  // Same margin convention as before: reserve 1 column either side of every
+  // street block. These vertical streets span the FULL map height (used by
+  // the top/bottom home band packers below too, not just the hub band) so
+  // the 3 zone-separator roads read as continuous north-south corridors -
+  // together with the 2 horizontal streets between bands, this is the
+  // "cross of two main roads" the mockup describes, extended into a full
+  // street grid rather than stopping at the hub band's edges.
+  const reservedCols = []
+  for (const c of vStreetCols) reservedCols.push(c - 1, c, c + 1)
+
+  // ---- Band 1: top home band ----
+  const topBandTop = MAP_TOP_MARGIN
+  const topBand = packHomeBand(topHomeDefs, bandColStart, bandColEnd, topBandTop, reservedCols)
+
+  // Residential band -> road gap tightened (HOME_BAND_STREET_GAP, not
+  // BAND_GAP) so the top home band's homes sit close to the street, per the
+  // reference image - see insertStreetGap's own doc comment.
+  const gap1 = insertStreetGap(topBand.contentBottomRow, HOME_BAND_STREET_GAP)
+
+  // ---- Band 2: middle hub band - 4 zone columns, all starting at the same
+  // row. Each zone's own column span sits strictly between two street
+  // reservations (or the map margin), so packing within a zone never needs
+  // to dodge a street - hence the empty reservedCols array for those 3 calls.
+  const hubBandTop = gap1.nextBandTop
+  const law = packDefs(zoneDefs.law, lawColStart, lawColEnd, hubBandTop, [])
+  const finance = packDefs(zoneDefs.finance, financeColStart, financeColEnd, hubBandTop, [])
+  const chapelBuilding = {
+    ...chapelDef,
+    tiles: { c0: chapelColStart, r0: hubBandTop, c1: chapelColEnd, r1: hubBandTop + chapelDef.height - 1 },
+  }
+  const industry = packDefs(zoneDefs.industry, industryColStart, industryColEnd, hubBandTop, [])
+  const hubBandBottom = Math.max(law.contentBottomRow, finance.contentBottomRow, chapelBuilding.tiles.r1, industry.contentBottomRow)
+
+  // Same road-adjacency tightening as gap1 above, on the OTHER side of this
+  // street - it borders the bottom home band (packed right after gap2,
+  // below), so the same smaller gap is used here too.
+  const gap2 = insertStreetGap(hubBandBottom, HOME_BAND_STREET_GAP)
+
+  // ---- Band 3: bottom home band - packed only up to bottomBandColEnd
+  // (short of the map's true right edge) so the rightmost FARM_ZONE_W
+  // columns of this band are guaranteed free of home content for the farm
+  // zone below, rather than hoping the row-wrap packer happens to leave the
+  // corner empty.
+  const bottomBandTop = gap2.nextBandTop
+  const bottomBandColEnd = bandColEnd - FARM_ZONE_W - FARM_ZONE_MARGIN
+  const bottomBand = packHomeBand(bottomHomeDefs, bandColStart, bottomBandColEnd, bottomBandTop, reservedCols)
+
+  // Farm zone sits at the true bottom-right of the map: bottom-aligned with
+  // whichever is taller, the bottom band's own home content or the farm
+  // zone's own fixed height (so it's never pushed above band 3's top, and
+  // the map only grows past the home content's natural height if the farm
+  // reservation genuinely needs more room than that).
+  const farmRowEnd = Math.max(bottomBand.contentBottomRow, bottomBandTop + FARM_ZONE_H - 1)
+  const farmRowStart = farmRowEnd - FARM_ZONE_H + 1
+  const farmColEnd = bandColEnd
+  const farmColStart = farmColEnd - FARM_ZONE_W + 1
+  const farmZone = { c0: farmColStart, r0: farmRowStart, c1: farmColEnd, r1: farmRowEnd }
+
+  const mapRows = farmRowEnd + 3 // clear buffer row + bottom wall row, same convention the old single-pass packer used
+
+  const buildings = [
+    ...topBand.buildings,
+    ...law.buildings,
+    ...finance.buildings,
+    chapelBuilding,
+    ...industry.buildings,
+    ...bottomBand.buildings,
+  ]
+
+  return { buildings, mapRows, hStreets: [...gap1.streetRows, ...gap2.streetRows], vStreets: vStreetCols, farmZone }
+}
+
+const MAP_COLS = 86
 const {
   buildings: FINANCE_BUILDINGS,
   mapRows: MAP_ROWS,
   hStreets: FINANCE_H_STREETS,
-  districtBandRows: DISTRICT_BAND_ROWS,
   vStreets: FINANCE_V_STREETS,
+  farmZone: FINANCE_FARM_ZONE,
 } = layoutFinanceMap(MAP_COLS)
 // Exported purely so the layout can be asserted against from outside (no
 // building overlaps, every door reachable) without a Phaser canvas - the
-// packing is generated from a 129-entry def list now, far past the point
+// packing is generated from a 98-entry def list now, far past the point
 // where eyeballing it is meaningful. Nothing in the game reads these.
 export {
   FINANCE_BUILDINGS,
@@ -316,26 +667,11 @@ export {
   FINANCE_H_STREETS,
   MAP_COLS,
   MAP_ROWS,
-  DISTRICT_BAND_ROWS,
   TILE_SIZE,
-  presenceStepProgress,
   presencePhaseOffset,
   idleDriftOffset,
   IDLE_DRIFT_RADIUS_BY_TIER,
 }
-// (Historical note: this used to describe six hand-picked corridors on an
-// 80-wide map. Street columns are now derived from the map width by
-// verticalStreetColumns() and reserved by the packer - see the comment above
-// layoutFinanceMap. Kept only for the DEFAULT_SPAWN detail below.)
-// Six vertical corridors spread evenly across the map: col 7 is the
-// spawn column (kept - DEFAULT_SPAWN sits on it), the rest give the right
-// half of the map (which the original two-corridor [7, 33] left with no
-// north-south route once the map widened past 40 cols) the same coverage.
-// FINANCE_V_STREETS is now derived by layoutFinanceMap (see above) rather
-// than hardcoded here. The old comment at this spot said a building "can
-// still occupy one of these columns... its facade just renders over the
-// street" - that was the bug, not an acceptable trade-off, and the packer
-// now reserves street columns instead.
 // Rows 1-2 along the top edge render as water tiles for terrain variety.
 // Water is now impassable (isSingleTileObstacle/isBlockedTile - see there
 // for why), so this deliberately excludes row 3: DEFAULT_SPAWN.row is
@@ -357,18 +693,19 @@ function financeTileType(r, c) {
 // ---------------- Building interiors ----------------
 // A single 12x9 room shape (INTERIOR_COLS/ROWS, matching DominoWorldScene's
 // own room convention) is reused for every building's interior; only the
-// palette + desk label differ per INTERIOR_TEMPLATES entry. Crypto HQ gets
-// a template all to itself; the 5 tycoon HQs share "tycoonOffice"; 6
-// government/finance offices share "officeA"; 6 corporate/industrial HQs
-// share "officeB"; the remaining 21 district-amenity buildings share
-// "amenity" - all 39 hand-listed by id in BUILDING_INTERIOR_TEMPLATE below.
-// The 88 character home/hideout buildings (characterHomeBuildings.js) would
-// be silly to list by hand one at a time, so they're deliberately left out
-// of that map entirely - interiorTemplateFor() falls back to "residence" or
-// "hideout" by the building's `kind` for anything not found there. Stock
-// Exchange and Casino are the two exceptions to all of this - they keep
-// bespoke rooms (buildStockExchangeInteriorZone / buildCasinoInteriorZone)
-// instead of a template.
+// palette + desk label differ per INTERIOR_TEMPLATES entry. Map overhaul
+// Phase 4 trimmed the hub roster from 31 hand-authored buildings down to 10
+// (see the header comment above FINANCE_BUILDING_DEFS) - bank/realEstateAgency
+// are the only two still routed through buildGenericInteriorZone at all
+// (both share "officeA"); every other surviving hub building
+// (stockExchange/casino/trainStation/temple/underworld/businessCenter/
+// governmentBuilding/industrialZone) is special-cased in triggerInteraction()
+// to open a bespoke room or a React modal directly instead. The 88 character
+// home/hideout buildings (characterHomeBuildings.js) would be silly to list
+// by hand one at a time, so they're deliberately left out of
+// BUILDING_INTERIOR_TEMPLATE entirely - interiorTemplateFor() falls back to
+// "residence" or "hideout" by the building's `kind` for anything not found
+// there.
 const INTERIOR_COLS = 12
 const INTERIOR_ROWS = 9
 const INTERIOR_SPAWN = { col: 6, row: 5 }
@@ -386,51 +723,32 @@ const INTERIOR_TEMPLATES = {
   amenity: { floorA: 0x201c28, floorB: 0x1b1822, deskColor: 0x5a4a2a, deskLabel: 'Counter' },
   residence: { floorA: 0x2a3020, floorB: 0x1f2418, deskColor: 0x4a3a2a, deskLabel: 'Study' },
   hideout: { floorA: 0x1f1418, floorB: 0x160e12, deskColor: 0x6a1f3a, deskLabel: 'Back Room' },
+  // Jail mini-map (courtAndPrison) - three palette variants of the same
+  // shared room shape, one per zone: the holding cell itself, the service
+  // corridor (jailMaze) dressed with crate/service-lighting colors per
+  // world-builder, and the Underworld's back room the tunnel dead-ends into.
+  holdingCell: { floorA: 0x28282c, floorB: 0x1e1e22, deskColor: 0x3a3a3a, deskLabel: 'Booking Desk' },
+  jailMaze: { floorA: 0x201c18, floorB: 0x171310, deskColor: 0x5a4a2a, deskLabel: 'Service Corridor' },
+  jailUnderworld: { floorA: 0x1f1418, floorB: 0x160e12, deskColor: 0x6a1f3a, deskLabel: 'Back Room' },
 }
 
+// businessCenter/underworld/governmentBuilding/industrialZone (the 4
+// Phase-2/4 tabbed-modal hub buildings) deliberately have no entry here -
+// like stockExchange/casino/trainStation/temple, triggerInteraction()
+// special-cases their `zone.id` and opens a React modal or bespoke room
+// directly instead of ever routing through buildGenericInteriorZone, so they
+// never need an interior template. trainStation/temple keep a stale-but-dead
+// entry below (pre-existing, unrelated to this pass - interiorTemplateFor()
+// is simply never called with their id).
 const BUILDING_INTERIOR_TEMPLATE = {
-  cryptoExchange: 'cryptoHQ',
-  buffettHQ: 'tycoonOffice',
-  vanderbiltHQ: 'tycoonOffice',
-  muskHQ: 'tycoonOffice',
-  howardMarksHQ: 'tycoonOffice',
-  appleHQ: 'tycoonOffice',
   bank: 'officeA',
   realEstateAgency: 'officeA',
-  corporateOffice: 'officeB',
-  vcHub: 'officeB',
-  speakeasyHotel: 'officeB',
-  irsHQ: 'officeA',
-  fbiHQ: 'officeA',
-  pentagonDodHQ: 'officeA',
-  epaHQ: 'officeA',
-  fordRougeComplex: 'officeB',
-  carnegieSteelMill: 'officeB',
-  standardOilRefinery: 'officeB',
-  teaHouse: 'amenity',
-  machiyaEstate: 'amenity',
-  zenGarden: 'amenity',
-  silkMarket: 'amenity',
-  sakeBrewery: 'amenity',
-  artisanShop: 'amenity',
-  dotonboriArcade: 'amenity',
-  fishMarket: 'amenity',
-  takoyakiStand: 'amenity',
-  dockVaults: 'amenity',
-  sapporoBrewery: 'amenity',
-  alpineLodge: 'amenity',
   trainStation: 'amenity',
-  arcade: 'amenity',
-  hotel: 'amenity',
-  crimeAlley: 'amenity',
-  blackMarket: 'amenity',
-  callCenterOps: 'amenity',
-  parliament: 'amenity',
-  park: 'amenity',
   temple: 'amenity',
+  courtAndPrison: 'holdingCell',
 }
 
-// Explicit id lookup first (the 39 hand-authored entries above); falls back
+// Explicit id lookup first (the 4 hand-authored entries above); falls back
 // to the building's `kind` for the 88 generated home/hideout buildings,
 // which were deliberately never added to BUILDING_INTERIOR_TEMPLATE one by
 // one (see the comment on INTERIOR_TEMPLATES above). "amenity" is the last
@@ -455,6 +773,12 @@ const ZONES = {
   chapelInterior: { cols: CHAPEL_ROOM.cols, rows: CHAPEL_ROOM.rows },
   chapelExterior: { cols: CHAPEL_EXTERIOR_ROOM.cols, rows: CHAPEL_EXTERIOR_ROOM.rows },
   teaHouseInterior: { cols: TEA_HOUSE_ROOM.cols, rows: TEA_HOUSE_ROOM.rows },
+  // Jail mini-map - all 3 reuse the same shared INTERIOR_COLS x INTERIOR_ROWS
+  // room shape every other interior uses (see buildJailCellZone/
+  // buildJailMazeZone/buildJailUnderworldZone below), not a bespoke size.
+  jailCell: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  jailMaze: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  jailUnderworld: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
 }
 
 // ---------------- shared small helpers ----------------
@@ -468,9 +792,12 @@ function buildLayout(tileTypeFn, cols, rows) {
   return layout
 }
 
-// 'path' and 'water' render the same everywhere; 'grass' cells get a
-// per-district ground reskin (Tokyo slate marble, Kyoto cobblestone, everyone
-// else plain grass); border 'wall' cells are the same everywhere too.
+// 'path' and 'water' render the same everywhere; 'grass' cells are now a
+// single uniform ground type map-wide (the old Tokyo-slate/Kyoto-cobblestone
+// row-band reskin is gone along with the district system - and it was
+// already a no-op visually, since GRASS_TYPES in cuteFantasyTerrain.js
+// treats slate/cobblestone/grass as rendering identically); border 'wall'
+// cells are the same everywhere too.
 // Footprint-relative solid tiles for the chapel courtyard drawn on the map.
 // Computed once - it's pure data derived from the authored .tmx.
 const TEMPLE_SOLID_OFFSETS = chapelFacadeSolidOffsets()
@@ -480,22 +807,26 @@ const TEMPLE_SOLID_OFFSETS = chapelFacadeSolidOffsets()
 // below them, which is where the player stands to use them.
 const CHAPEL_DOOR_OFFSET = { col: 14, row: 15, width: 2, height: 2 }
 
-function terrainTileTypeAt(tile, row) {
+function terrainTileTypeAt(tile, _row) {
   if (tile === 'water') return 'water'
   if (tile === 'path') return 'path'
   if (tile === 'wall') return 'wall'
-  
-  if (row >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && row <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) return 'slate'
-  if (row >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && row <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2) return 'cobblestone'
-  
+  // `_row` is unused now that ground type no longer varies by district band
+  // position - kept as a parameter so callers (buildTerrainLayer's
+  // (row, col) => ... callback) don't need to change.
   return 'grass'
 }
 
-// Trees and rocks are solid obstacles (their tile is added to
-// `blockedTiles`, consulted by isBlockedTile below) - flowers stay walkable
-// ground decoration, matching the usual top-down-RPG convention. Previously
-// nothing scattered here was ever registered as blocked, so the player
-// could walk straight through a tree trunk or a boulder.
+// Trees are solid again (their tile - and the canopy tile above it, for the
+// ~2-tile-tall Cute Fantasy oak - go into `blockedTiles`, consulted by
+// isBlockedTile/isSingleTileObstacle below): reported as "the big tree" not
+// blocking the player or NPCs. Rocks/flowers stay walkable ground
+// decoration. Named roamers (the 88 scheduled characters) don't run
+// collision at all any more regardless (see updateNamedRoamers's own house
+// rule on why - a straight-line-walk-vs-buildings problem, not a trees
+// problem) so this only affects the player and ambient/wandering NPCs
+// (wanderActor), both of which already re-roll a new direction on hitting
+// an obstacle rather than fighting it.
 // Scatter ATTEMPTS (not placements - most rolls are rejected for landing on
 // a road, a building's 1-tile margin, or a non-grass type). Scaled off the
 // map area so widening the map doesn't silently thin the vegetation out:
@@ -514,80 +845,37 @@ function scatterEnvironment(scene, layout, buildings, count, zoneObjects, blocke
     const r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6)) // skip water rows at top
     const c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
     // Map overhaul step 3: props go on anything that RENDERS as grass, not
-    // just the literal 'grass' type. The district bands are 'slate'/
-    // 'cobblestone' in the layout but now draw as grass (see
-    // cuteFantasyTerrain's GRASS_TYPES), so restricting to 'grass' left every
-    // district as bare lawn with no vegetation at all.
+    // just the literal 'grass' type (GRASS_TYPES also covers the now-unused
+    // 'slate'/'cobblestone' values in case any old save/layout data still
+    // has them - see cuteFantasyTerrain's GRASS_TYPES).
     if (!GRASS_TYPES.has(layout[r][c]) || forbidden.has(`${r},${c}`)) continue
     const cx = c * TILE_SIZE + TILE_SIZE / 2
     const cy = r * TILE_SIZE + TILE_SIZE / 2
     let objs
-    let solid = false
     let isTree = false
-    const isUrban = (r >= DISTRICT_BAND_ROWS['Tokyo District'].top - 2 && r <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 2) || (r >= DISTRICT_BAND_ROWS['Osaka District'].top - 2 && r <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 2)
-    const isJRPG = (r >= DISTRICT_BAND_ROWS['Kyoto District'].top - 2 && r <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 2)
-
-    // Rebalanced with the grass ground: previously the urban bands dropped
-    // 75% of attempts and then only ever placed rocks, and Kyoto placed no
-    // trees at all. That was tuned for the old dark marble/cobblestone
-    // ground - on grass it just read as empty lawn. Every band now grows
-    // trees; the districts keep their character through the MIX, not through
-    // having no vegetation.
-    if (isUrban) {
-      const roll = Math.random()
-      if (roll < 0.55) {
-        objs = placeTree(scene, cx, cy)
-        solid = true
-        isTree = true
-      } else if (roll < 0.72) {
-        objs = placeRock(scene, cx, cy)
-        solid = true
-      } else {
-        objs = placeFlower(scene, cx, cy)
-      }
-    } else if (isJRPG) {
-      // Kyoto: cherry blossom still dominant, but with real trees among it.
-      const roll = Math.random()
-      if (roll < 0.35) {
-        objs = placeFlower(scene, cx, cy)
-      } else if (roll < 0.85) {
-        objs = placeTree(scene, cx, cy)
-        solid = true
-        isTree = true
-      } else {
-        objs = placeRock(scene, cx, cy)
-        solid = true
-      }
-    } else {
-      const roll = Math.random()
-      if (roll < 0.45) {
-        objs = placeTree(scene, cx, cy)
-        solid = true
-        isTree = true
-      } else if (roll < 0.85) {
-        objs = placeFlower(scene, cx, cy)
-      } else {
-        objs = placeRock(scene, cx, cy)
-        solid = true
-      }
-    }
+    // Map flattening: one blended vegetation mix for the whole map instead
+    // of 3 district-position-dependent profiles (formerly "urban" ~55%
+    // tree/17% rock/28% flower over Tokyo+Osaka, "JRPG" ~50% tree/15% rock/
+    // 35% flower over Kyoto, and a third default elsewhere). Picked roughly
+    // between those three rather than a straight average, per the map-
+    // flattening brief.
+    const roll = Math.random()
+    if (roll < 0.48) { objs = placeTree(scene, cx, cy); isTree = true }
+    else if (roll < 0.75) objs = placeFlower(scene, cx, cy)
+    else objs = placeRock(scene, cx, cy)
     if (objs) {
       zoneObjects.push(...objs)
-      if (solid && blockedTiles) {
+      if (isTree && blockedTiles) {
         blockedTiles.add(`${r},${c}`)
-        // A Cute Fantasy oak is ~2 tiles tall: the trunk sits on (r,c) and
-        // the canopy rises into the tile ABOVE it. Blocking only the trunk
-        // let people stand inside the leaves, which read as walking through
-        // the tree. Rocks/flowers are one tile and keep the old behaviour.
-        //
-        // The canopy tile is only blocked if it is ordinary ground. Trees
-        // themselves only land on grass, but the tile ABOVE one can be a
-        // ROAD - and since vehicles are now road-locked, blocking it would
-        // sever the road network and strand cars with no visible cause. The
-        // spawn tile is excluded for the same class of reason.
+        // The Cute Fantasy oak's trunk sits on (r,c) and the canopy rises
+        // into the tile ABOVE it - blocking only the trunk let people stand
+        // inside the leaves, which read as walking through the tree. Only
+        // block the canopy tile if it's ordinary ground: it can be a ROAD
+        // (vehicles are road-locked, blocking it would sever the network
+        // with no visible cause) or the player's own spawn tile.
         const canopyType = r > 0 ? layout[r - 1][c] : null
         const canopyIsSpawn = r - 1 === DEFAULT_SPAWN.row && c === DEFAULT_SPAWN.col
-        if (isTree && r > 0 && GRASS_TYPES.has(canopyType) && !canopyIsSpawn) {
+        if (r > 0 && GRASS_TYPES.has(canopyType) && !canopyIsSpawn) {
           blockedTiles.add(`${r - 1},${c}`)
         }
       }
@@ -603,13 +891,13 @@ function scatterTrees(scene, layout, buildings, count, zoneObjects) {
 // Animated-door scope: ONLY buildings whose facade resolved to a Serene
 // Village cottage prefab (buildingDoorAnimSpec returns non-null exclusively
 // for that family - see tileGen.js) get an overlay sprite here. That's
-// roughly a quarter of the "everyone else" wealth tier's homes (see
-// brickOrPico8HomeKit), not all 129 buildings - deliberately scoped so the
-// animation reads as "this recognizable house style has a working door"
-// rather than a uniform tic applied to every building indiscriminately
-// (district civic buildings, hideouts, and the other two home facade
-// families all keep their door as a static painted-on frame, same as
-// before this change).
+// roughly 3/5ths of the "everyone else" wealth tier's homes (see
+// residentialHomeKit's sereneRed/sereneGreen/sereneBlue styles), not all 98
+// buildings - deliberately scoped so the animation reads as "this
+// recognizable house style has a working door" rather than a uniform tic
+// applied to every building indiscriminately (district civic buildings,
+// hideouts, and the other home facade families all keep their door as a
+// static painted-on frame, same as before this change).
 function drawBuildings(scene, buildings, zoneObjects) {
   for (const b of buildings) {
     const x = b.tiles.c0 * TILE_SIZE
@@ -617,11 +905,18 @@ function drawBuildings(scene, buildings, zoneObjects) {
     const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
     zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color, b))
-    const label = scene.add
-      .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
-      .setOrigin(0.5, 1)
-      .setDepth(y + h + 10)
-    zoneObjects.push(label)
+    // Map overhaul Phase 3: no name label above residential buildings
+    // (homes/hideouts, i.e. anything with a truthy `kind`) - with 88 of them
+    // now clustered into dense same-style blocks, a label over every single
+    // one was visual noise nobody could read anyway. Hub/civic buildings
+    // (the 10 hand-authored defs, none of which set `kind`) keep theirs.
+    if (!b.kind) {
+      const label = scene.add
+        .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
+        .setOrigin(0.5, 1)
+        .setDepth(y + h + 10)
+      zoneObjects.push(label)
+    }
 
     const doorSpec = buildingDoorAnimSpec(b, x, y, w, h)
     if (doorSpec && scene.textures.exists(SERENE_VILLAGE_DOOR_KEY)) {
@@ -647,30 +942,13 @@ function drawBuildings(scene, buildings, zoneObjects) {
 // adapter - so a character's on-map position and their modal's location text
 // can never disagree (see updateNamedRoamers/refreshPresenceCache below).
 // agentMovementEngine.js's TITAN_ROUTINES is no longer a position source
-// (see that file's own header comment); homeDistrictFor below still reads it
-// purely for home-city grouping. The "thought" strings ambient (non-named)
-// wander NPCs use are still derived from each character's real roster data
-// (platform, policy bias, syndicate territory, perk, archetype) rather than
-// a generic shared string.
-
-const CITY_TO_DISTRICT = {
-  tokyo: 'Tokyo District',
-  kyoto: 'Kyoto District',
-  osaka: 'Osaka District',
-  sapporo: 'Sapporo District',
-}
-
-function homeDistrictFor(character) {
-  const routine = TITAN_ROUTINES[character.id]
-  if (routine) return CITY_TO_DISTRICT[routine.homeCity] || 'Tokyo District'
-  const cat = character.category || ''
-  if (cat.startsWith('Crime') || cat === 'FBI Leader') return 'Osaka District'
-  if (cat === 'IRS Leader' || cat === 'FTC Chairman') return 'Kyoto District'
-  if (cat === 'DOD Leader' || cat === 'EPA Leader') return 'Sapporo District'
-  // Presidents (Parliament Hall), Fed chairmen (Bank), SEC leaders (Stock
-  // Exchange), and remaining titans all live around Tokyo's civic core.
-  return 'Tokyo District'
-}
+// (see that file's own header comment). The "thought" strings ambient
+// (non-named) wander NPCs use are still derived from each character's real
+// roster data (platform, policy bias, syndicate territory, perk, archetype)
+// rather than a generic shared string.
+// (Map flattening: homeDistrictFor()/CITY_TO_DISTRICT, which used to tag
+// each named roamer with a home-district string purely for grouping, are
+// gone - nothing ever read roamer.district back out.)
 
 // House rule: worldPresenceEngine.js only advances what block a character is
 // in when worldClock.timeBlockIndex itself advances (End Day presses) - see
@@ -694,11 +972,25 @@ function nextTimeBlock(day, timeBlockIndex) {
   return { day: nextDay, timeBlockIndex: idx }
 }
 
-// How many agentClock units (see updateNamedRoamers - agentClock advances by
-// delta/4000 each frame) one one-way glide between two doors takes. 5 units
-// is the same pace the old TITAN_ROUTINES lerp used between schedule steps
-// (~20 real seconds), kept for continuity of feel.
-const PRESENCE_STEP_PERIOD = 5
+// Named-roamer movement speed in px/s - the SAME constant speed for every
+// roamer, walking or driving (see the seekTo()/travelPhase state machine in
+// updateNamedRoamers). An earlier design tried to fit each journey into a
+// precomputed time period (so two stops in the same block would always be
+// reached "on schedule") using a continuous back-and-forth triangle wave;
+// that kept producing distinct bugs - a unit-conversion error that silently
+// doubled real speed, an asymmetric clamp that froze the return leg then
+// snapped to catch up, and (structurally) any two roamers with
+// differently-far-apart stops reading as different speeds even when the
+// math was correct. Simpler and more robust: nobody arrives "on schedule",
+// everybody just walks/drives there at one constant, believable pace and
+// waits once they arrive. 70px/s (1.75 tiles/s) was the original target and
+// is mathematically exact (verified: seekTo bounds every step to
+// speed*delta with no possible overshoot) - but repeated human feedback
+// said it still reads as too fast on screen. Cut to 30px/s (0.75 tiles/s),
+// close to wanderActor's existing 20px/s ambient-NPC pace elsewhere in this
+// file - a purposeful walk should be a little brisker than aimless
+// wandering, not much more.
+const NAMED_ROAMER_WALK_SPEED_PX_PER_SEC = 30
 // How often (ms) the presence cache is force-refreshed even without a block
 // change, so a mid-block wantedLevel swing (police chase heat) is reflected
 // within a few seconds instead of only at the next End Day.
@@ -714,18 +1006,9 @@ function presencePhaseOffset(characterId) {
   return (h % 997) / 997
 }
 
-// Continuous 0->1->0 triangle wave (never jumps/snaps at the loop point) -
-// the "stepProgress" a character's sprite lerps between its current-block
-// and next-block door positions with.
-function presenceStepProgress(agentClock, phaseOffset) {
-  const x = agentClock / PRESENCE_STEP_PERIOD + phaseOffset
-  const frac = x - Math.floor(x)
-  return frac < 0.5 ? frac * 2 : (1 - frac) * 2
-}
-
-// House rule: the lerp above has nothing to interpolate between when a
+// House rule: the "not traveling" branch has nowhere to walk when a
 // roamer's current-block and next-block buildingId are the SAME building
-// (doorA === doorB in updateNamedRoamers) - measured as the common case by
+// (updateNamedRoamers) - measured as the common case by
 // design (~49% of all character-instants frozen at any moment, up to ~79%
 // for recluse tier, since staying put across consecutive blocks is normal
 // behavior, not a glitch). Without something layered on top, that's a
@@ -741,8 +1024,8 @@ function presenceStepProgress(agentClock, phaseOffset) {
 // guards this position exactly like every other one. It's cosmetic,
 // scene-layer motion only, applied after worldPresenceEngine.js has already
 // resolved the real buildingId for this frame - worldPresenceEngine.js
-// itself is untouched and stays pure, same as agentClock/presenceStepProgress
-// never feeding anything back into it. Two sin/cos terms at different,
+// itself is untouched and stays pure, same as agentClock never feeding
+// anything back into it. Two sin/cos terms at different,
 // golden-ratio-scaled (so never in sync) periods trace a wandering Lissajous
 // loop instead of a straight back-and-forth line, so the two axes are
 // (short of a measure-zero instant) never simultaneously motionless -
@@ -765,8 +1048,8 @@ function idleDriftHash(seed) {
 
 const GOLDEN_RATIO = 1.6180339887498949
 // agentClock units (see updateNamedRoamers - advances delta/4000 per frame,
-// i.e. 1 unit = 4 real seconds, same units PRESENCE_STEP_PERIOD uses) for one
-// full idle-drift loop on each axis - a handful of real seconds, so the mill
+// i.e. 1 unit = 4 real seconds) for one full idle-drift loop on each axis -
+// a handful of real seconds, so the mill
 // reads as idle fidgeting rather than vibrating (too fast) or standing still
 // (too slow). The Y period is the X period scaled by the golden ratio so the
 // two never share a beat.
@@ -781,14 +1064,290 @@ const IDLE_DRIFT_RADIUS_BY_TIER = {
   socialite: 16,
 }
 
-function idleDriftOffset(characterId, agentClock, tier) {
-  const radius = IDLE_DRIFT_RADIUS_BY_TIER[tier] ?? IDLE_DRIFT_RADIUS_BY_TIER.regular
+// Two independent people's mill-in-place loops can happen to be at
+// near-cancelling phases at any given instant (their phaseX/phaseY hashes
+// are effectively uncorrelated) - harmless when a solo character has the
+// whole door to themselves, but once the arc-slot fix above can seat two
+// roamers only ~35-40px apart at rest, a socialite-tier pair (16px radius
+// each) swinging toward each other can transiently close that gap to a
+// handful of px, i.e. exactly the "stacking" look this whole fix targets,
+// just intermittent instead of permanent. Capping the mill radius whenever a
+// roamer is sharing their current building with anyone else (see `crowded`
+// on the slot assigned by assignDoorSlots) keeps their arc-slot spacing the
+// dominant term; CROWD_DRIFT_RADIUS_CAP is small but non-zero so the
+// existing "never simultaneously motionless on both axes" property (which
+// the walk-cycle/facing logic in updateNamedRoamers depends on) still holds
+// for crowded roamers too.
+const CROWD_DRIFT_RADIUS_CAP = 4
+
+function idleDriftOffset(characterId, agentClock, tier, crowded) {
+  let radius = IDLE_DRIFT_RADIUS_BY_TIER[tier] ?? IDLE_DRIFT_RADIUS_BY_TIER.regular
+  if (crowded) radius = Math.min(radius, CROWD_DRIFT_RADIUS_CAP)
   const phaseX = ((idleDriftHash(`${characterId}:driftX`) % 1000) / 1000) * Math.PI * 2
   const phaseY = ((idleDriftHash(`${characterId}:driftY`) % 1000) / 1000) * Math.PI * 2
   const x = Math.sin((agentClock / IDLE_DRIFT_PERIOD_X) * Math.PI * 2 + phaseX) * radius
   const y = Math.cos((agentClock / IDLE_DRIFT_PERIOD_Y) * Math.PI * 2 + phaseY) * radius
   return { x, y }
 }
+
+// Group-aware "door slot" layout. An earlier version of this fix gave every
+// character ONE fixed slot out of a 6-slot ring, hashed from characterId
+// alone - with only 10 shared (non-home) buildings and 76+ characters,
+// simulating worldPresenceEngine.js's actual output showed real convergence
+// groups up to ~24 roamers at a single building at once (underworld and
+// businessCenter are the worst offenders, since many characters list them as
+// a work building - see characterDispositions.js's WORK_BUILDING_OVERRIDES).
+// A 6-slot ring keyed only by character id can't hold that many distinct
+// positions (pigeonhole guarantees overlaps once a group exceeds 6), and
+// worse, being keyed only by character id meant two characters who happened
+// to hash to the same slot stacked at EVERY building they ever shared, not
+// just an unlucky one-off.
+//
+// This replaces that with a per-(building, time-block) arrangement: whoever
+// is actually resolved to the same buildingId in one refreshPresenceCache()
+// pass (see assignDoorSlots below, called from there) gets a distinct ring
+// slot, assigned in order of a stable per-character hash so the same group
+// of people always produces the same arrangement (no per-frame jitter, and
+// re-running the same day/time-block/seed reproduces the same layout).
+//
+// Rings fan out strictly to the south (positive y / toward the viewer) of
+// the door pixel - the door itself already sits just past the building's
+// south edge (see buildingDoorPixel) - rather than a full circle, so a large
+// group never gets a slot that pushes it back north into the building's own
+// footprint. Ring 0 is the bare door pixel (offset {0,0}), so the extremely
+// common case of "exactly one person at this building" (every home building,
+// always) is pixel-identical to pre-fix behavior.
+//
+// Radii were tuned against a live screenshot check, not just sprite width:
+// an initial pass sized purely off the ~48px sprite frame (chords ~27-34px)
+// kept sprites themselves from overlapping but full name-tag TEXT ("Cornelius
+// Vanderbilt" at the 9px monospace font used for labels, ~100px+ wide) still
+// visibly collided once a dozen-plus roamers converged, which is the exact
+// "unreadable garbage text" bug this whole fix targets - sprites not
+// overlapping isn't the same bar as labels not overlapping. These wider
+// radii (chords ~35-49px) meaningfully cut that down for the common
+// convergence sizes (simulateWorldPresence shows most real convergences are
+// well under 10 - see the worker's histogram notes) without pretending
+// perfect never-overlap is achievable for the rare (~24-person) tail: fully
+// eliminating text overlap at that count would need a footprint wide enough
+// to start reading as "scattered across the block" rather than "a crowd at
+// the door", or shortening/hiding labels outright, either of which is a
+// bigger behavior change than this fix's brief (spatial positioning only).
+// Max radius (150) stays under half the map's tightest real door-to-door
+// spacing (320px, casino<->foodCourt/realEstateAgency) so even a maxed-out
+// crowd never visually reads as bleeding into a neighboring building's own
+// crowd.
+const ARC_RINGS = [
+  { radius: 0, capacity: 1 },
+  { radius: 40, capacity: 3 },
+  { radius: 80, capacity: 6 },
+  { radius: 120, capacity: 9 },
+  { radius: 150, capacity: 12 },
+]
+const ARC_MAX_ANGLE = (75 * Math.PI) / 180 // half-spread either side of due south
+
+// Name-tag labels float at a fixed y-26 above their sprite (see
+// updateNamedRoamers). At radius 0 (the solo case) that's unchanged from
+// pre-fix behavior; every other slot nudges its label up/down a little more
+// by ring, purely so two roamers whose ARC positions happen to put them at a
+// similar x don't also share the exact same label baseline - it staggers
+// overlapping text onto different rows instead of directly on top of each
+// other, which reads far better even when the text still overlaps some.
+const ARC_RING_LABEL_DY = [26, 20, 32, 16, 38]
+
+function arcSlotOffset(index) {
+  let remaining = index
+  for (let ringIndex = 0; ringIndex < ARC_RINGS.length; ringIndex++) {
+    const ring = ARC_RINGS[ringIndex]
+    if (remaining < ring.capacity) {
+      if (ring.radius === 0) return { x: 0, y: 0, labelDy: ARC_RING_LABEL_DY[0] }
+      const t = ring.capacity === 1 ? 0 : remaining / (ring.capacity - 1) // 0..1 across the arc
+      const angle = -ARC_MAX_ANGLE + t * (ARC_MAX_ANGLE * 2)
+      return {
+        x: Math.sin(angle) * ring.radius,
+        y: Math.cos(angle) * ring.radius,
+        labelDy: ARC_RING_LABEL_DY[ringIndex] ?? 26,
+      }
+    }
+    remaining -= ring.capacity
+  }
+  // Beyond the last authored ring (>31 at one door - never observed in
+  // simulation, see above, but kept safe rather than reusing a slot):
+  // keep growing radius in the same 12-wide bands instead of crashing or
+  // collapsing back onto an existing slot.
+  const OVERFLOW_BAND = 14
+  const band = Math.floor(remaining / OVERFLOW_BAND)
+  const posInBand = remaining % OVERFLOW_BAND
+  const radius = 150 + 30 * (band + 1)
+  const t = posInBand / (OVERFLOW_BAND - 1)
+  const angle = -ARC_MAX_ANGLE + t * (ARC_MAX_ANGLE * 2)
+  return { x: Math.sin(angle) * radius, y: Math.cos(angle) * radius, labelDy: 26 + (band % 2) * 12 }
+}
+
+// Assigns one arcSlotOffset to every entry in a single presence snapshot
+// (either "everyone's current-block building" or "everyone's next-block
+// building" - see refreshPresenceCache, which calls this twice per resolve).
+// `entries` is [{characterId, buildingId}, ...] for every named roamer.
+// Grouping + sorting happens fresh each call rather than being cached
+// per-character, so it naturally reflects exactly who is at a building
+// THIS resolve - no stale slot claims from a previous block carry over.
+function assignDoorSlots(entries) {
+  const byBuilding = new Map()
+  for (const entry of entries) {
+    if (!byBuilding.has(entry.buildingId)) byBuilding.set(entry.buildingId, [])
+    byBuilding.get(entry.buildingId).push(entry.characterId)
+  }
+  const slotByCharacterId = new Map()
+  for (const ids of byBuilding.values()) {
+    // Stable order derived from each id's own hash (not alphabetical - that
+    // would visually cluster people whose names/ids happen to sort near
+    // each other) so the same group of people always fans out the same way.
+    ids.sort((a, b) => idleDriftHash(`${a}:doorSlotOrder`) - idleDriftHash(`${b}:doorSlotOrder`))
+    const crowded = ids.length > 1
+    ids.forEach((id, index) => slotByCharacterId.set(id, { ...arcSlotOffset(index), crowded }))
+  }
+  return slotByCharacterId
+}
+
+// ---------------------------------------------------------------------------
+// Local pacing/loitering for roamers who have already arrived at their
+// resolved building and have nothing to do for the rest of the block (the
+// !traveling branch of updateNamedRoamers below). idleDriftOffset above
+// already gives every such roamer a small mill-in-place fidget; this layers
+// a second, occasional behavior on top for a SUBSET of them: walk out to a
+// short, nearby point, linger, walk back, repeat - real point-to-point
+// locomotion via the same seekTo() step-and-arrive mechanic
+// updateNamedRoamers already uses for door-to-door travel, just with a
+// short local round trip instead of a different building's door.
+//
+// Determinism convention (matches idleDriftHash/presencePhaseOffset above
+// and worldPresenceEngine.js's own house rule): every parameter - whether a
+// character paces at all, which direction, how far, how long they rest
+// between walks - is derived once from a hash of the character's id, never
+// Math.random(). The one thing that ISN'T hash-seeded is the real-time
+// countdown driving state transitions (paceTimer counts down by the actual
+// frame delta) - exactly like idleDriftOffset's own agentClock dependency
+// above, this makes a given character's pacing PERSONALITY reproducible
+// (same odds, distance, cadence every time) without pretending the literal
+// wall-clock moment they start walking is meaningful to reproduce too.
+function paceHash01(characterId, salt) {
+  return (idleDriftHash(`${characterId}:${salt}`) % 1000) / 1000
+}
+
+// Only a minority of roamers pace at all - the brief asked for "a reasonable
+// subset", not everyone, so most of the crowd still reads as settled.
+// Weighted by the same personality tiers idleDriftOffset uses: recluses and
+// fugitives overwhelmingly stay put, socialites/regulars are the ones who
+// plausibly step out and circulate.
+const PACE_ELIGIBILITY_BY_TIER = {
+  recluse: 0.05,
+  fugitive: 0.08,
+  homebody: 0.16,
+  regular: 0.28,
+  socialite: 0.42,
+}
+
+const PACE_DISTANCE_MIN = 55 // px - short enough to stay "in front of the building"
+const PACE_DISTANCE_MAX = 120 // px - stays well under the ~320px min door-to-door gap
+const PACE_REST_MS_MIN = 5000 // how long they mill at the door before walking out
+const PACE_REST_MS_MAX = 11000
+const PACE_LINGER_MS_MIN = 1800 // how long they pause at the far point before returning
+const PACE_LINGER_MS_MAX = 4000
+
+// One-time, per-character pacing "personality" - cached on the roamer the
+// first time it's needed (see updateNamedRoamers). Direction is constrained
+// to the same south-facing cone assignDoorSlots' arc rings fan into (the
+// door already sits just past the building's south edge), so a pacing walk
+// naturally reads as "stepping out front", never back through the building.
+function paceProfileFor(characterId, tier) {
+  const threshold = PACE_ELIGIBILITY_BY_TIER[tier] ?? PACE_ELIGIBILITY_BY_TIER.regular
+  const eligible = paceHash01(characterId, 'paceEligible') < threshold
+  const angle = -ARC_MAX_ANGLE + paceHash01(characterId, 'paceAngle') * (ARC_MAX_ANGLE * 2)
+  const distance = PACE_DISTANCE_MIN + paceHash01(characterId, 'paceDistance') * (PACE_DISTANCE_MAX - PACE_DISTANCE_MIN)
+  const restMs = PACE_REST_MS_MIN + paceHash01(characterId, 'paceRestMs') * (PACE_REST_MS_MAX - PACE_REST_MS_MIN)
+  const lingerMs = PACE_LINGER_MS_MIN + paceHash01(characterId, 'paceLingerMs') * (PACE_LINGER_MS_MAX - PACE_LINGER_MS_MIN)
+  return { eligible, angle, distance, restMs, lingerMs }
+}
+
+// Picks a walkable local pacing destination near `restPos` (the roamer's
+// door+slot position), trying the profile's own angle/distance first and
+// then a couple of shorter fallbacks if that lands inside a building
+// footprint, on a blocked/water tile, or on a tile another creature already
+// occupies (isOccupiedByCreature - the same collision check driving-mode
+// already uses elsewhere in this file). Returns null (stay milling instead)
+// if every attempt is blocked, rather than ever forcing an overlapping or
+// inside-a-wall destination.
+function computePaceTarget(scene, restPos, profile) {
+  const attempts = [1, 0.65, 0.4]
+  for (const scale of attempts) {
+    const dist = profile.distance * scale
+    const tx = restPos.x + Math.sin(profile.angle) * dist
+    const ty = restPos.y + Math.cos(profile.angle) * dist
+    const col = Math.floor(tx / TILE_SIZE)
+    const row = Math.floor(ty / TILE_SIZE)
+    const insideBuilding = FINANCE_BUILDINGS.some(
+      (b) => col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1
+    )
+    if (insideBuilding) continue
+    if (scene.isSingleTileObstacle(col, row)) continue
+    if (scene.isOccupiedByCreature(col, row)) continue
+    return { x: tx, y: ty }
+  }
+  return null
+}
+
+const PACE_PHASE_OUT = 'out'
+const PACE_PHASE_LINGER = 'linger'
+const PACE_PHASE_BACK = 'back'
+
+// Advances one roamer's pacing state machine by `delta` ms and returns the
+// seek target for THIS frame (or null if they should just mill in place via
+// idleDriftOffset, same as before this feature existed). Pure state-machine
+// step - all actual movement still goes through updateNamedRoamers' own
+// seekTo(), so pacing gets the exact same constant walk speed, arrival
+// tolerance, and (via the caller adding it to the moving/facing logic
+// downstream) walk-cycle/facing behavior as any other roamer movement.
+function advanceRoamerPacing(scene, roamer, restPos, delta) {
+  const profile = roamer.paceProfile
+  if (!profile || !profile.eligible) return null
+
+  if (!roamer.paceState) {
+    if (roamer.paceTimer == null) roamer.paceTimer = profile.restMs
+    roamer.paceTimer -= delta
+    if (roamer.paceTimer <= 0) {
+      const target = computePaceTarget(scene, restPos, profile)
+      if (target) roamer.paceState = { phase: PACE_PHASE_OUT, target }
+      else roamer.paceTimer = profile.restMs // no safe spot this cycle - try again next
+    }
+    return null // still milling
+  }
+
+  const arriveTolerance = NAMED_ROAMER_WALK_SPEED_PX_PER_SEC * (delta / 1000) + 1
+
+  if (roamer.paceState.phase === PACE_PHASE_OUT) {
+    const dist = Math.hypot(roamer.actor.x - roamer.paceState.target.x, roamer.actor.y - roamer.paceState.target.y)
+    if (dist <= arriveTolerance) {
+      roamer.paceState = { phase: PACE_PHASE_LINGER, target: roamer.paceState.target, timer: profile.lingerMs }
+    }
+    return roamer.paceState.target
+  }
+
+  if (roamer.paceState.phase === PACE_PHASE_LINGER) {
+    roamer.paceState.timer -= delta
+    if (roamer.paceState.timer <= 0) roamer.paceState = { phase: PACE_PHASE_BACK, target: restPos }
+    return roamer.paceState.target
+  }
+
+  // PACE_PHASE_BACK
+  const dist = Math.hypot(roamer.actor.x - restPos.x, roamer.actor.y - restPos.y)
+  if (dist <= arriveTolerance) {
+    roamer.paceState = null
+    roamer.paceTimer = profile.restMs // rest at the door before the next round trip
+    return null // resume milling this same frame
+  }
+  return restPos
+}
+// ---------------------------------------------------------------------------
 
 function agentAmbientActions(c) {
   const acts = []
@@ -1008,8 +1567,13 @@ export default class OverworldScene extends Phaser.Scene {
     // as ensurePico8CarFrames above.
     ensureSereneVillageDoorAnims(this)
 
+    // Fixed-camera "Press E to..." prompt, centered near the bottom of the
+    // viewport. Was hardcoded to (320, 460) - correct only for the old
+    // 800x500 logical resolution (canvas widened to 1200x600 in
+    // GameCanvas.jsx); this.scale.width/height keeps it centered/anchored
+    // near the bottom regardless of the canvas's configured resolution.
     this.promptText = this.add
-      .text(320, 460, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffe066' })
+      .text(this.scale.width / 2, this.scale.height - 40, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffe066' })
       .setScrollFactor(0)
       .setOrigin(0.5)
       .setDepth(2000)
@@ -1067,6 +1631,9 @@ export default class OverworldScene extends Phaser.Scene {
     else if (zoneId === 'chapelInterior') this.buildChapelInteriorZone()
     else if (zoneId === 'chapelExterior') this.buildChapelExteriorZone()
     else if (zoneId === 'teaHouseInterior') this.buildTeaHouseInteriorZone()
+    else if (zoneId === 'jailCell') this.buildJailCellZone()
+    else if (zoneId === 'jailMaze') this.buildJailMazeZone()
+    else if (zoneId === 'jailUnderworld') this.buildJailUnderworldZone()
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
     const zone = ZONES[zoneId]
@@ -1094,29 +1661,23 @@ export default class OverworldScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.playerActor.sprite, true)
   }
 
-  teleportToCity(cityId) {
-    const districtMap = {
-      'tokyo': 'Tokyo District',
-      'kyoto': 'Kyoto District',
-      'osaka': 'Osaka District',
-      'sapporo': 'Sapporo District'
-    }
-    const districtName = districtMap[cityId] || 'Tokyo District'
-    
-    // Find a building in that district to spawn near (preferably train station)
-    let target = FINANCE_BUILDINGS.find(b => b.district === districtName && b.id === 'trainStation')
-    if (!target) {
-        target = FINANCE_BUILDINGS.find(b => b.district === districtName)
-    }
-    
+  // Map flattening: there's only one city now, so `cityId` is accepted but
+  // ignored - this just teleports the player to the (single) train station.
+  // Kept rather than deleted because GameCanvas.jsx still wires a 'cityTravel'
+  // bridge event to this method; TownTravelUI.jsx's city-picker (its only
+  // caller) is removed in this same pass, so in practice nothing invokes
+  // this any more, but leaving a working no-op-ish stub is safer than a
+  // dangling method other code still references.
+  teleportToCity(_cityId) {
+    const target = FINANCE_BUILDINGS.find(b => b.id === 'trainStation')
     if (target) {
-        this.overworldReturnSpawn = {
-            col: Math.round((target.tiles.c0 + target.tiles.c1) / 2),
-            row: target.tiles.r1 + 1,
-        }
-        if (this.currentZoneId === 'overworld') {
-            this.tileMover.teleport(this.overworldReturnSpawn.col, this.overworldReturnSpawn.row)
-        }
+      this.overworldReturnSpawn = {
+        col: Math.round((target.tiles.c0 + target.tiles.c1) / 2),
+        row: target.tiles.r1 + 1,
+      }
+      if (this.currentZoneId === 'overworld') {
+        this.tileMover.teleport(this.overworldReturnSpawn.col, this.overworldReturnSpawn.row)
+      }
     }
   }
 
@@ -1159,15 +1720,13 @@ export default class OverworldScene extends Phaser.Scene {
   buildOverworldZone() {
     this.financeLayout = buildLayout(financeTileType, MAP_COLS, MAP_ROWS)
 
-    const currentCityId = useGameStore.getState().currentCityId || 'tokyo'
-
-    // Procedural terrain layer - one Graphics pass, per-city ground reskin.
+    // Procedural terrain layer - one Graphics pass, uniform ground everywhere
+    // (see terrainTileTypeAt - the old per-district ground reskin is gone).
     const terrainLayer = buildTerrainLayer(this, MAP_COLS, MAP_ROWS, TILE_SIZE, (row, col) =>
       terrainTileTypeAt(this.financeLayout[row][col], row)
     )
     this.zoneObjects.push(terrainLayer)
 
-    // City-specific environment scatter
     this.blockedEnvironmentTiles = new Set()
     scatterEnvironment(this, this.financeLayout, FINANCE_BUILDINGS, ENVIRONMENT_SCATTER_ATTEMPTS, this.zoneObjects, this.blockedEnvironmentTiles)
 
@@ -1181,9 +1740,6 @@ export default class OverworldScene extends Phaser.Scene {
     this.spawnWealthyPetPens()
     this.spawnHabitatAnimals()
 
-    // City-specific landmark buildings overlay (now District-specific)
-    this.drawCityLandmarkOverlay()
-
     this.spawnNamedRoamers()
     this.spawnFinanceAmbientNpcs()
     // Building interaction zones (this.zones) have to exist BEFORE vehicles
@@ -1195,67 +1751,6 @@ export default class OverworldScene extends Phaser.Scene {
     this.spawnWorldVehicles()
 
     this.regionLabel.setText('Capital Syndicate Mega-Map')
-  }
-
-  drawCityLandmarkOverlay() {
-    const overlayGraphics = this.add.graphics().setDepth(2000)
-    this.zoneObjects.push(overlayGraphics)
-
-    // Tokyo District: amber-gold border accent
-    const tokyoBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Tokyo District')
-    for (let i = 0; i < Math.min(3, tokyoBuildings.length); i++) {
-      const b = tokyoBuildings[i]
-      const x = b.tiles.c0 * TILE_SIZE
-      const y = b.tiles.r0 * TILE_SIZE
-      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-      overlayGraphics.lineStyle(3, 0xf59e0b, 0.9)
-      overlayGraphics.strokeRect(x, y, w, h)
-      overlayGraphics.fillStyle(0xf59e0b, 0.3)
-      overlayGraphics.fillRect(x, y - 4, w, 4)
-    }
-
-    // Kyoto District: red torii-gate accent
-    const kyotoBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Kyoto District')
-    for (let i = 0; i < Math.min(3, kyotoBuildings.length); i++) {
-      const b = kyotoBuildings[i]
-      const x = b.tiles.c0 * TILE_SIZE
-      const y = b.tiles.r0 * TILE_SIZE
-      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-      overlayGraphics.fillStyle(0xdc2626, 0.85)
-      overlayGraphics.fillRect(x - 4, y - 10, w + 8, 6)
-      overlayGraphics.fillStyle(0xfbbf24, 1)
-      overlayGraphics.fillRect(x + w / 2 - 2, y - 14, 4, 4)
-    }
-
-    // Osaka District: cyan/neon magenta border accents
-    const osakaBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Osaka District')
-    for (let i = 0; i < Math.min(3, osakaBuildings.length); i++) {
-      const b = osakaBuildings[i]
-      const x = b.tiles.c0 * TILE_SIZE
-      const y = b.tiles.r0 * TILE_SIZE
-      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-      overlayGraphics.lineStyle(3, 0x06b6d4, 0.9)
-      overlayGraphics.strokeRect(x, y, w, h)
-      overlayGraphics.fillStyle(0xec4899, 0.7)
-      overlayGraphics.fillRect(x + 4, y - 6, w - 8, 4)
-    }
-
-    // Sapporo District: ice-blue border accents & snow caps
-    const sapporoBuildings = FINANCE_BUILDINGS.filter(b => b.district === 'Sapporo District')
-    for (let i = 0; i < Math.min(3, sapporoBuildings.length); i++) {
-      const b = sapporoBuildings[i]
-      const x = b.tiles.c0 * TILE_SIZE
-      const y = b.tiles.r0 * TILE_SIZE
-      const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
-      const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
-      overlayGraphics.lineStyle(3, 0x38bdf8, 0.9)
-      overlayGraphics.strokeRect(x, y, w, h)
-      overlayGraphics.fillStyle(0xe0f2fe, 0.9)
-      overlayGraphics.fillRect(x - 2, y - 6, w + 4, 5)
-    }
   }
 
   buildStockExchangeInteriorZone() {
@@ -1335,6 +1830,101 @@ export default class OverworldScene extends Phaser.Scene {
     ]
   }
 
+  // Jail mini-map (bespoke, not buildGenericInteriorZone, since this room
+  // needs two distinct interactables rather than one desk + one plain exit -
+  // see useGameStore.js's attemptJailBribe/attemptMazeSegment for the
+  // mechanics these interactables trigger). Entered via the 'enterJail'
+  // bridge event (GameCanvas.jsx) on arrest, not by walking through
+  // triggerInteraction, so the overworld return spawn is computed here
+  // rather than at the usual triggerInteraction call site (mirrors the
+  // stockExchange/casino pattern above, just relocated).
+  buildJailCellZone() {
+    const building = FINANCE_BUILDINGS.find((b) => b.id === 'courtAndPrison')
+    if (building) {
+      this.overworldReturnSpawn = {
+        col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
+        row: building.tiles.r1 + 1,
+      }
+    }
+
+    drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.holdingCell)
+    this.regionLabel.setText('Capital City Central Booking')
+
+    this.zones = [
+      // Guard desk - id 'courtAndPrison' reuses the exact same
+      // 'interiorDesk' -> {type:'building', id, npcId} path every other
+      // desk uses (see triggerInteraction's generic interiorDesk branch
+      // below); WorldScreen.jsx tells this apart from the "walked up to the
+      // building while free" case by checking jail.inJail, since the two
+      // can never both be true at once.
+      {
+        type: 'interiorDesk',
+        id: 'courtAndPrison',
+        label: 'Booking Desk',
+        rect: new Phaser.Geom.Rectangle(
+          INTERIOR_DESK.c0 * TILE_SIZE - TILE_SIZE / 2,
+          INTERIOR_DESK.r0 * TILE_SIZE - TILE_SIZE / 2,
+          (INTERIOR_DESK.c1 - INTERIOR_DESK.c0 + 1) * TILE_SIZE + TILE_SIZE,
+          (INTERIOR_DESK.r1 - INTERIOR_DESK.r0 + 1) * TILE_SIZE + TILE_SIZE
+        ),
+      },
+      // The inmate's hinted escape route (world-builder: "a corridor a
+      // bribed staffer forgot to seal") - a plain 'exit' zone with a custom
+      // target instead of the default overworld, so entering the maze needs
+      // no new triggerInteraction branch at all. Deliberately no ordinary
+      // "exit to overworld" zone here - leaving jail only resolves through
+      // the guard desk (bail/bribe) or a maze clear, never a free walk-out.
+      {
+        type: 'exit',
+        id: 'jailMazeEntry',
+        target: 'jailMaze',
+        label: 'Service Corridor',
+        rect: new Phaser.Geom.Rectangle(
+          INTERIOR_EXIT.c0 * TILE_SIZE,
+          INTERIOR_EXIT.r0 * TILE_SIZE,
+          (INTERIOR_EXIT.c1 - INTERIOR_EXIT.c0 + 1) * TILE_SIZE,
+          (INTERIOR_EXIT.r1 - INTERIOR_EXIT.r0 + 1) * TILE_SIZE
+        ),
+      },
+    ]
+  }
+
+  // 4 checkpoints laid left-to-right across the shared room shape (row 6,
+  // clear of the desk-shaped prop drawInteriorRoom always draws around
+  // INTERIOR_DESK). All 4 are always present rather than revealed one at a
+  // time - useGameStore.js's attemptMazeSegment is the authoritative
+  // sequence gate (silently ignores an out-of-order segmentIndex), so
+  // interacting with a later checkpoint before clearing an earlier one is
+  // harmless rather than something the scene needs to prevent.
+  buildJailMazeZone() {
+    drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.jailMaze)
+    this.regionLabel.setText('Service Corridor')
+
+    const checkpointCols = [2, 4, 6, 8]
+    this.zones = checkpointCols.map((col, segmentIndex) => ({
+      type: 'jailMazeCheckpoint',
+      id: `jailMazeCheckpoint${segmentIndex}`,
+      segmentIndex,
+      label: `Checkpoint ${segmentIndex + 1}/4`,
+      rect: new Phaser.Geom.Rectangle(
+        col * TILE_SIZE - TILE_SIZE / 2,
+        6 * TILE_SIZE - TILE_SIZE / 2,
+        TILE_SIZE * 2,
+        TILE_SIZE * 2
+      ),
+    }))
+  }
+
+  // Transient visual beat only - "framed as emerging through the tunnel"
+  // (world-builder) - WorldScreen.jsx opens the real UnderworldModal on top
+  // of this immediately after loading it, so it needs no interactables of
+  // its own; dressed the same as underworld's own back-room palette.
+  buildJailUnderworldZone() {
+    drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.jailUnderworld)
+    this.regionLabel.setText('The Underworld - Back Room')
+    this.zones = []
+  }
+
   // Real tile-based rooms built from the chapel pack's Walls_Interior
   // tileset via the generic buildTmxWallInteriorZone builder (see
   // src/game/interiors/tmxWallInterior.js) - the `temple` building
@@ -1402,7 +1992,10 @@ export default class OverworldScene extends Phaser.Scene {
     if (
       this.currentZoneId === 'stockExchangeInterior' ||
       this.currentZoneId === 'casinoInterior' ||
-      this.currentZoneId === 'buildingInterior'
+      this.currentZoneId === 'buildingInterior' ||
+      this.currentZoneId === 'jailCell' ||
+      this.currentZoneId === 'jailMaze' ||
+      this.currentZoneId === 'jailUnderworld'
     ) {
       if (col < 0 || col >= INTERIOR_COLS || row < 0 || row >= INTERIOR_ROWS) return true
       const isBorder = row === 0 || col === 0 || row === INTERIOR_ROWS - 1 || col === INTERIOR_COLS - 1
@@ -1564,7 +2157,6 @@ export default class OverworldScene extends Phaser.Scene {
         character,
         actor,
         label,
-        district: homeDistrictFor(character),
         phaseOffset: presencePhaseOffset(character.id),
         currentAction: '',
         dead: false,
@@ -1582,14 +2174,21 @@ export default class OverworldScene extends Phaser.Scene {
   // Real live-map pixel position just outside a building's south edge (the
   // same "stand outside the door" convention triggerInteraction uses for
   // overworldReturnSpawn) - the ground truth for "this character is
-  // physically at this building", not just narrating it.
-  buildingDoorPixel(buildingId) {
+  // physically at this building", not just narrating it. `slot` is optional
+  // (omitting it returns the bare center-door pixel, used by
+  // teleportToCity/spawn code that has no per-character concept); when
+  // given, it's one of assignDoorSlots' arcSlotOffset results, spreading
+  // that character out from whoever else currently shares this building so
+  // multiple roamers converging on one door don't stack.
+  buildingDoorPixel(buildingId, slot) {
     const b = FINANCE_BUILDINGS.find((bd) => bd.id === buildingId)
     if (!b) return null
-    return {
+    const base = {
       x: ((b.tiles.c0 + b.tiles.c1 + 1) / 2) * TILE_SIZE,
       y: (b.tiles.r1 + 1) * TILE_SIZE + TILE_SIZE / 2,
     }
+    if (!slot) return base
+    return { x: base.x + slot.x, y: base.y + slot.y }
   }
 
   // Resolves every named roamer's current-block and next-block buildingId
@@ -1598,7 +2197,12 @@ export default class OverworldScene extends Phaser.Scene {
   // change and on a throttle (see PRESENCE_RESOLVE_INTERVAL_MS in
   // updateNamedRoamers) rather than every frame - resolving all 88
   // characters twice (current + next block) is cheap at that cadence but
-  // wasteful at 60fps.
+  // wasteful at 60fps. Also (re-)runs assignDoorSlots per resolve for the
+  // current-block and next-block buildingId sets independently, so a
+  // roamer's current-door slot and next-door slot are each sized to
+  // whoever's actually sharing THAT building, not two people who happen to
+  // share a next-building but not a current one (or vice versa) fighting
+  // over the same slot index.
   refreshPresenceCache() {
     if (!this.namedRoamers.length) return
     const store = useGameStore.getState()
@@ -1608,22 +2212,38 @@ export default class OverworldScene extends Phaser.Scene {
     const baseCtx = { runSeed: store.runSeed, wantedLevel: store.wantedLevel }
     const currentPresence = simulateWorldPresence(ids, { ...baseCtx, day: worldClock.day, timeBlockIndex: worldClock.timeBlockIndex })
     const nextPresence = simulateWorldPresence(ids, { ...baseCtx, day: upcoming.day, timeBlockIndex: upcoming.timeBlockIndex })
+    const currentSlots = assignDoorSlots(ids.map((id, i) => ({ characterId: id, buildingId: currentPresence[i].buildingId })))
+    const nextSlots = assignDoorSlots(ids.map((id, i) => ({ characterId: id, buildingId: nextPresence[i].buildingId })))
     const cache = new Map()
     for (let i = 0; i < ids.length; i++) {
       cache.set(ids[i], {
         currentBuildingId: currentPresence[i].buildingId,
         nextBuildingId: nextPresence[i].buildingId,
         action: currentPresence[i].action,
+        currentSlot: currentSlots.get(ids[i]),
+        nextSlot: nextSlots.get(ids[i]),
       })
     }
     this.presenceCache = cache
     this.presenceBlockKey = `${worldClock.day}|${worldClock.timeBlockIndex}`
   }
 
-  updateNamedRoamers(delta) {
+  updateNamedRoamers(rawDelta) {
     if (!this.namedRoamers.length) return
-    // agentClock now only drives the continuous door-to-door glide (see
-    // presenceStepProgress) - it no longer indexes into a schedule array,
+    // Clamp delta before it drives any movement math. An uncapped delta
+    // turns any real stall (tab backgrounded for a moment, a GC pause, a
+    // slow frame) into a catch-up jump - stepPx = speed*delta scales up
+    // right along with however long the stall was, so a single bad frame
+    // can move a roamer dozens of pixels in one step even though the
+    // per-frame math is "correct". Reported as "some NPCs moving at super
+    // speed" - a few characters happening to catch the one spiked frame,
+    // not a sustained issue. 50ms floor (~20fps) still tracks legitimate
+    // slow frames without amplifying real stalls into visible teleports.
+    const delta = Math.min(rawDelta, 50)
+    // agentClock feeds idleDriftOffset's mill-in-place animation for roamers
+    // who aren't currently traveling - actual travel is constant-speed
+    // seek-and-stop, not agentClock-driven (see the travelPhase state
+    // machine below). agentClock no longer indexes into a schedule array;
     // that whole position path (agentMovementEngine.updateAgentPositions) is
     // retired in favor of worldPresenceEngine.js (see the house-rule comment
     // above nextTimeBlock()).
@@ -1643,113 +2263,143 @@ export default class OverworldScene extends Phaser.Scene {
       const presence = this.presenceCache.get(roamer.agent.id)
       roamer.currentAction = presence?.action || ''
       // worldPresenceEngine.js guarantees buildingId is always a real
-      // building id (home_<id> or one of the 41 hand-authored ones), so
+      // building id (home_<id> or one of the 10 hand-authored ones), so
       // doorA/doorB should always resolve - the final else branch is
       // defensive only, for a roster id that somehow has no disposition.
-      const doorA = presence ? this.buildingDoorPixel(presence.currentBuildingId) : null
-      const doorB = presence ? this.buildingDoorPixel(presence.nextBuildingId) : null
-      let rawPos
-      if (doorA && doorB) {
-        const t = presenceStepProgress(this.agentClock, roamer.phaseOffset)
-        rawPos = { x: doorA.x + (doorB.x - doorA.x) * t, y: doorA.y + (doorB.y - doorA.y) * t }
-      } else if (doorA) {
-        rawPos = doorA
-      } else {
-        rawPos = { x: roamer.actor.x, y: roamer.actor.y }
+      const doorA = presence ? this.buildingDoorPixel(presence.currentBuildingId, presence.currentSlot) : null
+      const doorB = presence ? this.buildingDoorPixel(presence.nextBuildingId, presence.nextSlot) : null
+      const traveling = doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId
+      // Whichever slot is actually driving the seek target right now (see
+      // dest/doorB selection below) also drives the label's vertical
+      // stagger, so a roamer's name tag moves with them rather than
+      // snapping between two different offsets while they walk.
+      const activeSlot = traveling ? presence?.nextSlot : presence?.currentSlot
+      roamer.labelDy = activeSlot?.labelDy ?? 26
+
+      // spawnNamedRoamers() creates every actor at the (-100,-100) off-screen
+      // placeholder, potentially thousands of pixels from their real
+      // building. seekTo below is a small, per-frame bounded step - correct
+      // for ongoing movement, but if a roamer's very first resolved position
+      // is used as its seek origin, that first frame kicks off a real-time
+      // walk all the way in from (-100,-100), straight-line through
+      // whatever buildings happen to be on the way (each one shoving the
+      // position via resolveOpenPosition) - measured as roamers appearing to
+      // move at 400-700+px/s right after a fresh "New Game". Snap once,
+      // directly, the first time a real door resolves, same way the old
+      // time-based system's absolute t-lerp always did implicitly.
+      if (!roamer.placed) {
+        const startAt = doorA || doorB
+        if (startAt) {
+          roamer.actor.sprite.setPosition(startAt.x, startAt.y)
+          roamer.placed = true
+        }
       }
-      // Car owners route VIA their car instead of walking the straight
-      // door-to-door line. Without this they never came within reach of it:
-      // the lerp above goes straight from one door to the other, so passing
-      // near the parked car was pure luck, and the measured distance from a
-      // building to its kerb is 4-8 tiles for a third of them.
-      //
-      // The journey is re-split into walk -> drive -> walk over the SAME t,
-      // so arrival timing is unchanged: out to the car, drive to a kerb by
-      // the destination, walk in from there.
+
+      // Constant-speed "seek and stop" movement - every roamer moves toward
+      // its current target at exactly NAMED_ROAMER_WALK_SPEED_PX_PER_SEC and
+      // holds position once it arrives. Replaces an earlier design that
+      // tried to fit each journey into a precomputed time period with a
+      // continuous back-and-forth triangle wave; that approach kept
+      // producing distinct bugs (a unit-conversion error that doubled real
+      // speed, an asymmetric clamp that froze the return leg then snapped,
+      // and cars appearing to move at wildly different speeds depending on
+      // how far apart their two stops happened to be) because "arrive
+      // exactly on schedule" and "move at a believable constant speed" are
+      // fighting requirements once distances vary. This drops the
+      // schedule-timing requirement - a roamer just walks there and waits.
+      const stepPx = NAMED_ROAMER_WALK_SPEED_PX_PER_SEC * (delta / 1000)
+      const seekTo = (target) => {
+        const dx = target.x - roamer.actor.x
+        const dy = target.y - roamer.actor.y
+        const dist = Math.hypot(dx, dy)
+        if (dist <= stepPx || dist === 0) return { pos: { x: target.x, y: target.y }, arrived: true }
+        return {
+          pos: { x: roamer.actor.x + (dx / dist) * stepPx, y: roamer.actor.y + (dy / dist) * stepPx },
+          arrived: false,
+        }
+      }
+
+      let rawPos = { x: roamer.actor.x, y: roamer.actor.y }
       let onFoot = true
-      if (roamer.carActor && doorA && doorB && presence?.currentBuildingId !== presence?.nextBuildingId) {
-        if (roamer.routeFor !== presence.nextBuildingId) {
-          const dc = Math.floor(doorB.x / TILE_SIZE)
-          const dr = Math.floor(doorB.y / TILE_SIZE)
-          const spot = this.nearestRoadTile(dc, dr, [], roamer.carEntry)
-          roamer.dropOff = spot
-            ? { x: spot.col * TILE_SIZE + TILE_SIZE / 2, y: spot.row * TILE_SIZE + TILE_SIZE / 2 }
-            : null
-          // RESERVE the drop-off the moment it is chosen, not on arrival.
-          // nearestRoadTile rejects tiles near a vehicle's registered col/row,
-          // but a car in transit still had its OLD spot registered - so every
-          // car heading for the same building picked the same free kerb and
-          // they all stacked on it. Claiming it up front makes the next car's
-          // search route around it.
-          if (spot && roamer.carEntry) {
-            roamer.carEntry.col = spot.col
-            roamer.carEntry.row = spot.row
+
+      if (!traveling) {
+        roamer.travelPhase = null
+        const dest = doorA || doorB
+        if (dest) {
+          const tier = doorA ? getDisposition(roamer.agent.id)?.tier : null
+          if (!roamer.paceProfile) roamer.paceProfile = paceProfileFor(roamer.agent.id, tier)
+          // A mid-block presence refresh (PRESENCE_RESOLVE_INTERVAL_MS) can
+          // reassign this roamer to a different building without ever
+          // passing through `traveling` (e.g. wantedLevel swings who's
+          // "currently" here) - stale pacing state pointing at the OLD
+          // building's vicinity would walk them toward a target near the
+          // wrong door, so drop it whenever the resting building changes.
+          if (roamer.paceRestBuildingId !== presence.currentBuildingId) {
+            roamer.paceRestBuildingId = presence.currentBuildingId
+            roamer.paceState = null
+            roamer.paceTimer = null
           }
-          // Precompute the on-road polyline for the drive leg.
-          roamer.driveRoute =
-            spot && roamer.carPark
-              ? this.roadRouteWaypoints(
-                  Math.floor(roamer.carPark.x / TILE_SIZE),
-                  Math.floor(roamer.carPark.y / TILE_SIZE),
-                  spot.col,
-                  spot.row
-                )
-              : null
-          roamer.routeFor = presence.nextBuildingId
-          roamer.driveU = 0
-          roamer.carRest = null
+          const paceTarget = advanceRoamerPacing(this, roamer, dest, delta)
+          if (paceTarget) {
+            // Mid pacing round-trip (walking out / lingering / walking
+            // back) - reuses the exact same seekTo step-and-arrive used for
+            // door-to-door travel below, just with a short local
+            // destination instead of a different building's door.
+            rawPos = seekTo(paceTarget).pos
+          } else {
+            // idleDriftOffset must be folded into the SEEK TARGET (door +
+            // offset), not added to the result afterward. seekTo's "from"
+            // point is wherever the actor currently is - which already
+            // includes last frame's drift - so adding a fresh drift value on
+            // top of that every frame doesn't orbit the door, it ACCUMULATES:
+            // roughly the same offset gets re-added frame after frame with no
+            // bound, running away in whatever direction that frame's phase
+            // happened to point. Measured as a nearly-constant drift value
+            // (e.g. {x:-16,y:-9}) compounding into a runaway walk at
+            // 20x the intended speed for whichever roamer's phase gave it a
+            // large offset - explains the reported mix of "some fast, some
+            // stuck at a building, some normal": purely a function of each
+            // character's drift phase at that moment, not their actual
+            // situation. Seeking toward a slowly-moving point (the door,
+            // orbited by the bounded sin/cos offset) keeps the roamer
+            // genuinely centered on their door instead.
+            const drift = doorA ? idleDriftOffset(roamer.agent.id, this.agentClock, tier, activeSlot?.crowded) : { x: 0, y: 0 }
+            rawPos = seekTo({ x: dest.x + drift.x, y: dest.y + drift.y }).pos
+          }
         }
-        const pick = roamer.carPark
-        const drop = roamer.dropOff
-        if (pick && drop) {
-          const t2 = presenceStepProgress(this.agentClock, roamer.phaseOffset)
-          const seg = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u })
-          // Where the car rests while the NPC is on foot. Before the drive
-          // that's the pickup kerb; after it, the DROP-OFF. It used to always
-          // be the pickup, so at the end of a journey the car teleported all
-          // the way back to where it started - the person appeared at the
-          // destination and the car vanished, which is what read as a person
-          // and a car transforming into each other.
-          roamer.carRest = t2 < 0.2 ? pick : drop
-          if (t2 < 0.2) rawPos = seg(doorA, pick, t2 / 0.2)
-          else if (t2 < 0.8) {
-            // Follow the road polyline, not a straight line - the straight
-            // version drove across lawns, which is the rule this whole
-            // vehicle pass exists to keep.
-            const u = (t2 - 0.2) / 0.6
-            if (roamer.driveRoute) {
-              // Advance along the route only while the way ahead is clear, so
-              // cars queue behind one another instead of driving through.
-              // Progress is tracked separately from the schedule `u` and
-              // catches up once traffic clears - it never runs past it.
-              const prev = roamer.driveU ?? u
-              const want = Math.max(prev, u)
-              const at = this.pointAlongRoute(roamer.driveRoute, prev)
-              const peek = this.pointAlongRoute(roamer.driveRoute, Math.min(1, want + 0.01))
-              const dir = { x: peek.x - at.x, y: peek.y - at.y }
-              roamer.driveU = this.vehicleAhead(at, dir, roamer.carEntry) ? prev : want
-              rawPos = this.pointAlongRoute(roamer.driveRoute, roamer.driveU)
-            } else {
-              rawPos = seg(pick, drop, u)
-            }
-            onFoot = false
-          } else rawPos = seg(drop, doorB, (t2 - 0.8) / 0.2)
-        }
+      } else {
+        // Car-owning roamers used to route VIA their car (walk to it, drive
+        // a road-following route, walk in from the drop-off) instead of a
+        // straight door-to-door line. That choreography was the source of
+        // three separate movement bugs in a row (an asymmetric catch-up
+        // clamp, an instant-snap on unblocking, and a stuck-target issue
+        // that made roamers read as sprinting at 400-700+px/s) and isn't
+        // core to the game - simplified to the same plain walk everyone
+        // else gets. The car stays visually parked at its last spot instead
+        // of following them; see the `roamer.inCar`/`carPark` rendering
+        // below, unchanged.
+        roamer.travelPhase = null
+        // Real door-to-door travel supersedes any in-progress local pacing
+        // round trip - drop it so arriving at the new building starts fresh
+        // (paceRestBuildingId reset forces a re-check next !traveling tick).
+        roamer.paceState = null
+        roamer.paceRestBuildingId = null
+        rawPos = seekTo(doorB).pos
       }
       roamer.inCar = !onFoot
-
-      if (doorA && onFoot) {
-        const tier = getDisposition(roamer.agent.id)?.tier
-        const drift = idleDriftOffset(roamer.agent.id, this.agentClock, tier)
-        rawPos = { x: rawPos.x + drift.x, y: rawPos.y + drift.y }
-      }
-      // resolveOpenPosition pushes actors out of obstacles - and parked cars
-      // ARE obstacles, so it shoved a walking NPC away from the very car they
-      // were heading for. Skip it while driving (the route runs kerb to kerb,
-      // which is open road by construction).
-      const { x, y } = onFoot
-        ? this.resolveOpenPosition(rawPos.x, rawPos.y)
-        : { x: rawPos.x, y: rawPos.y }
+      // Named roamers don't push against building collision at all - they
+      // have no pathfinding, so any straight-line walk (traveling) or small
+      // idle wander (drifting near their own door) can graze a building
+      // edge, and resolveOpenPosition fighting that every frame is what
+      // read as shaking in place or a permanent stall against an obstacle
+      // (reported against both buildings and a parked car). Buildings stay
+      // solid for the PLAYER; for roamers this trades a rare, brief visual
+      // overlap with a building corner for never visibly fighting or
+      // getting stuck - the better trade for background NPCs. Trees/rocks
+      // are no longer solid for anyone (see scatterEnvironment) so they're
+      // not a factor here either way.
+      const x = rawPos.x
+      const y = rawPos.y
       const dx = x - roamer.actor.x
       const dy = y - roamer.actor.y
       const movedDist = Math.abs(dx) + Math.abs(dy)
@@ -1923,7 +2573,7 @@ export default class OverworldScene extends Phaser.Scene {
       const near = Phaser.Math.Distance.Between(px, py, x, y) < 180
       const wanted = near && roamer.currentAction ? `${roamer.character.name}\n${roamer.currentAction}` : roamer.character.name
       if (roamer.label.text !== wanted) roamer.label.setText(wanted)
-      roamer.label.setPosition(x, y - 26)
+      roamer.label.setPosition(x, y - (roamer.labelDy ?? 26))
       roamer.label.setDepth(y + 500)
     }
   }
@@ -1946,7 +2596,7 @@ export default class OverworldScene extends Phaser.Scene {
   }
 
   spawnFinanceAmbientNpcs() {
-    const npcs = generateAmbientNpcs('finance_ambient', 8)
+    const npcs = generateAmbientNpcs('finance_ambient', 6)
     this.financeAmbientActors = npcs.map((npc, i) => {
       let r, c
       let tries = 0
@@ -1975,17 +2625,18 @@ export default class OverworldScene extends Phaser.Scene {
   // updateHabitatAnimals via the shared wanderActor() function - not a
   // second movement system.
 
-  // Roughly 2-3 small clusters of 2-4 animals each, biased toward landing
-  // near an existing scattered tree/rock (blockedEnvironmentTiles, populated
-  // by scatterEnvironment just before this runs - see buildOverworldZone) so
-  // they read as loitering near a landmark rather than scattered uniformly
-  // across the whole map; falls back to any open grass tile if no
-  // tree/rock-adjacent spot is found within the try budget.
+  // Map overhaul Phase 3: cluster anchors (and every per-animal spot within
+  // a cluster) are now constrained to FINANCE_FARM_ZONE, the bottom-right
+  // reservation computed by layoutFinanceMap - habitat animals no longer
+  // scatter across the whole map. Tree/rock bias still applies (see below)
+  // but `treeTiles` itself is pre-filtered to the farm zone, so the bias only
+  // ever points at a tree/rock that's already inside it.
   spawnHabitatAnimals() {
+    const zone = FINANCE_FARM_ZONE
     const treeTiles = []
     for (const key of this.blockedEnvironmentTiles) {
       const [r, c] = key.split(',').map(Number)
-      treeTiles.push({ r, c })
+      if (r >= zone.r0 && r <= zone.r1 && c >= zone.c0 && c <= zone.c1) treeTiles.push({ r, c })
     }
 
     const clusterCount = 2 + Math.floor(Math.random() * 2) // 2-3 clusters
@@ -1999,10 +2650,10 @@ export default class OverworldScene extends Phaser.Scene {
           r = t.r + Math.floor(Math.random() * 5) - 2 // +/- 2 tiles of a tree/rock
           c = t.c + Math.floor(Math.random() * 5) - 2
         } else {
-          r = 4 + Math.floor(Math.random() * (MAP_ROWS - 6)) // skip the coastal water channel
-          c = 1 + Math.floor(Math.random() * (MAP_COLS - 2))
+          r = zone.r0 + Math.floor(Math.random() * (zone.r1 - zone.r0 + 1))
+          c = zone.c0 + Math.floor(Math.random() * (zone.c1 - zone.c0 + 1))
         }
-        if (r < 1 || r >= MAP_ROWS - 1 || c < 1 || c >= MAP_COLS - 1) continue
+        if (r < zone.r0 || r > zone.r1 || c < zone.c0 || c > zone.c1) continue
         if (this.financeLayout[r]?.[c] !== 'grass') continue
         if (this.isBlockedTile(c, r)) continue
         anchor = { r, c }
@@ -2015,7 +2666,7 @@ export default class OverworldScene extends Phaser.Scene {
         for (let tries = 0; tries < 15 && !spot; tries++) {
           const rr = anchor.r + Math.floor(Math.random() * 3) - 1
           const cc = anchor.c + Math.floor(Math.random() * 3) - 1
-          if (rr < 1 || rr >= MAP_ROWS - 1 || cc < 1 || cc >= MAP_COLS - 1) continue
+          if (rr < zone.r0 || rr > zone.r1 || cc < zone.c0 || cc > zone.c1) continue
           if (this.financeLayout[rr]?.[cc] !== 'grass') continue
           if (this.isBlockedTile(cc, rr)) continue
           spot = { r: rr, c: cc }
@@ -2028,48 +2679,44 @@ export default class OverworldScene extends Phaser.Scene {
     }
   }
 
-  // First open (grass, not a building/tree/rock/other-reserved-cell) WxH
-  // rectangle found among a handful of fixed offsets adjacent to `home`'s
-  // footprint (below/above/right/left, each tried at two alignments) -
-  // simpler than a full ring search since pen placement is low-stakes (skip
-  // the character entirely if nothing fits, per the project brief). Mirrors
-  // the forbidden-zone style scatterEnvironment/adjacentOpenTiles already use
-  // in this file, just for a multi-tile rect instead of single tiles.
-  findPenSpot(home, w, h, buildingTileSet, usedPenTiles) {
-    const { c0: hc0, r0: hr0, c1: hc1, r1: hr1 } = home.tiles
-    const candidates = [
-      { c0: hc0, r0: hr1 + 1 }, // below, left-aligned
-      { c0: hc1 - w + 1, r0: hr1 + 1 }, // below, right-aligned
-      { c0: hc0, r0: hr0 - h }, // above, left-aligned
-      { c0: hc1 - w + 1, r0: hr0 - h }, // above, right-aligned
-      { c0: hc1 + 1, r0: hr0 }, // right, top-aligned
-      { c0: hc1 + 1, r0: hr1 - h + 1 }, // right, bottom-aligned
-      { c0: hc0 - w, r0: hr0 }, // left, top-aligned
-      { c0: hc0 - w, r0: hr1 - h + 1 }, // left, bottom-aligned
-    ]
-    for (const { c0, r0 } of candidates) {
-      if (c0 < 1 || r0 < 1 || c0 + w - 1 >= MAP_COLS - 1 || r0 + h - 1 >= MAP_ROWS - 1) continue
-      let ok = true
-      for (let r = r0; r < r0 + h && ok; r++) {
-        for (let c = c0; c < c0 + w && ok; c++) {
-          const key = `${r},${c}`
-          if (this.financeLayout[r]?.[c] !== 'grass') ok = false
-          else if (buildingTileSet.has(key)) ok = false
-          else if (usedPenTiles.has(key)) ok = false
-          else if (this.blockedEnvironmentTiles.has(key)) ok = false
+  // Map overhaul Phase 3: no longer searches adjacent to a specific home's
+  // footprint - wealthy characters' homes ended up wherever their
+  // residentialStyleKey put them (top or bottom band), unrelated to where
+  // their pet pen should visually group up. Pens now all live together in
+  // FINANCE_FARM_ZONE, so this just scans that zone's own grid, top-left to
+  // bottom-right, for the first open (grass, not a building/other-pen/
+  // scattered-tree) WxH rectangle - `usedPenTiles` accumulates across calls
+  // (see spawnWealthyPetPens), so successive pens naturally pack left-to-
+  // right/top-to-bottom within the zone instead of colliding.
+  findPenSpot(zone, w, h, buildingTileSet, usedPenTiles) {
+    for (let r0 = zone.r0; r0 + h - 1 <= zone.r1; r0++) {
+      for (let c0 = zone.c0; c0 + w - 1 <= zone.c1; c0++) {
+        let ok = true
+        for (let r = r0; r < r0 + h && ok; r++) {
+          for (let c = c0; c < c0 + w && ok; c++) {
+            const key = `${r},${c}`
+            if (this.financeLayout[r]?.[c] !== 'grass') ok = false
+            else if (buildingTileSet.has(key)) ok = false
+            else if (usedPenTiles.has(key)) ok = false
+            else if (this.blockedEnvironmentTiles.has(key)) ok = false
+          }
         }
+        if (ok) return { c0, r0 }
       }
-      if (ok) return { c0, r0 }
     }
     return null
   }
 
   // The "exotic pets as a wealth flex" detail: a small, fixed number of the
-  // wealthiest homes (by the SAME billionaire signal tileGen.js's
+  // wealthiest characters (by the SAME billionaire signal tileGen.js's
   // packFacadeFor uses for the stone-cottage tier - see WEALTH_STONE_THRESHOLD)
-  // get a small fenced pen next to their home with 1-2 animals wandering only
-  // inside it. Deliberately capped at PET_PEN_COUNT - this is flavor for a
-  // handful of the richest characters, not a mechanic for all 88 homes.
+  // get a small fenced pen with 1-2 animals wandering only inside it.
+  // Deliberately capped at PET_PEN_COUNT - this is flavor for a handful of
+  // the richest characters, not a mechanic for all 88 homes. Map overhaul
+  // Phase 3: all pens now group together in FINANCE_FARM_ZONE (bottom-right
+  // corner of the map) instead of sitting next to each character's own home
+  // - which home band (top/bottom) that character's home ended up in no
+  // longer has any bearing on where their pen is.
   spawnWealthyPetPens() {
     const PET_PEN_COUNT = 5
     const PET_PEN_W = 4
@@ -2089,8 +2736,12 @@ export default class OverworldScene extends Phaser.Scene {
     }
     const usedPenTiles = new Set()
 
-    for (const { building: home } of wealthyHomes) {
-      const spot = this.findPenSpot(home, PET_PEN_W, PET_PEN_H, buildingTileSet, usedPenTiles)
+    // Loops `wealthyHomes.length` times (not `for...of` over the array) since
+    // the per-character home/building is no longer read inside the loop at
+    // all - only the count of qualifying wealthy characters matters now that
+    // pens are placed independently of any specific home (see findPenSpot).
+    for (let i = 0; i < wealthyHomes.length; i++) {
+      const spot = this.findPenSpot(FINANCE_FARM_ZONE, PET_PEN_W, PET_PEN_H, buildingTileSet, usedPenTiles)
       if (!spot) continue // low-stakes decoration - skip rather than force an overlap
       const { c0, r0 } = spot
       const px = c0 * TILE_SIZE
@@ -2407,6 +3058,15 @@ export default class OverworldScene extends Phaser.Scene {
     return points[points.length - 1]
   }
 
+  routeLength(points) {
+    if (!points || points.length < 2) return 0
+    let total = 0
+    for (let i = 1; i < points.length; i++) {
+      total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y)
+    }
+    return total
+  }
+
   nearestRoadTile(col, row, taken = [], ignore = null) {
     // Two passes: kerb tiles first, then any road tile as a fallback so a
     // vehicle still spawns if every kerb nearby is taken.
@@ -2510,7 +3170,10 @@ export default class OverworldScene extends Phaser.Scene {
     // rotates. tierId is still the flavor name (`atmo_police`) even though
     // the sprite is now one of the 3 shared pico8 colors - see
     // pico8CarFrameFor's header comment.
-    const fbiHQ = FINANCE_BUILDINGS.find((b) => b.id === 'fbiHQ')
+    // fbiHQ was folded into governmentBuilding in the Phase 2 building
+    // consolidation (see FINANCE_BUILDING_DEFS) - this atmosphere
+    // police-cruiser spawn just needed a still-real building id near it.
+    const fbiHQ = FINANCE_BUILDINGS.find((b) => b.id === 'governmentBuilding')
     const policeNear = fbiHQ ? this.adjacentOpenTiles(fbiHQ, 1)[0] : null
     const policeFallback = policeNear
       ? (this.nearestRoadTile(policeNear.col, policeNear.row) ?? policeNear)
@@ -2957,7 +3620,42 @@ export default class OverworldScene extends Phaser.Scene {
         this.bridge.emit('interact', { type: 'townTravel' })
         return
       }
-      
+      // The 4 Phase-2/4 consolidated hubs (Underworld/Business Center/
+      // Government Building/Industrial Zone) are multi-tenant tabbed React
+      // modals, not a walk-in interior - same pattern as trainStation above:
+      // open the modal straight from the overworld footprint, no interior
+      // zone load. foodCourt (header cleanup pass) joins this list for the
+      // same reason - it routes straight to InteractiveLocationModal via
+      // WorldScreen.jsx's BUILDING_TO_INTERACTIVE_LOCATION intercept, not a
+      // generic walk-in interior. wharf (Cast & Reel fishing) joins for the
+      // same reason too, but routes to a bespoke WharfModal instead - see
+      // WorldScreen.jsx's `activeModal.id === 'wharf'` case. entertainmentComplex
+      // (Concert Hall/Sports Stadium) joins the same way, routing to
+      // EntertainmentComplexModal.
+      if (
+        zone.id === 'underworld' ||
+        zone.id === 'businessCenter' ||
+        zone.id === 'governmentBuilding' ||
+        zone.id === 'industrialZone' ||
+        zone.id === 'foodCourt' ||
+        zone.id === 'wharf' ||
+        zone.id === 'entertainmentComplex'
+      ) {
+        this.pauseForModal()
+        this.bridge.emit('interact', { type: 'building', id: zone.id })
+        return
+      }
+      // Court & Prison: walking up while free is a flavor no-op, never a
+      // real entrance (see WorldScreen.jsx's courtAndPrison interact
+      // handler) - joins the list above so it never falls into the generic
+      // walk-in interior below. The real jailCell room is only ever entered
+      // via the 'enterJail' bridge event on arrest (buildJailCellZone).
+      if (zone.id === 'courtAndPrison') {
+        this.pauseForModal()
+        this.bridge.emit('interact', { type: 'building', id: zone.id })
+        return
+      }
+
       const building = FINANCE_BUILDINGS[zone.uid] || FINANCE_BUILDINGS.find((b) => b.id === zone.id)
       
       if (zone.id === 'stockExchange') {
@@ -2982,10 +3680,6 @@ export default class OverworldScene extends Phaser.Scene {
         this.transitionToZone('chapelInterior')
         return
       }
-      if (zone.id === 'teaHouse') {
-        this.loadZone('teaHouseInterior')
-        return
-      }
       this.currentInteriorBuildingId = zone.id
       this.loadZone('buildingInterior')
       return
@@ -3000,6 +3694,8 @@ export default class OverworldScene extends Phaser.Scene {
       this.bridge.emit('interact', { type: 'building', id: 'namedRoamer', npcId: zone.roamer.agent.id })
     } else if (zone.type === 'financeAmbientNpc') {
       this.bridge.emit('interact', { type: 'ambientNpc', npcId: zone.npcRef.npcId, npcName: zone.npcRef.npcName })
+    } else if (zone.type === 'jailMazeCheckpoint') {
+      this.bridge.emit('interact', { type: 'jailMazeCheckpoint', segmentIndex: zone.segmentIndex })
     }
   }
 
@@ -3060,19 +3756,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.updateNearbyZone()
     this.updateAnimatedDoors()
 
-    if (this.currentZoneId === 'overworld') {
-      const row = Math.floor(this.playerActor.y / TILE_SIZE)
-      let newCityId = null
-      if (row >= DISTRICT_BAND_ROWS['Tokyo District'].top - 4 && row <= DISTRICT_BAND_ROWS['Tokyo District'].bottom + 4) newCityId = 'tokyo'
-      else if (row >= DISTRICT_BAND_ROWS['Kyoto District'].top - 4 && row <= DISTRICT_BAND_ROWS['Kyoto District'].bottom + 4) newCityId = 'kyoto'
-      else if (row >= DISTRICT_BAND_ROWS['Osaka District'].top - 4 && row <= DISTRICT_BAND_ROWS['Osaka District'].bottom + 4) newCityId = 'osaka'
-      else if (row >= DISTRICT_BAND_ROWS['Sapporo District'].top - 4 && row <= DISTRICT_BAND_ROWS['Sapporo District'].bottom + 4) newCityId = 'sapporo'
-
-      const state = useGameStore.getState()
-      if (newCityId && state.currentCityId !== newCityId) {
-        state.switchCity(newCityId)
-      }
-    }
+    // Map flattening: currentCityId no longer changes as the player walks
+    // around - there's nothing to detect any more (the district bands this
+    // derived from are gone). Every reader elsewhere already defaults via
+    // `s.currentCityId || 'tokyo'`, so leaving it frozen at whatever it was
+    // is safe.
 
     if (Phaser.Input.Keyboard.JustDown(this.wasd.E) && this.nearbyZone) {
       this.triggerInteraction(this.nearbyZone)

@@ -26,7 +26,12 @@ function resolveDialogueLines(npcId) {
   return null
 }
 
-export default function NamedNpcModal({ npcId, onClose }) {
+// `embedded` (default false): every existing standalone call site
+// (WorldScreen.jsx's interior-desk/namedRoamer branches) is unaffected.
+// When true (BusinessCenterModal/GovernmentBuildingModal's per-NPC tabs, and
+// UnderworldModal's Crime Alley tab folding in Luciano), skip the outer
+// overlay + "Close Dialogue" button - the wrapping hub modal supplies both.
+export default function NamedNpcModal({ npcId, onClose, onAttack, embedded = false }) {
   // getAnyCharacter resolves across every roster (titan/crime/president/fed/
   // ftc/agency-head) - previously this only ever checked FINANCE_NPCS, so
   // every non-titan character showed up as its raw id with a fake "Titan"/
@@ -52,10 +57,22 @@ export default function NamedNpcModal({ npcId, onClose }) {
     ? { ...bioRecord, bio: npc.bio }
     : bioRecord
   const masterAgent = (world2.masterAgents || []).find((a) => a.id === npcId)
-  const agentState = masterAgent || (world2.agentsState || {})[npcId] || {
+  // Merge (not short-circuit): masterAgent is populated for all 76
+  // characters, so `masterAgent || agentsState[npcId] || {...}` used to mean
+  // agentsState's Titan-specific fields (currentMood/aggression/memories,
+  // written every endDay() by simulateDailyAgentInteractions/the raid
+  // retaliation loop) could never win, even for the 25 Financial Titans who
+  // actually have an agentsState entry. Merge order: fallback defaults are
+  // the base, masterAgent's currentLocation/currentAction/thoughtProcess
+  // apply on top for every character (including the 51 non-Titans who have
+  // no agentsState entry at all), and agentsState's Titan-specific fields
+  // win last when present.
+  const agentState = {
     currentMood: 'Bullish Expansion',
     primaryRivalName: 'Competitor',
     aggression: 50,
+    ...masterAgent,
+    ...((world2.agentsState || {})[npcId] || {}),
   }
 
   const [feedbackMsg, setFeedbackMsg] = useState(null)
@@ -171,30 +188,29 @@ export default function NamedNpcModal({ npcId, onClose }) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
-      <div className="w-full max-w-xl border-4 border-yellow-500/70 bg-[#121429] p-6 text-white shadow-2xl">
+  const body = (
+    <>
         {/* Header */}
         <div className="flex items-start justify-between border-b border-gray-700 pb-3">
           <div className="flex items-center gap-3">
             <img src={portraitSrc} alt={npc.name} className="h-14 w-14 rounded-lg border-2 border-yellow-400 object-cover shadow-md" />
             <div>
               <div className="flex items-center gap-2">
-                <span className="rounded bg-yellow-900/60 px-2 py-0.5 text-xs text-yellow-300 font-semibold">{npc.era || 'Titan'}</span>
-                <h2 className="text-xl font-bold text-yellow-400">{npc.name}</h2>
+                <span className="rounded bg-yellow-900/60 px-2 py-0.5 text-sm text-yellow-300 font-semibold">{npc.era || 'Titan'}</span>
+                <h2 className="text-2xl font-bold text-yellow-400">{npc.name}</h2>
               </div>
-              <p className="mt-1 text-xs text-gray-300">"{npc.title}" • Net worth: ${npc.netWorth.toLocaleString()}</p>
+              <p className="mt-1 text-sm text-gray-300">"{npc.title}" • Net worth: ${npc.netWorth.toLocaleString()}</p>
             </div>
           </div>
           {isRecruited && (
-            <span className="rounded bg-emerald-900/80 px-2 py-1 text-xs font-bold text-emerald-300 border border-emerald-500">
+            <span className="rounded bg-emerald-900/80 px-2 py-1 text-sm font-bold text-emerald-300 border border-emerald-500">
               ✓ BOARD MEMBER
             </span>
           )}
         </div>
 
         {/* Biographical & Fidelity Metadata Badge */}
-        <div className="my-3 grid grid-cols-4 divide-x divide-gray-800 rounded bg-[#161a38] py-2 text-center text-[11px]">
+        <div className="my-3 grid grid-cols-4 divide-x divide-gray-800 rounded bg-[#161a38] py-2 text-center text-xs">
           <div>
             <div className="text-gray-400">Age</div>
             <div className="font-bold text-cyan-300">{bio.age} Yrs</div>
@@ -217,9 +233,9 @@ export default function NamedNpcModal({ npcId, onClose }) {
         <div className="my-3 rounded border border-yellow-500/30 bg-[#0e1130] p-3 flex items-start gap-3">
           <img src={portraitSrc} alt={npc.name} className="h-20 w-20 shrink-0 rounded-lg border-2 border-yellow-400 object-contain bg-slate-900" />
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold text-yellow-300 mb-1">📜 Biography</div>
-            <p className="text-[11px] text-gray-300 leading-relaxed">{bio.bio}</p>
-            <div className="mt-1.5 text-[10px] text-gray-500">
+            <div className="text-sm font-bold text-yellow-300 mb-1">📜 Biography</div>
+            <p className="text-sm text-gray-300 leading-relaxed">{bio.bio}</p>
+            <div className="mt-1.5 text-xs text-gray-500">
               {bio.orientation && <span className="mr-2">Orientation: <span className="text-cyan-400">{bio.orientation}</span></span>}
               {bio.maritalStatus && <span>Status: <span className="text-emerald-400">{bio.maritalStatus}</span></span>}
             </div>
@@ -230,17 +246,17 @@ export default function NamedNpcModal({ npcId, onClose }) {
         {scriptedLines.length > 0 && (
           <div className="my-3 rounded border border-cyan-500/40 bg-[#0c1a2e] p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-cyan-300">💬 {npc.name}:</span>
+              <span className="text-sm font-bold text-cyan-300">💬 {npc.name}:</span>
               {scriptedLines.length > 1 && (
                 <button
                   onClick={handleNextLine}
-                  className="text-[10px] text-gray-400 border border-gray-700 px-2 py-0.5 rounded hover:bg-gray-800"
+                  className="text-xs text-gray-400 border border-gray-700 px-2 py-0.5 rounded hover:bg-gray-800"
                 >
                   Next Quote ({lineIndex + 1}/{scriptedLines.length})
                 </button>
               )}
             </div>
-            <p className="text-xs text-cyan-100 italic leading-relaxed">
+            <p className="text-sm text-cyan-100 italic leading-relaxed">
               "{currentText}"
             </p>
           </div>
@@ -248,8 +264,8 @@ export default function NamedNpcModal({ npcId, onClose }) {
 
         {/* Dynamic AI Context-Aware Speech */}
         <div className="my-2 rounded border border-yellow-500/30 bg-[#171a38] p-3">
-          <div className="text-xs font-bold text-yellow-300 mb-1">🤖 AI Situational Response:</div>
-          <p className="text-[11px] text-gray-200 italic leading-relaxed">
+          <div className="text-sm font-bold text-yellow-300 mb-1">🤖 AI Situational Response:</div>
+          <p className="text-sm text-gray-200 italic leading-relaxed">
             "{dynamicSpeech}"
           </p>
         </div>
@@ -259,24 +275,24 @@ export default function NamedNpcModal({ npcId, onClose }) {
             do something; whether it lands depends on their actual
             personality/bio, decided live by the model. */}
         <div className="my-3 rounded border border-cyan-400/40 bg-[#0c1a2e] p-3">
-          <div className="mb-2 text-xs font-bold text-cyan-300">🗣️ Talk to {npc.name}</div>
+          <div className="mb-2 text-sm font-bold text-cyan-300">🗣️ Talk to {npc.name}</div>
           {chatHistory.length > 0 && (
             <div className="mb-2 max-h-32 overflow-y-auto pr-1">
               {chatHistory.map((turn, i) => (
                 <div key={i} className="mb-1.5">
-                  <p className={`text-xs ${turn.role === 'player' ? 'text-cyan-300' : 'text-gray-200'}`}>
+                  <p className={`text-sm ${turn.role === 'player' ? 'text-cyan-300' : 'text-gray-200'}`}>
                     <span className="font-bold uppercase">{turn.role === 'player' ? 'You' : npc.name}: </span>
                     {turn.text}
                   </p>
                   {turn.role === 'npc' && turn.agreed !== null && (
-                    <p className={`text-[10px] ${turn.agreed ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <p className={`text-xs ${turn.agreed ? 'text-emerald-400' : 'text-red-400'}`}>
                       {turn.agreed ? '✓ Convinced.' : '✗ Not convinced.'}
                     </p>
                   )}
                 </div>
               ))}
               {chatError && (
-                <p className="text-[10px] italic text-red-400">
+                <p className="text-xs italic text-red-400">
                   (Couldn't reach the NPC chat backend - is it running? See backend/README.md.)
                 </p>
               )}
@@ -290,12 +306,12 @@ export default function NamedNpcModal({ npcId, onClose }) {
               placeholder={`Try to convince ${npc.name}...`}
               disabled={chatLoading}
               maxLength={500}
-              className="flex-1 border-2 border-cyan-400/60 bg-black/70 px-2 py-1 text-xs text-white placeholder:text-gray-500 focus:outline-none"
+              className="flex-1 border-2 border-cyan-400/60 bg-black/70 px-2 py-1 text-sm text-white placeholder:text-gray-500 focus:outline-none"
             />
             <button
               type="submit"
               disabled={chatLoading || !chatInput.trim()}
-              className="border-2 border-cyan-400 px-3 py-1 text-xs font-bold text-cyan-300 hover:bg-cyan-400 hover:text-black disabled:opacity-30"
+              className="border-2 border-cyan-400 px-3 py-1 text-sm font-bold text-cyan-300 hover:bg-cyan-400 hover:text-black disabled:opacity-30"
             >
               {chatLoading ? '...' : 'Send'}
             </button>
@@ -303,10 +319,10 @@ export default function NamedNpcModal({ npcId, onClose }) {
         </div>
 
         {/* Relationship Tier Level Meter */}
-        <div className="my-3 rounded border border-fuchsia-500/40 bg-[#1e1530] p-3 text-xs">
+        <div className="my-3 rounded border border-fuchsia-500/40 bg-[#1e1530] p-3 text-sm">
           <div className="flex justify-between items-center mb-1">
             <span className="text-fuchsia-300 font-bold">🌹 Relationship Level:</span>
-            <b className="text-yellow-300">{relationshipLevel}/100</b>
+            <b className="text-base text-yellow-300">{relationshipLevel}/100</b>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-black/50">
             <div className="h-full bg-fuchsia-500 transition-all duration-300" style={{ width: `${relationshipLevel}%` }} />
@@ -315,7 +331,7 @@ export default function NamedNpcModal({ npcId, onClose }) {
 
         {/* Feedback Alert */}
         {feedbackMsg && (
-          <div className="my-2 rounded border border-yellow-500 bg-yellow-950/60 p-2 text-center text-xs text-yellow-300">
+          <div className="my-2 rounded border border-yellow-500 bg-yellow-950/60 p-2 text-center text-sm text-yellow-300">
             {feedbackMsg}
           </div>
         )}
@@ -328,13 +344,13 @@ export default function NamedNpcModal({ npcId, onClose }) {
               <>
                 <button
                   onClick={() => handleCourt('date_diner')}
-                  className="border border-fuchsia-400 bg-fuchsia-950/50 py-2 text-xs font-bold text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black transition-all"
+                  className="border border-fuchsia-400 bg-fuchsia-950/50 py-2 text-sm font-bold text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black transition-all"
                 >
                   🍔 Invite to Diner Date
                 </button>
                 <button
                   onClick={() => handleCourt('proposal')}
-                  className="border border-yellow-400 bg-yellow-950/50 py-2 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
+                  className="border border-yellow-400 bg-yellow-950/50 py-2 text-sm font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
                 >
                   💍 Propose Syndicate Marriage
                 </button>
@@ -356,7 +372,7 @@ export default function NamedNpcModal({ npcId, onClose }) {
                   })
                   setFeedbackMsg(`Divorced ${npc.name}. They took 50% of your cash ($${settlement.toLocaleString()}).`)
                 }}
-                className="col-span-2 border border-red-500 bg-red-950/50 py-2 text-xs font-bold text-red-400 hover:bg-red-600 hover:text-white transition-all"
+                className="col-span-2 border border-red-500 bg-red-950/50 py-2 text-sm font-bold text-red-400 hover:bg-red-600 hover:text-white transition-all"
               >
                 💔 Divorce (Settlement: 50% of your cash)
               </button>
@@ -366,23 +382,48 @@ export default function NamedNpcModal({ npcId, onClose }) {
           {!isRecruited ? (
             <button
               onClick={handleRecruit}
-              className="w-full border-2 border-yellow-400 bg-yellow-600/30 py-2 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
+              className="w-full border-2 border-yellow-400 bg-yellow-600/30 py-2 text-sm font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
             >
               Recruit to Cabinet (Cost: ${(npc.recruitCost || 50000).toLocaleString()})
             </button>
           ) : (
-            <div className="rounded bg-emerald-950/60 p-2 text-center text-xs font-bold text-emerald-400 border border-emerald-500">
+            <div className="rounded bg-emerald-950/60 p-2 text-center text-sm font-bold text-emerald-400 border border-emerald-500">
               Active Member of your Board of Realities Cabinet
             </div>
           )}
 
-          <button
-            onClick={onClose}
-            className="w-full border border-gray-600 bg-gray-800 py-1.5 text-xs text-gray-300 hover:bg-gray-700 hover:text-white"
-          >
-            Close Dialogue
-          </button>
+          {/* Send their bodyguards after them - only offered when the caller
+              wires up onAttack (the world-map named-tycoon interaction in
+              WorldScreen.jsx). The embedded office-desk tabs (BusinessCenter/
+              GovernmentBuilding/IndustrialZone/Underworld) don't pass it, so
+              this stays hidden there, same as before. */}
+          {onAttack && (
+            <button
+              onClick={onAttack}
+              className="w-full border-2 border-red-600 bg-red-700 py-2 text-sm font-bold text-white hover:bg-red-600 transition-all"
+            >
+              Attack {npc.name}
+            </button>
+          )}
+
+          {!embedded && (
+            <button
+              onClick={onClose}
+              className="w-full border border-gray-600 bg-gray-800 py-1.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+            >
+              Close Dialogue
+            </button>
+          )}
         </div>
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
+      <div className="w-full max-w-xl border-4 border-yellow-500/70 bg-[#121429] p-6 text-white shadow-2xl">
+        {body}
       </div>
     </div>
   )

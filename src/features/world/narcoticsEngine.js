@@ -1,12 +1,34 @@
 /**
  * Cartel Narcotics Trade & Illicit Substance System Database & Engine.
+ *
+ * Data-consistency note (attribution pass): supplier strings here previously
+ * carried the same "3 sources of truth" bug already fixed in
+ * src/features/world/syndicateActivitiesEngine.js. Cross-checked against the
+ * canonical roster in src/data/syndicate.js:
+ *
+ *  - `medellin_cocaine` used to credit 'Pablo Escobar & Griselda Blanco
+ *    (Medellin Cartel)', conflating two separate organizations - Escobar
+ *    heads medellin_cartel, but Blanco heads her own griselda_empire
+ *    (Commercial District - Nightlife) per syndicate.js/crimeSyndicates.js.
+ *    Corrected to Escobar's actual canonical second, Gustavo Gaviria
+ *    (Underboss, medellin_cartel), matching medellin_cartel's Boss+Underboss
+ *    pairing everywhere else in the codebase.
+ *  - `raw_opium` used to credit a generic, unnamed 'Asian Crime Syndicate
+ *    (Osaka Docks)' - the only supplier in this file without a real named
+ *    figure, unlike its six peers. Reassigned to Vito Genovese, the Five
+ *    Families' actual Underboss, whose syndicate.js bio explicitly covers
+ *    "wholesale narcotics shipments arriving on European freighters" and a
+ *    waterfront/drug distribution empire - a direct historical match for an
+ *    opium/heroin supply line, unlike an invented placeholder syndicate.
+ *  No prices, yields, margins, or buffs were changed - this is a naming/
+ *  attribution correction only.
  */
 
 export const NARCOTICS_DATABASE = [
   {
     id: 'medellin_cocaine',
     name: 'Pure Medellin Cocaine Brick',
-    supplier: 'Pablo Escobar & Griselda Blanco (Medellin Cartel)',
+    supplier: 'Pablo Escobar & Gustavo Gaviria (Medellin Cartel)',
     wholesalePrice: 3500,
     resalePrice: 8000,
     profitMargin: '+128% Resale Profit Margin',
@@ -26,7 +48,7 @@ export const NARCOTICS_DATABASE = [
   {
     id: 'raw_opium',
     name: 'Golden Triangle Raw Opium Crate',
-    supplier: 'Asian Crime Syndicate (Osaka Docks)',
+    supplier: 'Vito Genovese (Five Families - Waterfront Narcotics Network)',
     wholesalePrice: 4000,
     resalePrice: 10000,
     profitMargin: '+150% Resale Profit Margin',

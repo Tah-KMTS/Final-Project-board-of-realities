@@ -6,12 +6,23 @@ import { TIER_SPRITES } from '../../game/vehicleGen'
 // used to be a dead `coordinates: {x,y}` pair that nothing read; only
 // mcdonalds_diner was actually reachable (hardcoded into WorldScreen.jsx's
 // toolbar button), so the other 4 locations were unreachable dead data.
+// `buildingId` itself is documentation only (nothing in code reads it) -
+// apple_lab's and speakeasy_club's are updated to businessCenter/underworld
+// below to reflect the Phase 2 consolidation even though they're no longer
+// routed via BUILDING_TO_INTERACTIVE_LOCATION (they're reached through an
+// embedded tab in BusinessCenterModal/UnderworldModal instead). ford_factory
+// is updated to industrialZone the same way for the matching Phase 4
+// consolidation (reached through IndustrialZoneModal's Ford tab now).
+// mcdonalds_diner has no buildingId any more - its old teaHouse building was
+// deleted outright in Phase 4's 14-category trim, and there's no replacement
+// (it was never actually reached via BUILDING_TO_INTERACTIVE_LOCATION/a
+// building at all - see above, the toolbar button is its real access point).
 export const INTERACTIVE_LOCATIONS = [
   {
     id: 'mcdonalds_diner',
     name: "McDonald's & Cherry Coke Diner",
     district: 'Financial District',
-    buildingId: 'teaHouse',
+    buildingId: null,
     icon: '🍔',
     description: "Warren Buffett's favorite breakfast spot. Order $3.17 Bacon McMuffins and cold Cherry Coke.",
     residentNpc: 'Warren Buffett',
@@ -25,7 +36,7 @@ export const INTERACTIVE_LOCATIONS = [
     id: 'ford_factory',
     name: 'Ford Mass Assembly Plant',
     district: 'Commercial District - Docks',
-    buildingId: 'fordRougeComplex',
+    buildingId: 'industrialZone',
     icon: '🏭',
     description: "Henry Ford's automated assembly line. Inspect production efficiency to boost company yield.",
     residentNpc: 'Henry Ford',
@@ -37,7 +48,7 @@ export const INTERACTIVE_LOCATIONS = [
     id: 'apple_lab',
     name: 'Apple Glass Design Studio',
     district: 'Commercial District',
-    buildingId: 'appleHQ',
+    buildingId: 'businessCenter',
     icon: '💻',
     description: "Steve Jobs' unibody glass design studio. Test prototype hardware to boost tech stock valuation.",
     residentNpc: 'Steve Jobs',
@@ -49,7 +60,7 @@ export const INTERACTIVE_LOCATIONS = [
     id: 'speakeasy_club',
     name: 'Underground Speakeasy Club',
     district: 'Underground District',
-    buildingId: 'speakeasyHotel',
+    buildingId: 'underworld',
     icon: '🍷',
     description: 'Prohibition-era subterranean club frequented by Al Capone, Lucky Luciano, and Arnold Rothstein.',
     residentNpc: 'Al Capone & Lucky Luciano',

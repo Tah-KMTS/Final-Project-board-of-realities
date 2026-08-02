@@ -53,11 +53,9 @@ function labelForCharacter(character, isCrime) {
 function buildDef(character) {
   const disposition = getDisposition(character.id)
   const isCrime = disposition ? disposition.isCrime : false
-  const district = disposition ? disposition.district : 'Tokyo District'
   return {
     id: `home_${character.id}`,
     label: labelForCharacter(character, isCrime),
-    district,
     color: colorForCharacter(character),
     width: 2,
     height: 2,

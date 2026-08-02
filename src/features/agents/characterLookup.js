@@ -25,6 +25,12 @@ function flattenCrime() {
         title: member.title,
         category: `Crime Syndicate ${role[0].toUpperCase()}${role.slice(1)}`,
         netWorth: member.extortionPower ? member.extortionPower * 100000 : 50000000,
+        // Every syndicate member already carries an `aggression` (0-1) rating;
+        // map it onto FINANCE_NPCS' bodyguardPower scale (roughly 3-10) so
+        // generateBodyguardMonster() in financeNpcs.js produces a fight of
+        // comparable difficulty for crime bosses/underbosses/capos, instead
+        // of crashing (bodyguardPower used to not exist on this roster at all).
+        bodyguardPower: Math.max(3, Math.min(10, Math.round((member.aggression || 0.6) * 10))),
         palette: member.palette,
         district: 'Osaka District',
         syndicateName: syndicate.name,
@@ -46,6 +52,10 @@ function flattenAgencyLeaders() {
         title: leader.title,
         category: `${agency.toUpperCase()} Leader`,
         netWorth: 5000000,
+        // Agency leaders have no rank/power field to derive from; use a flat
+        // mid-tier default matching FINANCE_NPCS' bodyguardPower range
+        // (4-10, most cluster around 5-7) rather than inventing a new stat.
+        bodyguardPower: 6,
         bio: leader.background,
       })
     }
@@ -58,11 +68,16 @@ const AGENCY_FLAT = flattenAgencyLeaders()
 
 // Cheap lookup index built once, not on every call.
 const INDEX = new Map()
+// bodyguardPower: 6 below is the same flat mid-tier default used for agency
+// leaders (see flattenAgencyLeaders) - these rosters have no combat/rank
+// stat of their own to derive from, and 6 sits mid-scale on FINANCE_NPCS'
+// 4-10 bodyguardPower range so a Secret Service/security-detail fight with a
+// President, Fed Chair, or FTC Chair feels comparable to a mid-tier titan's.
 for (const npc of FINANCE_NPCS) INDEX.set(npc.id, { ...npc, category: 'Financial Titan' })
 for (const c of CRIME_FLAT) INDEX.set(c.id, c)
-for (const p of PRESIDENTS_ROSTER) INDEX.set(p.id, { ...p, title: p.party, category: 'US President', netWorth: 400000 })
-for (const f of FED_CHAIRMEN_ROSTER) INDEX.set(f.id, { ...f, category: 'Federal Reserve Chairman', netWorth: 8000000 })
-for (const t of FTC_CHAIRMEN_ROSTER) INDEX.set(t.id, { ...t, category: 'FTC Chairman', netWorth: 3000000 })
+for (const p of PRESIDENTS_ROSTER) INDEX.set(p.id, { ...p, title: p.party, category: 'US President', netWorth: 400000, bodyguardPower: 6 })
+for (const f of FED_CHAIRMEN_ROSTER) INDEX.set(f.id, { ...f, category: 'Federal Reserve Chairman', netWorth: 8000000, bodyguardPower: 6 })
+for (const t of FTC_CHAIRMEN_ROSTER) INDEX.set(t.id, { ...t, category: 'FTC Chairman', netWorth: 3000000, bodyguardPower: 6 })
 for (const a of AGENCY_FLAT) INDEX.set(a.id, a)
 
 // Every character needs a sprite palette to walk the overworld; rosters

@@ -9,9 +9,12 @@ export function triggerButterflyEffect(triggerEvent, agents, day) {
   const updatedAgents = agents.map((agent) => {
     const copy = { ...agent }
 
-    // 1. Fed Interest Rate Hike Ripple Effect
+    // 1. Fed Interest Rate Hike Ripple Effect - archetype-based (not just
+    // rockefeller/carnegie/musk) so every Industrial Monopolist and Tech
+    // Disruptor Titan reacts, matching agentEngine.js's ARCHETYPE_PROFILES
+    // key names (confirmed against financeNpcs.js's real `archetype` field).
     if (triggerEvent.type === 'FED_RATE_HIKE') {
-      if (copy.id === 'rockefeller' || copy.id === 'carnegie') {
+      if (copy.personality === 'monopolist') {
         copy.thoughtProcess = 'Rate hike increases borrowing costs; scaling down factory expansion.'
         butterflyLogs.push({
           id: `butterfly_${day}_${copy.id}`,
@@ -19,7 +22,7 @@ export function triggerButterflyEffect(triggerEvent, agents, day) {
           text: `🦋 Fed Rate Hike Butterfly Effect: ${copy.name} slowed factory expansion in Sapporo.`,
         })
       }
-      if (copy.id === 'musk') {
+      if (copy.personality === 'tech_disruptor') {
         copy.thoughtProcess = 'Tech growth stocks cooling down; pivoting capital into automated robot R&D.'
         butterflyLogs.push({
           id: `butterfly_${day}_${copy.id}`,

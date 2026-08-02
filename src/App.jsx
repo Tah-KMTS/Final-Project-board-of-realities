@@ -1,6 +1,7 @@
 import { useGameStore } from './store/useGameStore'
 import WelcomeScreen from './components/Menu/WelcomeScreen'
 import WorldScreen from './components/WorldScreen'
+import LeverageMeterDemo from './features/finance/LeverageMeterDemo'
 
 function GameOverScreen() {
   const setScreen = useGameStore((s) => s.setScreen)
@@ -28,9 +29,16 @@ function App() {
   const screen = useGameStore((s) => s.screen)
   const Screen = SCREENS[screen] || WelcomeScreen
 
+  // Dev-only self-test entry point for LeverageMeter (see
+  // src/features/finance/LeverageMeterDemo.jsx) - gated behind a query
+  // param so it never appears in normal play and needs no store/screen
+  // plumbing of its own. Not referenced by any building modal; that
+  // wiring is a separate follow-up task.
+  const isLeverageDemo = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('leverageDemo')
+
   return (
     <div className="h-screen w-screen overflow-hidden">
-      <Screen />
+      {isLeverageDemo ? <LeverageMeterDemo /> : <Screen />}
     </div>
   )
 }

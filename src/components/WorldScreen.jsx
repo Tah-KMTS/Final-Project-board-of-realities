@@ -12,17 +12,21 @@ import { generateHunterPolice, generateMonster } from '../features/hunter/monste
 import { hasRank } from '../features/hunter/skillEffects'
 import StockExchangeModal from '../features/finance/StockExchangeModal'
 import BankModal from '../features/finance/BankModal'
-import CorporateModal from '../features/finance/CorporateModal'
-import CryptoModal from '../features/finance/CryptoModal'
 import NamedNpcModal from '../features/finance/NamedNpcModal'
 import AmbientNpcModal from '../features/finance/AmbientNpcModal'
 import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
 import CasinoModal from '../features/casino/CasinoModal'
-import ArcadeModal from '../features/arcade/ArcadeModal'
+import UnderworldModal from '../features/finance/UnderworldModal'
+import BusinessCenterModal from '../features/finance/BusinessCenterModal'
+import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal'
+import IndustrialZoneModal from '../features/finance/IndustrialZoneModal'
+import PoliceStopModal from '../features/finance/PoliceStopModal'
 import TempleModal from '../features/temple/TempleModal'
-import SyndicateBoardModal from '../features/finance/SyndicateBoardModal'
-import AgentInteractionsModal from '../features/finance/AgentInteractionsModal'
-import GovernmentModal from './GovernmentModal'
+import WharfModal from '../features/wharf/WharfModal'
+import EntertainmentComplexModal from '../features/entertainment/EntertainmentComplexModal'
+import JailEscapeModal from '../features/jail/JailEscapeModal'
+import JailMazeModal from '../features/jail/JailMazeModal'
+import JailMazeMinigame from '../features/jail/JailMazeMinigame'
 import InteractiveLocationModal from '../features/world/InteractiveLocationModal'
 import ScotusCourtroomModal from '../features/government/ScotusCourtroomModal'
 import IrsHearingModal from '../features/government/IrsHearingModal'
@@ -39,7 +43,8 @@ import HitmanContractModal from '../features/world/HitmanContractModal'
 import { JAPAN_CITIES } from '../features/world/japanCities'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
-import { generateBodyguardMonster, generateStreetTargetMonster, generateSwatSquad, getFinanceNpc } from '../features/finance/financeNpcs'
+import { generateBodyguardMonster, generateStreetTargetMonster } from '../features/finance/financeNpcs'
+import { getAnyCharacter } from '../features/agents/characterLookup'
 import YugiEncounterModal from '../features/yugioh/YugiEncounterModal'
 import KaibaCorpModal from '../features/yugioh/KaibaCorpModal'
 import CardShopModal from '../features/yugioh/CardShopModal'
@@ -59,6 +64,11 @@ import EventBoardModal from '../features/domino/EventBoardModal'
 import DominoNpcModal from '../features/domino/DominoNpcModal'
 import { getNpc } from '../features/domino/npcRoster'
 import TownTravelUI from './TownTravelUI'
+import PhoneShell from '../features/phone/PhoneShell'
+import SocialApp from '../features/phone/SocialApp'
+import BankingApp from '../features/phone/BankingApp'
+import ContactsApp from '../features/phone/ContactsApp'
+import GuideApp from '../features/phone/GuideApp'
 
 const REGION_LABELS = {
   hunter: "The Hunter's Rift",
@@ -76,12 +86,21 @@ const DISTRICT_BUILDING_IDS = Object.keys(DISTRICT_BUILDINGS_CONFIG)
 // open city travel directly instead of a generic interior, so transit_hub
 // is opened from a button inside TownTravelUI, not from this map - see
 // interactiveLocations.js's house-rule comment on that location.
-const BUILDING_TO_INTERACTIVE_LOCATION = {
-  teaHouse: 'mcdonalds_diner',
-  fordRougeComplex: 'ford_factory',
-  appleHQ: 'apple_lab',
-  speakeasyHotel: 'speakeasy_club',
-}
+// appleHQ and speakeasyHotel used to route here too - both buildings are
+// gone (Phase 2 consolidation folded their InteractiveLocationModal content
+// straight into a tab of BusinessCenterModal/UnderworldModal instead, each
+// rendering InteractiveLocationModal with `embedded`), so their intercept
+// entries are removed. fordRougeComplex (Ford) went the same way in Phase 4
+// (folded into IndustrialZoneModal's Ford tab - see that file). teaHouse's
+// entry used to be removed too: the building itself was gone (Phase 4's
+// 14-category trim), and its mcdonalds_diner content was only reachable
+// through FinanceStatusBar's "Places & Transit" header button. That button
+// is gone now (header cleanup pass - Phone + End Day only), so
+// mcdonalds_diner needed a real building again: `foodCourt` (OverworldScene.js's
+// FINANCE_BUILDING_DEFS) is that building, wired through this same
+// extension-point mechanism the comment above used to describe as
+// hypothetical.
+const BUILDING_TO_INTERACTIVE_LOCATION = { foodCourt: 'mcdonalds_diner' }
 
 function WorldClearedModal({ blockName, allCleared, onContinue }) {
   return (
@@ -124,6 +143,7 @@ export default function WorldScreen() {
   const world3 = useGameStore((s) => s.world3)
   const world4 = useGameStore((s) => s.world4)
   const addOwnedVehicle = useGameStore((s) => s.addOwnedVehicle)
+  const jail = useGameStore((s) => s.jail)
 
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
@@ -197,9 +217,66 @@ export default function WorldScreen() {
     prevClearedIdsRef.current = new Set(blocks.filter((b) => b.cleared).map((b) => b.id))
   }, [blocks])
 
+  // Being arrested (jail.inJail flipping false -> true, from any executeCrime
+  // call site - Temple/Bank/Crypto/collude/extort/vehicle theft) teleports
+  // the player into the jailCell zone (jail mini-map plan) instead of
+  // force-popping a full-screen modal over whatever they were doing - see
+  // GameCanvas.jsx's 'enterJail' bridge listener and OverworldScene.js's
+  // buildJailCellZone. Deliberately keyed only on jail?.inJail so it doesn't
+  // refire every render while still jailed. The old re-route guard that used
+  // to force JailEscapeModal back open if the player tried Temple/Bank/
+  // Crypto/Stock Exchange while jailed is gone - arrest now physically
+  // removes the player from the overworld, so those buildings' zones are
+  // unreachable anyway.
+  useEffect(() => {
+    if (jail?.inJail) bridgeRef.current.emit('enterJail')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jail?.inJail])
+
   useEffect(() => {
     const bridge = bridgeRef.current
     const offInteract = bridge.on('interact', (payload) => {
+      // Court & Prison's single 'courtAndPrison' building id is shared by
+      // two mutually-exclusive interactions that can never both be true at
+      // once: walking up to it on the overworld (only possible while free)
+      // vs. the guard desk inside the jailCell zone (only reachable while
+      // jailed) - see OverworldScene.js's courtAndPrison special-case and
+      // buildJailCellZone.
+      if (payload.type === 'building' && payload.id === 'courtAndPrison') {
+        if (useGameStore.getState().jail?.inJail) {
+          setActiveModal({ type: 'jail' })
+        } else {
+          alert('Capital City Central Booking. Best not to go in voluntarily.')
+          bridge.emit('resumeScene')
+        }
+        return
+      }
+      // jailMaze checkpoints open a real input challenge (JailMazeMinigame)
+      // rather than resolving instantly - the coin-flip that used to sit
+      // behind this event is gone. The out-of-order guard (see
+      // attemptMazeSegment's mazeProgress check in useGameStore.js) is
+      // re-checked here up front too, so a stale/duplicate checkpoint event
+      // never even opens the minigame modal.
+      if (payload.type === 'jailMazeCheckpoint') {
+        const jailState = useGameStore.getState().jail
+        const outOfOrder =
+          !jailState?.inJail ||
+          jailState.mazeAttemptedToday ||
+          payload.segmentIndex !== (jailState.mazeProgress || 0)
+        if (outOfOrder) {
+          bridge.emit('resumeScene')
+          return
+        }
+        // getMazeSegmentDifficulty computes the exact same evadeChance the
+        // old coin-flip used (AGI/streetwise/effective Luck/wantedLevel,
+        // rising per segment) and inverts it into a 0..1 "how hard should
+        // the minigame be" number - it is NOT itself rolled against here or
+        // anywhere downstream. The minigame's own pass/fail decides the
+        // checkpoint (see JailMazeMinigame.jsx).
+        const difficulty = useGameStore.getState().getMazeSegmentDifficulty(payload.segmentIndex)
+        setActiveModal({ type: 'jailMazeMinigame', segmentIndex: payload.segmentIndex, difficulty })
+        return
+      }
       // Save Point and the KC Tower Security Gate resolve immediately
       // rather than opening a modal.
       if (payload.type === 'domino' && payload.id === 'savePoint') {
@@ -301,9 +378,12 @@ export default function WorldScreen() {
   }
 
   const handleFinanceCombatVictory = (npcId) => {
-    const npc = getFinanceNpc(npcId)
+    // getAnyCharacter (not getFinanceNpc) - this fires for any named roamer's
+    // bodyguard fight, not just Financial Titans, and every roster entry
+    // carries netWorth (see characterLookup.js's INDEX build).
+    const npc = getAnyCharacter(npcId)
     markFinanceNpcDead(npcId)
-    useGameStore.getState().addCash(Math.round(npc.netWorth / 1e8))
+    useGameStore.getState().addCash(Math.round((npc?.netWorth || 0) / 1e8))
     bridgeRef.current.emit('npcKilled', { npcId })
   }
 
@@ -395,16 +475,11 @@ export default function WorldScreen() {
       </div>
 
       {mode === 'overworld' && (
-        <FinanceStatusBar
-          onOpenBoard={() => setActiveModal({ type: 'syndicateBoard' })}
-          onOpenAgentFeed={() => setActiveModal({ type: 'agentFeed' })}
-          onOpenGov={() => setActiveModal({ type: 'government' })}
-          onOpenLocations={() => setActiveModal({ type: 'interactiveLocation', locationId: 'mcdonalds_diner' })}
-        />
+        <FinanceStatusBar onOpenPhone={() => setActiveModal({ type: 'phone' })} />
       )}
 
       {!worldCleared && (
-        <div className="relative w-full max-w-5xl mx-auto my-2 rounded-xl overflow-hidden flex items-center justify-center">
+        <div className="relative w-full max-w-7xl mx-auto my-2 rounded-xl overflow-hidden flex items-center justify-center">
           <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
         </div>
       )}
@@ -413,10 +488,87 @@ export default function WorldScreen() {
         Move with WASD/Arrows • E to interact{mode === 'overworld' && activeRegion === 'hunter' ? ' • R to commit crime' : ''}
       </p>
 
+      {activeModal?.type === 'jail' && (
+        <JailEscapeModal onClose={closeModal} onVictory={() => bridgeRef.current.emit('exitJail')} />
+      )}
+      {activeModal?.type === 'jailMazeMinigame' && (
+        <JailMazeMinigame
+          segmentIndex={activeModal.segmentIndex}
+          difficulty={activeModal.difficulty}
+          onResolved={(result) => {
+            if (!result) {
+              // Walk-away before the first input registered - free, no
+              // store call ever happened, no consequence. Bounces back to
+              // the jailMaze zone exactly like never having interacted
+              // with the checkpoint (matches VaultCrackModal's Walk Away).
+              closeModal()
+              return
+            }
+            setActiveModal({ type: 'jailMazeResult', ...result })
+          }}
+        />
+      )}
+      {activeModal?.type === 'jailMazeResult' && (
+        <JailMazeModal
+          result={activeModal}
+          onContinue={() => {
+            if (activeModal.success && activeModal.final) {
+              // Final checkpoint clear: jail is already resolved in the
+              // store (attemptMazeSegment cleared it) - swap to the
+              // jailUnderworld backdrop and open the real Underworld hub
+              // modal on top of it, satisfying "auto-open UnderworldModal
+              // once, framed as emerging through the tunnel" with zero new
+              // modal code. Deliberately skips resumeScene here (unlike the
+              // two branches below) - the scene stays paused straight
+              // through into the Underworld modal rather than letting the
+              // player move around the transient backdrop for a frame.
+              setActiveModal({ type: 'building', id: 'underworld', viaJailMaze: true })
+              bridgeRef.current.emit('enterJailUnderworld')
+            } else if (activeModal.success) {
+              // Non-final segment cleared - still standing in jailMaze,
+              // free to walk to the next checkpoint.
+              closeModal()
+            } else {
+              // Failed a segment - bounced back to jailCell with the
+              // harsher penalty already applied by the store.
+              setActiveModal(null)
+              bridgeRef.current.emit('enterJail')
+              bridgeRef.current.emit('resumeScene')
+            }
+          }}
+        />
+      )}
       {activeModal?.type === 'inventory' && <InventoryModal onClose={closeModal} />}
-      {activeModal?.type === 'syndicateBoard' && <SyndicateBoardModal onClose={closeModal} />}
-      {activeModal?.type === 'agentFeed' && <AgentInteractionsModal onClose={closeModal} />}
-      {activeModal?.type === 'government' && <GovernmentModal onClose={closeModal} />}
+      {/* Board of Realities' 4 functional phone apps: Social/X (Titan Feed +
+          news ticker), Banking & Portfolio (Portfolio/Bank & Realty/Stock
+          Exchange tabs), Contacts & Romance (list view over
+          world2.romanceState/recruitedAdvisors, opens NamedNpcModal per
+          contact), Guide (Aria, an original AI helper character answering
+          "how does X work" questions - see GuideApp.jsx/aiGuide.js) - see
+          src/features/phone/{SocialApp,BankingApp,ContactsApp,GuideApp}.jsx.
+          Two apps used to live here and were both deliberately removed:
+          Dark Web & Underground (Underworld/Hitman Contracts/Syndicate Ops/
+          Narcotics tabs) - phone-anywhere access undercut the point of
+          walking to the physical Underworld building, that content is
+          standalone-only now, same as before phone integration (see the
+          'narcoticsTrade'/'syndicateOperations'/'hitmanContract' modal types
+          and the 'underworld' building case below). Startups & M&A
+          (CorporateModal, company acquisitions) - relocated into the Bank &
+          Realty building instead of orphaned, since it had no other entry
+          point in the game (see BankModal.jsx). Syndicate Board (advisor
+          recruitment) was also removed from Banking around the same time -
+          still reachable by walking up to a titan NPC in the overworld. */}
+      {activeModal?.type === 'phone' && (
+        <PhoneShell
+          onClose={closeModal}
+          apps={{
+            social: () => <SocialApp />,
+            banking: () => <BankingApp />,
+            contacts: () => <ContactsApp />,
+            guide: () => <GuideApp />,
+          }}
+        />
+      )}
       {activeModal?.type === 'scotusTrial' && <ScotusCourtroomModal onClose={closeModal} />}
       {activeModal?.type === 'irsAudit' && <IrsHearingModal onClose={closeModal} />}
       {activeModal?.type === 'fbiInterrogation' && <FbiInterrogationModal onClose={closeModal} />}
@@ -449,10 +601,6 @@ export default function WorldScreen() {
       {activeModal?.type === 'townTravel' && (
         <TownTravelUI
           onClose={closeModal}
-          onTravel={(cityId) => {
-            bridgeRef.current.emit('cityTravel', { cityId })
-            closeModal()
-          }}
           onOpenTransitShop={() => setActiveModal({ type: 'interactiveLocation', locationId: 'transit_hub' })}
         />
       )}
@@ -484,6 +632,10 @@ export default function WorldScreen() {
           difficulty={activeModal.wantedLevel}
           variant="police"
           monsterOverride={generateHunterPolice(activeModal.wantedLevel)}
+          // Preserve Hunter's Rift's original "beat the cops, Wanted resets
+          // to 0" behavior - the "real arrest pipeline" nerf to -1 is scoped
+          // to Finance's financePoliceEncounter/PoliceStopModal only.
+          wantedRewardOnWin={-5}
           onClose={closeModal}
         />
       )}
@@ -503,35 +655,84 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id === 'bank' && (
         <BankModal onClose={closeModal} />
       )}
-      {activeModal?.type === 'building' && activeModal.id === 'corporateOffice' && (
-        <CorporateModal onClose={closeModal} />
-      )}
-      {activeModal?.type === 'building' && activeModal.id === 'cryptoExchange' && (
-        <CryptoModal onClose={closeModal} />
-      )}
-      {/* Real Estate Agency and the VC Hub are new-district front doors onto
-          the same existing Bank/Corporate systems, rather than duplicate
-          mechanics - Commercial District's realty wing and Financial
-          District's startup-investing wing respectively. */}
+      {/* Crypto HQ is gone as a standalone building - it's now the Crypto tab
+          inside StockExchangeModal, so there's no top-level 'cryptoExchange'
+          case left to render here. Corporate Holdings and the VC Hub (former
+          CorporateModal front doors) are gone too - Phase 4's 14-category
+          trim deleted both outright, neither maps to a spec'd main-building
+          category. */}
+      {/* Real Estate Agency is a new-district front door onto the same
+          existing Bank system, rather than duplicate mechanics - Commercial
+          District's realty wing. */}
       {activeModal?.type === 'building' && activeModal.id === 'realEstateAgency' && (
         <BankModal onClose={closeModal} />
       )}
-      {activeModal?.type === 'building' && activeModal.id === 'vcHub' && (
-        <CorporateModal onClose={closeModal} />
-      )}
       {/* Casino got its own bespoke Phaser interior + a tabbed modal (real
-          blackjack/poker/slots/NPC-challenge minigames); Arcade kept the
-          shared amenity interior but also got its own modal for the claw
-          machine - neither routes through the generic DistrictBuildingModal
-          any more. */}
+          blackjack/poker/slots/NPC-challenge minigames), and now also hosts
+          Pixel Palace Arcade as an embedded tab (see CasinoModal.jsx's TABS)
+          - Arcade no longer has its own top-level 'arcade' building id/case,
+          it's reached only through Casino's Arcade tab now. Neither routes
+          through the generic DistrictBuildingModal. */}
       {activeModal?.type === 'building' && activeModal.id === 'casino' && (
         <CasinoModal onClose={closeModal} />
       )}
-      {activeModal?.type === 'building' && activeModal.id === 'arcade' && (
-        <ArcadeModal onClose={closeModal} />
-      )}
       {activeModal?.type === 'building' && activeModal.id === 'temple' && (
         <TempleModal onClose={closeModal} />
+      )}
+      {/* Bonded Cargo Pier (Dock/Pier spec category) - Cast & Reel fishing +
+          Declare Honest/Pad the Manifest, entirely self-contained in
+          WharfModal.jsx (own addCash/spendEnergy/executeCrime calls, no
+          onVictory/onDefeat handshake) - same "straight-to-modal, no Phaser
+          interior" shape as foodCourt, but a bespoke component instead of
+          InteractiveLocationModal since it needs live state/interaction. */}
+      {activeModal?.type === 'building' && activeModal.id === 'wharf' && (
+        <WharfModal onClose={closeModal} />
+      )}
+      {/* Entertainment Complex (Concert Hall + Sports Stadium) - 2-tab hub
+          modal, same shape as the 4 consolidated hubs below. Concert Hall
+          composes Dixon's NamedNpcModal flavor tab with the arrow-key
+          rhythm minigame (RhythmGame.jsx); Sports Stadium composes
+          Rothstein's flavor tab with the alternating-key sprint QTE
+          (SprintRace.jsx). */}
+      {activeModal?.type === 'building' && activeModal.id === 'entertainmentComplex' && (
+        <EntertainmentComplexModal onClose={closeModal} />
+      )}
+      {/* The 4 Phase-2/4 consolidated hubs - each is a tabbed modal wrapping
+          several formerly-standalone buildings' content via the `embedded`
+          prop pattern (see each modal file for its TABS array). None of
+          these building ids exist in DISTRICT_BUILDING_IDS, so they can't
+          double-fire the DistrictBuildingModal branch below. */}
+      {activeModal?.type === 'building' && activeModal.id === 'underworld' && (
+        <UnderworldModal
+          onClose={
+            // Reached via the jail maze's tunnel rather than the normal
+            // overworld building - the scene is sitting on the transient
+            // jailUnderworld backdrop, not 'overworld', so closing needs to
+            // actually travel back rather than just unpausing in place.
+            activeModal.viaJailMaze
+              ? () => {
+                  setActiveModal(null)
+                  // interactionLocked was set by the pauseForModal() call
+                  // that fired when the final jailMazeCheckpoint was
+                  // triggered, and nothing since has resumed it (unlike the
+                  // failed-segment branch above, which does) - without this,
+                  // the player lands back on the overworld with movement and
+                  // interaction permanently frozen.
+                  bridgeRef.current.emit('resumeScene')
+                  bridgeRef.current.emit('exitJail')
+                }
+              : closeModal
+          }
+        />
+      )}
+      {activeModal?.type === 'building' && activeModal.id === 'businessCenter' && (
+        <BusinessCenterModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'building' && activeModal.id === 'governmentBuilding' && (
+        <GovernmentBuildingModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'building' && activeModal.id === 'industrialZone' && (
+        <IndustrialZoneModal onClose={closeModal} />
       )}
       {activeModal?.type === 'building' && activeModal.id !== 'temple' && DISTRICT_BUILDING_IDS.includes(activeModal.id) && (
         <DistrictBuildingModal buildingId={activeModal.id} onClose={closeModal} />
@@ -540,7 +741,29 @@ export default function WorldScreen() {
         <NamedNpcModal
           npcId={activeModal.npcId}
           onClose={closeModal}
-          onAttack={() => setActiveModal({ type: 'financeCombat', npcId: activeModal.npcId })}
+          onAttack={() => {
+            // Named tycoons' bodyguards scale with bodyguardPower (up to
+            // ~380 HP / ~38 ATK vs a fresh player's 100 HP) - warn before
+            // committing, same spirit as the riftB rank-gate warning above.
+            // Losing no longer wipes the save (see RiftCombatModal's
+            // lethal={false} below), but it's still a real, felt setback,
+            // so the player should know that going in.
+            // getAnyCharacter (not getFinanceNpc) - namedRoamer NPCs can be
+            // any roster (Financial Titan, Crime Syndicate, President, Fed/
+            // FTC Chairman, Agency Leader), all reachable through this same
+            // Attack button. getFinanceNpc only ever found Financial Titans
+            // and returned undefined for everyone else, which crashed
+            // generateBodyguardMonster below.
+            const npc = getAnyCharacter(activeModal.npcId)
+            const guard = generateBodyguardMonster(npc)
+            const proceed = window.confirm(
+              `${npc?.name || 'This target'}'s security detail looks serious - roughly ${guard.maxHp} HP, hitting for ` +
+              `~${guard.attack} per swing. You won't die if you lose, but you'll get hospitalized ` +
+              `and lose a cut of your cash. Attack anyway?`
+            )
+            if (!proceed) return
+            setActiveModal({ type: 'financeCombat', npcId: activeModal.npcId })
+          }}
         />
       )}
       {activeModal?.type === 'ambientNpc' && (
@@ -555,7 +778,8 @@ export default function WorldScreen() {
               notorietyIncreaseOnFail: 5,
               wantedIncreaseOnFail: 1,
               energyCost: 15,
-              assetSeizureOnFail: 0
+              assetSeizureOnFail: 0,
+              jailChanceOnFail: 0,
             })
             // if we had a toast we could show res.message
             closeModal()
@@ -563,11 +787,17 @@ export default function WorldScreen() {
           onAttack={() => setActiveModal({ type: 'ambientCombat', npcId: activeModal.npcId })}
         />
       )}
+      {/* Finance-world combats share Hunter's Rift combat UI but not its
+          permadeath stakes - lethal={false} routes losses through
+          takeFinanceCombatDamage (hospitalized + cash hit) instead of
+          takeDamage's save-wipe path. See useGameStore.js's comment on
+          takeFinanceCombatDamage for why. */}
       {activeModal?.type === 'financeCombat' && (
         <RiftCombatModal
           difficulty={5}
           variant="rift"
-          monsterOverride={generateBodyguardMonster(getFinanceNpc(activeModal.npcId))}
+          lethal={false}
+          monsterOverride={generateBodyguardMonster(getAnyCharacter(activeModal.npcId))}
           onClose={closeModal}
           onVictory={() => handleFinanceCombatVictory(activeModal.npcId)}
         />
@@ -576,18 +806,14 @@ export default function WorldScreen() {
         <RiftCombatModal
           difficulty={1}
           variant="rift"
+          lethal={false}
           monsterOverride={generateStreetTargetMonster()}
           onClose={closeModal}
           onVictory={() => handleAmbientCombatVictory(activeModal.npcId)}
         />
       )}
       {activeModal?.type === 'financePoliceEncounter' && (
-        <RiftCombatModal
-          difficulty={activeModal.wantedLevel}
-          variant="police"
-          monsterOverride={generateSwatSquad(activeModal.wantedLevel)}
-          onClose={closeModal}
-        />
+        <PoliceStopModal wantedLevel={activeModal.wantedLevel} onClose={closeModal} />
       )}
 
       {/* World 3 */}

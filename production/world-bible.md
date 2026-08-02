@@ -157,6 +157,48 @@ parallel-universe retcon, or should `world4`'s roster reference/inherit
 
 ---
 
+## Underworld / Crime Syndicates (Finance World)
+
+**Canon roster:** `src/data/syndicate.js` defines 7 historical syndicates x
+3 ranks (Boss/Underboss/Capo, 21 named NPCs total) with full bios and
+daily schedules: Chicago Outfit (Capone/Nitti/Ricca), Five Families/
+Luciano (Luciano/Genovese/Costello), National Crime Syndicate (Lansky/
+Siegel/Cohen), Medellin Syndicate (Escobar/Gaviria/Ochoa), Griselda Empire
+(Blanco/Osvaldo/Dixon), Murder Inc. (Lepke/Anastasia/Weiss), Speakeasy
+Syndicate (Rothstein/Waxey/Remus). `src/features/government/
+crimeSyndicates.js` (`CRIME_SYNDICATES`) mirrors the same 7 syndicates/21
+IDs with palettes, aggression, extortionPower, and dailyToll, and is
+already wired into world-presence simulation (`agentRegistry.js`,
+`characterDispositions.js`, `townMigrationEngine.js` — fugitive/heat
+behavior sends members to ground based on `crimeSyndicatesState.heatLevel`
+from `GovernmentModal`). So all 21 members already have *some* simulated
+presence; only the *player-facing job/content* layer is thin.
+
+**Current player-facing surface (thin):** The Underworld building
+(`UnderworldModal.jsx`) exposes only 4 flat tabs (Black Market, Call
+Center Ops, Crime Alley, Speakeasy Hotel) via generic one-button gambles
+(`districtBuildings.js`) plus Luciano as the only reachable named boss
+in-building (`NamedNpcModal` embedded in Crime Alley). Real syndicate
+structure (rank, territory, rivalry) isn't expressed as gameplay yet.
+
+**Contradiction to flag:** `src/features/world/syndicateActivitiesEngine.js`
+(`SYNDICATE_OPERATIONS_CATALOG`, surfaced via the phone's Syndicate
+Operations app) is a *third*, independently-hand-written syndicate list
+that mostly maps to the same 7 (by boss names) but uses mismatched
+territory names (Osaka/Tokyo/Kyoto/Sapporo — city names, not the
+Underground/Commercial/Financial/Government District system used
+everywhere else) and adds an 8th, non-canonical syndicate ("Golden
+Triangle Cartel," boss listed only as generic "Asian Cartel Syndicate")
+with no bio, schedule, or named characters, and a reductive real-world
+ethnic framing worth reconsidering on its own merits regardless of the
+consistency issue. This needs an explicit call: fold this into the
+canonical 7 (drop Golden Triangle or give it real named characters +
+fix territory names to match the District system), or keep it as a
+deliberately separate "rumor mill" abstraction layer — recommend the
+former since it directly undercuts the canon roster's territory data.
+
+---
+
 ## Cross-world notes
 
 - Ambient/filler NPCs (`npcGenerator.js`'s `generateAmbientNpc`) are
