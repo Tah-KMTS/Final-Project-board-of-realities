@@ -193,7 +193,7 @@ export default function ContractDeductionModal({ onClose, embedded = false }) {
           </button>
         )}
 
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Murder, Inc. - Boss Job</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Murder, Inc. - Boss Job</p>
         <h2 className="mb-2 text-xl font-bold text-zinc-200">Contract Deduction</h2>
 
         {!committed && (
@@ -219,7 +219,7 @@ export default function ContractDeductionModal({ onClose, embedded = false }) {
                 <span className="uppercase tracking-widest text-gray-500">Payout</span>
                 <span className="text-right text-green-400">${PAYOUT.toLocaleString()}</span>
               </div>
-              <p className="text-[10px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 Cold pricing, not a jackpot - and the highest jail risk of the three Boss jobs. This one is paperwork
                 with real exposure if the file gets pulled.
               </p>
@@ -248,7 +248,7 @@ export default function ContractDeductionModal({ onClose, embedded = false }) {
             </div>
 
             <div>
-              <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Time Block</p>
+              <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Time Block</p>
               <div className="grid grid-cols-1 gap-1">
                 {TIME_BLOCK_KEYS.map((key, idx) => {
                   const block = target.dailySchedule[key]
@@ -258,7 +258,7 @@ export default function ContractDeductionModal({ onClose, embedded = false }) {
                     <button
                       key={key}
                       onClick={() => setPickTimeBlock(id)}
-                      className={`border-2 p-1.5 text-left text-[11px] ${
+                      className={`border-2 p-1.5 text-left text-xs ${
                         selected ? 'border-zinc-300 bg-zinc-300/20 text-white' : 'border-gray-600 text-gray-300 hover:border-gray-400'
                       }`}
                     >
@@ -272,7 +272,7 @@ export default function ContractDeductionModal({ onClose, embedded = false }) {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Route</p>
+                <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Route</p>
                 <div className="flex flex-col gap-1">
                   {ROUTES.map((r) => {
                     const selected = pickRoute === r.id
@@ -280,7 +280,7 @@ export default function ContractDeductionModal({ onClose, embedded = false }) {
                       <button
                         key={r.id}
                         onClick={() => setPickRoute(r.id)}
-                        className={`border-2 p-1.5 text-left text-[11px] ${
+                        className={`border-2 p-1.5 text-left text-xs ${
                           selected ? 'border-zinc-300 bg-zinc-300/20 text-white' : 'border-gray-600 text-gray-300 hover:border-gray-400'
                         }`}
                       >
@@ -292,7 +292,7 @@ export default function ContractDeductionModal({ onClose, embedded = false }) {
                 </div>
               </div>
               <div>
-                <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Approach</p>
+                <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Approach</p>
                 <div className="flex flex-col gap-1">
                   {APPROACHES.map((a) => {
                     const selected = pickApproach === a.id
@@ -300,7 +300,7 @@ export default function ContractDeductionModal({ onClose, embedded = false }) {
                       <button
                         key={a.id}
                         onClick={() => setPickApproach(a.id)}
-                        className={`border-2 p-1.5 text-left text-[11px] ${
+                        className={`border-2 p-1.5 text-left text-xs ${
                           selected ? 'border-zinc-300 bg-zinc-300/20 text-white' : 'border-gray-600 text-gray-300 hover:border-gray-400'
                         }`}
                       >
@@ -334,7 +334,7 @@ export default function ContractDeductionModal({ onClose, embedded = false }) {
                   </div>
                 ))}
               </div>
-              <p className="mt-1 text-[10px] text-gray-500">
+              <p className="mt-1 text-xs text-gray-500">
                 Only a count of correct slots is reported - never which ones.
               </p>
             </div>

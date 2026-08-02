@@ -25,7 +25,7 @@ export default function ArcadeModal({ onClose, embedded = false }) {
 
   const body = (
     <>
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Commercial District</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Commercial District</p>
         <h2 className="mb-2 text-xl font-bold text-cyan-300">Pixel Palace Arcade</h2>
         <p className="mb-4 text-xs text-gray-400">
           Retro cabinets hum next to VR pods. Locals come here to be seen as much as to play.

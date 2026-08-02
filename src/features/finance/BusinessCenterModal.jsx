@@ -68,7 +68,7 @@ export default function BusinessCenterModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="glass-panel w-[640px] border-4 border-slate-400 bg-[#1c1d3a] p-6 font-mono text-white">
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Financial District</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Financial District</p>
         <h2 className="mb-2 text-xl font-bold text-slate-300">Capital Business Center</h2>
         <p className="mb-3 text-xs text-gray-400">
           Five titans, five floors, one lobby. Buffett, Vanderbilt, Musk, Howard Marks, and Jobs all keep offices here.

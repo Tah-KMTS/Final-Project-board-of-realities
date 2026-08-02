@@ -215,7 +215,7 @@ export default function FinanceSkirmishModal({
           <div className="mt-1 h-3 w-full bg-gray-800">
             <div className="h-3 bg-red-500 transition-all" style={{ width: `${(monsterHp / monster.maxHp) * 100}%` }} />
           </div>
-          {monsterBoost && <div className="mt-1 text-[10px] text-purple-300">⚡ Counter Boost primed</div>}
+          {monsterBoost && <div className="mt-1 text-xs text-purple-300">⚡ Counter Boost primed</div>}
           {monsterFloats.map((f) => (
             <span key={f.id} className="animate-float-up-fade pointer-events-none absolute right-3 top-1 font-bold text-red-400">
               {f.text}
@@ -231,7 +231,7 @@ export default function FinanceSkirmishModal({
           <div className="mt-1 h-3 w-full bg-gray-800">
             <div className="h-3 bg-green-500 transition-all" style={{ width: `${Math.max(0, (player.hp / player.maxHp) * 100)}%` }} />
           </div>
-          {playerBoost && <div className="mt-1 text-[10px] text-purple-300">⚡ Counter Boost primed</div>}
+          {playerBoost && <div className="mt-1 text-xs text-purple-300">⚡ Counter Boost primed</div>}
           {playerFloats.map((f) => (
             <span key={f.id} className="animate-float-up-fade pointer-events-none absolute right-3 top-1 font-bold text-red-400">
               {f.text}

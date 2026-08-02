@@ -101,7 +101,7 @@ export default function FinalStretch({ difficulty, onComplete, onWalkAway }) {
       <p className="text-center text-2xl font-black tracking-widest text-orange-300">
         {count} / {targetAlternations}
       </p>
-      <p className="text-center text-[10px] uppercase tracking-widest text-gray-500">
+      <p className="text-center text-xs uppercase tracking-widest text-gray-500">
         Mash Left/Right (or A/D) - clean alternations only
       </p>
       <button

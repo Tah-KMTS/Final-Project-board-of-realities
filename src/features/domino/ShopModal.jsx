@@ -55,7 +55,7 @@ export default function ShopModal({ onClose }) {
                     Buy ({PACK_SIZE} cards)
                   </button>
                 ) : (
-                  <p className="text-[10px] text-gray-500">
+                  <p className="text-xs text-gray-500">
                     {pack.id === 'advanced' && `Locked - reach 10 total wins (${totalWins}/10).`}
                     {pack.id === 'expert' && 'Locked - defeat three different Tier 4 duelists.'}
                   </p>
@@ -78,7 +78,7 @@ export default function ShopModal({ onClose }) {
               Buy (1000 DP)
             </button>
           ) : (
-            <p className="text-[10px] text-gray-500">Locked - reach 15 total wins ({totalWins}/15).</p>
+            <p className="text-xs text-gray-500">Locked - reach 15 total wins ({totalWins}/15).</p>
           )}
         </div>
 

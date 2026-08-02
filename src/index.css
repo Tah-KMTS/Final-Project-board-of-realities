@@ -14,8 +14,10 @@ html {
   /* VT323 renders visibly smaller/thinner than a typical monospace font at
      the same size, so the root size is bumped here (rem-based, so it scales
      everything uniformly without compounding through nested elements the
-     way an em-based rule on a reusable class would). */
-  font-size: 18px;
+     way an em-based rule on a reusable class would). Bumped again (18px ->
+     21px) for general readability - every Tailwind text-* utility across
+     the whole game (all rem-based) scales from this one line. */
+  font-size: 21px;
 }
 
 html, body, #root {

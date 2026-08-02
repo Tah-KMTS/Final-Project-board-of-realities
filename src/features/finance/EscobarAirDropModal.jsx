@@ -259,7 +259,7 @@ export default function EscobarAirDropModal({ onClose, embedded = false }) {
           </button>
         )}
 
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Medellin Syndicate - Boss Job</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Medellin Syndicate - Boss Job</p>
         <h2 className="mb-2 text-xl font-bold text-orange-400">Air-Drop Route Planner</h2>
 
         {!committed && (
@@ -325,7 +325,7 @@ export default function EscobarAirDropModal({ onClose, embedded = false }) {
                   <div key={legIndex} className={`border-2 ${isHot ? 'border-red-500' : 'border-gray-600'} bg-[#0f1020] p-2`}>
                     <div className="mb-1 flex items-center justify-between text-xs">
                       <span className="font-bold text-white">Leg {legIndex + 1}</span>
-                      {isHot && <span className="border border-red-500 px-1 text-[10px] font-bold uppercase text-red-400">Hot</span>}
+                      {isHot && <span className="border border-red-500 px-1 text-xs font-bold uppercase text-red-400">Hot</span>}
                     </div>
                     <div className="flex gap-2">
                       {LANES.map((lane) => {
@@ -336,7 +336,7 @@ export default function EscobarAirDropModal({ onClose, embedded = false }) {
                             key={lane}
                             onClick={() => chooseLane(legIndex, lane)}
                             title={LANE_FLAVOR[lane]}
-                            className={`flex-1 border-2 p-1.5 text-left text-[11px] ${
+                            className={`flex-1 border-2 p-1.5 text-left text-xs ${
                               selected ? 'border-orange-400 bg-orange-500/20 text-orange-200' : 'border-gray-600 text-gray-300 hover:border-gray-400'
                             }`}
                           >
@@ -380,7 +380,7 @@ export default function EscobarAirDropModal({ onClose, embedded = false }) {
                   </span>
                 </div>
               ))}
-              {revealIndex < resolution.legs.length && <p className="text-center text-[10px] text-gray-600">...</p>}
+              {revealIndex < resolution.legs.length && <p className="text-center text-xs text-gray-600">...</p>}
             </div>
           </div>
         )}

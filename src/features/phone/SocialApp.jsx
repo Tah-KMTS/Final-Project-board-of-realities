@@ -51,7 +51,7 @@ export default function SocialApp() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {newsHeadline && (
-        <div className="mb-2 flex shrink-0 items-center gap-1.5 rounded border border-cyan-500/30 bg-cyan-950/20 px-2 py-1.5 text-[11px] italic text-cyan-200">
+        <div className="mb-2 flex shrink-0 items-center gap-1.5 rounded border border-cyan-500/30 bg-cyan-950/20 px-2 py-1.5 text-xs italic text-cyan-200">
           <span className="shrink-0">📰</span>
           <span>{newsHeadline}</span>
         </div>
@@ -138,10 +138,10 @@ export default function SocialApp() {
         </button>
 
         {result && !result.success && (
-          <div className="mt-1.5 text-[10px] font-bold text-red-400">{result.reason}</div>
+          <div className="mt-1.5 text-xs font-bold text-red-400">{result.reason}</div>
         )}
         {result?.success && (
-          <div className="mt-1.5 text-[10px] font-bold text-emerald-400">
+          <div className="mt-1.5 text-xs font-bold text-emerald-400">
             Posted. Effect resolves after the next End Day.
           </div>
         )}

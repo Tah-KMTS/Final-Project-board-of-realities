@@ -79,7 +79,7 @@ export default function TownTravelUI({ onClose, onOpenTransitShop }) {
         )}
 
         {/* Cozy Footer Info */}
-        <div className="text-center text-[11px] text-amber-400/70 pt-2 border-t border-amber-950">
+        <div className="text-center text-xs text-amber-400/70 pt-2 border-t border-amber-950">
           💡 Tip: The Station Shop sells vehicles and a lifetime transit pass.
         </div>
       </div>

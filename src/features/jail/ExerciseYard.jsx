@@ -95,7 +95,7 @@ export default function ExerciseYard({ difficulty, onComplete, onWalkAway }) {
           </span>
         ))}
       </div>
-      <p className="text-center text-[10px] uppercase tracking-widest text-gray-500">
+      <p className="text-center text-xs uppercase tracking-widest text-gray-500">
         Match the highlighted arrow before the window closes
       </p>
       <button

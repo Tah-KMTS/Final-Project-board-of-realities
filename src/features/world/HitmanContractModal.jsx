@@ -55,13 +55,13 @@ export default function HitmanContractModal({ onClose }) {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-bold text-red-300 text-sm">{hitman.name}</h3>
-                  <div className="text-[11px] text-yellow-300 font-semibold">{hitman.syndicate}</div>
+                  <div className="text-xs text-yellow-300 font-semibold">{hitman.syndicate}</div>
                 </div>
                 <span className="rounded bg-red-950 px-2 py-0.5 text-xs font-bold text-emerald-400">
                   ${hitman.price.toLocaleString()}
                 </span>
               </div>
-              <div className="mt-2 space-y-1 text-gray-300 text-[11px]">
+              <div className="mt-2 space-y-1 text-gray-300 text-xs">
                 <div>• Signature Weapon: <b className="text-yellow-200">{hitman.signatureWeapon}</b></div>
                 <div>• Ethics/Method: <span className="text-gray-200">{hitman.ethics}</span></div>
                 <div>• Signature Trace: <span className="text-cyan-300">{hitman.signatureTrace}</span></div>

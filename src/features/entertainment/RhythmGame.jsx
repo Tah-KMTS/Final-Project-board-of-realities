@@ -278,7 +278,7 @@ export default function RhythmGame({ song, onFinish }) {
         ))}
       </div>
 
-      <p className="text-[10px] text-gray-500">Press the matching arrow key as each note crosses the white line.</p>
+      <p className="text-xs text-gray-500">Press the matching arrow key as each note crosses the white line.</p>
 
       {!leaveConfirm ? (
         <button

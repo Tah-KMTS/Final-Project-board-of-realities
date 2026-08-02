@@ -1123,7 +1123,7 @@ export default function DDMBoard({
                             Use
                           </button>
                         ) : (
-                          <span className="shrink-0 text-[9px] text-gray-600">not yet active</span>
+                          <span className="shrink-0 text-xs text-gray-600">not yet active</span>
                         )}
                       </div>
                     )
@@ -1166,7 +1166,7 @@ export default function DDMBoard({
                   Summon Lv{summonAvailable} Monster (click a green tile)
                 </button>
               )}
-              <p className="text-[10px] text-gray-500">Dimensions used: {playerDimensionsUsed}/{MAX_DIMENSIONS}</p>
+              <p className="text-xs text-gray-500">Dimensions used: {playerDimensionsUsed}/{MAX_DIMENSIONS}</p>
               {mode === 'placing' && (
                 <p className="text-center text-xs text-green-400">Click a highlighted tile to place your monster.</p>
               )}
@@ -1205,17 +1205,17 @@ export default function DDMBoard({
                     </button>
                   )}
                   {m.ability && m.ability.target === 'passive' && (
-                    <span className="text-[10px] text-orange-400" title={m.ability.description}>
+                    <span className="text-xs text-orange-400" title={m.ability.description}>
                       🛡 {m.ability.name} (passive)
                     </span>
                   )}
                   {m.ability && m.ability.target !== 'passive' && !isAbilityImplemented(m.ability) && (
-                    <span className="text-[10px] text-gray-600" title={m.ability.description}>
+                    <span className="text-xs text-gray-600" title={m.ability.description}>
                       ✦ {m.ability.name} (flavor only - not yet active)
                     </span>
                   )}
                   {(m.frozen || m.silencedTurns > 0 || m.poisonTurnsLeft > 0) && (
-                    <span className="text-[10px] text-cyan-400">
+                    <span className="text-xs text-cyan-400">
                       {m.frozen && '❄ Frozen '}
                       {m.silencedTurns > 0 && '🔇 Silenced '}
                       {m.poisonTurnsLeft > 0 && '☠ Poisoned'}

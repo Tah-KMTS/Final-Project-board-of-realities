@@ -319,7 +319,7 @@ export default function WharfModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="glass-panel w-[440px] border-4 border-cyan-700 bg-[#0e1b24] p-6 font-mono text-white">
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-cyan-600">Industrial District</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-cyan-600">Industrial District</p>
         <h2 className="mb-2 text-xl font-bold text-cyan-200">Bonded Cargo Pier</h2>
         <p className="mb-4 text-xs text-gray-400">
           A ship that was "lost at sea" never actually sailed. A bill of lading says "textiles" over an empty
@@ -341,7 +341,7 @@ export default function WharfModal({ onClose }) {
 
         {reeling && (
           <div className="mb-4 border-2 border-cyan-700 bg-[#0a141c] p-3">
-            <p className="mb-2 text-[11px] text-cyan-300">
+            <p className="mb-2 text-xs text-cyan-300">
               Hold Left / Right (or A / D) to keep the fish inside the zone.
             </p>
             <div className="relative mb-2 h-5 w-full border border-gray-600 bg-black">
@@ -351,7 +351,7 @@ export default function WharfModal({ onClose }) {
               />
               <div className="absolute top-0 h-full w-[3px] bg-yellow-300" style={{ left: `${fishPos * 100}%` }} />
             </div>
-            <div className="mb-1 flex items-center justify-between text-[10px] text-gray-400">
+            <div className="mb-1 flex items-center justify-between text-xs text-gray-400">
               <span>In-zone: {(inZoneMs / 1000).toFixed(1)}s / 3.0s</span>
               <span>Tension</span>
             </div>

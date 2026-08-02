@@ -120,7 +120,7 @@ export default function DialogueBox({
           {shown}
           <span className={typing ? 'animate-pulse' : 'invisible'}>▌</span>
         </p>
-        <div className="mt-1 text-right text-[10px] text-gray-500">
+        <div className="mt-1 text-right text-xs text-gray-500">
           {typing ? 'click to skip' : lineIndex + 1 < lines.length ? 'click to continue ▸' : 'click to close ▸'}
         </div>
       </div>
@@ -139,7 +139,7 @@ export default function DialogueBox({
                 </p>
               ))}
               {chatError && (
-                <p className="text-[10px] italic text-red-400">
+                <p className="text-xs italic text-red-400">
                   (Couldn't reach the NPC chat backend - is it running? See backend/README.md.)
                 </p>
               )}

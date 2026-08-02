@@ -69,7 +69,7 @@ export default function GuideApp() {
         <AriaAvatar />
         <div>
           <div className="text-sm font-bold text-pink-300">Aria</div>
-          <div className="text-[10px] text-gray-500">Your in-game guide</div>
+          <div className="text-xs text-gray-500">Your in-game guide</div>
         </div>
       </div>
 
@@ -104,7 +104,7 @@ export default function GuideApp() {
             <button
               key={p}
               onClick={() => sendQuestion(p)}
-              className="rounded-full border border-pink-500/40 px-2.5 py-1 text-[10px] font-bold text-pink-300 hover:bg-pink-500/10"
+              className="rounded-full border border-pink-500/40 px-2.5 py-1 text-xs font-bold text-pink-300 hover:bg-pink-500/10"
             >
               {p}
             </button>

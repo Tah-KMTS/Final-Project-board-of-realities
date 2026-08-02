@@ -55,7 +55,7 @@ export default function ContactsApp() {
       <div className="flex h-full flex-col overflow-hidden">
         <button
           onClick={() => setOpenNpcId(null)}
-          className="mb-2 shrink-0 self-start rounded border border-gray-600 px-2 py-1 text-[10px] font-bold text-gray-300 hover:border-gray-400"
+          className="mb-2 shrink-0 self-start rounded border border-gray-600 px-2 py-1 text-xs font-bold text-gray-300 hover:border-gray-400"
         >
           ← Back to Contacts
         </button>
@@ -68,7 +68,7 @@ export default function ContactsApp() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="mb-2 shrink-0 text-[10px] font-bold uppercase tracking-wide text-rose-300">
+      <div className="mb-2 shrink-0 text-xs font-bold uppercase tracking-wide text-rose-300">
         Contacts & Romance ({contacts.length})
       </div>
       <div className="flex-1 overflow-y-auto space-y-2">
@@ -76,7 +76,7 @@ export default function ContactsApp() {
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-gray-400">
             <Heart size={28} className="text-rose-400/70" />
             <p className="text-xs font-bold text-gray-300">No contacts yet.</p>
-            <p className="max-w-[220px] text-[10px] italic text-gray-500">
+            <p className="max-w-[220px] text-xs italic text-gray-500">
               Date, marry, or recruit NPCs out in the world - they'll show up here once you do.
             </p>
           </div>
@@ -108,7 +108,7 @@ export default function ContactsApp() {
                         style={{ width: `${level}%` }}
                       />
                     </div>
-                    <span className={`shrink-0 text-[11px] font-bold ${isSpouse ? 'text-yellow-300' : 'text-fuchsia-300'}`}>
+                    <span className={`shrink-0 text-xs font-bold ${isSpouse ? 'text-yellow-300' : 'text-fuchsia-300'}`}>
                       {relationshipLabel(level, isSpouse)}
                     </span>
                   </div>

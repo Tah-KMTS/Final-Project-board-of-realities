@@ -59,7 +59,7 @@ export default function OffshoreAuditModal({ onClose, embedded = false }) {
           </button>
         )}
 
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">National Crime Syndicate - Boss Job</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">National Crime Syndicate - Boss Job</p>
         <h2 className="mb-2 text-xl font-bold text-slate-200">Offshore Audit</h2>
 
         {!accepted ? (

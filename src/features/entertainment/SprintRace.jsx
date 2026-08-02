@@ -322,7 +322,7 @@ export default function SprintRace({ tier, fixApplied, onFinish }) {
               className="relative mb-1 border-b border-gray-800"
               style={{ width: TRACK_WIDTH_PX, height: LANE_HEIGHT_PX }}
             >
-              <span className="absolute left-0 top-0 z-10 text-[10px] text-gray-400">{label}</span>
+              <span className="absolute left-0 top-0 z-10 text-xs text-gray-400">{label}</span>
               <div className="absolute right-0 top-0 h-full w-0.5 bg-white/60" />
               <div
                 ref={(el) => (runnerElRefs.current[laneIdx] = el)}
@@ -334,7 +334,7 @@ export default function SprintRace({ tier, fixApplied, onFinish }) {
         })}
       </div>
 
-      <p className="text-[10px] text-gray-500">
+      <p className="text-xs text-gray-500">
         Alternate Left/Right (or A/D) as fast and as cleanly as you can - 40 clean strides wins the day. Repeating
         the same key too fast is a stumble.
       </p>

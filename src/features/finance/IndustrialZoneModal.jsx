@@ -60,7 +60,7 @@ export default function IndustrialZoneModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="glass-panel w-[640px] border-4 border-slate-400 bg-[#1c1d3a] p-6 font-mono text-white">
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Industrial District</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Industrial District</p>
         <h2 className="mb-2 text-xl font-bold text-slate-300">Industrial Zone</h2>
         <p className="mb-3 text-xs text-gray-400">
           Five industrialists and regulators, one sprawling complex. Ford, Carnegie, Rockefeller, McNamara, and

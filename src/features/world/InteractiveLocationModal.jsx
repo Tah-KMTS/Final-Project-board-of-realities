@@ -91,7 +91,7 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
                     <div>
                       <div className="font-bold text-yellow-300 text-sm">{item.name}</div>
                       <div className="text-xs text-emerald-400 font-bold mt-1">${item.cost}</div>
-                      <div className="text-[11px] text-gray-300 mt-2">{item.bonusText}</div>
+                      <div className="text-xs text-gray-300 mt-2">{item.bonusText}</div>
                     </div>
                     <button
                       onClick={() => handlePurchaseItem(item)}

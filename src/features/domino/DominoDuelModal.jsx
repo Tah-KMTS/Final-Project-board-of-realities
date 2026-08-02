@@ -385,7 +385,7 @@ export default function DominoDuelModal({
     return (
       <button
         onClick={onClick}
-        className={`h-16 w-12 border-2 text-[8px] leading-tight ${highlighted ? 'border-yellow-300' : 'border-gray-500'} ${
+        className={`h-16 w-12 border-2 text-xs leading-tight ${highlighted ? 'border-yellow-300' : 'border-gray-500'} ${
           entry.position === 'defense' ? 'bg-blue-950' : 'bg-red-950'
         } px-0.5 py-0.5 text-left text-gray-200`}
         title={card?.Description}
@@ -471,7 +471,7 @@ export default function DominoDuelModal({
                 key={`${cardId}-${i}`}
                 onClick={() => handlePlayCard(i)}
                 disabled={turn !== 'player' || (phase !== 'main1' && phase !== 'main2') || !!outcome}
-                className="h-16 w-12 border-2 border-gray-500 bg-[#1c1d3a] px-0.5 py-0.5 text-left text-[8px] leading-tight text-gray-200 hover:border-purple-400 disabled:opacity-40"
+                className="h-16 w-12 border-2 border-gray-500 bg-[#1c1d3a] px-0.5 py-0.5 text-left text-xs leading-tight text-gray-200 hover:border-purple-400 disabled:opacity-40"
                 title={card?.Description}
               >
                 {card?.Name}
