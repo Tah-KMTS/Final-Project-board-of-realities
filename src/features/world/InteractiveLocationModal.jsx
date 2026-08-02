@@ -14,6 +14,8 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
   const world2 = useGameStore((s) => s.world2)
   const setVehicle = useGameStore((s) => s.setVehicle)
+  const player = useGameStore((s) => s.player)
+  const restoreEnergy = useGameStore((s) => s.restoreEnergy)
 
   const loc = INTERACTIVE_LOCATIONS.find((l) => l.id === locationId) || INTERACTIVE_LOCATIONS[0]
   const [feedback, setFeedback] = useState(null)
@@ -23,13 +25,20 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
       setFeedback(`Insufficient funds! Need $${item.cost}.`)
       return
     }
+    // Buying a snack purely for its energyRestore when already at full
+    // energy would just be burning cash for nothing - block it the same way
+    // the cost check blocks an unaffordable purchase, rather than silently
+    // letting restoreEnergy's own maxEnergy clamp eat the difference.
+    if (item.energyRestore && player.energy >= player.maxEnergy) {
+      setFeedback('Already at full Energy.')
+      return
+    }
     addCash(-item.cost)
 
     if (item.id === 'bootleg_whiskey') {
       addWantedLevel(-1)
-    } else if (item.id === 'buffett_combo') {
-      addCash(500)
     }
+    if (item.energyRestore) restoreEnergy(item.energyRestore)
 
     setFeedback(`Purchased ${item.name}! ${item.bonusText}`)
   }

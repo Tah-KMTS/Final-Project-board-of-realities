@@ -151,6 +151,11 @@ export default function WorldScreen() {
 
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
+  // Lets GuideApp.jsx's "How to Play" button reopen WelcomeIntroModal on
+  // demand, independent of the persisted hasSeenIntro flag (see that
+  // component's own header comment on why re-reading the tutorial must
+  // never re-flip a save-state flag that's already true).
+  const [showHelp, setShowHelp] = useState(false)
   const [worldCleared, setWorldCleared] = useState(null)
   // Snapshot of which block ids were already cleared, used by the global
   // win-condition watcher below.
@@ -420,6 +425,7 @@ export default function WorldScreen() {
   return (
     <div className="flex h-full w-full flex-col items-center gap-4 bg-[#0f1020] p-4 font-mono text-white">
       {!hasSeenIntro && <WelcomeIntroModal />}
+      {hasSeenIntro && showHelp && <WelcomeIntroModal onClose={() => setShowHelp(false)} />}
       <div className="flex w-full max-w-[640px] flex-wrap items-center justify-between gap-2 border-2 border-gray-700 bg-[#1c1d3a] px-4 py-2 text-sm">
         <div>
           <span className="font-bold text-yellow-300">{player.name}</span>{' '}
@@ -570,7 +576,14 @@ export default function WorldScreen() {
             social: () => <SocialApp />,
             banking: () => <BankingApp />,
             contacts: () => <ContactsApp />,
-            guide: () => <GuideApp />,
+            guide: () => (
+              <GuideApp
+                onShowHelp={() => {
+                  closeModal()
+                  setShowHelp(true)
+                }}
+              />
+            ),
             map: () => <WorldMapOverview />,
           }}
         />

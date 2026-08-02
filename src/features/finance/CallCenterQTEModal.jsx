@@ -22,7 +22,7 @@ const MOODS = [
   { id: 'bored', label: 'Bored', key: 'ArrowRight', arrow: '→' },
 ]
 
-const CUE_GAP_MS = 350 // dead time between cues - no input is scored here
+const CUE_GAP_MS = 450 // dead time between cues - no input is scored here
 
 export default function CallCenterQTEModal({
   onClose,
@@ -199,7 +199,12 @@ export default function CallCenterQTEModal({
     const favorability = computeFavorability(baseSuccessChance)
     const params = {
       favorability,
-      windowMs: 700 + favorability * 900,
+      // Widened after live feedback that the original 700-1600ms window
+      // felt too fast even reacting immediately - reading the mood icon,
+      // recalling which arrow it maps to, then pressing all had to fit
+      // inside that. 1100-2300ms leaves real room for the read-then-press
+      // sequence, not just the press itself.
+      windowMs: 1100 + favorability * 1200,
       leveragePerCue: Math.max(6, Math.round(target / 15)),
       suspicionPerMiss: Math.max(6, Math.round(suspicionCap / 12)),
       passiveSuspicionPerSec: 9 - (favorability - 0.5) * 10,

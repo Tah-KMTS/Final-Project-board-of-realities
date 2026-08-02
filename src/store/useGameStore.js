@@ -23,7 +23,7 @@ import { FINANCE_NPCS } from '../features/finance/financeNpcs'
 import { rollHeadline } from '../features/finance/newsHeadlines'
 import { initializeAgentsState, simulateDailyAgentInteractions, ARCHETYPE_PROFILES } from '../features/finance/agentEngine'
 import { generateEventNarration } from '../features/finance/aiNarrator'
-import { calculateAtonementCost } from '../features/temple/templeEngine'
+import { calculateAtonementCost, calculateEnergyBlessingCost } from '../features/temple/templeEngine'
 import {
   applyStandingEvent,
   applyStandingDecayTick,
@@ -458,6 +458,18 @@ export const useGameStore = create((set, get) => ({
     if (state.player.energy < amount) return false
     set({ player: { ...state.player, energy: state.player.energy - amount } })
     return true
+  },
+
+  // Inverse of spendEnergy - the mid-day energy economy's one relief valve
+  // (Food Court snack, Temple energy blessing). Energy otherwise only ever
+  // refills at End Day (see endDay's player.energy reset), which is the
+  // whole reason these two paid top-ups exist: without them, running out of
+  // energy mid-day just ends the day's options early with no way to keep
+  // playing except advancing time. Clamped at maxEnergy same as the reset
+  // does - buying a top-up while already near full never overshoots.
+  restoreEnergy: (amount) => {
+    const state = get()
+    set({ player: { ...state.player, energy: Math.min(state.player.maxEnergy, state.player.energy + amount) } })
   },
 
   allocateStat: (statKey) => {
@@ -1318,6 +1330,24 @@ export const useGameStore = create((set, get) => ({
         templeBlessing: { active: true, bonus: 3, expiresOnDay: state.day + 2 },
       },
     })
+    return true
+  },
+
+  // Energy's other relief valve alongside the Food Court snack
+  // (restoreEnergy/interactiveLocations.js) - the "real" one, priced to
+  // stay meaningful at every wealth level instead of fading into pocket
+  // change (see calculateEnergyBlessingCost's own header comment). No cap
+  // on repeat same-day purchases needed: since the cost is a percentage of
+  // CURRENT cash, spending it repeatedly is self-limiting on its own
+  // (each purchase shrinks the cash the next one's percentage is taken
+  // from), unlike a flat price that a rich player could spam for free.
+  buyEnergyBlessing: () => {
+    const state = get()
+    if (state.player.energy >= state.player.maxEnergy) return false
+    const cost = calculateEnergyBlessingCost(state.cash)
+    if (state.cash < cost) return false
+    set({ cash: state.cash - cost })
+    get().restoreEnergy(state.player.maxEnergy)
     return true
   },
 

@@ -1,22 +1,26 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import { calculateAtonementCost } from './templeEngine'
+import { calculateAtonementCost, calculateEnergyBlessingCost } from './templeEngine'
 
 export default function TempleModal({ onClose }) {
   const cash = useGameStore((s) => s.cash)
   const wantedLevel = useGameStore((s) => s.wantedLevel)
   const notoriety = useGameStore((s) => s.notoriety)
+  const player = useGameStore((s) => s.player)
   const addCash = useGameStore((s) => s.addCash)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
   const addNotoriety = useGameStore((s) => s.addNotoriety)
   const executeCrime = useGameStore((s) => s.executeCrime)
   const buyTempleBlessing = useGameStore((s) => s.buyTempleBlessing)
+  const buyEnergyBlessing = useGameStore((s) => s.buyEnergyBlessing)
   const templeBlessing = useGameStore((s) => s.world2.templeBlessing)
 
   const [feedbackMsg, setFeedbackMsg] = useState(null)
 
   const atonementCost = calculateAtonementCost(wantedLevel, notoriety, cash)
   const BLESSING_COST = 3000
+  const energyBlessingCost = calculateEnergyBlessingCost(cash)
+  const energyFull = player.energy >= player.maxEnergy
 
   const handleDonate = () => {
     if (cash < atonementCost) {
@@ -62,6 +66,17 @@ export default function TempleModal({ onClose }) {
     }
   }
 
+  const handleEnergyBlessing = () => {
+    const ok = buyEnergyBlessing()
+    if (ok) {
+      setFeedbackMsg(`A quiet hour of meditation. Energy fully restored for $${energyBlessingCost.toLocaleString()}.`)
+    } else if (energyFull) {
+      setFeedbackMsg('Already at full Energy.')
+    } else {
+      setFeedbackMsg("You don't have enough for a restorative blessing.")
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="glass-panel w-[420px] border-4 border-slate-300 bg-[#1c1d3a] p-6 font-mono text-white">
@@ -73,6 +88,7 @@ export default function TempleModal({ onClose }) {
 
         <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3 text-sm">
           <p>Cash: <span className="text-green-400">${Math.round(cash).toLocaleString()}</span></p>
+          <p>Energy: <span className="text-cyan-400">{player.energy}/{player.maxEnergy}</span></p>
           <p>Wanted Level: <span className="text-red-400">{wantedLevel}</span></p>
           <p>Notoriety: <span className="text-orange-400">{notoriety}/100</span></p>
           {templeBlessing?.active && (
@@ -95,6 +111,14 @@ export default function TempleModal({ onClose }) {
             className="border-2 border-yellow-400 py-1.5 text-sm font-bold text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:opacity-30"
           >
             Chapel Blessing (${BLESSING_COST.toLocaleString()}) — +3 Luck for 2 days
+          </button>
+
+          <button
+            onClick={handleEnergyBlessing}
+            disabled={energyFull || cash < energyBlessingCost}
+            className="border-2 border-cyan-400 py-1.5 text-sm font-bold text-cyan-300 hover:bg-cyan-400 hover:text-black disabled:opacity-30"
+          >
+            Restorative Blessing (${energyBlessingCost.toLocaleString()}) — Full Energy
           </button>
 
           <button

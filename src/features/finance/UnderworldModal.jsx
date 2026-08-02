@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import DistrictBuildingModal from './DistrictBuildingModal'
-import NamedNpcModal from './NamedNpcModal'
 import InteractiveLocationModal from '../world/InteractiveLocationModal'
 import LeverageActionPanel from './LeverageActionPanel'
 import TheCircuitModal from './TheCircuitModal'
@@ -149,8 +148,9 @@ function BossJobsMenu({ onSelect }) {
 // def carried both an id DistrictBuildingModal keyed on and an npcId
 // NamedNpcModal keyed on - two independent JSX conditions in WorldScreen.jsx
 // both matching the same activeModal. That's deliberately NOT reproduced
-// here: the Crime Alley tab below composes both pieces of content in one
-// tab body instead of leaving them stacked.
+// here. Black Market and Crime Alley's tabs are DistrictBuildingModal-only
+// now - a NamedNpcModal composition under each (Ochoa, newly added this
+// pass; Luciano, pre-existing) was removed at the user's request.
 const TABS = [
   { id: 'blackMarket', label: 'Black Market' },
   { id: 'callCenterOps', label: 'Call Center Ops' },
@@ -199,25 +199,9 @@ export default function UnderworldModal({ onClose, initialTab = 'blackMarket' })
         </div>
 
         <div className="mb-4 max-h-[460px] overflow-y-auto">
-          {tab === 'blackMarket' && (
-            <div className="flex flex-col gap-4">
-              <DistrictBuildingModal buildingId="blackMarket" embedded />
-              <div className="border-t-2 border-gray-700 pt-4">
-                <p className="mb-2 text-xs uppercase tracking-widest text-gray-500">Behind the counter</p>
-                <NamedNpcModal npcId="ochoa" embedded />
-              </div>
-            </div>
-          )}
+          {tab === 'blackMarket' && <DistrictBuildingModal buildingId="blackMarket" embedded />}
           {tab === 'callCenterOps' && <DistrictBuildingModal buildingId="callCenterOps" embedded />}
-          {tab === 'crimeAlley' && (
-            <div className="flex flex-col gap-4">
-              <DistrictBuildingModal buildingId="crimeAlley" embedded />
-              <div className="border-t-2 border-gray-700 pt-4">
-                <p className="mb-2 text-xs uppercase tracking-widest text-gray-500">Also lurking here</p>
-                <NamedNpcModal npcId="luciano" embedded />
-              </div>
-            </div>
-          )}
+          {tab === 'crimeAlley' && <DistrictBuildingModal buildingId="crimeAlley" embedded />}
           {tab === 'speakeasy' && (
             <>
               <InteractiveLocationModal locationId="speakeasy_club" embedded />

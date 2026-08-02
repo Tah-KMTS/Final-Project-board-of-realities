@@ -40,7 +40,7 @@ const STARTER_PROMPTS = [
 // conversation-history threading into the API context) - each question gets
 // a fresh answer grounded in aiGuide.js's own game-reference system prompt,
 // same simplicity as every other LLM call in this project.
-export default function GuideApp() {
+export default function GuideApp({ onShowHelp }) {
   const [messages, setMessages] = useState([
     { role: 'aria', text: "Hi, I'm Aria! Ask me anything about how the game works - the economy, crime, the phone, all of it." },
   ])
@@ -65,12 +65,22 @@ export default function GuideApp() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="mb-2 flex shrink-0 items-center gap-2">
-        <AriaAvatar />
-        <div>
-          <div className="text-sm font-bold text-pink-300">Aria</div>
-          <div className="text-xs text-gray-500">Your in-game guide</div>
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <AriaAvatar />
+          <div>
+            <div className="text-sm font-bold text-pink-300">Aria</div>
+            <div className="text-xs text-gray-500">Your in-game guide</div>
+          </div>
         </div>
+        {onShowHelp && (
+          <button
+            onClick={onShowHelp}
+            className="shrink-0 rounded border border-pink-500/40 px-2 py-1 text-xs font-bold text-pink-300 hover:bg-pink-500/10"
+          >
+            How to Play
+          </button>
+        )}
       </div>
 
       <div ref={scrollRef} className="mb-2 flex-1 space-y-2 overflow-y-auto">

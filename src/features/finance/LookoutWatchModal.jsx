@@ -171,8 +171,14 @@ export default function LookoutWatchModal({
     const favorability = computeFavorability(baseSuccessChance)
     const params = {
       favorability,
-      safeDurationMs: 900 + favorability * 1400,
-      hotDurationMs: 1400 - favorability * 700,
+      // Widened after live feedback that the original 900-2300ms Safe
+      // window (900 + favorability*1400) read as too fast to react to even
+      // when actively watching for the color change - reaction time plus
+      // the ~200-300ms it takes to register "it's Safe, now click" was
+      // eating a big chunk of a short window. 1400-3200ms gives real margin
+      // at every favorability level, not just high ones.
+      safeDurationMs: 1400 + favorability * 1800,
+      hotDurationMs: 1100 - favorability * 400,
       leveragePerHit: Math.max(5, Math.round(target / 5)),
       suspicionPerHotClick: Math.max(10, Math.round(suspicionCap / 4)),
       suspicionPerMissedStreak: Math.max(8, Math.round(suspicionCap / 5)),

@@ -202,7 +202,12 @@ export default function TheCircuitModal({
       favorability,
       startLen: Math.round(clamp(2, 4, 4 - favorability * 2)),
       growthPerRound: favorability >= 0.5 ? 1 : 2,
-      flashMs: 350 + favorability * 400,
+      // Widened after live feedback that the other 2 real-time minigames'
+      // timers read as too fast - a 350-750ms flash is genuinely too quick
+      // to actually memorize a 2-4 step sequence, not just tight. Input
+      // itself (clicking the stops back) is self-paced and untimed, so this
+      // only affects how long the player gets to watch/memorize.
+      flashMs: 550 + favorability * 500,
       leveragePerRound: Math.max(10, Math.round(target / 7)),
       suspicionPerMistake: Math.max(8, Math.round(suspicionCap / 9)),
       passiveSuspicionPerSec: Math.max(2, 6 - (favorability - 0.5) * 8),

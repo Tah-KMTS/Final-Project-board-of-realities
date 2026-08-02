@@ -1753,7 +1753,10 @@ export default class OverworldScene extends Phaser.Scene {
       roamer.label.destroy()
       if (roamer.carActor) roamer.carActor.destroy()
     }
-    for (const actor of this.financeAmbientActors) actor.destroy()
+    for (const actor of this.financeAmbientActors) {
+      actor.destroy()
+      actor.label.destroy()
+    }
     for (const animal of this.habitatAnimalActors) animal.destroy()
     for (const vehicle of this.vehicleActors) vehicle.actor.destroy()
     this.namedRoamers = []
@@ -2761,6 +2764,24 @@ export default class OverworldScene extends Phaser.Scene {
       actor.wanderTimer = 0
       actor.wanderDir = { x: 0, y: 0 }
       actor.dead = false
+      // Floating name tag, same style/convention named roamers use
+      // (spawnNamedRoamers) - these 6 are the team's own names
+      // (Tah/Jeff/Ince/Franc/Poom/Tan, see npcGenerator.js), so they read as
+      // named characters visually too, not anonymous wander filler. Fixed
+      // labelDy of 26 (the solo/no-crowding case named roamers use) is
+      // correct here - these 6 never converge at a shared door the way
+      // named roamers can, so there's no group to fan out a wider ring for.
+      actor.label = this.add
+        .text(actor.x, actor.y - 26, npc.name, {
+          fontFamily: 'monospace',
+          fontSize: '9px',
+          color: '#ffe066',
+          align: 'center',
+          stroke: '#000000',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(actor.y + 500)
       return actor
     })
   }
@@ -3615,6 +3636,7 @@ export default class OverworldScene extends Phaser.Scene {
     if (actor) {
       actor.dead = true
       actor.sprite.setVisible(false)
+      actor.label.setVisible(false)
     }
   }
 
@@ -3626,7 +3648,11 @@ export default class OverworldScene extends Phaser.Scene {
 
   updateAllAmbientNpcs(delta) {
     for (const actor of this.financeAmbientActors) {
-      if (!actor.dead) wanderActor(this, actor, delta)
+      if (!actor.dead) {
+        wanderActor(this, actor, delta)
+        actor.label.setPosition(actor.x, actor.y - 26)
+        actor.label.setDepth(actor.y + 500)
+      }
     }
   }
 
