@@ -134,6 +134,17 @@ export const HABITAT_ASSET_KEYS = {
   sheep: 'cf_animal_sheep',
 }
 
+// Bespoke single-image building facades (public/assets/buildings/) - not
+// part of any third-party pack, one flat PNG per building, drawn via the
+// exact same drawPrefabImageFacade path HABITAT_ASSET_KEYS.houseWood
+// already uses below (see packFacadeFor's building.id === 'underworld'
+// check). Own small asset key map since these aren't tied to habitat
+// decoration at all - just co-located near it as the closest existing
+// "load a single flat image, not a spritesheet" precedent.
+export const BUILDING_IMAGE_ASSET_KEYS = {
+  underworld: 'bldg_underworld',
+}
+
 // Frame indices into the 4x4 16px Fences.png grid (frame = row*4+col) - see
 // drawFencePen's doc comment in packRender.js for how these three were
 // picked out of that sheet's actual (non-nine-slice) layout.
@@ -159,6 +170,17 @@ function preloadHabitatAssets(scene) {
   if (!scene.textures.exists(HABITAT_ASSET_KEYS.cow)) scene.load.spritesheet(HABITAT_ASSET_KEYS.cow, `${CUTE_ANIMALS_DIR}/Cow/Cow.png`, animalFrames)
   if (!scene.textures.exists(HABITAT_ASSET_KEYS.pig)) scene.load.spritesheet(HABITAT_ASSET_KEYS.pig, `${CUTE_ANIMALS_DIR}/Pig/Pig.png`, animalFrames)
   if (!scene.textures.exists(HABITAT_ASSET_KEYS.sheep)) scene.load.spritesheet(HABITAT_ASSET_KEYS.sheep, `${CUTE_ANIMALS_DIR}/Sheep/Sheep.png`, animalFrames)
+}
+
+// Bespoke building facade images (public/assets/buildings/) - a flat PNG per
+// building, own tiny loader for the same reason preloadHabitatAssets is its
+// own function rather than folded into preloadPacks: a distinct, independent
+// asset source unrelated to the Kenney tile packs. Called unconditionally
+// from preloadTerrainAssets below.
+function preloadBuildingImages(scene) {
+  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.underworld)) {
+    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.underworld, '/assets/buildings/underworld.png')
+  }
 }
 
 // Draws a perimeter-only fence rectangle (see drawFencePen in packRender.js)
@@ -364,6 +386,23 @@ export function residentialStyleKey(npcId, kind) {
 function packFacadeFor(building) {
   if (!building || typeof building !== 'object') return null
 
+  // Underworld gets a bespoke single-image facade instead of the generic
+  // modernBrick nine-slice its facadeStyle tag still carries (that tag is
+  // now dead for this building specifically, kept only so nothing else
+  // reading FINANCE_BUILDING_DEFS breaks). Same "one flat baked image, drawn
+  // at native size" mechanism the wood-house wealth tier below already uses,
+  // just keyed by building.id instead of kind/wealth. If the image somehow
+  // failed to load, placeBuildingFacade's `spec?.prefabImage &&
+  // scene.textures.exists(...)` check fails and this spec has no sheetKey
+  // for its sibling nine-slice branch to catch either - it falls all the way
+  // through to that function's generic default facade, not back to
+  // modernBrick specifically. Acceptable: the image is a real, preloaded
+  // local file (public/assets/buildings/), not a runtime-fetched asset that
+  // could plausibly 404.
+  if (building.id === 'underworld') {
+    return { prefabImage: true, imageKey: BUILDING_IMAGE_ASSET_KEYS.underworld }
+  }
+
   if (building.kind === 'home' || building.kind === 'hideout') {
     // Hideouts use brick + the OPEN archway instead of a closed door, so a
     // criminal's hideout reads as a seedier open doorway at a glance. Kept
@@ -421,6 +460,9 @@ export function preloadTerrainAssets(scene) {
   // are a third, independent asset source - loaded unconditionally, same as
   // preloadPacks above, regardless of which of the two flags below is set.
   preloadHabitatAssets(scene)
+  // Bespoke single-image building facades - same "independent source,
+  // unconditional load" reasoning as preloadHabitatAssets above.
+  preloadBuildingImages(scene)
   // Serene Village's animated door strip (a separate small PNG, not part of
   // the Serene_Village_16x16.png sheet preloadPacks already queues via
   // PACK_SHEET_KEYS.sereneVillage) - loaded unconditionally for the same
