@@ -1153,12 +1153,24 @@ function idleDriftOffset(characterId, agentClock, tier, crowded) {
 // spacing (320px, casino<->foodCourt/realEstateAgency) so even a maxed-out
 // crowd never visually reads as bleeding into a neighboring building's own
 // crowd.
+// Capacities cut roughly in half from the original [1,3,6,9,12] (a live
+// screenshot showed unreadably tight crowds even after the WORK_BUILDING_
+// OVERRIDES rebalance that cut typical crowd sizes down - the ring geometry
+// itself was still packing people too close together). Radii are unchanged
+// (see the max-radius comment above) since that ceiling is a real map-
+// geometry constraint, not a taste call - fewer people per ring at the same
+// radius means a bigger angular gap between any two adjacent people, which
+// is the only lever available without either exceeding that ceiling or
+// changing the "fan south from the door" shape. A crowd that used to fill
+// rings 1-4 now spills into ring 5 and the overflow bands sooner, which
+// pushes them further out (more radius) rather than packing tighter - the
+// intended direction for a bigger crowd, not a regression.
 const ARC_RINGS = [
   { radius: 0, capacity: 1 },
-  { radius: 40, capacity: 3 },
-  { radius: 80, capacity: 6 },
-  { radius: 120, capacity: 9 },
-  { radius: 150, capacity: 12 },
+  { radius: 45, capacity: 2 },
+  { radius: 85, capacity: 4 },
+  { radius: 120, capacity: 6 },
+  { radius: 150, capacity: 8 },
 ]
 const ARC_MAX_ANGLE = (75 * Math.PI) / 180 // half-spread either side of due south
 
@@ -1187,10 +1199,9 @@ function arcSlotOffset(index) {
     }
     remaining -= ring.capacity
   }
-  // Beyond the last authored ring (>31 at one door - never observed in
-  // simulation, see above, but kept safe rather than reusing a slot):
-  // keep growing radius in the same 12-wide bands instead of crashing or
-  // collapsing back onto an existing slot.
+  // Beyond the last authored ring (>21 at one door with the reduced
+  // capacities above - keeps growing radius in the same bands instead of
+  // crashing or collapsing back onto an existing slot):
   const OVERFLOW_BAND = 14
   const band = Math.floor(remaining / OVERFLOW_BAND)
   const posInBand = remaining % OVERFLOW_BAND
@@ -2400,8 +2411,6 @@ export default class OverworldScene extends Phaser.Scene {
       this.refreshPresenceCache()
     }
 
-    const px = this.playerActor?.x ?? -9999
-    const py = this.playerActor?.y ?? -9999
     for (const roamer of this.namedRoamers) {
       if (roamer.dead) continue
       const presence = this.presenceCache.get(roamer.agent.id)
@@ -2719,10 +2728,8 @@ export default class OverworldScene extends Phaser.Scene {
       roamer.actor.sprite.setVisible(!driving)
       roamer.actor.shadow.setVisible(!driving)
 
-      // Name floats above the sprite; the agent's current "thought" appears
-      // once the player is close enough to read it.
-      const near = Phaser.Math.Distance.Between(px, py, x, y) < 180
-      const wanted = near && roamer.currentAction ? `${roamer.character.name}\n${roamer.currentAction}` : roamer.character.name
+      // Name floats above the sprite; no action text, just the name.
+      const wanted = roamer.character.name
       if (roamer.label.text !== wanted) roamer.label.setText(wanted)
       roamer.label.setPosition(x, y - (roamer.labelDy ?? 26))
       roamer.label.setDepth(y + 500)

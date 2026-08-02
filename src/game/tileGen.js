@@ -143,6 +143,7 @@ export const HABITAT_ASSET_KEYS = {
 // "load a single flat image, not a spritesheet" precedent.
 export const BUILDING_IMAGE_ASSET_KEYS = {
   underworld: 'bldg_underworld',
+  casino: 'bldg_casino',
 }
 
 // Frame indices into the 4x4 16px Fences.png grid (frame = row*4+col) - see
@@ -180,6 +181,9 @@ function preloadHabitatAssets(scene) {
 function preloadBuildingImages(scene) {
   if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.underworld)) {
     scene.load.image(BUILDING_IMAGE_ASSET_KEYS.underworld, '/assets/buildings/underworld.png')
+  }
+  if (!scene.textures.exists(BUILDING_IMAGE_ASSET_KEYS.casino)) {
+    scene.load.image(BUILDING_IMAGE_ASSET_KEYS.casino, '/assets/buildings/casino.png')
   }
 }
 
@@ -401,6 +405,12 @@ function packFacadeFor(building) {
   // could plausibly 404.
   if (building.id === 'underworld') {
     return { prefabImage: true, imageKey: BUILDING_IMAGE_ASSET_KEYS.underworld }
+  }
+  // Casino gets the same bespoke-image treatment - "Neon Play Palace"
+  // custom art instead of the modernBrick nine-slice its facadeStyle tag
+  // still carries (same harmless-dead-tag reasoning as underworld above).
+  if (building.id === 'casino') {
+    return { prefabImage: true, imageKey: BUILDING_IMAGE_ASSET_KEYS.casino }
   }
 
   if (building.kind === 'home' || building.kind === 'hideout') {

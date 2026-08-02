@@ -48,12 +48,23 @@ const REAL_BUILDING_IDS = [
 // Crime members plausibly frequent underworld-facing venues rather than the
 // full public building list. crimeAlley/blackMarket/speakeasyHotel are all
 // the same physical 'underworld' building now (Phase 2 consolidation) - one
-// entry, not three duplicates of the same id. dockVaults/dotonboriArcade
-// (Phase 4: both deleted, no replacement) used to round this pool out to 3
-// underworld-adjacent venues; underworld alone is still correct here since
-// it already absorbed every crime-flavored building this pool could have
-// pointed to.
-const CRIME_FALLBACK_POOL = ['underworld']
+// entry, not three duplicates of the same id.
+//
+// Swarm fix round 2: this used to be `['underworld']` alone, which meant
+// every one of the ~19 crime syndicate members with no explicit
+// WORK_BUILDING_OVERRIDES entry (everyone except capone/luciano, who have
+// their own bespoke lists below) had a 100% chance of resolving to
+// 'underworld' on every single "away from home" tick - the single biggest
+// contributor to a live screenshot showing an unreadable pile of syndicate
+// members outside it. casino and trainStation are both already-established
+// crime-adjacent venues in this exact file (capone/luciano's own overrides
+// use both - a mob-run casino and a transit hub for moving product/people),
+// so adding them here is the same fit, not a new invention - and they
+// happen to be two of the least-used buildings overall (a live audit of
+// simulateWorldPresence's output showed casino/trainStation as the bottom 2
+// of all 10 real buildings by expected occupancy), so this also directly
+// helps the "spread people out more" half of the same fix.
+const CRIME_FALLBACK_POOL = ['underworld', 'casino', 'trainStation']
 
 const FINANCE_NPC_BY_ID = new Map(FINANCE_NPCS.map((n) => [n.id, n]))
 
@@ -281,6 +292,37 @@ const WORK_BUILDING_OVERRIDES = {
   // name - both now folded into industrialZone (see rockefeller/carnegie
   // above), so this is a direct continuity match, not a guess.
   pitofsky: ['industrialZone', 'governmentBuilding'],
+}
+
+// Swarm fix round 2: a live screenshot caught huge unreadable crowds at
+// Bank & Realty and Real Estate Agency - tracing it back, a lot of the
+// 2-entry lists above (each individually correct on its own bio grounds)
+// happen to share the EXACT same pair verbatim: washington/volcker/yellen/
+// meyer all list bank+governmentBuilding; simons/douglas_sec/levitt_sec/
+// kennedy_sec/bernanke/powell all list stockExchange+bank; son/jfk/clinton/
+// simons_ftc all list stockExchange+businessCenter; and more. In aggregate
+// that's ~25 characters funneling onto just a handful of 50/50 pairs every
+// single block - not a rendering bug, the same "scheduling, not visual"
+// root cause the original swarm fix already diagnosed for the government
+// roster, just one layer deeper.
+//
+// Rather than hand-inventing a bespoke bio-justified 3rd stop for each
+// affected character (this would be ~25 individual judgment calls, several
+// with much weaker justification than the original pair), every 2-entry
+// list gets ONE more building appended, deterministically (hashId, no
+// Math.random) chosen from whichever of this project's real buildings a
+// live simulateWorldPresence audit showed are least-used overall (temple/
+// casino/trainStation/realEstateAgency - the bottom 4 of all 10 by expected
+// occupancy, CRIME_FALLBACK_POOL's own header comment above cites the same
+// audit). This dilutes a shared pair's odds from 50/50 down to ~33% each
+// without touching either of the original two - every existing bio-grounded
+// choice stays exactly as authored above, this only ever adds.
+const UNDERUSED_THIRD_STOP_POOL = ['temple', 'casino', 'trainStation', 'realEstateAgency']
+for (const characterId of Object.keys(WORK_BUILDING_OVERRIDES)) {
+  const list = WORK_BUILDING_OVERRIDES[characterId]
+  if (list.length !== 2) continue
+  const candidates = UNDERUSED_THIRD_STOP_POOL.filter((b) => !list.includes(b))
+  list.push(candidates[hashId(`${characterId}:thirdStop`) % candidates.length])
 }
 
 function fallbackWorkBuildings(character, isCrime) {
