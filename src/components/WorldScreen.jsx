@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../store/useGameStore'
 import GameCanvas, { createEventBridge } from '../game/GameCanvas'
+import WelcomeIntroModal from './WelcomeIntroModal'
 import RiftCombatModal from '../features/hunter/RiftCombatModal'
 import PoomQuestModal from '../features/hunter/PoomQuestModal'
 import MiniGolfModal from '../features/hunter/MiniGolfModal'
@@ -145,6 +146,7 @@ export default function WorldScreen() {
   const world4 = useGameStore((s) => s.world4)
   const addOwnedVehicle = useGameStore((s) => s.addOwnedVehicle)
   const jail = useGameStore((s) => s.jail)
+  const hasSeenIntro = useGameStore((s) => s.hasSeenIntro)
 
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
@@ -416,6 +418,7 @@ export default function WorldScreen() {
 
   return (
     <div className="flex h-full w-full flex-col items-center gap-4 bg-[#0f1020] p-4 font-mono text-white">
+      {!hasSeenIntro && <WelcomeIntroModal />}
       <div className="flex w-full max-w-[640px] flex-wrap items-center justify-between gap-2 border-2 border-gray-700 bg-[#1c1d3a] px-4 py-2 text-sm">
         <div>
           <span className="font-bold text-yellow-300">{player.name}</span>{' '}
