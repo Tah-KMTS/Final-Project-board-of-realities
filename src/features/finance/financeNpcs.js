@@ -371,7 +371,11 @@ export function generateBodyguardMonster(npc) {
   // missing npc/field here too so this never throws again the way it did
   // when called with a non-Financial-Titan id via getFinanceNpc().
   const power = npc?.bodyguardPower ?? 6
-  const hp = 80 + power * 30
+  // Retuned for the 4-choice Attack/Heavy/Guard/Dodge skirmish engine
+  // (FinanceSkirmishModal) - damage there comes from the fixed matchup
+  // table (15/20/25/38 HP per hit), not from a per-hit stat, so HP needed
+  // to come down from the old stat-based-chip-damage scale.
+  const hp = 35 + power * 4
   const atk = 8 + power * 3
   return {
     name: `${npc?.name || 'Unknown Target'}'s Elite Retainer Guard`,
@@ -384,8 +388,8 @@ export function generateBodyguardMonster(npc) {
 export function generateStreetTargetMonster() {
   return {
     name: 'Panicking Bystander',
-    maxHp: 20,
-    hp: 20,
+    maxHp: 30,
+    hp: 30,
     attack: 3,
   }
 }
@@ -393,7 +397,9 @@ export function generateStreetTargetMonster() {
 export function generateSwatSquad(wantedLevel) {
   const unit = wantedLevel >= 4 ? 'FBI Tactical Unit' : 'SWAT Squad'
   const scale = wantedLevel
-  const hp = 70 + scale * 12
+  // Retuned for the 4-choice skirmish engine (FinanceSkirmishModal) - see
+  // generateBodyguardMonster's comment above for why the scale changed.
+  const hp = 45 + wantedLevel * 7
   const atk = 9 + scale * 2.2
   return {
     name: unit,

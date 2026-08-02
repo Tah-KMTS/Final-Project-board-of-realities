@@ -44,6 +44,7 @@ import { JAPAN_CITIES } from '../features/world/japanCities'
 import { DISTRICT_BUILDINGS_CONFIG } from '../features/finance/districtBuildings'
 import FinanceStatusBar from './Header/FinanceStatusBar'
 import { generateBodyguardMonster, generateStreetTargetMonster } from '../features/finance/financeNpcs'
+import FinanceSkirmishModal from '../features/finance/FinanceSkirmishModal'
 import { getAnyCharacter } from '../features/agents/characterLookup'
 import YugiEncounterModal from '../features/yugioh/YugiEncounterModal'
 import KaibaCorpModal from '../features/yugioh/KaibaCorpModal'
@@ -787,27 +788,27 @@ export default function WorldScreen() {
           onAttack={() => setActiveModal({ type: 'ambientCombat', npcId: activeModal.npcId })}
         />
       )}
-      {/* Finance-world combats share Hunter's Rift combat UI but not its
-          permadeath stakes - lethal={false} routes losses through
-          takeFinanceCombatDamage (hospitalized + cash hit) instead of
-          takeDamage's save-wipe path. See useGameStore.js's comment on
-          takeFinanceCombatDamage for why. */}
+      {/* Finance-world street-level combats (bodyguard fights, ambient
+          street-target skirmishes) use the 4-choice Attack/Heavy/Guard/Dodge
+          skirmish engine, not Hunter's Rift's stat-based combat -
+          FinanceSkirmishModal always routes losses through
+          takeFinanceCombatDamage (hospitalized + cash hit), never the
+          permadeath takeDamage path. See useGameStore.js's comment on
+          takeFinanceCombatDamage for why. readProbability defaults to 0
+          (flat uniform-random AI) for both these street-fight call sites -
+          only PoliceStopModal's combat uses a nonzero read probability. */}
       {activeModal?.type === 'financeCombat' && (
-        <RiftCombatModal
-          difficulty={5}
-          variant="rift"
-          lethal={false}
-          monsterOverride={generateBodyguardMonster(getAnyCharacter(activeModal.npcId))}
+        <FinanceSkirmishModal
+          title="Bodyguard Skirmish"
+          monster={generateBodyguardMonster(getAnyCharacter(activeModal.npcId))}
           onClose={closeModal}
           onVictory={() => handleFinanceCombatVictory(activeModal.npcId)}
         />
       )}
       {activeModal?.type === 'ambientCombat' && (
-        <RiftCombatModal
-          difficulty={1}
-          variant="rift"
-          lethal={false}
-          monsterOverride={generateStreetTargetMonster()}
+        <FinanceSkirmishModal
+          title="Street Fight"
+          monster={generateStreetTargetMonster()}
           onClose={closeModal}
           onVictory={() => handleAmbientCombatVictory(activeModal.npcId)}
         />
