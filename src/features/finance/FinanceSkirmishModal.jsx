@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { playHitSound, playTakeDamageSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 import { MOVE_LABELS, resolveMatchup, payMoveCost, pickAiMove, computeAttackStreakPenalty } from './financeSkirmishEngine'
+import PokeBattleLayout from './PokeBattleLayout'
 
 // Finance world's 4-choice discrete-move combat: Attack / Heavy / Guard /
 // Dodge, simultaneous reveal, stamina-gated. This is a deliberately
@@ -46,6 +47,12 @@ export default function FinanceSkirmishModal({
   // pointless to ever take (see PoliceStopModal.jsx for the consequence).
   onRetreat,
   retreatLabel = 'Retreat',
+  // Opt-in presentation swap. PoliceStopModal passes this to get the
+  // GBA-style battle screen (PokeBattleLayout) built on the police sprite
+  // pack; the two street-fight call sites in WorldScreen.jsx omit it and keep
+  // the original panel. Only the VIEW changes - every value below is computed
+  // by the same engine either way, so the two skins play identically.
+  skin,
 }) {
   const player = useGameStore((s) => s.player)
   const takeFinanceCombatDamage = useGameStore((s) => s.takeFinanceCombatDamage)
@@ -246,6 +253,45 @@ export default function FinanceSkirmishModal({
 
   const moveButtonClass = (color) =>
     `flex-1 border-4 py-2 font-bold disabled:opacity-40 disabled:cursor-not-allowed ${color}`
+
+  // Safe to return early here - every hook above runs unconditionally on both
+  // paths, so the two skins never disagree about hook order.
+  if (skin === 'police') {
+    return (
+      <PokeBattleLayout
+        title={title}
+        subtitle="Losing costs cash and pride - not the run."
+        enemyName={monster.name}
+        enemyHp={monsterHp}
+        enemyMaxHp={monster.maxHp}
+        playerName={player.name}
+        playerHp={player.hp}
+        playerMaxHp={player.maxHp}
+        playerStamina={playerStamina}
+        enemyStamina={monsterStamina}
+        playerBoost={playerBoost}
+        enemyBoost={monsterBoost}
+        playerStunned={playerStunned}
+        enemyStunned={monsterStunned}
+        log={log}
+        outcome={outcome}
+        victoryText={`${monster.name} stands down. You are clear to go.`}
+        defeatText="They put you down. You wake up later, patched up and lighter in the wallet."
+        actions={[
+          { key: 'attack', label: 'ATTACK', onClick: () => handleMove('attack'), disabled: busy },
+          { key: 'heavy', label: 'HEAVY', onClick: () => handleMove('heavy'), disabled: busy || playerStamina < 1, costsStamina: true },
+          { key: 'guard', label: 'GUARD', onClick: () => handleMove('guard'), disabled: busy },
+          { key: 'dodge', label: 'DODGE', onClick: () => handleMove('dodge'), disabled: busy || playerStamina < 1, costsStamina: true },
+        ]}
+        retreat={{ label: retreatLabel, onClick: handleRetreat, disabled: busy }}
+        onContinue={handleContinue}
+        enemyHitPulse={monsterHitPulse}
+        playerHitPulse={playerHitPulse}
+        enemyFloats={monsterFloats}
+        playerFloats={playerFloats}
+      />
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">

@@ -101,6 +101,10 @@ export default function PoliceStopModal({ wantedLevel, onClose }) {
     return (
       <FinanceSkirmishModal
         title="Police Confrontation"
+        // GBA-style battle screen using the police sprite pack. Presentation
+        // only - the 4-choice engine underneath is unchanged and shared with
+        // the street fights, which keep the original panel.
+        skin="police"
         monster={generateSwatSquad(wantedLevel)}
         readProbability={getPoliceReadProbability(wantedLevel)}
         onClose={onClose}

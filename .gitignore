@@ -44,3 +44,9 @@ public/assets/packs/Pixel 16 v2 village free/
 # cropped from these by hand and committed under packs/npc/processed/ instead
 # - only that subfolder is tracked, not the raw originals sitting beside it.
 public/assets/packs/npc/*.png
+
+# Same deal for the police battle reference sheets: white-background contact
+# sheets with several sprites plus a text caption under each. The individual
+# sprites cut out of them live in packs/police-battle/ (no space in the path,
+# so they're usable as plain URLs) and that folder IS committed.
+public/assets/packs/police fighting/

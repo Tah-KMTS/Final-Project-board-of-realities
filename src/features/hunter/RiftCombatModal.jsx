@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import PokeBattleLayout from '../finance/PokeBattleLayout'
 import { useGameStore } from '../../store/useGameStore'
 import { generateMonster } from './monsters'
 import { getProfession } from './professions'
@@ -263,6 +264,44 @@ export default function RiftCombatModal({
   }
 
   const meteorAvailable = canCastMeteor(professionId, hunterRank, meteorUsed) && !outcome
+
+  // Police ambushes render as the GBA-style battle screen shared with
+  // Finance's police confrontation (PokeBattleLayout), so every fight against
+  // police in the game looks the same regardless of which engine is driving
+  // it. Presentation only - none of the combat math above is aware of this.
+  // Safe to return early: every hook runs unconditionally before this point.
+  if (variant === 'police') {
+    const actions = [{ key: 'attack', label: 'ATTACK', onClick: handleAttack, disabled: busy }]
+    if (meteorAvailable) {
+      actions.push({ key: 'meteor', label: 'METEOR', onClick: handleMeteor, disabled: busy })
+    }
+    if (weirdUmbrella) {
+      actions.push({ key: 'umbrella', label: 'UMBRELLA', onClick: handleUseUmbrella, disabled: busy })
+    }
+    return (
+      <PokeBattleLayout
+        title={VARIANT_TITLES[variant]}
+        subtitle={lethal ? 'Lose here and the run is over.' : 'Losing costs cash and pride - not the run.'}
+        enemyName={monster.name}
+        enemyHp={monsterHp}
+        enemyMaxHp={monster.maxHp}
+        playerName={player.name}
+        playerHp={player.hp}
+        playerMaxHp={player.maxHp}
+        log={log}
+        outcome={outcome}
+        victoryText={`${monster.name} goes down. The heat clears.`}
+        defeatText={lethal ? "They put you down for good." : 'They put you down. You wake up later, patched up and lighter in the wallet.'}
+        actions={actions}
+        retreat={{ label: 'Flee', onClick: handleFlee, disabled: busy }}
+        onContinue={handleContinue}
+        enemyHitPulse={monsterHitPulse}
+        playerHitPulse={playerHitPulse}
+        enemyFloats={monsterFloats}
+        playerFloats={playerFloats}
+      />
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
