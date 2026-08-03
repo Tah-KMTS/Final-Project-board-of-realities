@@ -28,7 +28,7 @@ export default function CasinoModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="glass-panel w-[640px] border-4 border-pink-400 bg-[#1c1d3a] p-6 font-mono text-white">
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Commercial District</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Commercial District</p>
         <h2 className="mb-2 text-xl font-bold text-pink-300">Neon Dragon Casino</h2>
         <p className="mb-3 text-xs text-gray-400">
           Chips clatter under buzzing neon dragons. The house always has an edge - but so do you, tonight.

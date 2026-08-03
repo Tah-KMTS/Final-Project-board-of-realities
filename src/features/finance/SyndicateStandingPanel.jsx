@@ -34,7 +34,7 @@ export default function SyndicateStandingPanel() {
             <div key={syn.id} className="border-2 border-gray-700 bg-black/30 p-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-white">{syn.name}</span>
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${TIER_COLOR[tier]}`}>
+                <span className={`text-xs font-bold uppercase tracking-wider ${TIER_COLOR[tier]}`}>
                   {TIER_LABEL[tier]}
                 </span>
               </div>
@@ -44,7 +44,7 @@ export default function SyndicateStandingPanel() {
                   style={{ width: `${Math.max(0, Math.min(100, standing))}%` }}
                 />
               </div>
-              <div className="mt-1 flex items-center justify-between text-[10px] text-gray-400">
+              <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
                 <span>{standing}/100 - {syn.territory}</span>
                 {rivals.length > 0 && <span className="text-red-400">Rival: {rivals.join(', ')}</span>}
               </div>

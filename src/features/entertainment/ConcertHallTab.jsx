@@ -1,16 +1,12 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import NamedNpcModal from '../finance/NamedNpcModal'
 import LeverageActionPanel from '../finance/LeverageActionPanel'
 import RhythmGame from './RhythmGame'
 
-// Concert Hall - Dixon Trujillo's entertainment front. Composes an NPC-
-// flavor angle (NamedNpcModal, same as every other hub tab) with a real
-// mechanic in one tab body - same precedent UnderworldModal.jsx's Crime
-// Alley tab already set (DistrictBuildingModal + NamedNpcModal stacked in
-// one tab), and the same "NPC tab that also embeds a real mini-game"
-// precedent the Narcotics tab established, just applied here instead of
-// Sports Stadium (which is still a stub - see EntertainmentComplexModal.jsx).
+// Concert Hall - Dixon Trujillo's entertainment front. No embedded NPC
+// chat panel here by design (Entertainment Complex is minigames-only) -
+// Dixon's presence is flavor text plus the two mechanics below (Book a
+// Show, Collect Weekly Dues), not a talk-to-NPC screen.
 //
 // The Book-a-Show rhythm game itself is zero crime risk by design: no
 // notoriety/wantedLevel/jail interaction at all. Dixon carries the legal
@@ -106,7 +102,7 @@ export default function ConcertHallTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[10px] uppercase tracking-widest text-fuchsia-500">Entertainment Complex</p>
+      <p className="text-xs uppercase tracking-widest text-fuchsia-500">Entertainment Complex</p>
       <h3 className="text-lg font-bold text-fuchsia-300">Concert Hall</h3>
       <p className="text-xs text-gray-400">
         Nobody in the room actually cares about the music. Inflated production budgets, payola disguised as
@@ -116,9 +112,6 @@ export default function ConcertHallTab() {
 
       {screen === 'hub' && (
         <>
-          <div className="border-2 border-fuchsia-900 bg-[#170a1e]">
-            <NamedNpcModal npcId="dixon" embedded />
-          </div>
           <LeverageActionPanel
             accentBorderClass="border-fuchsia-500"
             teaser="Booking fees and bottle service pad Dixon's real ledger. The dues run underneath it - every venue on the strip owes its weekly cut whether or not a show is on the bill tonight."

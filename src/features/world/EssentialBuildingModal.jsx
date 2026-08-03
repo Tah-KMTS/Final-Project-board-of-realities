@@ -40,7 +40,7 @@ export default function EssentialBuildingModal({ buildingId = 'general_hospital'
           <div>
             <div className="flex items-center gap-2">
               <span className="rounded bg-cyan-950 px-2 py-0.5 text-xs font-bold text-cyan-300 uppercase tracking-wider">{building.city} • {building.district}</span>
-              <span className="rounded bg-amber-950 border border-amber-500 px-2 py-0.5 text-[11px] font-bold text-amber-300">{building.height}</span>
+              <span className="rounded bg-amber-950 border border-amber-500 px-2 py-0.5 text-xs font-bold text-amber-300">{building.height}</span>
             </div>
             <h2 className="text-2xl font-bold text-cyan-300 mt-1">{building.name}</h2>
             <p className="text-xs text-gray-300 mt-1">{building.description}</p>
@@ -48,7 +48,7 @@ export default function EssentialBuildingModal({ buildingId = 'general_hospital'
           <div className="text-right">
             <div className="text-xs text-gray-400">Presiding Official</div>
             <div className="text-sm font-bold text-yellow-300">{building.npc.name}</div>
-            <div className="text-[10px] text-gray-400">{building.npc.title}</div>
+            <div className="text-xs text-gray-400">{building.npc.title}</div>
           </div>
         </div>
 

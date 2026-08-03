@@ -95,6 +95,11 @@ function generateRunSeed() {
 function createDefaultState() {
   return {
     screen: 'welcome', // welcome | world | gameOver
+    // Gates the one-time "how to play / goal of the game" intro shown on
+    // WorldScreen's first mount after a brand new game - false only on a
+    // fresh startNewGame(); loadGame() always forces this true, since
+    // resuming a save should never re-show it (see loadGame() below).
+    hasSeenIntro: false,
     player: {
       name: '',
       gender: 'male',
@@ -124,7 +129,12 @@ function createDefaultState() {
       professionId: null,
     },
     inventory: [],
-    cash: 100,
+    // Bumped from the original $100 - that left almost nothing affordable
+    // (bribes alone start at $500) before the player had done any work,
+    // making the very first minutes of the game feel broke rather than
+    // just early-game. $1,000 still sits far below the $50k "First Comma"
+    // milestone, so the climb to net worth still means something.
+    cash: 1000,
     wantedLevel: 0,
     notoriety: 0, // 0-100 stat for crime visibility
     // Jail: a sibling top-level field to wantedLevel/notoriety, not nested in
@@ -276,6 +286,8 @@ export const useGameStore = create((set, get) => ({
   ...createDefaultState(),
 
   setScreen: (screen) => set({ screen }),
+
+  dismissIntro: () => set({ hasSeenIntro: true }),
 
   updatePlayer: (patch) =>
     set((state) => ({ player: { ...state.player, ...patch } })),
@@ -2382,7 +2394,10 @@ export const useGameStore = create((set, get) => ({
     const raw = localStorage.getItem(SAVE_KEY)
     if (!raw) return false
     const saved = JSON.parse(raw)
-    set({ ...saved })
+    // Always true regardless of what (if anything) the save file itself
+    // has for this field - resuming a save should never show the
+    // new-game intro, including saves made before this field existed.
+    set({ ...saved, hasSeenIntro: true })
     return true
   },
 }))

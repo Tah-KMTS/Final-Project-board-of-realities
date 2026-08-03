@@ -44,12 +44,12 @@ export default function InventoryModal({ onClose }) {
                 <div key={`${item.id}-${i}`} className="border-2 border-gray-600 bg-[#0f1020] p-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className={`text-sm font-bold ${item.rarity ? RARITY_COLOR[item.rarity] || 'text-yellow-300' : 'text-yellow-300'}`}>
-                      {item.name} {item.rarity && <span className="text-[10px] uppercase text-gray-500">({item.rarity})</span>}
+                      {item.name} {item.rarity && <span className="text-xs uppercase text-gray-500">({item.rarity})</span>}
                     </p>
                     {typeof item.sellValue === 'number' && (
                       <button
                         onClick={() => sellItem(item)}
-                        className="shrink-0 border border-green-400 px-2 py-0.5 text-[10px] font-bold text-green-300 hover:bg-green-400 hover:text-black"
+                        className="shrink-0 border border-green-400 px-2 py-0.5 text-xs font-bold text-green-300 hover:bg-green-400 hover:text-black"
                       >
                         Sell (${item.sellValue.toLocaleString()})
                       </button>

@@ -381,7 +381,7 @@ export default function LeverageMeter({
       {screen === 'race' && locked && (
         <div className="flex flex-col gap-3">
           <div>
-            <div className="mb-0.5 flex items-center justify-between text-[10px] uppercase tracking-widest text-cyan-300">
+            <div className="mb-0.5 flex items-center justify-between text-xs uppercase tracking-widest text-cyan-300">
               <span>Leverage</span>
               <span>
                 {Math.floor(leverage)} / {target}
@@ -393,7 +393,7 @@ export default function LeverageMeter({
           </div>
 
           <div>
-            <div className="mb-0.5 flex items-center justify-between text-[10px] uppercase tracking-widest text-red-400">
+            <div className="mb-0.5 flex items-center justify-between text-xs uppercase tracking-widest text-red-400">
               <span>Suspicion</span>
               <span>
                 {Math.floor(suspicion)} / {suspicionCap}
@@ -419,7 +419,7 @@ export default function LeverageMeter({
             <span className="relative">{buttonLabel} (Space)</span>
           </button>
 
-          <p className="text-center text-[10px] text-gray-500">
+          <p className="text-center text-xs text-gray-500">
             +{locked.pressurePerTap} leverage / +{SUSPICION_PER_TAP} suspicion per press &middot; +{locked.passiveSuspicionPerSec}{' '}
             suspicion/sec passive
           </p>

@@ -1,13 +1,9 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import NamedNpcModal from '../finance/NamedNpcModal'
 import SprintRace from './SprintRace'
 
 // Sports Stadium - Arnold Rothstein's "fixed-odds" front, but the sprint
-// itself is played straight: a skill-shaped QTE, not a gambling wheel. Same
-// "NPC tab that also embeds a real mini-game" shape ConcertHallTab.jsx
-// established for Dixon - NamedNpcModal embedded for portrait/bio/dialogue,
-// stacked with the actual mechanic.
+// itself is played straight: a skill-shaped QTE, not a gambling wheel.
 //
 // Zero crime-stat interaction by design: no wantedLevel/notoriety/
 // executeCrime anywhere in this file. It's a race, not fraud - Rothstein's
@@ -88,7 +84,7 @@ export default function SportsStadiumTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[10px] uppercase tracking-widest text-fuchsia-500">Entertainment Complex</p>
+      <p className="text-xs uppercase tracking-widest text-fuchsia-500">Entertainment Complex</p>
       <h3 className="text-lg font-bold text-fuchsia-300">Sports Stadium — Rothstein's Track</h3>
       <p className="text-xs text-gray-400">
         Officially, it's a footrace with an entry fee and a purse. Unofficially, Arnold Rothstein's "fixed-odds
@@ -98,9 +94,6 @@ export default function SportsStadiumTab() {
 
       {screen === 'hub' && (
         <>
-          <div className="border-2 border-fuchsia-900 bg-[#170a1e]">
-            <NamedNpcModal npcId="rothstein" embedded />
-          </div>
           <button
             onClick={() => setScreen('tierSelect')}
             className="w-full border-2 border-fuchsia-400 py-2 text-sm font-bold text-fuchsia-300 hover:bg-fuchsia-400 hover:text-black"

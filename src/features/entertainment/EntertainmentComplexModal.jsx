@@ -23,7 +23,7 @@ export default function EntertainmentComplexModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="glass-panel w-[640px] border-4 border-fuchsia-500 bg-[#1c1d3a] p-6 font-mono text-white">
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Industrial District</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Industrial District</p>
         <h2 className="mb-2 text-xl font-bold text-fuchsia-300">Entertainment Complex</h2>
         <p className="mb-3 text-xs text-gray-400">
           Two venues, one landlord problem: everybody involved is bored by the glamour and only interested in the

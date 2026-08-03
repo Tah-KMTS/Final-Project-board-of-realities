@@ -68,7 +68,7 @@ export default function CellBlockCorridor({ difficulty, onComplete, onWalkAway }
         />
         <div className="absolute top-0 h-full w-[3px] bg-yellow-300" style={{ left: `${markerPos * 100}%` }} />
       </div>
-      <p className="text-center text-[10px] uppercase tracking-widest text-gray-500">
+      <p className="text-center text-xs uppercase tracking-widest text-gray-500">
         Red band = the guard's blind spot
       </p>
       <button

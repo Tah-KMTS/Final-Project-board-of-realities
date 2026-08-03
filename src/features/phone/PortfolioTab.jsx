@@ -51,9 +51,9 @@ export default function PortfolioTab() {
   return (
     <div className="flex flex-col gap-2.5 text-white">
       <div className="rounded border border-emerald-500/40 bg-emerald-950/20 p-2.5 text-center">
-        <div className="text-[10px] uppercase tracking-wide text-emerald-400">Liquid Net Worth</div>
+        <div className="text-xs uppercase tracking-wide text-emerald-400">Liquid Net Worth</div>
         <div className="text-xl font-bold text-emerald-300">${Math.round(liquidNetWorth).toLocaleString()}</div>
-        <div className="text-[10px] text-gray-500">Cash + Stocks + {CRYPTO_NAME}</div>
+        <div className="text-xs text-gray-500">Cash + Stocks + {CRYPTO_NAME}</div>
       </div>
 
       <div className="rounded border border-gray-700 bg-[#0c1024] p-2.5">
@@ -129,7 +129,7 @@ export default function PortfolioTab() {
               </div>
             ))}
           </div>
-          <p className="mt-1.5 text-[10px] italic text-gray-600">
+          <p className="mt-1.5 text-xs italic text-gray-600">
             Daily income shown, not counted toward Liquid Net Worth above - these have no live resale market.
           </p>
         </div>

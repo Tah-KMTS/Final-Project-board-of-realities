@@ -66,7 +66,7 @@ export default function NpcLootModal({ victimNpc = { name: 'Defeated Target', ro
               <div key={item.id} className="flex items-center justify-between rounded border border-yellow-500/30 bg-[#241c0e] p-3 text-xs">
                 <div>
                   <div className="font-bold text-yellow-300 text-sm">{item.name}</div>
-                  <div className="text-[11px] text-gray-300 mt-0.5">Category: <span className="text-yellow-400 uppercase">{item.category}</span> • Value: ${item.value.toLocaleString()}</div>
+                  <div className="text-xs text-gray-300 mt-0.5">Category: <span className="text-yellow-400 uppercase">{item.category}</span> • Value: ${item.value.toLocaleString()}</div>
                 </div>
                 <button
                   onClick={() => handleLootItem(item)}

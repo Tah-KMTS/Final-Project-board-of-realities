@@ -69,7 +69,7 @@ export default function GovernmentModal({ onClose, embedded = false }) {
             </p>
           </div>
           <div className="text-right bg-amber-950/40 border border-amber-500/40 px-3 py-1.5 rounded">
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider">Incumbent President</div>
+            <div className="text-xs text-gray-400 uppercase tracking-wider">Incumbent President</div>
             <div className="text-sm font-bold text-yellow-300">{currentPresident.name} ({currentPresident.party})</div>
           </div>
         </div>
@@ -200,7 +200,7 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                       className="h-16 w-16 rounded-md border-2 border-amber-400 object-cover shadow-md"
                     />
                     <div>
-                      <span className="text-[11px] font-extrabold text-amber-400 uppercase tracking-widest">
+                      <span className="text-xs font-extrabold text-amber-400 uppercase tracking-widest">
                         Incumbent President of the United States
                       </span>
                       <h2 className="text-2xl font-bold text-yellow-300">{currentPresident.name}</h2>
@@ -262,7 +262,7 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                             <div>
                               <h4 className="font-bold text-yellow-300 text-base">{candidate.name}</h4>
                               <p className="text-xs text-gray-300">{candidate.party}</p>
-                              <span className="inline-block mt-1 text-[10px] font-bold bg-emerald-950 border border-emerald-500/40 text-emerald-400 px-2 py-0.5 rounded">
+                              <span className="inline-block mt-1 text-xs font-bold bg-emerald-950 border border-emerald-500/40 text-emerald-400 px-2 py-0.5 rounded">
                                 Tax Rate: {candidate.taxRate}%
                               </span>
                             </div>
@@ -313,11 +313,11 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                 <div className="max-h-48 overflow-y-auto space-y-2 pr-2 text-xs">
                   {(gov.governmentFeed || []).map((feedItem, idx) => (
                     <div key={feedItem.id || idx} className="rounded border border-gray-800 bg-[#161838] p-2.5">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-amber-400">
+                      <div className="flex items-center justify-between text-xs font-bold text-amber-400">
                         <span>{feedItem.title}</span>
                         <span className="text-gray-500">Day {feedItem.day || 1}</span>
                       </div>
-                      <p className="text-gray-300 mt-1 text-[11px]">{feedItem.text}</p>
+                      <p className="text-gray-300 mt-1 text-xs">{feedItem.text}</p>
                     </div>
                   ))}
                 </div>
@@ -337,7 +337,7 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                       className="h-16 w-16 rounded border-2 border-cyan-400 object-cover"
                     />
                     <div>
-                      <span className="text-[11px] font-extrabold text-cyan-400 uppercase tracking-widest">
+                      <span className="text-xs font-extrabold text-cyan-400 uppercase tracking-widest">
                         Federal Reserve Chairman
                       </span>
                       <h2 className="text-2xl font-bold text-cyan-300">{currentFed.name}</h2>
@@ -364,8 +364,8 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                   {FED_CHAIRMEN_ROSTER.map((f) => (
                     <div key={f.id} className="rounded border border-cyan-500/30 bg-[#141b3a] p-3 text-xs">
                       <div className="font-bold text-cyan-300">{f.name}</div>
-                      <div className="text-gray-400 text-[11px] mt-1">Target Rate: {f.targetRate}%</div>
-                      <div className="text-gray-300 text-[11px] mt-1 italic">{f.stance}</div>
+                      <div className="text-gray-400 text-xs mt-1">Target Rate: {f.targetRate}%</div>
+                      <div className="text-gray-300 text-xs mt-1 italic">{f.stance}</div>
                     </div>
                   ))}
                 </div>
@@ -384,7 +384,7 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                     className="h-16 w-16 rounded border-2 border-indigo-400 object-cover"
                   />
                   <div>
-                    <span className="text-[11px] font-extrabold text-indigo-400 uppercase tracking-widest">
+                    <span className="text-xs font-extrabold text-indigo-400 uppercase tracking-widest">
                       Federal Trade Commission (FTC) Chairman
                     </span>
                     <h2 className="text-2xl font-bold text-indigo-300">{currentFtc.name}</h2>
@@ -406,7 +406,7 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                   {FTC_CHAIRMEN_ROSTER.map((f) => (
                     <div key={f.id} className="rounded border border-indigo-500/30 bg-[#17183d] p-3 text-xs">
                       <div className="font-bold text-indigo-300">{f.name}</div>
-                      <div className="text-gray-300 text-[11px] mt-1">{f.description}</div>
+                      <div className="text-gray-300 text-xs mt-1">{f.description}</div>
                     </div>
                   ))}
                 </div>
@@ -424,8 +424,8 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                 {SCOTUS_JUSTICES.map((j) => (
                   <div key={j.id} className="rounded-lg border border-purple-500/40 bg-[#16122b] p-3.5 text-xs shadow">
                     <div className="font-bold text-purple-300 text-sm">{j.name}</div>
-                    <div className="text-gray-400 text-[11px] mt-1 font-semibold">{j.title}</div>
-                    <div className="text-gray-300 text-[11px] mt-1.5 italic">"{j.philosophy || 'Constitutional Judicial Review'}"</div>
+                    <div className="text-gray-400 text-xs mt-1 font-semibold">{j.title}</div>
+                    <div className="text-gray-300 text-xs mt-1.5 italic">"{j.philosophy || 'Constitutional Judicial Review'}"</div>
                   </div>
                 ))}
               </div>
@@ -442,8 +442,8 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                 {CONGRESS_LEADERS.map((c) => (
                   <div key={c.id} className="rounded-lg border border-blue-500/40 bg-[#121931] p-3.5 text-xs shadow">
                     <div className="font-bold text-blue-300 text-sm">{c.name}</div>
-                    <div className="text-gray-400 text-[11px] mt-1 font-semibold">{c.title}</div>
-                    <div className="text-gray-300 text-[11px] mt-1.5">{c.role || 'Coordinates national tax & spending legislation.'}</div>
+                    <div className="text-gray-400 text-xs mt-1 font-semibold">{c.title}</div>
+                    <div className="text-gray-300 text-xs mt-1.5">{c.role || 'Coordinates national tax & spending legislation.'}</div>
                   </div>
                 ))}
               </div>
@@ -485,7 +485,7 @@ export default function GovernmentModal({ onClose, embedded = false }) {
                   {TREASURY_SECRETARIES.map((t) => (
                     <div key={t.id} className="rounded border border-emerald-500/30 bg-[#121f1c] p-3 text-xs">
                       <div className="font-bold text-emerald-300">{t.name}</div>
-                      <div className="text-gray-300 text-[11px] mt-1">{t.title}</div>
+                      <div className="text-gray-300 text-xs mt-1">{t.title}</div>
                     </div>
                   ))}
                 </div>

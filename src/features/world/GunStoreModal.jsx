@@ -77,7 +77,7 @@ export default function GunStoreModal({ onClose }) {
             {!hasFfl && policy.requiresFfl && (
               <button
                 onClick={handleBuyFfl}
-                className="mt-1 rounded border border-yellow-400 bg-yellow-950 px-2 py-0.5 text-[10px] font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
+                className="mt-1 rounded border border-yellow-400 bg-yellow-950 px-2 py-0.5 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
               >
                 Buy FFL ($5,000)
               </button>
@@ -117,7 +117,7 @@ export default function GunStoreModal({ onClose }) {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-yellow-300 text-sm">{weapon.name}</span>
-                    <span className="rounded bg-yellow-950 px-1.5 py-0.5 text-[10px] text-yellow-300 uppercase">{weapon.category}</span>
+                    <span className="rounded bg-yellow-950 px-1.5 py-0.5 text-xs text-yellow-300 uppercase">{weapon.category}</span>
                   </div>
                   <div className="text-xs text-gray-300 mt-0.5">
                     Damage/Stats: <b className="text-cyan-300">{weapon.damage || weapon.defense || 'Utility'}</b> • Price: <b className="text-emerald-400">${price.toFixed(2)}</b>

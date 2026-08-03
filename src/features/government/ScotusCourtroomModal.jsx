@@ -40,7 +40,7 @@ export default function ScotusCourtroomModal({ onClose }) {
         {/* Bench Justices Display */}
         <div className="my-4 rounded border border-purple-500/30 bg-[#14102b] p-3 text-xs">
           <div className="text-purple-300 font-bold mb-1">Presiding Supreme Court Bench:</div>
-          <div className="grid grid-cols-3 gap-2 text-[11px] text-gray-300">
+          <div className="grid grid-cols-3 gap-2 text-xs text-gray-300">
             {SCOTUS_JUSTICES.slice(0, 6).map((j) => (
               <div key={j.id} className="rounded bg-purple-950/40 p-1.5 border border-purple-800/40">
                 • {j.name}

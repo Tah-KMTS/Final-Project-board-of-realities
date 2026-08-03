@@ -102,7 +102,7 @@ export default function AmenityStoreModal({ amenityId = 'tokyo_supermarket', onC
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-yellow-300 text-sm">{item.name}</span>
-                  <span className="rounded bg-cyan-950 px-1.5 py-0.5 text-[10px] text-cyan-300 uppercase">{item.type}</span>
+                  <span className="rounded bg-cyan-950 px-1.5 py-0.5 text-xs text-cyan-300 uppercase">{item.type}</span>
                 </div>
                 <div className="text-xs text-gray-300 mt-0.5">
                   Price: <b className="text-emerald-400">${item.price.toFixed(2)}</b> • Stock Remaining: <b className="text-cyan-300">{item.stock}</b>
@@ -115,7 +115,7 @@ export default function AmenityStoreModal({ amenityId = 'tokyo_supermarket', onC
                 <button
                   onClick={() => handleBuy(item)}
                   disabled={item.stock <= 0}
-                  className="rounded border border-emerald-500 bg-emerald-950 px-2.5 py-1.5 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500 hover:text-black transition-all disabled:opacity-40"
+                  className="rounded border border-emerald-500 bg-emerald-950 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500 hover:text-black transition-all disabled:opacity-40"
                   title="Pay cash to buy legally"
                 >
                   💵 Buy
@@ -123,7 +123,7 @@ export default function AmenityStoreModal({ amenityId = 'tokyo_supermarket', onC
                 <button
                   onClick={() => handleShoplift(item)}
                   disabled={item.stock <= 0}
-                  className="rounded border border-purple-500 bg-purple-950 px-2.5 py-1.5 text-[11px] font-bold text-purple-300 hover:bg-purple-500 hover:text-black transition-all disabled:opacity-40"
+                  className="rounded border border-purple-500 bg-purple-950 px-2.5 py-1.5 text-xs font-bold text-purple-300 hover:bg-purple-500 hover:text-black transition-all disabled:opacity-40"
                   title="Attempt stealth shoplifting"
                 >
                   🥷 Steal
@@ -131,14 +131,14 @@ export default function AmenityStoreModal({ amenityId = 'tokyo_supermarket', onC
                 <button
                   onClick={() => handleBreakDestroy(item)}
                   disabled={item.stock <= 0}
-                  className="rounded border border-red-500 bg-red-950 px-2.5 py-1.5 text-[11px] font-bold text-red-300 hover:bg-red-500 hover:text-white transition-all disabled:opacity-40"
+                  className="rounded border border-red-500 bg-red-950 px-2.5 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500 hover:text-white transition-all disabled:opacity-40"
                   title="Smash store display & destroy shelf inventory"
                 >
                   💥 Break
                 </button>
                 <button
                   onClick={() => handleConsume(item)}
-                  className="rounded border border-yellow-500 bg-yellow-950 px-2.5 py-1.5 text-[11px] font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
+                  className="rounded border border-yellow-500 bg-yellow-950 px-2.5 py-1.5 text-xs font-bold text-yellow-300 hover:bg-yellow-500 hover:text-black transition-all"
                   title="Eat food or use tool"
                 >
                   🍕 Consume

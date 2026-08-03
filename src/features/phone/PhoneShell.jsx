@@ -207,7 +207,7 @@ export default function PhoneShell({ onClose, apps = {} }) {
                     toy/character design. */}
                 <div className="mt-auto flex flex-col items-center gap-0.5 pb-1 pt-3">
                   <PhoneMascot />
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-violet-400/70">Mochi</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-violet-400/70">Mochi</span>
                 </div>
               </motion.div>
             ) : (

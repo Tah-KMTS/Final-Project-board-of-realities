@@ -86,7 +86,7 @@ export default function SyndicateOperationsModal({ onClose }) {
                     <div>
                       <h3 className="font-bold text-red-300 text-base">{syn.name}</h3>
                       <div className="text-yellow-300 text-xs">Boss: {syn.boss}</div>
-                      <div className="text-gray-400 text-[11px]">Territory: {syn.territory}</div>
+                      <div className="text-gray-400 text-xs">Territory: {syn.territory}</div>
                     </div>
                   </div>
                   <div className="my-2 space-y-1 text-gray-300">

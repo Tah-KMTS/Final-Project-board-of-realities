@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import RiftCombatModal from '../hunter/RiftCombatModal'
+import FinanceSkirmishModal from './FinanceSkirmishModal'
+import { getPoliceReadProbability } from './financeSkirmishEngine'
 import { generateSwatSquad } from './financeNpcs'
 
 // The "real arrest pipeline" - replaces the old flat financePoliceEncounter
-// (which dropped the player straight into RiftCombatModal with no other
-// options). This is the choice screen shown first; RiftCombatModal is only
-// reached here on a "Fight Now" pick or after a failed Bribe/Flee attempt,
-// following the same internal-phase pattern as CynnEncounterModal (own
-// onClose only from WorldScreen's point of view - all escalation happens
-// inside this component).
+// (which dropped the player straight into combat with no other options).
+// This is the choice screen shown first; FinanceSkirmishModal (the 4-choice
+// Attack/Heavy/Guard/Dodge skirmish engine) is only reached here on a
+// "Fight Now" pick or after a failed Bribe/Flee attempt, following the same
+// internal-phase pattern as CynnEncounterModal (own onClose only from
+// WorldScreen's point of view - all escalation happens inside this
+// component).
 //
 // Flee's hit-zone width matches the spec's own formula
 // (max(0.08, 0.2 - wantedLevel*0.02)) - tighter than TradeMeter's fixed 0.2
@@ -97,14 +99,15 @@ export default function PoliceStopModal({ wantedLevel, onClose }) {
 
   if (phase === 'combat') {
     return (
-      <RiftCombatModal
-        difficulty={wantedLevel}
-        variant="police"
-        lethal={false}
-        monsterOverride={generateSwatSquad(wantedLevel)}
+      <FinanceSkirmishModal
+        title="Police Confrontation"
+        monster={generateSwatSquad(wantedLevel)}
+        readProbability={getPoliceReadProbability(wantedLevel)}
         onClose={onClose}
-        // wantedRewardOnWin defaults to -1 (see RiftCombatModal) - the old
-        // -5 full-reset-on-win was nerfed as part of this same pipeline pass.
+        // Win reward stays -1 (not the old Hunter-only -5 full-reset) -
+        // matches the "real arrest pipeline" nerf this same file already
+        // documents above for Bribe/Flee.
+        onVictory={() => addWantedLevel(-1)}
         onDefeat={() => sendToJail()}
       />
     )

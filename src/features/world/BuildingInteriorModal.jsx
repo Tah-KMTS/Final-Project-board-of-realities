@@ -88,7 +88,7 @@ export default function BuildingInteriorModal({ buildingId = 'general_hospital',
                   <div key={eq.id} className="rounded border border-cyan-500/30 bg-[#151c3a] p-3 text-xs flex items-center justify-between">
                     <div>
                       <div className="font-bold text-cyan-300">{eq.name}</div>
-                      <div className="text-[11px] text-gray-300 mt-0.5">{eq.effect}</div>
+                      <div className="text-xs text-gray-300 mt-0.5">{eq.effect}</div>
                     </div>
                     <button
                       onClick={() => handleUseEquipment(eq)}
@@ -111,7 +111,7 @@ export default function BuildingInteriorModal({ buildingId = 'general_hospital',
               <div className="rounded border border-amber-500/40 bg-[#211a12] p-3 text-xs flex items-center justify-between">
                 <div>
                   <div className="font-bold text-amber-300 text-sm">🚗 {activeRoom.vehicle.name}</div>
-                  <div className="text-[11px] text-gray-300 mt-0.5">Status: {activeRoom.vehicle.status}</div>
+                  <div className="text-xs text-gray-300 mt-0.5">Status: {activeRoom.vehicle.status}</div>
                 </div>
                 <button
                   onClick={() => handleInspectVehicle(activeRoom.vehicle)}

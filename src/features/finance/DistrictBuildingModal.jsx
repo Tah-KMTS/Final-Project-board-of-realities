@@ -59,7 +59,7 @@ export default function DistrictBuildingModal({ buildingId, onClose, embedded = 
 
   const body = (
     <>
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">{config.district}</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">{config.district}</p>
         <h2 className={`mb-2 text-xl font-bold ${config.textClass}`}>{config.title}</h2>
         <p className="mb-4 text-xs text-gray-400">{config.flavor}</p>
 

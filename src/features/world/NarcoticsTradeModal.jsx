@@ -91,11 +91,11 @@ export default function NarcoticsTradeModal({ onClose }) {
               }`}
             >
               <div className="font-bold text-red-300 text-sm">{item.name}</div>
-              <div className="text-[11px] text-gray-300 mt-1">Supplier: {item.supplier}</div>
-              <div className="text-[11px] text-emerald-400 font-semibold mt-1">
+              <div className="text-xs text-gray-300 mt-1">Supplier: {item.supplier}</div>
+              <div className="text-xs text-emerald-400 font-semibold mt-1">
                 Wholesale: ${item.wholesalePrice.toLocaleString()} ➔ Resale: ${item.resalePrice.toLocaleString()}
               </div>
-              <div className="text-[10px] text-yellow-300 mt-1 italic">Buff: {item.buff}</div>
+              <div className="text-xs text-yellow-300 mt-1 italic">Buff: {item.buff}</div>
             </div>
           ))}
         </div>

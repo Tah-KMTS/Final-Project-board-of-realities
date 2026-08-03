@@ -4,7 +4,7 @@ import { isRed } from './playingCards'
 // per the project's no-external-art rule) - a bordered div with the rank
 // twice (corner pips) and the suit glyph centered.
 export default function PlayingCard({ card, faceDown, small }) {
-  const sizeClass = small ? 'h-16 w-11 text-[10px]' : 'h-24 w-16 text-sm'
+  const sizeClass = small ? 'h-16 w-11 text-xs' : 'h-24 w-16 text-sm'
 
   if (faceDown || !card) {
     return (

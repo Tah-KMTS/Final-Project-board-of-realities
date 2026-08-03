@@ -246,7 +246,7 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
               <div key={c.id + i} className="flex flex-col items-center gap-1">
                 <PlayingCard card={c} small />
                 {phase === 'dealt' && (
-                  <label className="flex items-center gap-0.5 text-[10px] text-gray-400">
+                  <label className="flex items-center gap-0.5 text-xs text-gray-400">
                     <input type="checkbox" checked={held[i]} onChange={() => toggleHold(i)} /> hold
                   </label>
                 )}

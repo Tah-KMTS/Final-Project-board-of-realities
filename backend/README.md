@@ -21,30 +21,50 @@ to the hand-authored `NPC_PERSONAS` dict, unchanged from before.
 
 ```
 pip install -r backend/requirements.txt
+cp .env.example .env   # then fill in your own OPENAI_API_KEY
 ```
 
 The server reads `OPENAI_API_KEY` from the project's existing **root**
 `.env` file (not a separate `backend/.env` - don't create one). The key
 never reaches the browser; it's only ever used inside this Python process.
+`.env` is gitignored, so cloning the repo does **not** hand you a key -
+each person (including anyone who pulls the repo) needs their own OpenAI
+key with `/v1/responses` access, put in their own local `.env`. Without it,
+NPC chat still works but only returns the graceful fallback line (see
+`src/utils/npcChatClient.js`) - it degrades, it doesn't crash.
 
 ## Running (dev)
 
-Board of Realities' local dev now requires **two processes running at the
-same time**:
+Board of Realities' local dev requires **two processes running at the
+same time** - one command now starts both:
+
+```
+npm run dev:all
+# runs `npm run dev` (Vite, http://localhost:5173) and
+# `npm run dev:backend` (FastAPI, http://localhost:8091) together,
+# labeled WEB/API in one terminal. Ctrl+C stops both.
+```
+
+Or run them separately if you want them in their own terminals/logs:
 
 ```
 # Terminal 1 - frontend (Vite), http://localhost:5173
 npm run dev
 
-# Terminal 2 - backend (FastAPI), http://localhost:8079
+# Terminal 2 - backend (FastAPI), http://localhost:8091
 npm run dev:backend
-# equivalent to: uvicorn backend.main:app --reload --port 8079
-# (not port 8000 - that's commonly already taken by other local services)
+# equivalent to: uvicorn backend.main:app --reload --port 8091
+# (not port 8000, commonly already taken by other local services, and not
+# this project's original 8079, abandoned after a dev-machine-specific
+# orphaned socket on it wouldn't release even under a forceful kill)
 ```
 
-CORS is configured to allow requests from `http://localhost:5173` only. If
-the backend isn't running, the frontend's NPC chat input still works - it
-just shows a graceful fallback line instead of a generated reply (see
+CORS allows any `http://localhost:<port>` origin (regex, not a fixed
+allowlist) since Vite silently falls back to 5174/5175/... whenever 5173 is
+already taken - a single fixed origin would CORS-block the frontend the
+moment that happens, with nothing server-side to show for it. If the
+backend isn't running, the frontend's NPC chat input still works - it just
+shows a graceful fallback line instead of a generated reply (see
 `src/utils/npcChatClient.js`).
 
 ## Endpoint
@@ -88,3 +108,20 @@ actual personality and the relationship tier - never scripted or random.
 
 `GET /health` reports `{"status": "ok", "hasApiKey": true|false}` for a
 quick sanity check that the root `.env` was picked up.
+
+## Endpoint: Guide app (Aria)
+
+`POST /guide-ask`
+
+```json
+{ "question": "What happens if I get arrested?" }
+```
+
+Returns `{ "reply": "..." }`. Used by the phone's Guide app
+(`src/features/phone/GuideApp.jsx` / `aiGuide.js`) for "how does X work"
+player questions - a meta/out-of-fiction Q&A assistant, not an in-world NPC,
+so it doesn't use `/npc-interact`'s persona-roleplay + persuasion-verdict
+shape. This used to call OpenAI directly from the browser with a
+`VITE_OPENAI_API_KEY`; that's gone now since a `VITE_*` var ships inside the
+production client bundle, exposing the key to anyone with devtools. Same
+"never throws, resolves to a fallback" contract as before.

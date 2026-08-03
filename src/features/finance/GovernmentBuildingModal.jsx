@@ -67,7 +67,7 @@ export default function GovernmentBuildingModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="glass-panel w-[720px] border-4 border-amber-500 bg-[#1c1d3a] p-6 font-mono text-white">
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Government & Cultural District</p>
+        <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Government & Cultural District</p>
         <h2 className="mb-2 text-xl font-bold text-amber-300">Federal Government Building</h2>
         <p className="mb-3 text-xs text-gray-400">
           The FBI's Hoover, the IRS's Caplin, and the full machinery of federal oversight, all in one building.

@@ -109,8 +109,8 @@ export default function ChallengeNpc() {
                   <span className="h-4 w-4 rounded-full border border-white/40" style={{ backgroundColor: n.avatarColor }} />
                   <span className="font-bold text-pink-300">{n.name}</span>
                 </div>
-                <span className="text-[10px] text-gray-500">{n.title}</span>
-                <span className="text-[10px] italic text-gray-400">{n.flavor}</span>
+                <span className="text-xs text-gray-500">{n.title}</span>
+                <span className="text-xs italic text-gray-400">{n.flavor}</span>
               </button>
             ))}
           </div>
