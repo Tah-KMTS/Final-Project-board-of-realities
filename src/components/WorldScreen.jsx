@@ -57,7 +57,7 @@ import CynnEncounterModal from '../features/yugioh/CynnEncounterModal'
 import ChallengeModal from '../features/yugioh/ChallengeModal'
 import DuelModal from '../features/yugioh/DuelModal'
 import { YUGI_DECK } from '../features/yugioh/cardGenerator'
-import { hunterAmbient } from '../audio/hunterAmbient'
+import { bgmPlayer } from '../audio/bgm'
 import InventoryModal from './Inventory/InventoryModal'
 import BedModal from '../features/domino/BedModal'
 import DeckBuilderModal from '../features/domino/DeckBuilderModal'
@@ -186,20 +186,48 @@ export default function WorldScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // One switchable bgm engine covers every world + both combat moods now
+  // (see src/audio/bgm.js) - this replaces the old hunter-only hunterAmbient
+  // singleton, which had no equivalent for finance/yugioh/casino/jail/police-
+  // battle/street-skirmish. Explicit combat/place modals take priority over
+  // the region's ambient loop; domino mode still has no track (none was
+  // generated for it) so it stays silent, same as before this change.
   useEffect(() => {
-    if (mode === 'overworld' && activeRegion === 'hunter') {
-      hunterAmbient.play()
-    } else {
-      hunterAmbient.pause()
+    const type = activeModal?.type
+    let trackId = null
+    if (type === 'financePoliceEncounter' || type === 'policeEncounter') {
+      trackId = 'police_battle'
+    } else if (type === 'financeCombat' || type === 'ambientCombat') {
+      trackId = 'street_skirmish'
+    } else if (type === 'casino') {
+      trackId = 'casino'
+    } else if (type === 'jail') {
+      trackId = 'jail'
+    } else if (mode === 'overworld') {
+      if (activeRegion === 'finance') trackId = 'capital_overworld'
+      else if (activeRegion === 'hunter') trackId = 'hunters_rift'
+      else if (activeRegion === 'yugioh') trackId = 'king_of_games'
     }
-    return () => hunterAmbient.pause()
-  }, [mode, activeRegion])
+    if (trackId) bgmPlayer.play(trackId)
+    else bgmPlayer.pause()
+  }, [mode, activeRegion, activeModal])
 
-  // Duck the ambient loop during combat so hit/victory SFX read clearly.
+  // Unmounting WorldScreen entirely (leaving to the title menu) should stop
+  // music regardless of which track was last playing - the per-change effect
+  // above only handles switching between tracks while mounted.
+  useEffect(() => () => bgmPlayer.pause(), [])
+
+  // Duck the ambient loop during combat types that have no dedicated track of
+  // their own (rift/finalRaid/criminalEncounter) so hit/victory SFX read
+  // clearly, without switching away from whatever region ambient is already
+  // looping. Police and street fights don't need this - they already switch
+  // to their own dedicated combat track above. Ducking is relative to the
+  // CURRENT track's own authored volume, not a shared constant, since each
+  // recipe was independently tuned (jail is meant quieter than police_battle).
   useEffect(() => {
     if (mode !== 'overworld' || activeRegion !== 'hunter') return
-    const inCombat = ['rift', 'finalRaid', 'police', 'criminalEncounter', 'policeEncounter'].includes(activeModal?.type)
-    hunterAmbient.setVolume(inCombat ? 0.08 : 0.2)
+    const inCombat = ['rift', 'finalRaid', 'criminalEncounter'].includes(activeModal?.type)
+    bgmPlayer.setVolume(inCombat ? bgmPlayer.currentBaseVolume() * 0.4 : bgmPlayer.currentBaseVolume())
   }, [activeModal, mode, activeRegion])
 
   // Global win-condition watcher. Each world's win check still lives where
