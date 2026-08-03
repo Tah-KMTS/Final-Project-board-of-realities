@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/useGameStore'
 import { REAL_ESTATE_LISTINGS, JOB_ENERGY_COST } from './marketData'
 import CorporateModal from './CorporateModal'
 import VaultCrackModal from './VaultCrackModal'
+import WorkShiftModal from './WorkShiftModal'
 
 function MoneyField({ value, onChange, disabled }) {
   return (
@@ -36,7 +37,6 @@ export default function BankModal({ onClose, embedded = false }) {
   const world2 = useGameStore((s) => s.world2)
   const player = useGameStore((s) => s.player)
   const buyRealEstate = useGameStore((s) => s.buyRealEstate)
-  const workShift = useGameStore((s) => s.workShift)
   const currentJobTier = useGameStore((s) => s.currentJobTier)
   const depositCash = useGameStore((s) => s.depositCash)
   const withdrawCash = useGameStore((s) => s.withdrawCash)
@@ -50,6 +50,7 @@ export default function BankModal({ onClose, embedded = false }) {
   const [loanInput, setLoanInput] = useState(1000)
   const [repayInput, setRepayInput] = useState(1000)
   const [showVaultCrack, setShowVaultCrack] = useState(false)
+  const [showWorkShift, setShowWorkShift] = useState(false)
 
   const tier = currentJobTier()
   const atRiskCash = Math.max(0, cash - (world2.bankedAmount || 0))
@@ -71,18 +72,20 @@ export default function BankModal({ onClose, embedded = false }) {
           <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3">
             <p className="mb-2 text-sm font-bold">Job: {tier.label}</p>
             <p className="mb-2 text-xs text-gray-400">
-              Pay ${tier.pay}/shift • costs {JOB_ENERGY_COST} energy • next tier needs
+              Base pay ${tier.pay}/shift (accuracy-scaled) • costs {JOB_ENERGY_COST} energy • next tier needs
               {' '}{tier.id === 'executive' ? 'nothing - top tier' : 'more INT/Reputation'}
             </p>
             <button
-              onClick={workShift}
+              onClick={() => setShowWorkShift(true)}
               disabled={!canWork}
               className="w-full border-2 border-green-400 bg-green-500 py-1 text-sm font-bold text-black hover:bg-green-400 disabled:opacity-40"
             >
-              {canWork ? `Work Shift (+$${tier.pay})` : `Not enough energy (${player.energy}/${JOB_ENERGY_COST})`}
+              {canWork ? 'Work Shift' : `Not enough energy (${player.energy}/${JOB_ENERGY_COST})`}
             </button>
           </div>
         )}
+
+        {showWorkShift && <WorkShiftModal onClose={() => setShowWorkShift(false)} />}
 
         <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3">
           <p className="mb-2 text-sm font-bold">Bank Account</p>

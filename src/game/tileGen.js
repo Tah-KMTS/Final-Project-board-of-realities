@@ -160,7 +160,10 @@ export const BUILDING_IMAGE_FILES = {
   businessCenter: 'businessCenter.png',
 }
 
-function buildingImageTextureKey(id) {
+// Exported so OverworldScene.js's building-overflow cache (isBuildingSolidTile
+// padding) can derive the same texture key drawPrefabImageFacade ends up
+// drawing with, without duplicating/drifting from the `bldg_${id}` format.
+export function buildingImageTextureKey(id) {
   return `bldg_${id}`
 }
 
