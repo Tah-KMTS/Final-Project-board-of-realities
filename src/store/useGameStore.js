@@ -92,6 +92,14 @@ function generateRunSeed() {
   return Math.floor(Math.random() * 0xffffffff)
 }
 
+// Shared crash-reset shape for ShrimpCoin - used by BOTH tickFinanceMarket's
+// ambient real-time crash roll AND the Hype Deck mini-game's "Whale Dump"
+// bust outcome (see CryptoModal.jsx), so the two can never drift out of
+// sync on what "the market crashed" actually resets to.
+function crashResetCrypto() {
+  return { cryptoPrice: CRYPTO_BASE_PRICE, cryptoHype: 0 }
+}
+
 function createDefaultState() {
   return {
     screen: 'welcome', // welcome | world | gameOver
@@ -196,6 +204,12 @@ function createDefaultState() {
       cryptoPrice: CRYPTO_BASE_PRICE,
       cryptoHype: 0,
       cryptoHoldings: 0,
+      // Hype Deck mini-game session flag (see CryptoModal.jsx) - while true,
+      // tickFinanceMarket's ambient real-time crash roll is skipped so the
+      // background timer can't crash the market out from under an open
+      // session. Ordinary price drift is unaffected. Always false outside an
+      // active Hype Deck run.
+      pumpSessionActive: false,
       realEstate: [],
       companies: [],
       npcStatus: {},
@@ -666,9 +680,13 @@ export const useGameStore = create((set, get) => ({
 
     let cryptoPrice = w2.cryptoPrice
     let cryptoHype = w2.cryptoHype
-    if (cryptoHype > 0 && Math.random() < cryptoHype * 0.15) {
-      cryptoPrice = CRYPTO_BASE_PRICE
-      cryptoHype = 0
+    // Crash roll is skipped entirely while a Hype Deck session is open (see
+    // world2.pumpSessionActive) - the ordinary randomWalk drift below still
+    // runs unaffected either way.
+    if (!w2.pumpSessionActive && cryptoHype > 0 && Math.random() < cryptoHype * 0.15) {
+      const reset = crashResetCrypto()
+      cryptoPrice = reset.cryptoPrice
+      cryptoHype = reset.cryptoHype
     } else {
       cryptoPrice = randomWalk(cryptoPrice, 0.1)
     }
@@ -796,6 +814,9 @@ export const useGameStore = create((set, get) => ({
     return true
   },
 
+  // Superseded by the Hype Deck mini-game's applyCryptoPumpCard below (see
+  // CryptoModal.jsx) - kept in place since nothing else has ever called it
+  // (verified via grep) and removing it isn't necessary to ship Hype Deck.
   shillCrypto: () => {
     const state = get()
     const newHype = Math.min(1, state.world2.cryptoHype + 0.15)
@@ -806,6 +827,43 @@ export const useGameStore = create((set, get) => ({
         cryptoPrice: state.world2.cryptoPrice * 1.35,
       },
     })
+  },
+
+  // --- World 2: Crypto "Hype Deck" mini-game --------------------------------
+  // Replaces the old free/unlimited shillCrypto() click with a session-based
+  // deck-draw mini-game (see CryptoModal.jsx). All per-run deck/draw state
+  // lives in the modal's local component state, same convention as
+  // VaultCrackModal's puzzle state - the store only holds the durable market
+  // state (price/hype) plus the pumpSessionActive flag that gates the
+  // ambient crash roll above.
+
+  setPumpSessionActive: (active) =>
+    set((state) => ({ world2: { ...state.world2, pumpSessionActive: active } })),
+
+  // Called once per safe "Pump"/"Big Pump" draw. priceMultiplier compounds
+  // onto the current price; hypeDelta adds onto (and clamps at 1 like
+  // everywhere else in this file) the hype meter.
+  applyCryptoPumpCard: ({ priceMultiplier, hypeDelta }) => {
+    const state = get()
+    set({
+      world2: {
+        ...state.world2,
+        cryptoPrice: state.world2.cryptoPrice * priceMultiplier,
+        cryptoHype: Math.min(1, state.world2.cryptoHype + hypeDelta),
+      },
+    })
+  },
+
+  // "Whale Dump" draw: an instant session-ending bust. Reuses the exact same
+  // crash-reset shape as the ambient crash roll (crashResetCrypto) so the two
+  // can never drift out of sync, and always clears pumpSessionActive since a
+  // Whale Dump unconditionally ends the session.
+  applyCryptoWhaleDump: () => {
+    const state = get()
+    set({
+      world2: { ...state.world2, ...crashResetCrypto(), pumpSessionActive: false },
+    })
+    get().addReputation(-5)
   },
 
   buyRealEstate: (listing) => {
