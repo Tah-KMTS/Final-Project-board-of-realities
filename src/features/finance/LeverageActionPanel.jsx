@@ -15,13 +15,25 @@ import LeverageMeter from './LeverageMeter'
 // extra panel, not replace it. Same end result though: closing the meter
 // (or finishing a round) collapses back to the teaser/button, never stacks
 // a second full-screen overlay on top of the hub modal.
-export default function LeverageActionPanel({ accentBorderClass = 'border-amber-500', teaser, buttonLabel, leverage }) {
+// `component` (default LeverageMeter): lets one call site swap in a
+// racket-specific minigame instead of the shared meter, without touching
+// any of this panel's other callers (BusinessCenterModal/
+// GovernmentBuildingModal/IndustrialZoneModal/ConcertHallTab all keep
+// LeverageMeter untouched by omitting this prop). Currently only
+// UnderworldModal's Capone squeeze passes TheCircuitModal.
+export default function LeverageActionPanel({
+  accentBorderClass = 'border-amber-500',
+  teaser,
+  buttonLabel,
+  leverage,
+  component: MinigameComponent = LeverageMeter,
+}) {
   const [open, setOpen] = useState(false)
 
   return (
     <div className={`mt-3 border-2 ${accentBorderClass} bg-[#11122a] p-3`}>
       {open ? (
-        <LeverageMeter embedded onClose={() => setOpen(false)} {...leverage} />
+        <MinigameComponent embedded onClose={() => setOpen(false)} {...leverage} />
       ) : (
         <>
           {teaser && <p className="mb-2 text-xs text-gray-400">{teaser}</p>}

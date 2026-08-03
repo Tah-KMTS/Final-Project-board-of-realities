@@ -7,8 +7,17 @@ import { useGameStore } from '../store/useGameStore'
 // answers from - see src/features/phone/aiGuide.js and
 // backend/main.py's GUIDE_SYSTEM_PROMPT - so a player who reads this and a
 // player who later asks Aria "how do I win?" get the same answer.
-export default function WelcomeIntroModal() {
+//
+// `onClose` (optional): lets GuideApp.jsx's "How to Play" button reopen
+// this exact same screen later without touching the persisted
+// hasSeenIntro flag - that instance passes its own close handler instead
+// of falling through to dismissIntro, so re-reading the tutorial never
+// re-flips a save-state flag that's already true. The original first-time
+// call site (WorldScreen.jsx's `!hasSeenIntro` render) omits this prop, so
+// it keeps using dismissIntro exactly as before.
+export default function WelcomeIntroModal({ onClose }) {
   const dismissIntro = useGameStore((s) => s.dismissIntro)
+  const handleClose = onClose || dismissIntro
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80">
@@ -28,11 +37,12 @@ export default function WelcomeIntroModal() {
           <p><span className="font-bold text-cyan-300">Press End Day</span> to advance time - it ticks the market and resolves whatever you set in motion.</p>
           <p><span className="font-bold text-cyan-300">Walk up to a building or person</span> and press E to interact - that's how everything in the world opens.</p>
           <p><span className="font-bold text-cyan-300">Two paths to money</span>, and you can mix both: legit (jobs, stocks, real estate, companies) or criminal (the Underworld, syndicate work, heists) - the criminal path pays faster but raises your Wanted Level, and getting caught means jail.</p>
-          <p><span className="font-bold text-cyan-300">Your Phone</span> (top-right) has Social/X, Banking & Portfolio, Contacts, and Aria - an in-game guide you can ask anything, any time you're stuck.</p>
+          <p><span className="font-bold text-cyan-300">Energy</span> is your daily budget - most real actions cost some, and it only refills fully at End Day. Run out early and you can top it up: a cheap snack at the Food Court, or a bigger Restorative Blessing at the Temple (priced off your cash, so it stays a real cost even once you're rich).</p>
+          <p><span className="font-bold text-cyan-300">Your Phone</span> (top-right) has Social/X, Banking & Portfolio, Contacts, a Map, and Aria - an in-game guide you can ask anything, any time you're stuck. Aria can also pull this screen back up if you forget any of it.</p>
         </div>
 
         <button
-          onClick={dismissIntro}
+          onClick={handleClose}
           className="btn-sheen w-full border-4 border-yellow-300 bg-yellow-400 py-3 text-lg font-bold text-black hover:bg-yellow-300"
         >
           Let's Go

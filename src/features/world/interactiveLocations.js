@@ -26,10 +26,23 @@ export const INTERACTIVE_LOCATIONS = [
     icon: '🍔',
     description: "Warren Buffett's favorite breakfast spot. Order $3.17 Bacon McMuffins and cold Cherry Coke.",
     residentNpc: 'Warren Buffett',
+    // Prices bumped from their original $2-5 (InteractiveLocationModal.jsx
+    // used to never actually apply energyRestore at all - see that file's
+    // handlePurchaseItem - so the old prices were never load-bearing against
+    // a real effect). Now that energyRestore is wired to a real
+    // restoreEnergy() call, $2-5 would make Energy's whole daily-budget
+    // design pointless - any player, even flat broke at game start, could
+    // fully refill for pocket change. $40-120 keeps this the "early game"
+    // relief valve it's meant to be (a real bite against a starting $1,000,
+    // fading in relative importance as cash grows - the wealth-scaled Temple
+    // blessing is the lever meant to stay meaningful once rich, not this).
+    // buffett_combo's old unconditional +$500 cash grant on top of the food
+    // itself is removed - with no purchase limit that was a real infinite-
+    // money exploit (buy repeatedly, net +$495 cash per click, forever).
     items: [
-      { id: 'mcmuffin', name: '$3.17 Bacon McMuffin', cost: 3, energyRestore: 25, bonusText: '+25 Energy & Compound Interest Luck' },
-      { id: 'cherry_coke', name: 'Cold Cherry Coke', cost: 2, energyRestore: 15, bonusText: '+15 Energy & Strategic Clarity' },
-      { id: 'buffett_combo', name: "The Oracle's Combo", cost: 5, energyRestore: 50, bonusText: '+50 Energy & +$500 Passive Yield' },
+      { id: 'mcmuffin', name: '$3.17 Bacon McMuffin', cost: 40, energyRestore: 25, bonusText: '+25 Energy' },
+      { id: 'cherry_coke', name: 'Cold Cherry Coke', cost: 25, energyRestore: 15, bonusText: '+15 Energy' },
+      { id: 'buffett_combo', name: "The Oracle's Combo", cost: 120, energyRestore: 50, bonusText: '+50 Energy' },
     ],
   },
   {

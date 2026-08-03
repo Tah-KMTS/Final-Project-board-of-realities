@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, ArrowLeft, Wallet, Siren, Rss, Heart, Sparkles, CalendarClock, TrendingUp } from 'lucide-react'
+import { X, ArrowLeft, Wallet, Siren, Rss, Heart, Sparkles, CalendarClock, TrendingUp, Map } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
 import { NET_WORTH_WIN_TARGET, NET_WORTH_MILESTONES } from '../../features/finance/marketData'
 
@@ -26,6 +26,11 @@ const APP_DEFS = [
   { id: 'banking', label: 'Banking', Icon: Wallet, color: 'emerald', enabled: true },
   { id: 'contacts', label: 'Contacts', Icon: Heart, color: 'rose', enabled: true },
   { id: 'guide', label: 'Guide', Icon: Sparkles, color: 'pink', enabled: true },
+  // Static top-down schematic of the city (WorldMapOverview.jsx) - visual
+  // orientation only, no click-to-travel. See that file's own header
+  // comment for why it's a data-only component rather than a live Phaser
+  // camera trick.
+  { id: 'map', label: 'Map', Icon: Map, color: 'violet', enabled: true },
 ]
 
 const ICON_COLOR_CLASSES = {

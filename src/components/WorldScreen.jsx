@@ -71,6 +71,7 @@ import SocialApp from '../features/phone/SocialApp'
 import BankingApp from '../features/phone/BankingApp'
 import ContactsApp from '../features/phone/ContactsApp'
 import GuideApp from '../features/phone/GuideApp'
+import WorldMapOverview from '../features/phone/WorldMapOverview'
 
 const REGION_LABELS = {
   hunter: "The Hunter's Rift",
@@ -150,6 +151,11 @@ export default function WorldScreen() {
 
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
+  // Lets GuideApp.jsx's "How to Play" button reopen WelcomeIntroModal on
+  // demand, independent of the persisted hasSeenIntro flag (see that
+  // component's own header comment on why re-reading the tutorial must
+  // never re-flip a save-state flag that's already true).
+  const [showHelp, setShowHelp] = useState(false)
   const [worldCleared, setWorldCleared] = useState(null)
   // Snapshot of which block ids were already cleared, used by the global
   // win-condition watcher below.
@@ -419,6 +425,7 @@ export default function WorldScreen() {
   return (
     <div className="flex h-full w-full flex-col items-center gap-4 bg-[#0f1020] p-4 font-mono text-white">
       {!hasSeenIntro && <WelcomeIntroModal />}
+      {hasSeenIntro && showHelp && <WelcomeIntroModal onClose={() => setShowHelp(false)} />}
       <div className="flex w-full max-w-[640px] flex-wrap items-center justify-between gap-2 border-2 border-gray-700 bg-[#1c1d3a] px-4 py-2 text-sm">
         <div>
           <span className="font-bold text-yellow-300">{player.name}</span>{' '}
@@ -569,7 +576,15 @@ export default function WorldScreen() {
             social: () => <SocialApp />,
             banking: () => <BankingApp />,
             contacts: () => <ContactsApp />,
-            guide: () => <GuideApp />,
+            guide: () => (
+              <GuideApp
+                onShowHelp={() => {
+                  closeModal()
+                  setShowHelp(true)
+                }}
+              />
+            ),
+            map: () => <WorldMapOverview />,
           }}
         />
       )}
@@ -708,6 +723,14 @@ export default function WorldScreen() {
           double-fire the DistrictBuildingModal branch below. */}
       {activeModal?.type === 'building' && activeModal.id === 'underworld' && (
         <UnderworldModal
+          // Set by the underworldInterior zone's desk interactables
+          // (OverworldScene.js's 'underworldDesk' zone type) so walking up
+          // to a specific racket opens UnderworldModal straight to that
+          // tab, instead of always landing on Black Market. Undefined for
+          // every other entry point (jail-tunnel arrival, anything else
+          // that opens this modal), which UnderworldModal's own
+          // `initialTab = 'blackMarket'` default already covers.
+          initialTab={activeModal.initialTab}
           onClose={
             // Reached via the jail maze's tunnel rather than the normal
             // overworld building - the scene is sitting on the transient

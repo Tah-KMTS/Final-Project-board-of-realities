@@ -51,6 +51,13 @@ export const DISTRICT_BUILDINGS_CONFIG = {
     actions: [
       {
         type: 'leverage',
+        // Which racket-specific minigame component DistrictBuildingModal
+        // renders instead of the shared LeverageMeter (see
+        // MINIGAME_COMPONENTS there) - the 4 Underworld actions each got
+        // their own distinct mechanic in the same pass that added this
+        // field; stakes/payout/risk numbers below are untouched (mechanic
+        // swap, not a rebalance - see game-designer's scoping notes).
+        minigame: 'lookoutWatch',
         label: 'Shake Down a Local',
         leverage: {
           title: 'Back-Alley Shakedown',
@@ -96,6 +103,7 @@ export const DISTRICT_BUILDINGS_CONFIG = {
     actions: [
       {
         type: 'leverage',
+        minigame: 'fencesTable',
         label: 'Fence Stolen Goods',
         leverage: {
           title: 'Fence Stolen Goods',
@@ -139,6 +147,7 @@ export const DISTRICT_BUILDINGS_CONFIG = {
     actions: [
       {
         type: 'leverage',
+        minigame: 'callCenterQte',
         label: 'Run a Scam Script',
         leverage: {
           title: 'Run a Scam Script',

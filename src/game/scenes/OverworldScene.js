@@ -731,6 +731,15 @@ const INTERIOR_TEMPLATES = {
   holdingCell: { floorA: 0x28282c, floorB: 0x1e1e22, deskColor: 0x3a3a3a, deskLabel: 'Booking Desk' },
   jailMaze: { floorA: 0x201c18, floorB: 0x171310, deskColor: 0x5a4a2a, deskLabel: 'Service Corridor' },
   jailUnderworld: { floorA: 0x1f1418, floorB: 0x160e12, deskColor: 0x6a1f3a, deskLabel: 'Back Room' },
+  // Underworld's walkable interior (buildUnderworldInteriorZone below) -
+  // the fixed INTERIOR_DESK slot drawInteriorRoom always renders IS the
+  // Boss Jobs + Standing back office (world-builder: no reason for these
+  // two to be separate stops, Standing has no physical form of its own
+  // beyond the ledger the Bosses already transact with you from). Purple
+  // family matching the building's own exterior color (0x3a1f3a,
+  // FINANCE_BUILDING_DEFS) and its escape-tunnel back room (jailUnderworld
+  // above, same 0x6a1f3a-family maroon) for visual continuity across all 3.
+  underworldInterior: { floorA: 0x241729, floorB: 0x1a0f1e, deskColor: 0x5a2f5a, deskLabel: 'Boss Jobs & Standing' },
 }
 
 // businessCenter/underworld/governmentBuilding/industrialZone (the 4
@@ -780,6 +789,13 @@ const ZONES = {
   jailCell: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   jailMaze: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   jailUnderworld: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  // Underworld's walkable interior - same shared room shape too. Deliberately
+  // NOT named 'underworld': that string is already a live zone.id value
+  // elsewhere (this building's own overworld footprint id, read by
+  // triggerInteraction below) and 'jailUnderworld' above is a DIFFERENT
+  // existing zone (the jail escape tunnel's transient back-room backdrop) -
+  // reusing either name here would collide with real, already-working code.
+  underworldInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
 }
 
 // ---------------- shared small helpers ----------------
@@ -906,18 +922,6 @@ function drawBuildings(scene, buildings, zoneObjects) {
     const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
     zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color, b))
-    // Map overhaul Phase 3: no name label above residential buildings
-    // (homes/hideouts, i.e. anything with a truthy `kind`) - with 88 of them
-    // now clustered into dense same-style blocks, a label over every single
-    // one was visual noise nobody could read anyway. Hub/civic buildings
-    // (the 10 hand-authored defs, none of which set `kind`) keep theirs.
-    if (!b.kind) {
-      const label = scene.add
-        .text(x + w / 2, y - 12, b.label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' })
-        .setOrigin(0.5, 1)
-        .setDepth(y + h + 10)
-      zoneObjects.push(label)
-    }
 
     const doorSpec = buildingDoorAnimSpec(b, x, y, w, h)
     if (doorSpec && scene.textures.exists(SERENE_VILLAGE_DOOR_KEY)) {
@@ -1138,12 +1142,24 @@ function idleDriftOffset(characterId, agentClock, tier, crowded) {
 // spacing (320px, casino<->foodCourt/realEstateAgency) so even a maxed-out
 // crowd never visually reads as bleeding into a neighboring building's own
 // crowd.
+// Capacities cut roughly in half from the original [1,3,6,9,12] (a live
+// screenshot showed unreadably tight crowds even after the WORK_BUILDING_
+// OVERRIDES rebalance that cut typical crowd sizes down - the ring geometry
+// itself was still packing people too close together). Radii are unchanged
+// (see the max-radius comment above) since that ceiling is a real map-
+// geometry constraint, not a taste call - fewer people per ring at the same
+// radius means a bigger angular gap between any two adjacent people, which
+// is the only lever available without either exceeding that ceiling or
+// changing the "fan south from the door" shape. A crowd that used to fill
+// rings 1-4 now spills into ring 5 and the overflow bands sooner, which
+// pushes them further out (more radius) rather than packing tighter - the
+// intended direction for a bigger crowd, not a regression.
 const ARC_RINGS = [
   { radius: 0, capacity: 1 },
-  { radius: 40, capacity: 3 },
-  { radius: 80, capacity: 6 },
-  { radius: 120, capacity: 9 },
-  { radius: 150, capacity: 12 },
+  { radius: 45, capacity: 2 },
+  { radius: 85, capacity: 4 },
+  { radius: 120, capacity: 6 },
+  { radius: 150, capacity: 8 },
 ]
 const ARC_MAX_ANGLE = (75 * Math.PI) / 180 // half-spread either side of due south
 
@@ -1172,10 +1188,9 @@ function arcSlotOffset(index) {
     }
     remaining -= ring.capacity
   }
-  // Beyond the last authored ring (>31 at one door - never observed in
-  // simulation, see above, but kept safe rather than reusing a slot):
-  // keep growing radius in the same 12-wide bands instead of crashing or
-  // collapsing back onto an existing slot.
+  // Beyond the last authored ring (>21 at one door with the reduced
+  // capacities above - keeps growing radius in the same bands instead of
+  // crashing or collapsing back onto an existing slot):
   const OVERFLOW_BAND = 14
   const band = Math.floor(remaining / OVERFLOW_BAND)
   const posInBand = remaining % OVERFLOW_BAND
@@ -1663,6 +1678,7 @@ export default class OverworldScene extends Phaser.Scene {
     else if (zoneId === 'jailCell') this.buildJailCellZone()
     else if (zoneId === 'jailMaze') this.buildJailMazeZone()
     else if (zoneId === 'jailUnderworld') this.buildJailUnderworldZone()
+    else if (zoneId === 'underworldInterior') this.buildUnderworldInteriorZone()
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
     const zone = ZONES[zoneId]
@@ -1738,7 +1754,10 @@ export default class OverworldScene extends Phaser.Scene {
       roamer.label.destroy()
       if (roamer.carActor) roamer.carActor.destroy()
     }
-    for (const actor of this.financeAmbientActors) actor.destroy()
+    for (const actor of this.financeAmbientActors) {
+      actor.destroy()
+      actor.label.destroy()
+    }
     for (const animal of this.habitatAnimalActors) animal.destroy()
     for (const vehicle of this.vehicleActors) vehicle.actor.destroy()
     this.namedRoamers = []
@@ -1996,6 +2015,60 @@ export default class OverworldScene extends Phaser.Scene {
     this.zones = []
   }
 
+  // Underworld's walkable interior - the first tabbed hub building
+  // (Business Center/Government Building/Industrial Zone stay straight-to-
+  // modal) to get one. Layout per the scoping pass: the front counter
+  // (Black Market) and the two side rackets (Call Center Ops, Crime Alley)
+  // sit in the open floor; Speakeasy Hotel by the stairs-down flavor; the
+  // fixed INTERIOR_DESK slot drawInteriorRoom always renders (the room's
+  // one "real" desk facade + label, same prominence jail's guard desk gets)
+  // IS the Boss Jobs + Standing back office - no separate Standing stop,
+  // see INTERIOR_TEMPLATES.underworldInterior's own comment for why. All 5
+  // interactables use the bespoke 'underworldDesk' zone.type (see
+  // triggerInteraction) rather than the generic 'interiorDesk' one, so none
+  // of their ids can collide with DISTRICT_BUILDING_IDS.
+  buildUnderworldInteriorZone() {
+    drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.underworldInterior)
+    this.regionLabel.setText('The Underworld')
+
+    const deskSpots = [
+      { col: 3, row: 4, initialTab: 'blackMarket', label: 'Black Market' },
+      { col: 8, row: 4, initialTab: 'callCenterOps', label: 'Call Center Ops' },
+      { col: 3, row: 6, initialTab: 'crimeAlley', label: 'Crime Alley' },
+      { col: 8, row: 6, initialTab: 'speakeasy', label: 'Speakeasy Hotel' },
+    ]
+
+    this.zones = [
+      // The room's built-in desk facade (INTERIOR_DESK, same rect shape
+      // buildJailCellZone's guard desk uses) - Boss Jobs + Standing.
+      {
+        type: 'underworldDesk',
+        id: 'underworldBossJobs',
+        initialTab: 'bossJobs',
+        label: 'Boss Jobs & Standing',
+        rect: new Phaser.Geom.Rectangle(
+          INTERIOR_DESK.c0 * TILE_SIZE - TILE_SIZE / 2,
+          INTERIOR_DESK.r0 * TILE_SIZE - TILE_SIZE / 2,
+          (INTERIOR_DESK.c1 - INTERIOR_DESK.c0 + 1) * TILE_SIZE + TILE_SIZE,
+          (INTERIOR_DESK.r1 - INTERIOR_DESK.r0 + 1) * TILE_SIZE + TILE_SIZE
+        ),
+      },
+      ...deskSpots.map((spot) => ({
+        type: 'underworldDesk',
+        id: `underworld${spot.initialTab}`,
+        initialTab: spot.initialTab,
+        label: spot.label,
+        rect: new Phaser.Geom.Rectangle(
+          spot.col * TILE_SIZE - TILE_SIZE,
+          spot.row * TILE_SIZE - TILE_SIZE,
+          TILE_SIZE * 2,
+          TILE_SIZE * 2
+        ),
+      })),
+      interiorExitZone(),
+    ]
+  }
+
   // Real tile-based rooms built from the chapel pack's Walls_Interior
   // tileset via the generic buildTmxWallInteriorZone builder (see
   // src/game/interiors/tmxWallInterior.js) - the `temple` building
@@ -2066,7 +2139,8 @@ export default class OverworldScene extends Phaser.Scene {
       this.currentZoneId === 'buildingInterior' ||
       this.currentZoneId === 'jailCell' ||
       this.currentZoneId === 'jailMaze' ||
-      this.currentZoneId === 'jailUnderworld'
+      this.currentZoneId === 'jailUnderworld' ||
+      this.currentZoneId === 'underworldInterior'
     ) {
       if (col < 0 || col >= INTERIOR_COLS || row < 0 || row >= INTERIOR_ROWS) return true
       const isBorder = row === 0 || col === 0 || row === INTERIOR_ROWS - 1 || col === INTERIOR_COLS - 1
@@ -2327,8 +2401,6 @@ export default class OverworldScene extends Phaser.Scene {
       this.refreshPresenceCache()
     }
 
-    const px = this.playerActor?.x ?? -9999
-    const py = this.playerActor?.y ?? -9999
     for (const roamer of this.namedRoamers) {
       if (roamer.dead) continue
       const presence = this.presenceCache.get(roamer.agent.id)
@@ -2646,10 +2718,8 @@ export default class OverworldScene extends Phaser.Scene {
       roamer.actor.sprite.setVisible(!driving)
       roamer.actor.shadow.setVisible(!driving)
 
-      // Name floats above the sprite; the agent's current "thought" appears
-      // once the player is close enough to read it.
-      const near = Phaser.Math.Distance.Between(px, py, x, y) < 180
-      const wanted = near && roamer.currentAction ? `${roamer.character.name}\n${roamer.currentAction}` : roamer.character.name
+      // Name floats above the sprite; no action text, just the name.
+      const wanted = roamer.character.name
       if (roamer.label.text !== wanted) roamer.label.setText(wanted)
       roamer.label.setPosition(x, y - (roamer.labelDy ?? 26))
       roamer.label.setDepth(y + 500)
@@ -2691,6 +2761,24 @@ export default class OverworldScene extends Phaser.Scene {
       actor.wanderTimer = 0
       actor.wanderDir = { x: 0, y: 0 }
       actor.dead = false
+      // Floating name tag, same style/convention named roamers use
+      // (spawnNamedRoamers) - these 6 are the team's own names
+      // (Tah/Jeff/Ince/Franc/Poom/Tan, see npcGenerator.js), so they read as
+      // named characters visually too, not anonymous wander filler. Fixed
+      // labelDy of 26 (the solo/no-crowding case named roamers use) is
+      // correct here - these 6 never converge at a shared door the way
+      // named roamers can, so there's no group to fan out a wider ring for.
+      actor.label = this.add
+        .text(actor.x, actor.y - 26, npc.name, {
+          fontFamily: 'monospace',
+          fontSize: '9px',
+          color: '#ffe066',
+          align: 'center',
+          stroke: '#000000',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(actor.y + 500)
       return actor
     })
   }
@@ -3545,6 +3633,7 @@ export default class OverworldScene extends Phaser.Scene {
     if (actor) {
       actor.dead = true
       actor.sprite.setVisible(false)
+      actor.label.setVisible(false)
     }
   }
 
@@ -3556,7 +3645,11 @@ export default class OverworldScene extends Phaser.Scene {
 
   updateAllAmbientNpcs(delta) {
     for (const actor of this.financeAmbientActors) {
-      if (!actor.dead) wanderActor(this, actor, delta)
+      if (!actor.dead) {
+        wanderActor(this, actor, delta)
+        actor.label.setPosition(actor.x, actor.y - 26)
+        actor.label.setDepth(actor.y + 500)
+      }
     }
   }
 
@@ -3698,7 +3791,7 @@ export default class OverworldScene extends Phaser.Scene {
         this.bridge.emit('interact', { type: 'townTravel' })
         return
       }
-      // The 4 Phase-2/4 consolidated hubs (Underworld/Business Center/
+      // The 3 remaining Phase-2/4 consolidated hubs (Business Center/
       // Government Building/Industrial Zone) are multi-tenant tabbed React
       // modals, not a walk-in interior - same pattern as trainStation above:
       // open the modal straight from the overworld footprint, no interior
@@ -3709,9 +3802,10 @@ export default class OverworldScene extends Phaser.Scene {
       // same reason too, but routes to a bespoke WharfModal instead - see
       // WorldScreen.jsx's `activeModal.id === 'wharf'` case. entertainmentComplex
       // (Concert Hall/Sports Stadium) joins the same way, routing to
-      // EntertainmentComplexModal.
+      // EntertainmentComplexModal. Underworld left this list - it's now a
+      // real walk-in interior (see the stockExchange/casino-style branch
+      // below), the first tabbed hub to get one.
       if (
-        zone.id === 'underworld' ||
         zone.id === 'businessCenter' ||
         zone.id === 'governmentBuilding' ||
         zone.id === 'industrialZone' ||
@@ -3749,6 +3843,14 @@ export default class OverworldScene extends Phaser.Scene {
         this.loadZone('casinoInterior')
         return
       }
+      if (zone.id === 'underworld') {
+        this.overworldReturnSpawn = {
+          col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
+          row: building.tiles.r1 + 1,
+        }
+        this.loadZone('underworldInterior')
+        return
+      }
       
       this.overworldReturnSpawn = {
         col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
@@ -3774,6 +3876,18 @@ export default class OverworldScene extends Phaser.Scene {
       this.bridge.emit('interact', { type: 'ambientNpc', npcId: zone.npcRef.npcId, npcName: zone.npcRef.npcName })
     } else if (zone.type === 'jailMazeCheckpoint') {
       this.bridge.emit('interact', { type: 'jailMazeCheckpoint', segmentIndex: zone.segmentIndex })
+    } else if (zone.type === 'underworldDesk') {
+      // Deliberately its own zone.type rather than reusing 'interiorDesk'
+      // (which emits `id: zone.id` verbatim): 'blackMarket'/'callCenterOps'/
+      // 'crimeAlley' are already live keys in DISTRICT_BUILDING_IDS
+      // (districtBuildings.js), so a desk literally named one of those would
+      // ALSO match WorldScreen.jsx's DistrictBuildingModal branch and pop a
+      // second, bare modal alongside the real tabbed UnderworldModal - the
+      // exact "two conditions match one activeModal" bug this file's own
+      // Crime Alley comment already documents having been hit and fixed
+      // once before. Always emits the literal building id 'underworld' plus
+      // which tab this desk should open to.
+      this.bridge.emit('interact', { type: 'building', id: 'underworld', initialTab: zone.initialTab })
     }
   }
 
