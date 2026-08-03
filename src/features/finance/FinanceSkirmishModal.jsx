@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import { playHitSound, playTakeDamageSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
+import {
+  playHitSound,
+  playTakeDamageSound,
+  playVictorySound,
+  playDefeatSound,
+  playCounterPrimeSound,
+  playCounterDetonateSound,
+  playStaggerSound,
+  playRetreatSound,
+} from '../../audio/sfx'
 import { MOVE_LABELS, resolveMatchup, payMoveCost, pickAiMove, computeAttackStreakPenalty } from './financeSkirmishEngine'
 import PokeBattleLayout from './PokeBattleLayout'
 
@@ -184,6 +193,15 @@ export default function FinanceSkirmishModal({
       if (playerStreak.staggered) appendLog("Exhaustion Stagger! Too many Attacks in a row - you're stunned next turn.")
       if (monsterStreak.staggered) appendLog(`${monster.name} is staggered from overusing Attack!`)
 
+      // One cue per category per turn (not one per side) - hit/damage above
+      // follow the same rule, and layering the same sound twice back-to-back
+      // reads as a glitch rather than emphasis.
+      if (matchup.arm1 || matchup.arm2) playCounterPrimeSound()
+      if ((playerBoostConsumed && dmgToMonster > matchup.dmg2) || (monsterBoostConsumed && dmgToPlayer > matchup.dmg1)) {
+        playCounterDetonateSound()
+      }
+      if (matchup.stun1 || matchup.stun2 || playerStreak.staggered || monsterStreak.staggered) playStaggerSound()
+
       const newMonsterHp = Math.max(0, monsterHp - dmgToMonster)
       setMonsterHp(newMonsterHp)
       if (dmgToMonster > 0) {
@@ -234,6 +252,7 @@ export default function FinanceSkirmishModal({
   }
 
   const handleRetreat = () => {
+    playRetreatSound()
     onRetreat?.()
     onClose()
   }

@@ -4,7 +4,14 @@ import { useGameStore } from '../../store/useGameStore'
 import { generateMonster } from './monsters'
 import { getProfession } from './professions'
 import { rollRiftLoot } from './items'
-import { playHitSound, playTakeDamageSound, playVictorySound, playDefeatSound, playQuestCompleteSound } from '../../audio/sfx'
+import {
+  playHitSound,
+  playTakeDamageSound,
+  playVictorySound,
+  playDefeatSound,
+  playQuestCompleteSound,
+  playRetreatSound,
+} from '../../audio/sfx'
 import {
   getAttackMultiplier,
   getDamageReduction,
@@ -254,6 +261,7 @@ export default function RiftCombatModal({
   }
 
   const handleFlee = () => {
+    playRetreatSound()
     onClose()
   }
 
