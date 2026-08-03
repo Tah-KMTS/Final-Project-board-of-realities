@@ -2123,6 +2123,25 @@ export default class OverworldScene extends Phaser.Scene {
 
   // ---------------- collision ----------------
 
+  // Shared by isBlockedTile (player collision, via TileMover) and named-
+  // roamer building collision (updateNamedRoamers below) - the single
+  // source of truth for "is this exact tile covered by a building's solid
+  // footprint", including the temple's courtyard exception: the chapel
+  // draws a whole authored courtyard, most of which is walkable ground, so
+  // it uses the authored per-tile collision (TEMPLE_SOLID_OFFSETS) instead
+  // of blocking its whole footprint rect like a normal building.
+  isBuildingSolidTile(col, row) {
+    for (const b of FINANCE_BUILDINGS) {
+      if (col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1) {
+        if (b.id === 'temple') {
+          return TEMPLE_SOLID_OFFSETS.has(`${col - b.tiles.c0},${row - b.tiles.r0}`)
+        }
+        return true
+      }
+    }
+    return false
+  }
+
   isBlockedTile(col, row) {
     if (
       this.currentZoneId === 'chapelInterior' ||
@@ -2160,20 +2179,7 @@ export default class OverworldScene extends Phaser.Scene {
     // position just mirrors the player's own already-validated TileMover
     // position, not a second body that could collide with it).
     if (this.isSingleTileObstacle(col, row)) return true
-    for (const b of FINANCE_BUILDINGS) {
-      if (col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1) {
-        // The chapel draws a whole authored courtyard, most of which is
-        // walkable ground. Blocking its footprint rect like a normal
-        // building walled the courtyard off entirely, so it uses the
-        // authored per-tile collision instead - same rules as the
-        // standalone zone, gate opening included.
-        if (b.id === 'temple') {
-          if (TEMPLE_SOLID_OFFSETS.has(`${col - b.tiles.c0},${row - b.tiles.r0}`)) return true
-          continue
-        }
-        return true
-      }
-    }
+    if (this.isBuildingSolidTile(col, row)) return true
     // Driving-only rules. Kept separate from the checks above so walking is
     // completely unaffected: on foot the player may still cross grass and
     // brush past people, which is what you'd expect.
@@ -2537,19 +2543,47 @@ export default class OverworldScene extends Phaser.Scene {
         rawPos = seekTo(doorB).pos
       }
       roamer.inCar = !onFoot
-      // Named roamers don't push against building collision at all - they
-      // have no pathfinding, so any straight-line walk (traveling) or small
-      // idle wander (drifting near their own door) can graze a building
-      // edge, and resolveOpenPosition fighting that every frame is what
-      // read as shaking in place or a permanent stall against an obstacle
-      // (reported against both buildings and a parked car). Buildings stay
-      // solid for the PLAYER; for roamers this trades a rare, brief visual
-      // overlap with a building corner for never visibly fighting or
-      // getting stuck - the better trade for background NPCs. Trees/rocks
-      // are no longer solid for anyone (see scatterEnvironment) so they're
-      // not a factor here either way.
-      const x = rawPos.x
-      const y = rawPos.y
+      // Named roamers now push against building collision the same way the
+      // player does (isBuildingSolidTile - exact tile membership, no
+      // padding), but resolved as an axis-separated slide rather than
+      // resolveOpenPosition's "snap to nearest padded edge" used by
+      // wanderActor. That nearest-edge snap is fine for wanderActor's tiny,
+      // randomly-re-rolled steps, but fighting it every frame against a
+      // roamer's constant-speed seek toward a stationary, possibly-distant
+      // door target (or a small idle drift near that door) is what
+      // previously read as shaking in place or a permanent stall (reported
+      // against both buildings and a parked car): the closest-edge choice
+      // can flip between two edges frame to frame right at a corner, and
+      // each snap-back gets immediately re-approached by the next frame's
+      // seek. Axis separation - try the full (x,y) step, and if that lands
+      // on a solid tile, try x-only and y-only independently - only ever
+      // clamps forward progress on the blocked axis (never teleports the
+      // sprite backward), so a roamer walking past a building's corner
+      // slides along its face instead of vibrating, and a roamer whose
+      // drift/pace target dips into a wall just stops at the edge instead
+      // of snapping. Doors themselves sit one full tile below their
+      // building's footprint (buildingDoorPixel), so this never blocks a
+      // roamer from reaching or standing at its own door. Trees/rocks are
+      // no longer solid for anyone (see scatterEnvironment) so they're not
+      // a factor here either way.
+      const prevX = roamer.actor.x
+      const prevY = roamer.actor.y
+      let x = rawPos.x
+      let y = rawPos.y
+      const tileAt = (px, py) => this.isBuildingSolidTile(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE))
+      if (tileAt(x, y)) {
+        const xBlocked = tileAt(x, prevY)
+        const yBlocked = tileAt(prevX, y)
+        x = xBlocked ? prevX : x
+        y = yBlocked ? prevY : y
+        // Neither axis alone clears it either (walked straight into a wall
+        // with no open slide direction) - hold the previous position rather
+        // than committing a still-solid combined point.
+        if (xBlocked && yBlocked) {
+          x = prevX
+          y = prevY
+        }
+      }
       const dx = x - roamer.actor.x
       const dy = y - roamer.actor.y
       const movedDist = Math.abs(dx) + Math.abs(dy)
