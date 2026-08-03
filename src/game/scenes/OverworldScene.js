@@ -2227,6 +2227,230 @@ export default class OverworldScene extends Phaser.Scene {
     return false
   }
 
+  // ---------------- named-roamer pathfinding ----------------
+  //
+  // Roamers used to move by pure straight-line seek, with building
+  // collision resolved as an axis-separated slide. Sliding is not
+  // pathfinding: it only ever CLAMPS the blocked axis, and the seek
+  // re-points into the same wall on the very next frame, so a roamer whose
+  // door target sits behind a building walks into the face and stays there
+  // forever (reported as NPCs stuck in place / pinned against walls). The
+  // slide is kept below as a last-resort guard, but routing is now a real
+  // search so a roamer walks AROUND a building instead of into it.
+  //
+  // Buildings are the entire obstacle set here - trees/rocks aren't solid
+  // for anyone (see scatterEnvironment), and roamers deliberately don't
+  // collide with each other or the player.
+  isRoamerBlockedTile(col, row) {
+    if (col < 0 || row < 0 || col >= MAP_COLS || row >= MAP_ROWS) return true
+    return this.isBuildingSolidTile(col, row)
+  }
+
+  // Straight-line walkability, sampled at half-tile steps (small enough
+  // that a 1-tile-thick wall can't be stepped over). Checked before any
+  // search runs, because the overwhelmingly common case - a roamer idling
+  // near its own door or pacing a few tiles - has a clear line and should
+  // never pay for A*.
+  roamerHasLineOfSight(x0, y0, x1, y1) {
+    const dist = Math.hypot(x1 - x0, y1 - y0)
+    const steps = Math.max(1, Math.ceil(dist / (TILE_SIZE / 2)))
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps
+      const px = x0 + (x1 - x0) * t
+      const py = y0 + (y1 - y0) * t
+      if (this.isRoamerBlockedTile(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE))) return false
+    }
+    return true
+  }
+
+  // Spiral outward for a walkable tile. A goal that lands inside a footprint
+  // would make the search unsolvable, and "unsolvable" degrades to the old
+  // walk-into-the-wall behaviour, so re-aim at the nearest open tile instead.
+  nearestOpenRoamerTile(col, row, maxRadius = 10) {
+    if (!this.isRoamerBlockedTile(col, row)) return { col, row }
+    for (let r = 1; r <= maxRadius; r++) {
+      for (let dc = -r; dc <= r; dc++) {
+        for (let dr = -r; dr <= r; dr++) {
+          if (Math.max(Math.abs(dc), Math.abs(dr)) !== r) continue
+          if (!this.isRoamerBlockedTile(col + dc, row + dr)) return { col: col + dc, row: row + dr }
+        }
+      }
+    }
+    return null
+  }
+
+  // 8-way A* over the tile grid, returned as pixel waypoints and then
+  // string-pulled against line-of-sight so a roamer walks a few long legs
+  // instead of stair-stepping tile to tile (which reads as jittering).
+  findRoamerPath(startX, startY, goalX, goalY) {
+    const W = MAP_COLS
+    const H = MAP_ROWS
+    const sc = Math.floor(startX / TILE_SIZE)
+    const sr = Math.floor(startY / TILE_SIZE)
+    const goalTile = this.nearestOpenRoamerTile(Math.floor(goalX / TILE_SIZE), Math.floor(goalY / TILE_SIZE))
+    if (!goalTile) return null
+    const gc = goalTile.col
+    const gr = goalTile.row
+    if (sc === gc && sr === gr) return []
+    if (sc < 0 || sr < 0 || sc >= W || sr >= H) return null
+
+    const size = W * H
+    const startIdx = sr * W + sc
+    const goalIdx = gr * W + gc
+    const gScore = new Float64Array(size).fill(Infinity)
+    const cameFrom = new Int32Array(size).fill(-1)
+    const closed = new Uint8Array(size)
+
+    // Binary heap - a linear-scan open list is fine for one search but this
+    // can run for many roamers in a burst right after a presence refresh.
+    const heap = []
+    const push = (f, idx) => {
+      heap.push([f, idx])
+      let i = heap.length - 1
+      while (i > 0) {
+        const p = (i - 1) >> 1
+        if (heap[p][0] <= heap[i][0]) break
+        const t = heap[p]; heap[p] = heap[i]; heap[i] = t
+        i = p
+      }
+    }
+    const pop = () => {
+      const top = heap[0]
+      const last = heap.pop()
+      if (heap.length) {
+        heap[0] = last
+        let i = 0
+        for (;;) {
+          const l = 2 * i + 1
+          const r = l + 1
+          let m = i
+          if (l < heap.length && heap[l][0] < heap[m][0]) m = l
+          if (r < heap.length && heap[r][0] < heap[m][0]) m = r
+          if (m === i) break
+          const t = heap[m]; heap[m] = heap[i]; heap[i] = t
+          i = m
+        }
+      }
+      return top
+    }
+    // Octile distance - the admissible heuristic for 8-way movement with
+    // diagonals costing sqrt(2).
+    const h = (idx) => {
+      const dc = Math.abs((idx % W) - gc)
+      const dr = Math.abs(((idx / W) | 0) - gr)
+      return dc + dr + (Math.SQRT2 - 2) * Math.min(dc, dr)
+    }
+
+    gScore[startIdx] = 0
+    push(h(startIdx), startIdx)
+    let expansions = 0
+    const MAX_EXPANSIONS = 6000
+    let found = false
+    while (heap.length) {
+      const cur = pop()[1]
+      if (closed[cur]) continue
+      closed[cur] = 1
+      if (cur === goalIdx) { found = true; break }
+      if (++expansions > MAX_EXPANSIONS) break
+      const cc = cur % W
+      const cr = (cur / W) | 0
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (!dc && !dr) continue
+          const nc = cc + dc
+          const nr = cr + dr
+          if (this.isRoamerBlockedTile(nc, nr)) continue
+          // No corner cutting - a diagonal is only legal if both of its
+          // orthogonal components are open, otherwise roamers clip through
+          // the exact corner pixel of a building.
+          if (dc && dr && (this.isRoamerBlockedTile(cc + dc, cr) || this.isRoamerBlockedTile(cc, cr + dr))) continue
+          const nIdx = nr * W + nc
+          if (closed[nIdx]) continue
+          const ng = gScore[cur] + (dc && dr ? Math.SQRT2 : 1)
+          if (ng < gScore[nIdx]) {
+            gScore[nIdx] = ng
+            cameFrom[nIdx] = cur
+            push(ng + h(nIdx), nIdx)
+          }
+        }
+      }
+    }
+    if (!found) return null
+
+    const tiles = []
+    let cur = goalIdx
+    while (cur !== -1 && cur !== startIdx) {
+      tiles.push(cur)
+      cur = cameFrom[cur]
+    }
+    tiles.reverse()
+    const pts = tiles.map((idx) => ({
+      x: (idx % W) * TILE_SIZE + TILE_SIZE / 2,
+      y: ((idx / W) | 0) * TILE_SIZE + TILE_SIZE / 2,
+    }))
+
+    // String-pull: from the current anchor, jump to the furthest waypoint
+    // still in line of sight and drop everything between.
+    const out = []
+    let fromX = startX
+    let fromY = startY
+    let i = 0
+    while (i < pts.length) {
+      let j = pts.length - 1
+      while (j > i && !this.roamerHasLineOfSight(fromX, fromY, pts[j].x, pts[j].y)) j--
+      out.push(pts[j])
+      fromX = pts[j].x
+      fromY = pts[j].y
+      i = j + 1
+    }
+    return out
+  }
+
+  // One frame of movement toward `target`, routing around buildings when the
+  // straight line is blocked. Returns the new raw position; the caller still
+  // runs its own collision guard on the result.
+  stepRoamerToward(roamer, target, stepPx) {
+    const ax = roamer.actor.x
+    const ay = roamer.actor.y
+    const stepTo = (tx, ty) => {
+      const dx = tx - ax
+      const dy = ty - ay
+      const dist = Math.hypot(dx, dy)
+      if (dist <= stepPx || dist === 0) return { x: tx, y: ty }
+      return { x: ax + (dx / dist) * stepPx, y: ay + (dy / dist) * stepPx }
+    }
+
+    if (this.roamerHasLineOfSight(ax, ay, target.x, target.y)) {
+      roamer.path = null
+      return stepTo(target.x, target.y)
+    }
+
+    const goalKey = `${Math.floor(target.x / TILE_SIZE)},${Math.floor(target.y / TILE_SIZE)}`
+    if (!roamer.path || !roamer.path.length || roamer.pathGoalKey !== goalKey) {
+      // Budgeted per frame: a presence refresh can retarget many of the 88
+      // roamers at once, and running every search in one frame is a visible
+      // hitch. Whoever misses out keeps walking on the direct seek and picks
+      // up a real path within the next frame or two.
+      if (this.roamerPathBudget <= 0) return stepTo(target.x, target.y)
+      this.roamerPathBudget--
+      roamer.path = this.findRoamerPath(ax, ay, target.x, target.y)
+      roamer.pathGoalKey = goalKey
+      if (!roamer.path) return stepTo(target.x, target.y)
+    }
+
+    // Drop waypoints already reached. Tolerance is at least the frame's own
+    // step so a fast frame can't overshoot a waypoint and then orbit it.
+    const reach = Math.max(stepPx, 3)
+    while (roamer.path.length && Math.hypot(roamer.path[0].x - ax, roamer.path[0].y - ay) <= reach) {
+      roamer.path.shift()
+    }
+    if (!roamer.path.length) {
+      roamer.path = null
+      return stepTo(target.x, target.y)
+    }
+    return stepTo(roamer.path[0].x, roamer.path[0].y)
+  }
+
   isBlockedTile(col, row) {
     if (
       this.currentZoneId === 'chapelInterior' ||
@@ -2476,6 +2700,11 @@ export default class OverworldScene extends Phaser.Scene {
     // not a sustained issue. 50ms floor (~20fps) still tracks legitimate
     // slow frames without amplifying real stalls into visible teleports.
     const delta = Math.min(rawDelta, 50)
+    // How many A* searches this frame is allowed to run across all roamers
+    // (see stepRoamerToward). A presence refresh retargets many of the 88 at
+    // once; capping keeps that from landing as a single-frame hitch, and a
+    // roamer that misses its slot just keeps walking and paths a frame later.
+    this.roamerPathBudget = 6
     // agentClock feeds idleDriftOffset's mill-in-place animation for roamers
     // who aren't currently traveling - actual travel is constant-speed
     // seek-and-stop, not agentClock-driven (see the travelPhase state
@@ -2542,16 +2771,11 @@ export default class OverworldScene extends Phaser.Scene {
       // fighting requirements once distances vary. This drops the
       // schedule-timing requirement - a roamer just walks there and waits.
       const stepPx = NAMED_ROAMER_WALK_SPEED_PX_PER_SEC * (delta / 1000)
-      const seekTo = (target) => {
-        const dx = target.x - roamer.actor.x
-        const dy = target.y - roamer.actor.y
-        const dist = Math.hypot(dx, dy)
-        if (dist <= stepPx || dist === 0) return { pos: { x: target.x, y: target.y }, arrived: true }
-        return {
-          pos: { x: roamer.actor.x + (dx / dist) * stepPx, y: roamer.actor.y + (dy / dist) * stepPx },
-          arrived: false,
-        }
-      }
+      // Routes around buildings when the straight line is blocked - see
+      // stepRoamerToward / findRoamerPath. Previously a plain straight-line
+      // seek, which is what let a roamer press into a wall indefinitely
+      // whenever its target sat behind a building.
+      const seekTo = (target) => ({ pos: this.stepRoamerToward(roamer, target, stepPx) })
 
       let rawPos = { x: roamer.actor.x, y: roamer.actor.y }
       let onFoot = true
@@ -2656,14 +2880,22 @@ export default class OverworldScene extends Phaser.Scene {
       let x = rawPos.x
       let y = rawPos.y
       const tileAt = (px, py) => this.isBuildingSolidTile(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE))
-      if (tileAt(x, y)) {
+      // Only guard a roamer that is currently STANDING somewhere legal. If it
+      // is already inside a footprint (spawned there, or a building's padded
+      // overflow grew over where it was resting), every candidate position is
+      // solid too, so the guard below would pin it there permanently - which
+      // is exactly how siegel/remus ended up frozen inside a building with no
+      // way out. While inside, movement is left unguarded so pathfinding can
+      // walk it back out; the guard resumes as soon as it is clear.
+      if (!tileAt(prevX, prevY) && tileAt(x, y)) {
         const xBlocked = tileAt(x, prevY)
         const yBlocked = tileAt(prevX, y)
         x = xBlocked ? prevX : x
         y = yBlocked ? prevY : y
         // Neither axis alone clears it either (walked straight into a wall
         // with no open slide direction) - hold the previous position rather
-        // than committing a still-solid combined point.
+        // than committing a still-solid combined point. Pathing normally
+        // avoids this; the stuck timer below re-routes if it happens anyway.
         if (xBlocked && yBlocked) {
           x = prevX
           y = prevY
@@ -2672,6 +2904,24 @@ export default class OverworldScene extends Phaser.Scene {
       const dx = x - roamer.actor.x
       const dy = y - roamer.actor.y
       const movedDist = Math.abs(dx) + Math.abs(dy)
+      // Last-resort unstick. Pathing should prevent this, but a roamer can
+      // still end up pinned - e.g. spawned inside a footprint, or a target
+      // that genuinely has no route - and the old failure mode was to press
+      // into the wall silently forever. Standing still while holding a real
+      // target means the current route is not working, so throw it away and
+      // let the next frame search again from where it actually is.
+      if (doorA || doorB) {
+        if (movedDist < 0.05) {
+          roamer.stuckMs = (roamer.stuckMs || 0) + delta
+          if (roamer.stuckMs > 500) {
+            roamer.path = null
+            roamer.pathGoalKey = null
+            roamer.stuckMs = 0
+          }
+        } else {
+          roamer.stuckMs = 0
+        }
+      }
       roamer.actor.sprite.setPosition(x, y)
       // "moving" tracks having a real door anchor (see the idleDriftOffset
       // house rule above) rather than a per-frame pixel delta, which can dip
