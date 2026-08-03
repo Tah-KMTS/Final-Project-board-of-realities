@@ -23,12 +23,16 @@ import {
   WEALTH_STONE_THRESHOLD,
   buildingDoorAnimSpec,
   residentialStyleKey,
+  BUILDING_IMAGE_FILES,
+  buildingImageTextureKey,
 } from '../tileGen'
 import {
   SERENE_VILLAGE_DOOR_KEY,
   SERENE_DOOR_ANIM_OPEN,
   SERENE_DOOR_ANIM_CLOSE,
   ensureSereneVillageDoorAnims,
+  PREFAB_IMAGE_MAX_OVERFLOW_TILES,
+  computePrefabImageOverflowPx,
 } from '../packs/packRender'
 import { preloadPlayerSheet } from '../spriteGen'
 import { buildTmxWallInteriorZone, TEA_HOUSE_ROOM } from '../interiors/tmxWallInterior'
@@ -712,9 +716,6 @@ const INTERIOR_ROWS = 9
 const INTERIOR_SPAWN = { col: 6, row: 5 }
 const INTERIOR_DESK = { c0: 5, r0: 2, c1: 6, r1: 3 }
 const INTERIOR_EXIT = { c0: 5, r0: 7, c1: 7, r1: 8 }
-// Just outside (south of) the Stock Exchange building - where the player
-// reappears on the overworld after leaving its interior.
-const STOCK_EXCHANGE_DOOR = { col: 3, row: 4 }
 
 const INTERIOR_TEMPLATES = {
   cryptoHQ: { floorA: 0x1a1030, floorB: 0x241640, deskColor: 0x8a5a1f, deskLabel: 'Trading Terminal' },
@@ -1629,6 +1630,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys()
     this.wasd = this.input.keyboard.addKeys('W,A,S,D,E,R')
 
+    // Must run after preload() has landed every BUILDING_IMAGE_FILES texture
+    // (it has, by the time create() runs) and before loadZone/createPlayer
+    // start driving collision queries against isBuildingSolidTile.
+    this.computeBuildingOverflowPads()
+
     this.createPlayer()
 
     this.loadZone('overworld', false)
@@ -2123,6 +2129,44 @@ export default class OverworldScene extends Phaser.Scene {
 
   // ---------------- collision ----------------
 
+  // Real per-building, per-axis collision pad for BUILDING_IMAGE_FILES
+  // buildings - see isBuildingSolidTile below for why this can't just be
+  // the flat PREFAB_IMAGE_MAX_OVERFLOW_TILES budget. Computed once here
+  // (must run after preload() lands every bldg_* texture - see create())
+  // rather than inside isBuildingSolidTile itself, which runs every frame
+  // per moving actor (player + every named roamer) and can't afford to
+  // re-fetch getSourceImage()/redo the scale math that many times a frame.
+  // Keyed by building id -> { x, y } pad in whole tiles per axis.
+  computeBuildingOverflowPads() {
+    this.buildingOverflowPad = new Map()
+    for (const b of FINANCE_BUILDINGS) {
+      if (!BUILDING_IMAGE_FILES[b.id]) continue
+      const key = buildingImageTextureKey(b.id)
+      // Guaranteed loaded by now (preload() completes before create() runs,
+      // and preloadBuildingImages loads every BUILDING_IMAGE_FILES entry
+      // unconditionally) - this existence check is just defensive, same
+      // spirit as drawPrefabImageFacade's own guard.
+      if (!this.textures.exists(key)) continue
+      const src = this.textures.get(key).getSourceImage()
+      const wPx = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
+      const hPx = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
+      const overflow = computePrefabImageOverflowPx(src.width, src.height, wPx, hPx, TILE_SIZE)
+      // Tile collision is a whole-tile decision (TileMover snaps the player
+      // to exact tile centers - tileMover.js - there's no sub-tile position
+      // to partially block), so round each axis to the NEAREST whole tile
+      // rather than always rounding up: overflow under half a tile reads as
+      // a minor decorative overhang (fine to leave that neighboring tile
+      // walkable), overflow over half a tile reads as substantially
+      // "inside" the building (worth losing that tile to keep it solid).
+      // Math.round, not Math.ceil - ceil is exactly what reintroduces this
+      // bug, since any nonzero overflow would again claim a full extra tile.
+      this.buildingOverflowPad.set(b.id, {
+        x: Math.round(overflow.x / TILE_SIZE),
+        y: Math.round(overflow.y / TILE_SIZE),
+      })
+    }
+  }
+
   // Shared by isBlockedTile (player collision, via TileMover) and named-
   // roamer building collision (updateNamedRoamers below) - the single
   // source of truth for "is this exact tile covered by a building's solid
@@ -2132,10 +2176,51 @@ export default class OverworldScene extends Phaser.Scene {
   // of blocking its whole footprint rect like a normal building.
   isBuildingSolidTile(col, row) {
     for (const b of FINANCE_BUILDINGS) {
-      if (col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1) {
-        if (b.id === 'temple') {
+      if (b.id === 'temple') {
+        if (col >= b.tiles.c0 && col <= b.tiles.c1 && row >= b.tiles.r0 && row <= b.tiles.r1) {
           return TEMPLE_SOLID_OFFSETS.has(`${col - b.tiles.c0},${row - b.tiles.r0}`)
         }
+        continue
+      }
+      // Buildings drawn via the single bespoke facade image
+      // (BUILDING_IMAGE_FILES -> drawPrefabImageFacade in packRender.js) let
+      // their source art overflow up to PREFAB_IMAGE_MAX_OVERFLOW_TILES
+      // tiles past the nominal footprint, but that's only the BUDGET the
+      // scale-clamp is allowed to spend - not a promise every building
+      // spends all of it on every axis. A near-square source image (e.g.
+      // the bank) ends up height-bound, spending its whole budget
+      // vertically but only a fraction of it horizontally - padding every
+      // axis by the flat budget (as this used to) blocked a full extra
+      // tile of walkable-looking grass on the bank's west/east sides where
+      // the art barely reaches past the nominal footprint (reported: a
+      // dead-looking gap between the player and the bank's visible edges).
+      // computeBuildingOverflowPads (called once from create()) computes
+      // each building's REAL per-axis overflow from its actual source
+      // image dimensions and caches it here instead.
+      //
+      // South/r1 is deliberately left unpadded: buildingDoorPixel stands a
+      // character exactly one tile south of tiles.r1, and the interaction
+      // zone built in buildOverworldZones spans that same south row across
+      // the building's whole width - padding it would make that entire row
+      // solid and lock everyone out of the building's own door. That south
+      // overflow strip is the door's visual overhang the player is already
+      // meant to stand under (this scene's y-depth ordering already draws
+      // the player in front of the building there), so leaving it open
+      // doesn't reintroduce the "reads as inside the building" bug at the
+      // one spot where standing under the art is intentional.
+      const cached = this.buildingOverflowPad?.get(b.id)
+      // Fallback to the old flat 1-tile assumption only if the per-building
+      // cache somehow isn't populated yet (e.g. called before create()'s
+      // computeBuildingOverflowPads runs) - safe/conservative, never used
+      // in normal play.
+      const padX = cached ? cached.x : (BUILDING_IMAGE_FILES[b.id] ? PREFAB_IMAGE_MAX_OVERFLOW_TILES : 0)
+      const padY = cached ? cached.y : (BUILDING_IMAGE_FILES[b.id] ? PREFAB_IMAGE_MAX_OVERFLOW_TILES : 0)
+      if (
+        col >= b.tiles.c0 - padX &&
+        col <= b.tiles.c1 + padX &&
+        row >= b.tiles.r0 - padY &&
+        row <= b.tiles.r1
+      ) {
         return true
       }
     }
@@ -3865,7 +3950,10 @@ export default class OverworldScene extends Phaser.Scene {
       const building = FINANCE_BUILDINGS[zone.uid] || FINANCE_BUILDINGS.find((b) => b.id === zone.id)
       
       if (zone.id === 'stockExchange') {
-        this.overworldReturnSpawn = STOCK_EXCHANGE_DOOR
+        this.overworldReturnSpawn = {
+          col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
+          row: building.tiles.r1 + 1,
+        }
         this.loadZone('stockExchangeInterior')
         return
       }

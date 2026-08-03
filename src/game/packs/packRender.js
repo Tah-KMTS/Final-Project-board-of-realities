@@ -494,12 +494,44 @@ export function placePackProp(scene, cx, cy, sheetKey, frames, TILE_SIZE = 40, a
 // when the requested TILE_SIZE/16 scale would exceed that budget, instead of
 // assuming every future single-image prefab is small enough to skip this
 // check.
-function clampedPrefabImageScale(srcWidth, srcHeight, wPx, hPx, TILE_SIZE, maxOverflowTiles = 1) {
+// Exported so OverworldScene.js's isBuildingSolidTile can pad a
+// BUILDING_IMAGE_FILES building's solid footprint by exactly this many
+// tiles per side - collision must stay in sync with how far this render
+// path is allowed to let the source image overflow the nominal tile rect,
+// or the two silently drift apart (this constant IS that drift risk made
+// explicit - if it's ever tuned, both call sites move together).
+export const PREFAB_IMAGE_MAX_OVERFLOW_TILES = 1
+
+function clampedPrefabImageScale(srcWidth, srcHeight, wPx, hPx, TILE_SIZE, maxOverflowTiles = PREFAB_IMAGE_MAX_OVERFLOW_TILES) {
   const nativeScale = TILE_SIZE / 16
   const maxW = wPx + 2 * maxOverflowTiles * TILE_SIZE
   const maxH = hPx + 2 * maxOverflowTiles * TILE_SIZE
   const capScale = Math.min(maxW / srcWidth, maxH / srcHeight)
   return Math.min(nativeScale, capScale)
+}
+
+// Real per-axis overflow (in px, past the nominal wPx x hPx footprint) that
+// drawPrefabImageFacade below will actually render with for this specific
+// source image - NOT the flat PREFAB_IMAGE_MAX_OVERFLOW_TILES budget, which
+// is only an upper bound the scale-clamp is allowed to spend, not a promise
+// that it spends all of it on every axis. A near-square source image (e.g.
+// bank.png, 444x485 on a 4x3=160x120 footprint) ends up height-bound by
+// capScale, so it spends its whole budget vertically but only a fraction of
+// it horizontally - see OverworldScene.js's isBuildingSolidTile, which was
+// padding every BUILDING_IMAGE_FILES building by the flat 1-tile budget on
+// every side regardless of this asymmetry, producing a walkable-looking gap
+// (bank: ~28px/side of dead grass between the art's real edge and the
+// invisible wall) on whichever axis the real overflow undershot the budget.
+// Exported so that fix can reuse this exact math instead of re-deriving it
+// and silently drifting from what actually gets drawn.
+export function computePrefabImageOverflowPx(srcWidth, srcHeight, wPx, hPx, TILE_SIZE, maxOverflowTiles = PREFAB_IMAGE_MAX_OVERFLOW_TILES) {
+  const scale = clampedPrefabImageScale(srcWidth, srcHeight, wPx, hPx, TILE_SIZE, maxOverflowTiles)
+  const nativeW = srcWidth * scale
+  const nativeH = srcHeight * scale
+  return {
+    x: Math.max(0, (nativeW - wPx) / 2),
+    y: Math.max(0, (nativeH - hPx) / 2),
+  }
 }
 
 export function drawPrefabImageFacade(scene, x, y, wPx, hPx, TILE_SIZE, imageKey) {
