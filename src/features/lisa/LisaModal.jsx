@@ -2,41 +2,60 @@ import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { sendNpcMessage } from '../../utils/npcChatClient'
 
-// Nova Chase ("The Icon") - a fictional global-pop-idol-turned-media-mogul,
-// the Capital Syndicate roster's first entertainment-world titan. Deliberately
-// NOT part of the 90-character finance/crime/government roster
-// (characterLookup.js) - see backend/main.py's NPC_PERSONAS['nova'] for why:
-// she's a hand-authored persona, same simple pattern 'tea'/'marriageCandidate'
-// already use, not the roster-driven build_character_persona path.
+// Lisa Manobal - the Capital Syndicate roster's first entertainment-world
+// titan. Deliberately NOT part of the 90-character finance/crime/government
+// roster (characterLookup.js) - see backend/main.py's NPC_PERSONAS['lisa'] for
+// why: she's a hand-authored persona, same simple pattern 'tea'/
+// 'marriageCandidate' already use, not the roster-driven
+// build_character_persona path.
 //
-// A bespoke full-bleed VN-style screen (not NamedNpcModal's business-panel
-// layout, and not DialogueBox's carousel-plus-chat-box) - reference was a
-// Pokemon-style/dating-sim battle screen: big mood portrait, dialogue box,
-// a grid of choices. Calls sendNpcMessage() directly for full layout control,
-// but it's the SAME backend call NamedNpcModal.jsx's free-text chat uses -
-// zero new backend logic beyond the one persona entry, so she inherits the
-// hard kiss-ceiling content boundary and tier-gated consent for free.
+// This is a UI-polish pilot, not a new game mode: every action here (small
+// talk, a gift, pitching an investment, a hidden-agenda hustle, a pickpocket
+// attempt) is the same category of verb the other 90 NPCs already support via
+// NamedNpcModal's free-text persuasion chat + relationship meter + recruit/
+// date buttons - this is that same mechanic in a nicer full-bleed presentation,
+// piloted on one character first. The "romanceable" flag and Propose/Divorce
+// buttons are the same fields NamedNpcModal already exposes for the entire
+// roster, not something new invented for her.
 //
-// Portraits are cropped from the character's own stylized walk-cycle sheet
-// (public/assets/packs/Lisa/lisa character.png), not the real press-photo
-// files sitting alongside it in that same folder - see this feature's plan
-// doc for why those photos are deliberately unused anywhere in this game.
-
+// Portraits: cropped from lisa sim 10.png, an AI-generated grid of
+// expressions (visibly synthetic, not a photograph - see the visible
+// rendering artifacts and the small AI-tool watermark on that source image
+// and its neighbors). The genuine press photographs sitting in the same
+// folder (lisa sim 1-9.png) are never used anywhere in this game - see
+// .gitignore's note on public/assets/packs/Lisa/.
 const PORTRAITS = '/assets/packs/Lisa/portraits'
+
+const DISCLAIMER =
+  'Fictional characterization for a class project - not a real endorsement, and not a claim about the real person’s actual views or private life. Not for public distribution.'
 
 const INTRO_LINE =
   "Oh - hey. Don't see a lot of new faces around here who aren't already holding a phone up at me."
 
 // Tone varies the preset's flavor; agreed/relationshipDelta are still decided
-// live by the backend from Nova's own persona (see PERSUASION_INSTRUCTIONS in
+// live by the backend from Lisa's own persona (see PERSUASION_INSTRUCTIONS in
 // backend/main.py) - a preset is just a canned phrasing, not a shortcut that
-// skips her judgment. 'hustle' is the hidden-agenda option: a barely-dressed-up
-// ask, evaluated the same as anything the player might type themselves.
+// skips her judgment. 'hustle' is the hidden-agenda option: a barely-dressed-
+// up ask, evaluated the same as anything the player might type themselves.
+// Deliberately business/rapport-flavored, not romance-flavored - see this
+// file's header on why this is a UI pilot for the existing interaction
+// system, not a new romance-focused mode.
 const PRESET_CHOICES = [
-  { key: 'friendly', label: 'So what’s it actually like being you?', tone: 'friendly' },
-  { key: 'flirty', label: 'I have to say, the pictures don’t do you justice.', tone: 'flirty' },
-  { key: 'business', label: 'Word is your empire’s bigger than your discography now.', tone: 'business' },
+  { key: 'smalltalk', label: 'So what’s the day-to-day actually like?', tone: 'smalltalk' },
+  { key: 'curious', label: 'What made you move from music into running a company?', tone: 'curious' },
+  { key: 'pitch', label: 'Word is your empire’s bigger than your discography now - got room for one more investor?', tone: 'pitch' },
   { key: 'hustle', label: 'I’ve got a can’t-miss investment - you in?', tone: 'hustle' },
+]
+
+// Gifts are a direct action (spend cash, gain affection), not a chat message -
+// no existing gift mechanic to reuse anywhere in this codebase (checked), so
+// this is new, minimal, and modeled on the genre-standard "cost buys a flat
+// relationship gain" convention already implied by courtCharacter.js's own
+// date-tier gains (15/25/35 for diner/opera/proposal).
+const GIFTS = [
+  { key: 'small', label: 'Coffee run', cost: 150, gain: 4 },
+  { key: 'nice', label: 'Designer scarf', cost: 1200, gain: 10 },
+  { key: 'lavish', label: 'Rare vinyl press of her first album', cost: 6000, gain: 20 },
 ]
 
 const STAGE_LABEL = (affection) => {
@@ -55,18 +74,19 @@ function randomZone(width) {
   return { start: Math.random() * (1 - width) }
 }
 
-export default function NovaModal({ onClose }) {
+export default function LisaModal({ onClose }) {
   const world2 = useGameStore((s) => s.world2)
+  const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
   const setRomanceState = useGameStore((s) => s.setRomanceState)
 
   const romanceState = world2.romanceState || { relationships: {}, spouses: [] }
-  const affection = (romanceState.relationships || {}).nova || 0
-  const isSpouse = (romanceState.spouses || []).includes('nova')
+  const affection = (romanceState.relationships || {}).lisa || 0
+  const isSpouse = (romanceState.spouses || []).includes('lisa')
 
-  // 'talk' -> 'pickpocketAiming' -> 'pickpocketResolved' -> back to 'talk'.
-  // Same phase-state-machine shape as PoliceStopModal.jsx.
+  // 'talk' -> 'gift' | 'pickpocketAiming' -> 'pickpocketResolved' -> back to
+  // 'talk'. Same phase-state-machine shape as PoliceStopModal.jsx.
   const [phase, setPhase] = useState('talk')
   const [mood, setMood] = useState('neutral')
   const [chatHistory, setChatHistory] = useState([])
@@ -99,8 +119,8 @@ export default function NovaModal({ onClose }) {
 
   const applyAffectionDelta = (delta) => {
     const rels = { ...(romanceState.relationships || {}) }
-    const newLevel = Math.max(0, Math.min(100, (rels.nova || 0) + delta))
-    rels.nova = newLevel
+    const newLevel = Math.max(0, Math.min(100, (rels.lisa || 0) + delta))
+    rels.lisa = newLevel
     setRomanceState({ ...romanceState, relationships: rels })
     return newLevel
   }
@@ -114,7 +134,7 @@ export default function NovaModal({ onClose }) {
     setChatError(false)
 
     const { reply, ok, agreed, relationshipDelta } = await sendNpcMessage({
-      npcId: 'nova',
+      npcId: 'lisa',
       playerText: text,
       relationshipTier: affection,
       conversationHistory: historyForRequest,
@@ -130,18 +150,28 @@ export default function NovaModal({ onClose }) {
       applyAffectionDelta(relationshipDelta)
       delta = relationshipDelta
     }
-    // Flirty presets show her flirty portrait when they land; otherwise mood
-    // tracks the actual outcome, not just the tone the player tried.
-    if (tone === 'flirty' && delta >= 0) setMood('flirty')
+    if (tone === 'hustle' && delta < 0) setMood('uncomfortable')
     else if (delta > 0) setMood('happy')
     else if (delta < 0) setMood('business')
-    else setMood('neutral')
+    else setMood(tone === 'curious' ? 'playful' : 'neutral')
   }
 
   const handlePreset = (choice) => submitText(choice.label, choice.tone)
   const handleFreeSubmit = (e) => {
     e.preventDefault()
     submitText(chatInput, 'free')
+  }
+
+  const handleGift = (gift) => {
+    if (cash < gift.cost) {
+      setFeedbackMsg(`Not enough cash for that ($${gift.cost.toLocaleString()}).`)
+      return
+    }
+    addCash(-gift.cost)
+    applyAffectionDelta(gift.gain)
+    setMood('happy')
+    setFeedbackMsg(`She's genuinely pleased with the ${gift.label.toLowerCase()}. (+${gift.gain} affection)`)
+    setPhase('talk')
   }
 
   const handleStartPickpocket = () => setPhase('pickpocketAiming')
@@ -156,7 +186,7 @@ export default function NovaModal({ onClose }) {
     } else {
       addWantedLevel(1)
       applyAffectionDelta(-25)
-      setMood('business')
+      setMood('uncomfortable')
       setPickpocketResult({ success: false, text: 'She catches your hand mid-reach and is NOT amused. Security is already looking your way.' })
     }
     setPhase('pickpocketResolved')
@@ -170,21 +200,20 @@ export default function NovaModal({ onClose }) {
   const handlePropose = () => {
     setRomanceState({
       ...romanceState,
-      spouses: [...new Set([...(romanceState.spouses || []), 'nova'])],
+      spouses: [...new Set([...(romanceState.spouses || []), 'lisa'])],
     })
-    setFeedbackMsg('Nova says yes. You two are married.')
+    setFeedbackMsg('She says yes. You two are married.')
   }
 
   const handleDivorce = () => {
-    const cash = useGameStore.getState().cash
-    const settlement = Math.floor(cash * 0.5)
+    const settlement = Math.floor(useGameStore.getState().cash * 0.5)
     useGameStore.getState().addCash(-settlement)
     setRomanceState({
       ...romanceState,
-      spouses: (romanceState.spouses || []).filter((id) => id !== 'nova'),
-      relationships: { ...(romanceState.relationships || {}), nova: 0 },
+      spouses: (romanceState.spouses || []).filter((id) => id !== 'lisa'),
+      relationships: { ...(romanceState.relationships || {}), lisa: 0 },
     })
-    setFeedbackMsg(`Divorced Nova. Settlement: $${settlement.toLocaleString()}.`)
+    setFeedbackMsg(`Divorced. Settlement: $${settlement.toLocaleString()}.`)
   }
 
   const lastNpcLine = [...chatHistory].reverse().find((h) => h.role === 'npc')
@@ -196,7 +225,7 @@ export default function NovaModal({ onClose }) {
         {/* header */}
         <div className="flex items-center justify-between border-b-[3px] border-fuchsia-500/50 bg-[#241533] px-3 py-2">
           <div>
-            <span className="text-sm font-bold text-fuchsia-300">Nova Chase</span>
+            <span className="text-sm font-bold text-fuchsia-300">Lisa Manobal</span>
             <span className="ml-2 text-xs text-fuchsia-400/70">"The Icon"</span>
           </div>
           <div className="flex items-center gap-3">
@@ -210,16 +239,22 @@ export default function NovaModal({ onClose }) {
           </div>
         </div>
 
+        {/* Always-visible disclaimer - not tucked in a tooltip, since this is
+            the piece that matters most to get right: a fictional characterization,
+            not a claim about the real person, and not for public distribution. */}
+        <div className="border-b border-fuchsia-500/30 bg-black/40 px-3 py-1 text-center text-[10px] leading-tight text-fuchsia-300/70">
+          {DISCLAIMER}
+        </div>
+
         {/* portrait arena */}
         <div
           className="relative flex h-[260px] shrink-0 items-end justify-center overflow-hidden [@media(min-height:750px)]:h-[320px]"
           style={{ background: 'linear-gradient(180deg,#3a1f4a 0%,#5a2a5f 55%,#7a3a6a 100%)' }}
         >
           <img
-            src={`${PORTRAITS}/nova_${mood}.png`}
+            src={`${PORTRAITS}/lisa_${mood}.png`}
             alt=""
             className="h-[92%] w-auto"
-            style={{ imageRendering: 'pixelated' }}
           />
         </div>
 
@@ -257,11 +292,36 @@ export default function NovaModal({ onClose }) {
           </div>
         )}
 
+        {phase === 'gift' && (
+          <div className="border-t-[3px] border-fuchsia-500/50 bg-[#0f1020] p-4">
+            <p className="mb-2 text-sm text-gray-300">Pick something to give her.</p>
+            <div className="flex flex-col gap-1.5">
+              {GIFTS.map((gift) => (
+                <button
+                  key={gift.key}
+                  onClick={() => handleGift(gift)}
+                  disabled={cash < gift.cost}
+                  className="flex items-center justify-between border border-fuchsia-500/50 bg-[#241533] px-3 py-2 text-left text-sm text-fuchsia-100 hover:bg-fuchsia-900/50 disabled:opacity-30"
+                >
+                  <span>{gift.label}</span>
+                  <span className="text-xs text-fuchsia-300">${gift.cost.toLocaleString()} · +{gift.gain}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPhase('talk')}
+              className="mt-2 w-full border border-gray-600 py-1.5 text-xs text-gray-300 hover:bg-gray-700"
+            >
+              Never mind
+            </button>
+          </div>
+        )}
+
         {/* dialogue + input */}
         {phase === 'talk' && (
           <>
             <div className="min-h-[80px] flex-1 border-t-[3px] border-fuchsia-500/50 bg-[#f6f0f4] px-3 py-2">
-              <p className="text-xs font-bold text-fuchsia-700">Nova</p>
+              <p className="text-xs font-bold text-fuchsia-700">Lisa</p>
               <p className="text-sm leading-snug text-[#22222a]">{dialogueText}</p>
               {lastNpcLine && lastNpcLine.agreed !== null && (
                 <p className={`mt-1 text-xs font-bold ${lastNpcLine.agreed ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -310,7 +370,7 @@ export default function NovaModal({ onClose }) {
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Say something to Nova..."
+                    placeholder="Say something to Lisa..."
                     disabled={chatLoading}
                     maxLength={500}
                     className="flex-1 border-2 border-fuchsia-500/60 bg-black/70 px-2 py-1 text-sm text-white placeholder:text-gray-500 focus:outline-none"
@@ -332,6 +392,12 @@ export default function NovaModal({ onClose }) {
               )}
 
               <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => setPhase('gift')}
+                  className="flex-1 border border-fuchsia-400/70 bg-fuchsia-950/40 py-1.5 text-xs font-bold text-fuchsia-200 hover:bg-fuchsia-900/60"
+                >
+                  {'\u{1F381}'} Give Gift
+                </button>
                 <button
                   onClick={handleStartPickpocket}
                   className="flex-1 border border-red-600/70 bg-red-950/40 py-1.5 text-xs font-bold text-red-300 hover:bg-red-900/60"

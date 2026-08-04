@@ -171,12 +171,12 @@ const FINANCE_BUILDING_DEFS = [
   // (bank/casino) rather than one of the multi-tenant tabbed hubs, since it's
   // a single InteractiveLocationModal entry, not several tenants.
   { id: 'foodCourt', label: 'Food Court', facadeStyle: 'modernBrick', color: 0xa05a1f, width: 4, height: 3, zone: 'finance' },
-  // Nova Chase ("The Icon") - a global pop-idol-turned-media-mogul, the
+  // Lisa Manobal ("The Icon") - a global pop-idol-turned-media-mogul, the
   // Capital Syndicate cast's first entertainment-world titan (the existing
   // roster is all finance/crime/government). Straight-to-modal, no Phaser
   // interior, same shape as foodCourt/wharf/entertainmentComplex just above -
-  // see the triggerInteraction case below and NovaModal.jsx.
-  { id: 'novaHq', label: 'Starlight Media HQ', facadeStyle: 'modernGlass', color: 0xc23b8a, width: 4, height: 3, zone: 'finance' },
+  // see the triggerInteraction case below and LisaModal.jsx.
+  { id: 'lisaHq', label: 'Starlight Media HQ', facadeStyle: 'modernGlass', color: 0xc23b8a, width: 4, height: 3, zone: 'finance' },
   // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
   // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
   // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 4 multi-tenant hubs
@@ -930,6 +930,40 @@ function drawBuildings(scene, buildings, zoneObjects) {
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
     zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color, b))
 
+    // A fixed-desk hub building otherwise has zero visible sign anyone is
+    // there (see isBuildingSolidTile/drawInteriorRoom - a hub's "interior" is
+    // just a colored rectangle, no NPC sprite of any kind) - reported as
+    // "can't find her on the map" for lisaHq specifically, since every other
+    // building at least LOOKS occupied even without a walking character. A
+    // small standee planted at the door fixes that without a full sprite-
+    // sheet/roamer pipeline (she isn't in any roster spawnNamedRoamers reads -
+    // see LisaModal.jsx's header for why that's deliberate).
+    if (b.id === 'lisaHq' && scene.textures.exists('lisaDoorStandee')) {
+      const door = scene.buildingDoorPixel(b.id)
+      const standeeY = door.y - TILE_SIZE * 0.7
+      const standee = scene.add.image(door.x, standeeY, 'lisaDoorStandee')
+      const targetH = TILE_SIZE * 1.6
+      const tex = scene.textures.get('lisaDoorStandee').getSourceImage()
+      standee.setScale(targetH / tex.height)
+      standee.setDepth(door.y)
+      zoneObjects.push(standee)
+      // Same floating-nametag style spawnNamedRoamers/ambient NPCs use
+      // (fontFamily/fontSize/color/stroke), so she reads as a named character
+      // on the map the same way they do, not an unlabeled decoration.
+      const label = scene.add
+        .text(door.x, standeeY - targetH / 2 - 6, 'Lisa Manobal', {
+          fontFamily: 'monospace',
+          fontSize: '9px',
+          color: '#ffe066',
+          align: 'center',
+          stroke: '#000000',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(door.y + 1)
+      zoneObjects.push(label)
+    }
+
     const doorSpec = buildingDoorAnimSpec(b, x, y, w, h)
     if (doorSpec && scene.textures.exists(SERENE_VILLAGE_DOOR_KEY)) {
       const doorSprite = scene.add
@@ -1598,6 +1632,12 @@ export default class OverworldScene extends Phaser.Scene {
     preloadTerrainAssets(this)
     preloadPlayerSheet(this)
     preloadNpcRealSprites(this)
+    // Lisa Manobal's building is a plain hub facade with no interior/roamer
+    // sprite (see the FINANCE_BUILDING_DEFS entry above) - a static portrait
+    // standee at her door is the only visible sign a person is there at all,
+    // which is what drawBuildings below actually places. No spritesheet
+    // pipeline needed, just one image.
+    this.load.image('lisaDoorStandee', '/assets/packs/Lisa/portraits/lisa_neutral.png')
     preloadVehicleAssets(this)
     preloadChapelPack(this)
     preloadChapelMap(this)
@@ -4187,7 +4227,7 @@ export default class OverworldScene extends Phaser.Scene {
         zone.id === 'foodCourt' ||
         zone.id === 'wharf' ||
         zone.id === 'entertainmentComplex' ||
-        zone.id === 'novaHq'
+        zone.id === 'lisaHq'
       ) {
         this.pauseForModal()
         this.bridge.emit('interact', { type: 'building', id: zone.id })
