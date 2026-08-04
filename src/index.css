@@ -213,3 +213,16 @@ button:disabled {
   animation: float-up-fade 0.7s ease-out forwards;
 }
 
+/* Visual-novel portrait swap (LisaModal). Keyed on the mood name, so every
+   expression change re-triggers it - a quick settle rather than a hard cut,
+   which is what makes the reaction read as her reacting rather than the
+   image being replaced. Deliberately subtle and short: this fires on every
+   line of dialogue. */
+@keyframes portrait-swap {
+  from { opacity: 0; transform: translate(-50%, 10px) scale(0.985); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+.animate-portrait-swap {
+  animation: portrait-swap 0.28s ease-out;
+}
+

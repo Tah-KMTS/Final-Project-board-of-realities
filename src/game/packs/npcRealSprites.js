@@ -59,6 +59,12 @@ const SHEETS = {
   femaleNpc: { key: 'npcReal_femaleNpc', path: '/assets/packs/npc/processed/female_npc.png', cellW: 45, cellH: 81 },
   princeThai: { key: 'npcReal_princeThai', path: '/assets/packs/npc/processed/prince_thai.png', cellW: 43, cellH: 86 },
   thaiWarrior: { key: 'npcReal_thaiWarrior', path: '/assets/packs/npc/processed/thai_warrior.png', cellW: 52, cellH: 78 },
+  // Built from packs/Lisa/lisa character.png (an RPG-Maker-style sheet, not
+  // the AI-generated portrait sheets in that same folder) into this module's
+  // standard 2x4 layout. Its own left/right rows are baked copies of the
+  // front walk - the source sheet has no side-profile art anywhere, so
+  // NO_BACK_VIEW-style runtime redirection isn't needed here.
+  lisa: { key: 'npcReal_lisa', path: '/assets/packs/Lisa/processed/lisa.png', cellW: 33, cellH: 64 },
 }
 
 // The five flat-format sources (graham/musk/jobs/ford/luciano) have no back
@@ -85,6 +91,7 @@ const REAL_SPRITE_NPCS = {
   jobs: 'jobs',
   ford: 'ford',
   luciano: 'luciano',
+  lisa: 'lisa',
   fin_ambient_0: 'maleNpc',
   fin_ambient_1: 'maleNpc',
   fin_ambient_2: 'femaleNpc',

@@ -18,13 +18,26 @@ import { sendNpcMessage } from '../../utils/npcChatClient'
 // buttons are the same fields NamedNpcModal already exposes for the entire
 // roster, not something new invented for her.
 //
-// Portraits: cropped from lisa sim 10.png, an AI-generated grid of
-// expressions (visibly synthetic, not a photograph - see the visible
-// rendering artifacts and the small AI-tool watermark on that source image
-// and its neighbors). The genuine press photographs sitting in the same
-// folder (lisa sim 1-9.png) are never used anywhere in this game - see
-// .gitignore's note on public/assets/packs/Lisa/.
+// Portraits are transparent cutouts (built from packs/Lisa/"Lisa no bg") so
+// each mood can be composited over ANY scene background - the pre-composited
+// "Lisa w bg" set would lock one emotion to one location. Backgrounds come
+// from packs/Lisa/Background. Which scene shows depends on where she
+// actually is when you talk to her (see SCENE_FOR_BUILDING), so catching her
+// at the station looks different from catching her at her HQ.
 const PORTRAITS = '/assets/packs/Lisa/portraits'
+const SCENES = '/assets/packs/Lisa/scenes'
+
+// Her worldPresenceEngine building -> the backdrop that matches it. Falls
+// back to the cafe interior, the most "having a conversation" of the set.
+const SCENE_FOR_BUILDING = {
+  lisaHq: 'cafe',
+  businessCenter: 'cafe_exterior',
+  entertainmentComplex: 'street',
+  trainStation: 'station',
+  stockExchange: 'street',
+  casino: 'street',
+}
+const DEFAULT_SCENE = 'cafe'
 
 const DISCLAIMER =
   'Fictional characterization for a class project - not a real endorsement, and not a claim about the real person’s actual views or private life. Not for public distribution.'
@@ -74,7 +87,7 @@ function randomZone(width) {
   return { start: Math.random() * (1 - width) }
 }
 
-export default function LisaModal({ onClose }) {
+export default function LisaModal({ onClose, buildingId }) {
   const world2 = useGameStore((s) => s.world2)
   const cash = useGameStore((s) => s.cash)
   const addCash = useGameStore((s) => s.addCash)
@@ -150,10 +163,17 @@ export default function LisaModal({ onClose }) {
       applyAffectionDelta(relationshipDelta)
       delta = relationshipDelta
     }
-    if (tone === 'hustle' && delta < 0) setMood('uncomfortable')
-    else if (delta > 0) setMood('happy')
-    else if (delta < 0) setMood('business')
-    else setMood(tone === 'curious' ? 'playful' : 'neutral')
+    // Reaction reads off BOTH how much she liked it and what kind of thing
+    // was said - a big win to a flirty line looks different from a big win
+    // to a business pitch, and a failed hustle should look put-off rather
+    // than merely neutral.
+    if (delta >= 2) setMood(tone === 'pitch' ? 'business' : 'delighted')
+    else if (delta > 0) setMood(tone === 'smalltalk' ? 'amused' : 'happy')
+    else if (delta < 0) setMood('annoyed')
+    else if (tone === 'hustle') setMood('annoyed')
+    else if (tone === 'pitch') setMood('business')
+    else if (tone === 'curious') setMood('playful')
+    else setMood('neutral')
   }
 
   const handlePreset = (choice) => submitText(choice.label, choice.tone)
@@ -186,7 +206,7 @@ export default function LisaModal({ onClose }) {
     } else {
       addWantedLevel(1)
       applyAffectionDelta(-25)
-      setMood('uncomfortable')
+      setMood('annoyed')
       setPickpocketResult({ success: false, text: 'She catches your hand mid-reach and is NOT amused. Security is already looking your way.' })
     }
     setPhase('pickpocketResolved')
@@ -246,15 +266,23 @@ export default function LisaModal({ onClose }) {
           {DISCLAIMER}
         </div>
 
-        {/* portrait arena */}
-        <div
-          className="relative flex h-[260px] shrink-0 items-end justify-center overflow-hidden [@media(min-height:750px)]:h-[320px]"
-          style={{ background: 'linear-gradient(180deg,#3a1f4a 0%,#5a2a5f 55%,#7a3a6a 100%)' }}
-        >
+        {/* Scene: location backdrop + her cutout composited on top. The
+            backdrop is blurred and dimmed slightly so she reads as the
+            in-focus subject rather than competing with a sharp photographic
+            background - the same depth-of-field cue the "Lisa w bg" source
+            images use, reproduced here so it works with any scene/mood pair. */}
+        <div className="relative h-[260px] shrink-0 overflow-hidden [@media(min-height:750px)]:h-[330px]">
           <img
+            src={`${SCENES}/${SCENE_FOR_BUILDING[buildingId] || DEFAULT_SCENE}.jpg`}
+            alt=""
+            className="absolute inset-0 h-full w-full scale-105 object-cover blur-[2px] brightness-[0.72]"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/25" />
+          <img
+            key={mood}
             src={`${PORTRAITS}/lisa_${mood}.png`}
             alt=""
-            className="h-[92%] w-auto"
+            className="animate-portrait-swap absolute bottom-0 left-1/2 h-[104%] w-auto -translate-x-1/2 drop-shadow-[0_6px_18px_rgba(0,0,0,0.55)]"
           />
         </div>
 

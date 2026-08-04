@@ -359,6 +359,28 @@ export const FINANCE_NPCS = [
     perkTitle: 'Vision Fund Seed Injection',
     perkDescription: 'Instantly provides a $15,000 high-risk venture capital injection.',
   },
+  // The roster's first entertainment-world titan (everyone above is
+  // finance/tech/industry). Being in FINANCE_NPCS is what makes her a real
+  // walking roamer: characterLookup.js aggregates this array into
+  // getAllCharacters(), which spawnNamedRoamers() iterates to create one
+  // SpriteActor per character - that's the ONLY path that puts a walking
+  // character on the map, so a hand-placed standee could never move.
+  // She also has a bespoke interaction modal (src/features/lisa/LisaModal.jsx)
+  // instead of the shared NamedNpcModal - see WorldScreen.jsx's namedRoamer
+  // intercept.
+  {
+    id: 'lisa',
+    name: 'Lisa Manobal',
+    title: 'The Icon',
+    era: 'Modern',
+    archetype: 'tech_disruptor',
+    palette: { skin: '#f1c27d', hair: '#1a1a1a', outfit: '#4a5340', hairStyle: 'Long' },
+    netWorth: 25000000,
+    bodyguardPower: 5,
+    recruitCost: 18000,
+    perkTitle: 'Global Endorsement Reach',
+    perkDescription: 'Her name on a launch moves sentiment - boosts the market impact of your Social/X posts.',
+  },
 ]
 
 export function getFinanceNpc(id) {

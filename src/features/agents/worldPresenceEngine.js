@@ -58,6 +58,8 @@ const BUILDING_LABELS = {
   // Phase 4 consolidation: see the header comment above.
   industrialZone: 'Industrial Zone',
   trainStation: '🚆 Central Train Station',
+  lisaHq: 'Starlight Media HQ',
+  entertainmentComplex: 'Entertainment Complex',
 }
 
 function clamp01(n) {

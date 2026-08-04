@@ -930,40 +930,6 @@ function drawBuildings(scene, buildings, zoneObjects) {
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
     zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color, b))
 
-    // A fixed-desk hub building otherwise has zero visible sign anyone is
-    // there (see isBuildingSolidTile/drawInteriorRoom - a hub's "interior" is
-    // just a colored rectangle, no NPC sprite of any kind) - reported as
-    // "can't find her on the map" for lisaHq specifically, since every other
-    // building at least LOOKS occupied even without a walking character. A
-    // small standee planted at the door fixes that without a full sprite-
-    // sheet/roamer pipeline (she isn't in any roster spawnNamedRoamers reads -
-    // see LisaModal.jsx's header for why that's deliberate).
-    if (b.id === 'lisaHq' && scene.textures.exists('lisaDoorStandee')) {
-      const door = scene.buildingDoorPixel(b.id)
-      const standeeY = door.y - TILE_SIZE * 0.7
-      const standee = scene.add.image(door.x, standeeY, 'lisaDoorStandee')
-      const targetH = TILE_SIZE * 1.6
-      const tex = scene.textures.get('lisaDoorStandee').getSourceImage()
-      standee.setScale(targetH / tex.height)
-      standee.setDepth(door.y)
-      zoneObjects.push(standee)
-      // Same floating-nametag style spawnNamedRoamers/ambient NPCs use
-      // (fontFamily/fontSize/color/stroke), so she reads as a named character
-      // on the map the same way they do, not an unlabeled decoration.
-      const label = scene.add
-        .text(door.x, standeeY - targetH / 2 - 6, 'Lisa Manobal', {
-          fontFamily: 'monospace',
-          fontSize: '9px',
-          color: '#ffe066',
-          align: 'center',
-          stroke: '#000000',
-          strokeThickness: 3,
-        })
-        .setOrigin(0.5, 1)
-        .setDepth(door.y + 1)
-      zoneObjects.push(label)
-    }
-
     const doorSpec = buildingDoorAnimSpec(b, x, y, w, h)
     if (doorSpec && scene.textures.exists(SERENE_VILLAGE_DOOR_KEY)) {
       const doorSprite = scene.add
@@ -1632,12 +1598,6 @@ export default class OverworldScene extends Phaser.Scene {
     preloadTerrainAssets(this)
     preloadPlayerSheet(this)
     preloadNpcRealSprites(this)
-    // Lisa Manobal's building is a plain hub facade with no interior/roamer
-    // sprite (see the FINANCE_BUILDING_DEFS entry above) - a static portrait
-    // standee at her door is the only visible sign a person is there at all,
-    // which is what drawBuildings below actually places. No spritesheet
-    // pipeline needed, just one image.
-    this.load.image('lisaDoorStandee', '/assets/packs/Lisa/portraits/lisa_neutral.png')
     preloadVehicleAssets(this)
     preloadChapelPack(this)
     preloadChapelMap(this)
@@ -4290,7 +4250,16 @@ export default class OverworldScene extends Phaser.Scene {
       // 'namedRoamer' matches no building-specific modal case, so
       // WorldScreen's generic building-with-npcId branch renders
       // NamedNpcModal - the same modal the interior desks open.
-      this.bridge.emit('interact', { type: 'building', id: 'namedRoamer', npcId: zone.roamer.agent.id })
+      // buildingId is where worldPresenceEngine currently has this roamer -
+      // LisaModal uses it to pick a conversation backdrop that matches where
+      // she actually is. Harmless for every other roamer (NamedNpcModal
+      // ignores it).
+      this.bridge.emit('interact', {
+        type: 'building',
+        id: 'namedRoamer',
+        npcId: zone.roamer.agent.id,
+        buildingId: this.presenceCache.get(zone.roamer.agent.id)?.currentBuildingId,
+      })
     } else if (zone.type === 'financeAmbientNpc') {
       this.bridge.emit('interact', { type: 'ambientNpc', npcId: zone.npcRef.npcId, npcName: zone.npcRef.npcName })
     } else if (zone.type === 'jailMazeCheckpoint') {

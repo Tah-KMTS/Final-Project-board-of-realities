@@ -745,12 +745,16 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id === 'entertainmentComplex' && (
         <EntertainmentComplexModal onClose={closeModal} />
       )}
-      {/* Lisa Manobal - straight-to-modal like the buildings just above, no
-          Phaser interior. Bespoke component (not NamedNpcModal), since she's
-          deliberately not part of the 90-character roster - see
-          LisaModal.jsx and backend/main.py's NPC_PERSONAS['lisa']. */}
-      {activeModal?.type === 'building' && activeModal.id === 'lisaHq' && (
-        <LisaModal onClose={closeModal} />
+      {/* Lisa Manobal gets a bespoke visual-novel modal instead of the shared
+          NamedNpcModal. Two entry points, both landing here: walking up to
+          her as she roams the map (type 'building', id 'namedRoamer',
+          npcId 'lisa' - see OverworldScene.js's roamer interaction emit), or
+          walking into her HQ building (id 'lisaHq'). This must sit ABOVE the
+          generic `activeModal.npcId && <NamedNpcModal>` branch below, or she
+          would render both modals at once. */}
+      {activeModal?.type === 'building' &&
+        (activeModal.id === 'lisaHq' || activeModal.npcId === 'lisa') && (
+        <LisaModal onClose={closeModal} buildingId={activeModal.buildingId || activeModal.id} />
       )}
       {/* The 4 Phase-2/4 consolidated hubs - each is a tabbed modal wrapping
           several formerly-standalone buildings' content via the `embedded`
@@ -800,7 +804,9 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id !== 'temple' && DISTRICT_BUILDING_IDS.includes(activeModal.id) && (
         <DistrictBuildingModal buildingId={activeModal.id} onClose={closeModal} />
       )}
-      {activeModal?.type === 'building' && activeModal.npcId && (
+      {/* Generic roster fallback. Excludes 'lisa' - she has her own bespoke
+          modal above, and without this guard both would mount together. */}
+      {activeModal?.type === 'building' && activeModal.npcId && activeModal.npcId !== 'lisa' && (
         <NamedNpcModal
           npcId={activeModal.npcId}
           onClose={closeModal}

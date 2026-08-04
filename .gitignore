@@ -51,11 +51,13 @@ public/assets/packs/npc/*.png
 # so they're usable as plain URLs) and that folder IS committed.
 public/assets/packs/police fighting/
 
-# packs/Lisa/ has two kinds of source file, both excluded:
-# - "lisa character.png" is the stylized walk-cycle sheet Nova's VN portraits
-#   (packs/Lisa/portraits/, which IS committed) are cropped from.
-# - "lisa sim *.png" / "Lisa Sim *.png" are real press photographs of a real,
-#   identifiable person - never used anywhere in this game (see
-#   src/features/nova/NovaModal.jsx's header) and must never be committed,
-#   not just trimmed down like the other raw packs above.
+# packs/Lisa/ raw sources. Everything the game actually loads is generated
+# from these into two committed subfolders - packs/Lisa/processed/ (the
+# overworld walk sprite sheet) and packs/Lisa/portraits/ + packs/Lisa/scenes/
+# (the interaction UI). The raws stay local: they're large full-res stills,
+# and several are real press photographs rather than the AI-generated art the
+# game uses, so they should not be redistributed with the repo.
 public/assets/packs/Lisa/*.png
+public/assets/packs/Lisa/Lisa no bg/
+public/assets/packs/Lisa/Lisa w bg/
+public/assets/packs/Lisa/Background/
