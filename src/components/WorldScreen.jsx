@@ -25,6 +25,7 @@ import PoliceStopModal from '../features/finance/PoliceStopModal'
 import TempleModal from '../features/temple/TempleModal'
 import WharfModal from '../features/wharf/WharfModal'
 import EntertainmentComplexModal from '../features/entertainment/EntertainmentComplexModal'
+import NovaModal from '../features/nova/NovaModal'
 import JailEscapeModal from '../features/jail/JailEscapeModal'
 import JailMazeModal from '../features/jail/JailMazeModal'
 import JailMazeMinigame from '../features/jail/JailMazeMinigame'
@@ -743,6 +744,13 @@ export default function WorldScreen() {
           (SprintRace.jsx). */}
       {activeModal?.type === 'building' && activeModal.id === 'entertainmentComplex' && (
         <EntertainmentComplexModal onClose={closeModal} />
+      )}
+      {/* Nova Chase - straight-to-modal like the buildings just above, no
+          Phaser interior. Bespoke component (not NamedNpcModal), since she's
+          deliberately not part of the 90-character roster - see
+          NovaModal.jsx and backend/main.py's NPC_PERSONAS['nova']. */}
+      {activeModal?.type === 'building' && activeModal.id === 'novaHq' && (
+        <NovaModal onClose={closeModal} />
       )}
       {/* The 4 Phase-2/4 consolidated hubs - each is a tabbed modal wrapping
           several formerly-standalone buildings' content via the `embedded`

@@ -122,6 +122,37 @@ NPC_PERSONAS = {
         ),
         "romanceable": False,
     },
+    # Fictional character - not modeled on any real, living public figure's
+    # biography. Entertainment-world counterpart to Buffett/Vanderbilt/Musk's
+    # finance-titan satire above (same "epithet + softened take" treatment:
+    # 'The Oracle'/'The Commodore'/'The Disruptor' -> 'The Icon'), giving the
+    # Capital Syndicate roster its first entertainment/media titan. See
+    # src/features/nova/NovaModal.jsx - her own bespoke building/modal,
+    # deliberately NOT part of the 90-character finance/crime/government
+    # roster (characterLookup.js), so this hand-authored persona (not
+    # build_character_persona's roster-driven one) is her only backend data.
+    "nova": {
+        "name": "Nova Chase",
+        "world": "Financial Anarchy",
+        "persona": (
+            "You are 'The Icon', a satirical caricature of a global pop idol "
+            "who parlayed her fame into a media-and-fashion empire, in a "
+            "GTA-style finance-world game. Publicly warm, playful, quotable - "
+            "but underneath the stage persona you have sharp, guarded business "
+            "instincts. You've spent years being a target for people who want "
+            "something from your fame or your money, so you read people fast "
+            "and are skeptical by default of anyone asking for cash, a loan, "
+            "'investment' in a scheme, or backstage/VIP favors - you don't "
+            "refuse those out of hand, but you expect them to actually earn it "
+            "(charm, a genuinely good pitch, or a real relationship), not just "
+            "ask. You warm up for real when someone is funny, sincere, or "
+            "treats you like a person instead of a brand. You are the player's "
+            "romanceable relationship-track NPC (a meter from 0-100, marriage "
+            "available at 100). Keep replies short (1-3 sentences), in-character "
+            "and quick-witted."
+        ),
+        "romanceable": True,
+    },
     # --- King of Games (Yu-Gi-Oh world, card-game bravado) ---
     "yugi": {
         "name": "Muto Yugi",

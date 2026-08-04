@@ -50,3 +50,12 @@ public/assets/packs/npc/*.png
 # sprites cut out of them live in packs/police-battle/ (no space in the path,
 # so they're usable as plain URLs) and that folder IS committed.
 public/assets/packs/police fighting/
+
+# packs/Lisa/ has two kinds of source file, both excluded:
+# - "lisa character.png" is the stylized walk-cycle sheet Nova's VN portraits
+#   (packs/Lisa/portraits/, which IS committed) are cropped from.
+# - "lisa sim *.png" / "Lisa Sim *.png" are real press photographs of a real,
+#   identifiable person - never used anywhere in this game (see
+#   src/features/nova/NovaModal.jsx's header) and must never be committed,
+#   not just trimmed down like the other raw packs above.
+public/assets/packs/Lisa/*.png

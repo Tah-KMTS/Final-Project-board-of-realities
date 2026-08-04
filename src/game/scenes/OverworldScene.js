@@ -171,6 +171,12 @@ const FINANCE_BUILDING_DEFS = [
   // (bank/casino) rather than one of the multi-tenant tabbed hubs, since it's
   // a single InteractiveLocationModal entry, not several tenants.
   { id: 'foodCourt', label: 'Food Court', facadeStyle: 'modernBrick', color: 0xa05a1f, width: 4, height: 3, zone: 'finance' },
+  // Nova Chase ("The Icon") - a global pop-idol-turned-media-mogul, the
+  // Capital Syndicate cast's first entertainment-world titan (the existing
+  // roster is all finance/crime/government). Straight-to-modal, no Phaser
+  // interior, same shape as foodCourt/wharf/entertainmentComplex just above -
+  // see the triggerInteraction case below and NovaModal.jsx.
+  { id: 'novaHq', label: 'Starlight Media HQ', facadeStyle: 'modernGlass', color: 0xc23b8a, width: 4, height: 3, zone: 'finance' },
   // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
   // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
   // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 4 multi-tenant hubs
@@ -4180,7 +4186,8 @@ export default class OverworldScene extends Phaser.Scene {
         zone.id === 'industrialZone' ||
         zone.id === 'foodCourt' ||
         zone.id === 'wharf' ||
-        zone.id === 'entertainmentComplex'
+        zone.id === 'entertainmentComplex' ||
+        zone.id === 'novaHq'
       ) {
         this.pauseForModal()
         this.bridge.emit('interact', { type: 'building', id: zone.id })
