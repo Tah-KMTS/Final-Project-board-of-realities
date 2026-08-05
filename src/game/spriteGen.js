@@ -1,12 +1,15 @@
 import { PLAYER_ART_FRAME_W, PLAYER_ART_FRAME_H, PLAYER_ART_SCALE, drawPlayerArtFrame } from './playerSpriteArt'
 import { hasRealSprite, realSpriteRenderInfo, realSpriteTextureKey } from './packs/npcRealSprites'
+import { PLAYER_REAL_SPRITE, playerRealSpriteRenderInfo } from './packs/playerRealSprite'
 
 const USE_PROCEDURAL_GRAPHICS = true;
 // Every texture key the player actually uses across scenes (each scene
 // keeps its own key even though the art is identical — see createPlayer()
 // in BaseTownScene/OverworldScene/DominoWorldScene). NPCs keep the generic
-// palette-driven humanoid from drawFrame(); the player always renders the
-// hand-authored turnaround from playerSpriteArt.js instead.
+// palette-driven humanoid from drawFrame(). The player now renders the
+// real-art sheet in packs/playerRealSprite.js; the hand-authored turnaround
+// in playerSpriteArt.js is the fallback used only when that sheet isn't
+// loaded in the current scene's TextureManager - see getActorRenderInfo.
 const PLAYER_TEXTURE_KEYS = new Set(['player_texture', 'player_texture_overworld', 'player_texture_domino'])
 ﻿// Player/NPC sprite setup - loads the real "Cute Fantasy Free" character
 // sheet (Player/Player.png, a clean 6-col x 10-row grid of 32x32 frames) as
@@ -287,6 +290,15 @@ export function getActorRenderInfo(scene, key, palette) {
   const characterId = key.startsWith('npc_') ? key.slice(4) : null
   if (characterId && hasRealSprite(characterId) && scene.textures.exists(realSpriteTextureKey(characterId))) {
     return realSpriteRenderInfo(characterId)
+  }
+  // Real-art player, same override pattern as the NPCs above. Gated on the
+  // texture actually existing so a failed/absent load falls through to the
+  // hand-authored playerSpriteArt.js turnaround below rather than leaving
+  // the player invisible - and so scenes that never preload the sheet (see
+  // GameCanvas.jsx: each mode builds its own Phaser game, with its own
+  // TextureManager) still render a player.
+  if (PLAYER_TEXTURE_KEYS.has(key) && scene.textures.exists(PLAYER_REAL_SPRITE.key)) {
+    return playerRealSpriteRenderInfo()
   }
   if (USE_PROCEDURAL_GRAPHICS) {
     procedural_ensurePlayerTexture(scene, key, palette)

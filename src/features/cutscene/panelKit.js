@@ -33,15 +33,22 @@ export const C = {
   redDim: '#7f1d1d',
   white: '#e8e4d8',
   grey: '#8b8ba7',
-  // the player's own sprite palette, lifted from game/playerSpriteArt.js so
-  // the cutscene protagonist reads as the character you control
-  hair: '#8a3d2b',
-  hairDark: '#5c2a1e',
-  skin: '#e8b98c',
-  skinDark: '#c99468',
-  shirt: '#1f4d3a',
-  shirtDark: '#153527',
-  pants: '#232a3d',
+  // The player's own sprite palette, sampled straight out of the shipped
+  // sheet (public/assets/packs/player/processed/player.png) so the cutscene
+  // protagonist reads as the character you control. Was previously lifted
+  // from game/playerSpriteArt.js; that art is now only the fallback (see
+  // game/packs/playerRealSprite.js), and leaving these values behind made
+  // the story character and the in-game character look like two people.
+  hair: '#f96e18', // bright orange, spiked
+  hairDark: '#c04a10',
+  skin: '#f4b19e',
+  skinDark: '#cd8f7e',
+  shirt: '#147b82', // teal kimono
+  shirtDark: '#0e5a60',
+  collar: '#7d2530', // dark red inner collar
+  belt: '#5e3630', // brown obi
+  pants: '#141a26', // near-black navy hakama
+  pantsDark: '#0a0a16',
   // father
   dadHair: '#4a4a52',
   dadShirt: '#5b4636',
@@ -107,30 +114,41 @@ export const glow = (ctx, x, y, radius, color, alpha = 0.5) => {
 export function drawStudent(ctx, x, y, s = 1, slump = 0) {
   const p = (n) => n * s
   const drop = p(slump * 5)
-  // legs
-  r(ctx, x - p(9), y - p(26), p(7), p(24), C.pants)
-  r(ctx, x + p(2), y - p(26), p(7), p(24), C.pants)
-  r(ctx, x - p(10), y - p(3), p(9), p(3), '#2a2a2a')
-  r(ctx, x + p(1), y - p(3), p(9), p(3), '#2a2a2a')
-  // torso
+  // hakama - wide-legged, so the legs read as one dark mass with a split
+  r(ctx, x - p(11), y - p(28), p(10), p(26), C.pants)
+  r(ctx, x + p(1), y - p(28), p(10), p(26), C.pants)
+  r(ctx, x - p(11), y - p(28), p(10), p(26), C.pants)
+  r(ctx, x + p(6), y - p(28), p(5), p(26), C.pantsDark)
+  r(ctx, x - p(11), y - p(4), p(10), p(4), '#e2e2da') // white sneakers
+  r(ctx, x + p(1), y - p(4), p(10), p(4), '#e2e2da')
+  r(ctx, x - p(11), y - p(2), p(10), p(2), '#9a2a2a') // red sole flash
+  r(ctx, x + p(1), y - p(2), p(10), p(2), '#9a2a2a')
+  // kimono torso
   r(ctx, x - p(11), y - p(52) + drop, p(22), p(27), C.shirt)
-  r(ctx, x - p(11), y - p(52) + drop, p(4), p(27), C.shirtDark)
-  // sash (the character's white belt in playerSpriteArt.js)
-  r(ctx, x - p(11), y - p(30) + drop, p(22), p(3), C.white)
-  // arms
-  r(ctx, x - p(15), y - p(50) + drop, p(4), p(22), C.shirtDark)
-  r(ctx, x + p(11), y - p(50) + drop, p(4), p(22), C.shirtDark)
-  r(ctx, x - p(15), y - p(29) + drop, p(4), p(4), C.skin)
-  r(ctx, x + p(11), y - p(29) + drop, p(4), p(4), C.skin)
+  r(ctx, x + p(4), y - p(52) + drop, p(7), p(27), C.shirtDark)
+  // dark red inner collar, a V under the chin
+  r(ctx, x - p(4), y - p(52) + drop, p(8), p(3), C.collar)
+  r(ctx, x - p(3), y - p(49) + drop, p(6), p(3), C.collar)
+  r(ctx, x - p(2), y - p(46) + drop, p(4), p(3), C.collar)
+  // brown obi
+  r(ctx, x - p(11), y - p(31) + drop, p(22), p(4), C.belt)
+  r(ctx, x - p(11), y - p(31) + drop, p(22), p(1), '#7d4a40')
+  // arms - wide kimono sleeves
+  r(ctx, x - p(16), y - p(50) + drop, p(5), p(20), C.shirt)
+  r(ctx, x + p(11), y - p(50) + drop, p(5), p(20), C.shirtDark)
+  r(ctx, x - p(16), y - p(30) + drop, p(5), p(4), C.skin)
+  r(ctx, x + p(11), y - p(30) + drop, p(5), p(4), C.skin)
   // head
   r(ctx, x - p(8), y - p(68) + drop, p(16), p(16), C.skin)
   r(ctx, x - p(8), y - p(68) + drop, p(4), p(16), C.skinDark)
-  // hair - flat cap plus three spikes, echoing the in-world sprite
+  // hair - spiked orange, the sprite's most identifying feature
   r(ctx, x - p(9), y - p(70) + drop, p(18), p(7), C.hair)
   r(ctx, x - p(9), y - p(70) + drop, p(18), p(2), C.hairDark)
-  r(ctx, x - p(7), y - p(73) + drop, p(3), p(3), C.hair)
-  r(ctx, x - p(1), y - p(74) + drop, p(3), p(4), C.hair)
-  r(ctx, x + p(4), y - p(72) + drop, p(3), p(2), C.hair)
+  r(ctx, x - p(10), y - p(73) + drop, p(3), p(4), C.hair)
+  r(ctx, x - p(6), y - p(75) + drop, p(3), p(5), C.hair)
+  r(ctx, x - p(1), y - p(76) + drop, p(3), p(6), C.hair)
+  r(ctx, x + p(4), y - p(75) + drop, p(3), p(5), C.hair)
+  r(ctx, x + p(8), y - p(73) + drop, p(3), p(4), C.hair)
   // eyes - a flat line once slumped
   if (slump > 0.5) {
     r(ctx, x - p(5), y - p(60) + drop, p(3), p(1), '#2a2420')
@@ -148,37 +166,47 @@ export function drawStudentFromBehind(ctx, x, y, s = 1) {
   // chair back
   r(ctx, x - p(18), y - p(34), p(36), p(34), '#191a2e')
   r(ctx, x - p(18), y - p(34), p(36), p(3), '#23243f')
-  // shoulders / back
+  // shoulders / back of the kimono
   r(ctx, x - p(15), y - p(44), p(30), p(20), C.shirt)
-  r(ctx, x - p(15), y - p(44), p(30), p(3), '#2a6b4f')
+  r(ctx, x - p(15), y - p(44), p(30), p(3), '#1b939b')
+  r(ctx, x - p(15), y - p(29), p(30), p(4), C.belt) // obi tied at the back
   // neck
   r(ctx, x - p(4), y - p(50), p(8), p(7), C.skinDark)
   // head from behind - all hair
   r(ctx, x - p(10), y - p(66), p(20), p(18), C.hair)
   r(ctx, x - p(10), y - p(66), p(20), p(4), C.hairDark)
-  r(ctx, x - p(8), y - p(69), p(3), p(3), C.hair)
-  r(ctx, x - p(2), y - p(70), p(3), p(4), C.hair)
-  r(ctx, x + p(4), y - p(68), p(3), p(3), C.hair)
+  r(ctx, x - p(11), y - p(69), p(3), p(4), C.hair)
+  r(ctx, x - p(7), y - p(71), p(3), p(5), C.hair)
+  r(ctx, x - p(2), y - p(72), p(3), p(6), C.hair)
+  r(ctx, x + p(3), y - p(71), p(3), p(5), C.hair)
+  r(ctx, x + p(8), y - p(69), p(3), p(4), C.hair)
 }
 
 // Standing, seen from behind - for street/exterior shots. Distinct from
 // drawStudentFromBehind, which is seated and draws a chair.
 export function drawStudentBackStanding(ctx, x, y, s = 1) {
   const p = (n) => n * s
-  r(ctx, x - p(9), y - p(26), p(7), p(24), C.pants)
-  r(ctx, x + p(2), y - p(26), p(7), p(24), C.pants)
-  r(ctx, x - p(10), y - p(3), p(9), p(3), '#1c1c1c')
-  r(ctx, x + p(1), y - p(3), p(9), p(3), '#1c1c1c')
-  r(ctx, x - p(12), y - p(52), p(24), p(27), C.shirtDark)
-  r(ctx, x - p(12), y - p(52), p(24), p(3), C.shirt)
-  r(ctx, x - p(16), y - p(50), p(4), p(22), '#102019')
-  r(ctx, x + p(12), y - p(50), p(4), p(22), '#102019')
+  // hakama
+  r(ctx, x - p(11), y - p(28), p(10), p(26), C.pants)
+  r(ctx, x + p(1), y - p(28), p(10), p(26), C.pants)
+  r(ctx, x + p(6), y - p(28), p(5), p(26), C.pantsDark)
+  r(ctx, x - p(11), y - p(4), p(10), p(4), '#e2e2da')
+  r(ctx, x + p(1), y - p(4), p(10), p(4), '#e2e2da')
+  // kimono, seen from behind
+  r(ctx, x - p(12), y - p(52), p(24), p(27), C.shirt)
+  r(ctx, x + p(5), y - p(52), p(7), p(27), C.shirtDark)
+  r(ctx, x - p(12), y - p(31), p(24), p(4), C.belt)
+  r(ctx, x - p(17), y - p(50), p(5), p(20), C.shirt)
+  r(ctx, x + p(12), y - p(50), p(5), p(20), C.shirtDark)
   r(ctx, x - p(4), y - p(56), p(8), p(6), C.skinDark)
+  // spiked orange hair
   r(ctx, x - p(9), y - p(70), p(18), p(16), C.hair)
   r(ctx, x - p(9), y - p(70), p(18), p(4), C.hairDark)
-  r(ctx, x - p(7), y - p(73), p(3), p(3), C.hair)
-  r(ctx, x - p(1), y - p(74), p(3), p(4), C.hair)
-  r(ctx, x + p(4), y - p(72), p(3), p(3), C.hair)
+  r(ctx, x - p(10), y - p(73), p(3), p(4), C.hair)
+  r(ctx, x - p(6), y - p(75), p(3), p(5), C.hair)
+  r(ctx, x - p(1), y - p(76), p(3), p(6), C.hair)
+  r(ctx, x + p(4), y - p(75), p(3), p(5), C.hair)
+  r(ctx, x + p(8), y - p(73), p(3), p(4), C.hair)
 }
 
 // The father: heavier build, greying hair. `point` (0..1) raises an

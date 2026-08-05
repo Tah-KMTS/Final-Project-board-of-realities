@@ -242,8 +242,10 @@ function studyingRight(ctx, t) {
   }
   r(ctx, 140, 174, 34, 14, '#d8d4c6')
 
-  // him, seated, calm
-  drawStudentFromBehind(ctx, 246, 267, 1.5)
+  // Him, seated, calm. Same lowered seat as the opening's dorm panel, and
+  // for the same reason - the spiked hair would otherwise sit on top of the
+  // curve this shot exists to show.
+  drawStudentFromBehind(ctx, 246, 288, 1.4)
   vignette(ctx, 0.55)
   scanlines(ctx)
 }

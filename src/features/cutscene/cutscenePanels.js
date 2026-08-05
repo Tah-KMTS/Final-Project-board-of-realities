@@ -108,9 +108,10 @@ function dorm(ctx, t) {
   r(ctx, 170, 180, 44, 4, '#6b3550')
   r(ctx, 167, 184, 44, 3, '#3d5f3a')
   // Centred on the laptop and scaled up, so he reads as one hunched
-  // silhouette at the screen. Off to the side he just looked like a figure
-  // floating beside the desk; head lands just under the screen's chart.
-  drawStudentFromBehind(ctx, 274, 267, 1.5)
+  // silhouette at the screen. Sat lower than the framing alone needs: the
+  // character's spiked orange hair is much taller than the art this
+  // replaced, and at the old y it covered the chart on the screen.
+  drawStudentFromBehind(ctx, 274, 288, 1.4)
   vignette(ctx, 0.62)
   scanlines(ctx)
 }

@@ -68,3 +68,9 @@ public/assets/packs/Lisa/Background/
 # scenes/ for backdrops rather than needing their own.
 public/assets/packs/Warren/*.png
 public/assets/packs/Ince/*.png
+
+# packs/player/ raw sources - the four hand-supplied direction stills the
+# player's sprite is built from (three are JPEGs despite the .png names).
+# Only the salvaged sheet under processed/ is committed; rebuild it with
+# `node production/salvagePlayerSprite.mjs`, which documents every transform.
+public/assets/packs/player/raw/

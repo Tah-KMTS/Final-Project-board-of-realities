@@ -10,6 +10,7 @@ import {
   placeBuildingFacade,
 } from '../tileGen'
 import { getActiveNpcsAt } from '../../features/domino/npcRoster'
+import { preloadPlayerRealSprite } from '../packs/playerRealSprite'
 
 const TILE_SIZE = 40
 
@@ -36,6 +37,16 @@ export default class DominoWorldScene extends Phaser.Scene {
     this.zoneObjects = []
     this.npcActors = []
     this.currentZoneId = 'playersRoom'
+  }
+
+  // This scene had no preload at all - everything it draws is procedural.
+  // It needs one now because the player's real-art sheet is a real file, and
+  // GameCanvas.jsx builds a SEPARATE Phaser game per mode, so the copy
+  // OverworldScene loads is in a different TextureManager and is not visible
+  // here. Without this, Domino City would silently fall back to the old
+  // hand-authored player art while the overworld used the new sprite.
+  preload() {
+    preloadPlayerRealSprite(this)
   }
 
   create() {
