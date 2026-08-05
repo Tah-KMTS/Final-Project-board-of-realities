@@ -65,6 +65,17 @@ const SHEETS = {
   // front walk - the source sheet has no side-profile art anywhere, so
   // NO_BACK_VIEW-style runtime redirection isn't needed here.
   lisa: { key: 'npcReal_lisa', path: '/assets/packs/Lisa/processed/lisa.png', cellW: 33, cellH: 64 },
+  // Built from packs/police fighting/police sprite.png - a "spread" pose
+  // reference sheet (one pose per direction per animation state), not a
+  // multi-frame animation strip. Its WALK row's 8 "directional" columns are
+  // all the same front-facing pose (no real back or side view anywhere, an
+  // even flatter limitation than graham/musk/etc below), and the sheet's
+  // RUN row is a genuinely different sprint animation, not a second walk
+  // frame - pairing them would look like lurching into a sprint every other
+  // step, the exact mistake this file's own header warns about. So both
+  // step columns here are baked identical (no leg animation while walking)
+  // rather than faking motion that isn't in the source art.
+  police: { key: 'npcReal_police', path: '/assets/packs/police-battle/police_walk.png', cellW: 29, cellH: 64 },
 }
 
 // The five flat-format sources (graham/musk/jobs/ford/luciano) have no back
@@ -72,8 +83,11 @@ const SHEETS = {
 // row by row. Their 'up' row is a copy of the front pose, so those five show
 // their face while walking away from the camera. That's a limit of the source
 // art, not a wiring mistake; the alternative (reusing a side profile for up)
-// reads worse. The four directional sheets have real back views.
-const NO_BACK_VIEW = new Set(['graham', 'musk', 'jobs', 'ford', 'luciano'])
+// reads worse. The four directional sheets have real back views. `police`
+// joins this set too (see its SHEETS comment above) - its up/down rows are
+// already baked identical, so the redirect is a no-op, kept only so the
+// limitation is documented the same way as everywhere else.
+const NO_BACK_VIEW = new Set(['graham', 'musk', 'jobs', 'ford', 'luciano', 'police'])
 
 // Which character id uses which sheet. Named ids are real roster ids;
 // fin_ambient_N ids are the non-named ambient NPCs (npc_fin_ambient_${i} keys
@@ -82,7 +96,11 @@ const NO_BACK_VIEW = new Set(['graham', 'musk', 'jobs', 'ford', 'luciano'])
 // carry no gender field (see npcGenerator.js - the palette is seeded from the
 // id and no gender attribute exists), so the male/female split below is an
 // arbitrary but deterministic choice across the 6 ambient slots, not derived
-// from in-game data. Slots 4 and 5 stay procedural.
+// from in-game data. Slots 4 and 5 stay procedural. 'police' is not a roster
+// id or an ambient slot - every physically-chasing officer OverworldScene's
+// spawnPoliceChaser() creates shares this same one texture key (npc_police),
+// same as how every fin_ambient_0 shares 'maleNpc' - a shared texture key is
+// just Phaser asset reuse, each spawned actor is still its own sprite/body.
 const REAL_SPRITE_NPCS = {
   washington: 'princeThai',
   jefferson: 'thaiWarrior',
@@ -92,6 +110,7 @@ const REAL_SPRITE_NPCS = {
   ford: 'ford',
   luciano: 'luciano',
   lisa: 'lisa',
+  police: 'police',
   fin_ambient_0: 'maleNpc',
   fin_ambient_1: 'maleNpc',
   fin_ambient_2: 'femaleNpc',

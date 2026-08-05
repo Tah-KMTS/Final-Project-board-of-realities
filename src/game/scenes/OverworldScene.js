@@ -171,12 +171,6 @@ const FINANCE_BUILDING_DEFS = [
   // (bank/casino) rather than one of the multi-tenant tabbed hubs, since it's
   // a single InteractiveLocationModal entry, not several tenants.
   { id: 'foodCourt', label: 'Food Court', facadeStyle: 'modernBrick', color: 0xa05a1f, width: 4, height: 3, zone: 'finance' },
-  // Lisa Manobal ("The Icon") - a global pop-idol-turned-media-mogul, the
-  // Capital Syndicate cast's first entertainment-world titan (the existing
-  // roster is all finance/crime/government). Straight-to-modal, no Phaser
-  // interior, same shape as foodCourt/wharf/entertainmentComplex just above -
-  // see the triggerInteraction case below and LisaModal.jsx.
-  { id: 'lisaHq', label: 'Starlight Media HQ', facadeStyle: 'modernGlass', color: 0xc23b8a, width: 4, height: 3, zone: 'finance' },
   // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
   // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
   // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 4 multi-tenant hubs
@@ -1008,6 +1002,37 @@ const NAMED_ROAMER_WALK_SPEED_PX_PER_SEC = 30
 // within a few seconds instead of only at the next End Day.
 const PRESENCE_RESOLVE_INTERVAL_MS = 2500
 
+// Physically-chasing police NPCs (see maybeSpawnPolice/updatePoliceChasers).
+// Faster than NAMED_ROAMER_WALK_SPEED_PX_PER_SEC's ambient pace (this is a
+// pursuit, not a stroll) but noticeably slower than the player's own
+// TileMover top speed (40px per 160ms step = 250px/s), so a player who
+// keeps moving away can outrun a chaser on foot - the tension is in not
+// noticing one closing in, not an unwinnable footrace.
+const POLICE_CHASE_SPEED_PX_PER_SEC = 140
+// Contact distance that turns a chaser reaching the player into the actual
+// stop-and-search encounter - one tile, so it reads as "caught up to you"
+// rather than a precise pixel graze.
+const POLICE_ARREST_RADIUS_PX = 40
+// Spawned just outside typical view (rather than anywhere on the map) so a
+// new chaser reads as "closing in from off-screen", not a random teleport.
+const POLICE_SPAWN_MIN_RADIUS_PX = 320
+const POLICE_SPAWN_MAX_RADIUS_PX = 480
+// Caps simultaneous pursuers at the player's current wantedLevel (0-5, see
+// useGameStore's addWantedLevel), so a single star is one officer while a
+// full 5-star heat can dogpile up to this many at once.
+const MAX_POLICE_CHASERS = 4
+
+// Witness system (see updateNearbyWitnesses/useGameStore's nearbyWitnesses):
+// how close another NPC has to be to the player to count as someone who
+// could plausibly notice a street crime. Wide enough to catch someone
+// across the street, not so wide it reaches all the way to the next block.
+const WITNESS_RADIUS_PX = 180
+// Recomputed on a throttle rather than every frame - a street crime is a
+// one-off UI action (mug/steal-car button), not something that needs
+// frame-perfect witness detection, and this avoids a zustand `set()` call
+// (and the store-wide notify it triggers) 60 times a second.
+const WITNESS_CHECK_INTERVAL_MS = 400
+
 // Deterministic per-character phase so all 88 sprites don't glide back and
 // forth in exact lockstep (same tiny hash pattern used elsewhere in this
 // codebase for id-seeded, non-Math.random spread - see agentMovementEngine's
@@ -1578,6 +1603,18 @@ export default class OverworldScene extends Phaser.Scene {
     // buildOverworldZone() call and updated every frame the same way
     // financeAmbientActors are (see updateHabitatAnimals/update()).
     this.habitatAnimalActors = []
+    // Physically-chasing police/FBI NPCs (see maybeSpawnPolice) - unlike the
+    // three arrays above, this one is NOT repopulated by buildOverworldZone;
+    // it's event-driven (spawned over time by policeTimer while wantedLevel
+    // > 0), so ducking into any building interior clears the pursuit
+    // (clearZoneObjects destroys them below) without needing special-case
+    // "escape" logic - new ones only spawn on the next roll after returning.
+    this.policeChasers = []
+    // Throttle timer for updateNearbyWitnesses (see WITNESS_CHECK_INTERVAL_MS) -
+    // publishes a live nearby-NPC count into useGameStore's nearbyWitnesses
+    // so a street crime (mug, vehicle theft) can tell whether anyone was
+    // actually around to see it happen.
+    this.witnessCheckTimer = 0
     // Animated door overlays (Serene Village cottage homes only - see
     // drawBuildings/updateAnimatedDoors). Each entry: { sprite, buildingId,
     // isOpen }. Rebuilt fresh each buildOverworldZone() call; the sprites
@@ -1772,11 +1809,20 @@ export default class OverworldScene extends Phaser.Scene {
     }
     for (const animal of this.habitatAnimalActors) animal.destroy()
     for (const vehicle of this.vehicleActors) vehicle.actor.destroy()
+    for (const chaser of this.policeChasers) {
+      chaser.actor.destroy()
+      chaser.label.destroy()
+    }
     this.namedRoamers = []
     this.financeNamedNpcActors = {}
     this.financeAmbientActors = []
     this.habitatAnimalActors = []
     this.vehicleActors = []
+    this.policeChasers = []
+    // No overworld NPCs exist to witness anything while any other zone is
+    // loaded - stale count from the last overworld frame would otherwise
+    // sit in the store until the next throttled recompute.
+    useGameStore.getState().setNearbyWitnesses(0)
     // The sprites themselves are already destroyed above (they're in
     // zoneObjects) - this just drops the now-stale anim-state entries.
     this.animatedDoors = []
@@ -3982,15 +4028,176 @@ export default class OverworldScene extends Phaser.Scene {
 
   // ---------------- encounters ----------------
 
+  // Publishes how many NPCs are currently close enough to the player to
+  // plausibly witness a street crime (see useGameStore's nearbyWitnesses -
+  // applyCrimeOutcome reads it when a caller opts into checkWitnesses).
+  // Counts police chasers, ambient pedestrians, and named roamers alike -
+  // "someone noticed" doesn't care which kind of someone. Ambient NPCs and
+  // roamers already carry a `dead` flag once killed; a dead one obviously
+  // can't witness anything.
+  updateNearbyWitnesses(delta) {
+    this.witnessCheckTimer += delta
+    if (this.witnessCheckTimer < WITNESS_CHECK_INTERVAL_MS) return
+    this.witnessCheckTimer = 0
+    const px = this.playerActor.x
+    const py = this.playerActor.y
+    let count = 0
+    for (const chaser of this.policeChasers) {
+      if (!chaser.dead && Phaser.Math.Distance.Between(px, py, chaser.actor.x, chaser.actor.y) < WITNESS_RADIUS_PX) count++
+    }
+    for (const actor of this.financeAmbientActors) {
+      if (!actor.dead && Phaser.Math.Distance.Between(px, py, actor.x, actor.y) < WITNESS_RADIUS_PX) count++
+    }
+    for (const roamer of this.namedRoamers) {
+      if (!roamer.dead && Phaser.Math.Distance.Between(px, py, roamer.actor.x, roamer.actor.y) < WITNESS_RADIUS_PX) count++
+    }
+    useGameStore.getState().setNearbyWitnesses(count)
+  }
+
+  // Ticks every 9s (this.policeTimer, set up in create()) while wantedLevel
+  // > 0. Used to open the encounter modal directly; now it spawns a real
+  // patrol NPC that has to physically walk over and catch the player
+  // (updatePoliceChasers below does the actual pursuit + contact check) -
+  // "police ambush you" reads very differently when you can see them
+  // coming and have a real chance to duck away before they arrive.
   maybeSpawnPolice() {
     if (!this.bridge) return
     if (this.currentZoneId !== 'overworld') return
     const state = useGameStore.getState()
     if (!state.player.alive) return
-    if (state.wantedLevel <= 0) return
+    if (state.wantedLevel <= 0) {
+      // Heat cleared (bribed off, served time, etc.) since the last chaser
+      // spawned - whoever's still out looking gives up rather than lingering
+      // as a pursuit nobody can now trigger a resolution for.
+      if (this.policeChasers.length) this.despawnPoliceChasers()
+      return
+    }
+    if (this.policeChasers.length >= Math.min(MAX_POLICE_CHASERS, state.wantedLevel)) return
     if (Math.random() > 0.4) return
+    this.spawnPoliceChaser(state.wantedLevel)
+  }
+
+  // Finds an open tile on a ring around the player (see
+  // POLICE_SPAWN_MIN/MAX_RADIUS_PX) so a new chaser appears "closing in from
+  // off-screen" rather than teleporting in point-blank or from across the
+  // map. Falls back to null if 24 tries all land on solid ground (dense
+  // building clusters, map edge) - the caller just skips that spawn tick.
+  findPoliceSpawnSpot() {
+    const px = this.playerActor.x
+    const py = this.playerActor.y
+    for (let tries = 0; tries < 24; tries++) {
+      const angle = Math.random() * Math.PI * 2
+      const radius = POLICE_SPAWN_MIN_RADIUS_PX + Math.random() * (POLICE_SPAWN_MAX_RADIUS_PX - POLICE_SPAWN_MIN_RADIUS_PX)
+      const x = px + Math.cos(angle) * radius
+      const y = py + Math.sin(angle) * radius
+      const col = Math.floor(x / TILE_SIZE)
+      const row = Math.floor(y / TILE_SIZE)
+      if (col < 0 || col >= MAP_COLS || row < 0 || row >= this.financeLayout.length) continue
+      if (this.isBlockedTile(col, row)) continue
+      return { x: col * TILE_SIZE + TILE_SIZE / 2, y: row * TILE_SIZE + TILE_SIZE / 2 }
+    }
+    return null
+  }
+
+  // wantedLevel 4-5 ("FBI-grade" heat) spawns a Tactical Officer label
+  // instead of a beat cop - cosmetic for now (same walk sprite/speed either
+  // way, since there's no separate FBI walk-cycle sheet), but the flag rides
+  // along in financePoliceEncounter's payload so the Talk/Fight rework
+  // (later tasks) can have the encounter actually respond like the agency
+  // implied by the label, not just the generic "police" persona.
+  spawnPoliceChaser(wantedLevel) {
+    const spot = this.findPoliceSpawnSpot()
+    if (!spot) return
+    const isFBI = wantedLevel >= 4
+    const palette = { skin: '#e0c090', hair: '#1a1a1a', outfit: '#1f2b4a' }
+    const actor = new SpriteActor(this, spot.x, spot.y, 'npc_police', palette)
+    const label = this.add
+      .text(spot.x, spot.y - 26, isFBI ? 'FBI Agent' : 'Officer', {
+        fontFamily: 'monospace',
+        fontSize: '9px',
+        color: '#8fd3ff',
+        align: 'center',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+    this.policeChasers.push({ actor, label, isFBI, path: null, pathGoalKey: null, dead: false })
+  }
+
+  despawnPoliceChasers() {
+    for (const chaser of this.policeChasers) {
+      chaser.actor.destroy()
+      chaser.label.destroy()
+    }
+    this.policeChasers = []
+  }
+
+  // Steps every active chaser toward the player's current position (same
+  // A*-with-line-of-sight seek roamers use, see stepRoamerToward) and fires
+  // the actual stop-and-search the instant one gets within
+  // POLICE_ARREST_RADIUS_PX. Mirrors updateNamedRoamers' axis-separated
+  // building-collision guard so a chaser slides along a wall it's cutting
+  // the corner of instead of vibrating against it, but skips all of that
+  // function's door/pacing/car machinery - a chaser has exactly one
+  // destination (the player) for its entire lifetime.
+  updatePoliceChasers(delta) {
+    if (!this.policeChasers.length) return
+    // Namedroamers/ambient NPCs are deliberately still animated while a
+    // modal is open (see update()'s interactionLocked early-return further
+    // down) so the world doesn't visibly freeze - but a chaser's contact
+    // check has a real side effect (opening a SECOND encounter on top of
+    // whichever one is already up), so this one genuinely has to pause.
+    if (this.interactionLocked) return
+    const stepPx = POLICE_CHASE_SPEED_PX_PER_SEC * (delta / 1000)
+    const px = this.playerActor.x
+    const py = this.playerActor.y
+    const tileAt = (qx, qy) => this.isBuildingSolidTile(Math.floor(qx / TILE_SIZE), Math.floor(qy / TILE_SIZE))
+    for (const chaser of this.policeChasers) {
+      if (chaser.dead) continue
+      const prevX = chaser.actor.x
+      const prevY = chaser.actor.y
+      const raw = this.stepRoamerToward(chaser, { x: px, y: py }, stepPx)
+      let x = raw.x
+      let y = raw.y
+      if (!tileAt(prevX, prevY) && tileAt(x, y)) {
+        const xBlocked = tileAt(x, prevY)
+        const yBlocked = tileAt(prevX, y)
+        x = xBlocked ? prevX : x
+        y = yBlocked ? prevY : y
+        if (xBlocked && yBlocked) {
+          x = prevX
+          y = prevY
+        }
+      }
+      const dx = x - prevX
+      const dy = y - prevY
+      chaser.actor.sprite.setPosition(x, y)
+      chaser.actor.setMoving(true)
+      if (Math.abs(dx) > Math.abs(dy)) chaser.actor.setFacing(dx > 0 ? 'right' : 'left')
+      else if (dy !== 0) chaser.actor.setFacing(dy > 0 ? 'down' : 'up')
+      chaser.actor.update(delta)
+      chaser.label.setPosition(chaser.actor.x, chaser.actor.y - 26)
+      chaser.label.setDepth(chaser.actor.y + 500)
+
+      if (Phaser.Math.Distance.Between(px, py, chaser.actor.x, chaser.actor.y) < POLICE_ARREST_RADIUS_PX) {
+        this.triggerPoliceArrestEncounter(chaser.isFBI)
+        return
+      }
+    }
+  }
+
+  triggerPoliceArrestEncounter(isFBI) {
+    if (!this.bridge) return
+    const state = useGameStore.getState()
+    if (!state.player.alive) return
+    // The encounter modal takes over resolving this pursuit (bribe/talk/
+    // fight/escape) - whether it clears wantedLevel or not, whoever caught
+    // up has done their job, and a fresh spawn roll on the next timer tick
+    // is what puts new pressure on the player, not a leftover chaser still
+    // standing on top of them when the modal closes.
+    this.despawnPoliceChasers()
     this.pauseForModal()
-    this.bridge.emit('financePoliceEncounter', { wantedLevel: state.wantedLevel })
+    this.bridge.emit('financePoliceEncounter', { wantedLevel: state.wantedLevel, isFBI })
   }
 
   pauseForModal() {
@@ -4186,8 +4393,7 @@ export default class OverworldScene extends Phaser.Scene {
         zone.id === 'industrialZone' ||
         zone.id === 'foodCourt' ||
         zone.id === 'wharf' ||
-        zone.id === 'entertainmentComplex' ||
-        zone.id === 'lisaHq'
+        zone.id === 'entertainmentComplex'
       ) {
         this.pauseForModal()
         this.bridge.emit('interact', { type: 'building', id: zone.id })
@@ -4330,6 +4536,8 @@ export default class OverworldScene extends Phaser.Scene {
     this.updateAllAmbientNpcs(delta)
     this.updateHabitatAnimals(delta)
     if (this.currentZoneId === 'overworld') this.updateNamedRoamers(delta)
+    if (this.currentZoneId === 'overworld') this.updatePoliceChasers(delta)
+    if (this.currentZoneId === 'overworld') this.updateNearbyWitnesses(delta)
 
     if (this.interactionLocked) return
 

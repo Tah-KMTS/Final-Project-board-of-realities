@@ -243,6 +243,67 @@ NPC_PERSONAS = {
         ),
         "romanceable": False,
     },
+    # --- Financial Anarchy: the Talk option in a police stop (PoliceStopModal
+    # -> PoliceFightModal's sibling "Talk" branch). `agreed` is repurposed here
+    # from its usual persuasion meaning to the one that actually matters in
+    # this scene: does the officer let the player go, or arrest them. The
+    # situationContext field (see NpcInteractRequest/build_system_prompt)
+    # carries the Wanted Level, unit type, and attempt count this hand-
+    # authored persona alone can't - it's the same string for every stop, so
+    # the per-encounter severity has to arrive some other way.
+    "police": {
+        "name": "the officer",
+        "world": "Financial Anarchy",
+        "persona": (
+            "You are a police officer (or federal agent, if the situation "
+            "below says so) who has just stopped the player on suspicion of "
+            "criminal activity, in a satirical GTA-style finance-world game. "
+            "Play this completely straight and realistic - not comedic, not "
+            "a pushover, not a cartoon villain either. A real officer in this "
+            "position is procedural, alert, and unmoved by charm alone: they "
+            "want a plausible, calm, cooperative account, and they've heard "
+            "every excuse before. Being polite and giving a believable, "
+            "consistent story genuinely helps, especially for a minor Wanted "
+            "Level. Being hostile, rambling, contradicting yourself, "
+            "obviously lying, or trying to bribe/threaten the officer THROUGH "
+            "conversation (bribery has its own separate channel in this game "
+            "and offering it in conversation should read as an aggravating "
+            "move, not a shortcut) makes things worse, not better. A higher "
+            "Wanted Level or a federal unit should make you noticeably more "
+            "skeptical and harder to talk down than a minor local stop."
+        ),
+        "romanceable": False,
+    },
+    # Ince started as one of the 6 procedurally-generated "ambient" finance-
+    # district NPCs (npcGenerator.js's FIRST_NAMES pool, id finance_ambient_2
+    # deterministically hashes to "Ince" every run - not a roster character,
+    # so no build_character_persona biography data exists for her). Promoted
+    # to a full hand-authored persona for IncModal.jsx's VN-style treatment,
+    # written around her existing generated flavor tags (personality:
+    # "gossipy", trait: "mismatched socks" - see generateAmbientNpc) so the
+    # new content is grounded in what already existed rather than inventing
+    # an unrelated character. Deliberately NOT romanceable (see IncModal.jsx
+    # for why) - no consent-gating path here needs to open at all.
+    "ince": {
+        "name": "Ince",
+        "world": "Financial Anarchy",
+        "persona": (
+            "You are Ince, a young woman working odd jobs and errands around "
+            "the financial district in a satirical GTA-style finance-world "
+            "game - not a tycoon, not a titan, just a regular person getting "
+            "by. Gossipy and chatty by nature: you're plugged into every bit "
+            "of neighborhood news and love to share it, sometimes "
+            "oversharing. A little scattered - the type to leave the house "
+            "in two different socks without noticing. You've got a "
+            "photography hobby and always seem to have a snack on you. "
+            "Warm and easygoing with anyone who's friendly and genuinely "
+            "curious about you, but you've been hustled before and you're "
+            "not naive - you clam up fast around anyone who feels like "
+            "they're only there to use you, and you're sharper at reading "
+            "that than people expect from someone so cheerful."
+        ),
+        "romanceable": False,
+    },
 }
 
 DEFAULT_PERSONA = {
@@ -322,6 +383,30 @@ Be stingy generally - most exchanges are -1, 0, or +1. Reserve +-2/+-3 for
 something that would genuinely matter to this specific person (a serious
 insult to something they built their life on, a request that perfectly
 flatters their values, a threat, real generosity, betrayal, etc).
+""".strip()
+
+
+SUGGESTED_REPLIES_INSTRUCTIONS = """
+=== SUGGESTED PLAYER REPLIES ===
+Also generate `suggestedReplies`: exactly 4 short (under ~12 words) lines
+the PLAYER could plausibly say NEXT, written in first person as the player's
+own dialogue (not a description of what to say). These are the actual
+buttons the player will click, so a static, repeated set defeats the whole
+point - they must be a genuine reaction to where THIS conversation has just
+gone: what you (the character) just said, the mood/tone that landed, and
+anything the player has already tried or already learned. Never reuse a
+line the player has already sent earlier in this conversation, and don't
+just restate the 4 opening categories (small talk / curiosity / a pitch /
+an angle) verbatim every time - let the actual content shift as the
+conversation develops.
+Vary the 4 across different approaches so the player has a real branch
+point, e.g. one that follows up warmly on what was just said, one that
+asks a genuine question about something the character just revealed, one
+that pushes toward whatever the player's original goal in this
+conversation seems to be (a favor, an investment, closeness, information),
+and one that's bolder/riskier (challenging, flirtatious, or a harder ask) -
+adjusted for what actually fits this character and this moment, not a
+rigid template.
 """.strip()
 
 
@@ -450,7 +535,12 @@ def build_character_persona(character: dict) -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(npc_id: str, relationship_tier: float, character: Optional[dict]) -> str:
+def build_system_prompt(
+    npc_id: str,
+    relationship_tier: float,
+    character: Optional[dict],
+    situation_context: Optional[str] = None,
+) -> str:
     if character:
         persona_block = build_character_persona(character)
         name = character.get("name") or npc_id
@@ -477,9 +567,11 @@ def build_system_prompt(npc_id: str, relationship_tier: float, character: Option
         )
 
     consent = build_consent_instructions(romanceable, relationship_tier)
+    situation_block = f"\n\n=== CURRENT SITUATION ===\n{situation_context}" if situation_context else ""
 
     return (
         f"{identity}\n\n{consent}\n\n{CONTENT_BOUNDARY}\n\n{PERSUASION_INSTRUCTIONS}\n\n"
+        f"{SUGGESTED_REPLIES_INSTRUCTIONS}{situation_block}\n\n"
         "Stay fully in character. Respond only as this character would speak "
         "out loud to the player - no stage directions in brackets, no "
         "breaking character, no mentioning you are an AI or a language "
@@ -573,12 +665,22 @@ class NpcInteractRequest(BaseModel):
     # characterBiographies.js. Omitted by worlds that still use the static
     # NPC_PERSONAS above (Hunter's Rift, King of Games).
     character: Optional[dict[str, Any]] = None
+    # Free-text scene state a hand-authored NPC_PERSONAS entry can't otherwise
+    # know per-request, since its persona string is the same for every call.
+    # PoliceStopModal's Talk option uses this to convey Wanted Level, unit
+    # type, and how many attempts the player has left this encounter.
+    situationContext: Optional[str] = None
 
 
 class NpcInteractResponse(BaseModel):
     reply: str
     agreed: bool = False
     relationshipDelta: int = 0
+    # 4 contextual next-lines the player can click instead of typing - see
+    # SUGGESTED_REPLIES_INSTRUCTIONS. Defaults to [] so any caller still on
+    # the old static-preset UI (nothing currently is, but nothing requires
+    # reading this field either) is unaffected.
+    suggestedReplies: list[str] = []
 
 
 RESPONSE_SCHEMA = {
@@ -590,8 +692,9 @@ RESPONSE_SCHEMA = {
             "reply": {"type": "string"},
             "agreed": {"type": "boolean"},
             "relationshipDelta": {"type": "integer"},
+            "suggestedReplies": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["reply", "agreed", "relationshipDelta"],
+        "required": ["reply", "agreed", "relationshipDelta", "suggestedReplies"],
         "additionalProperties": False,
     },
     "strict": True,
@@ -611,7 +714,7 @@ def npc_interact(req: NpcInteractRequest):
             detail="OPENAI_API_KEY is not configured on the backend (.env at project root).",
         )
 
-    system_prompt = build_system_prompt(req.npcId, req.relationshipTier, req.character)
+    system_prompt = build_system_prompt(req.npcId, req.relationshipTier, req.character, req.situationContext)
 
     messages = [{"role": "system", "content": system_prompt}]
     # Keep only the last few turns of history to bound token usage.
@@ -635,5 +738,12 @@ def npc_interact(req: NpcInteractRequest):
     delta = int(parsed.get("relationshipDelta", 0) or 0)
     delta = max(-3, min(3, delta))
     reply = (parsed.get("reply") or "").strip() or "..."
+    suggested_raw = parsed.get("suggestedReplies") or []
+    suggested = [s.strip() for s in suggested_raw if isinstance(s, str) and s.strip()][:4]
 
-    return NpcInteractResponse(reply=reply, agreed=bool(parsed.get("agreed", False)), relationshipDelta=delta)
+    return NpcInteractResponse(
+        reply=reply,
+        agreed=bool(parsed.get("agreed", False)),
+        relationshipDelta=delta,
+        suggestedReplies=suggested,
+    )

@@ -2,15 +2,21 @@ import { useEffect, useState } from 'react'
 
 // Pokemon-style battle presentation for police confrontations.
 //
-// PURE PRESENTATION - it owns no combat state. Both police fights in the game
-// run completely different engines and both render through here:
+// PURE PRESENTATION - it owns no combat state. Three police-flavored fights
+// in the game render through here, each its own engine:
 //   - Finance's PoliceStopModal -> FinanceSkirmishModal (4-choice
 //     Attack/Heavy/Guard/Dodge, stamina-gated, simultaneous reveal)
+//   - Finance's PoliceStopModal "Fight" choice -> PoliceFightModal
+//     (Punch/Kick/Use Weapon/Special Move, see policeFightEngine.js)
 //   - Hunter's policeEncounter -> RiftCombatModal (stat-based chip damage,
 //     Attack/Flee plus situational Meteor/Umbrella)
-// Neither engine changed to get this skin. That's why actions are passed in
-// as a list rather than hardcoded, and why the stamina pips and status badges
-// are optional - the Rift engine has no such concepts and simply omits them.
+// None of the three changed to get this skin. That's why actions are passed
+// in as a list rather than hardcoded, why the stamina pips and status badges
+// are optional (the Rift engine has no such concepts and simply omits them),
+// and why enemySpriteKey/playerSpriteKey exist (PoliceFightModal needs more
+// poses - ready/attack/down/tactical - than the other two engines' plain
+// acting/idle binary requires; they just omit the props and get that binary
+// unchanged).
 //
 // Layout mirrors the GBA reference: enemy status top-left with the enemy
 // sprite opposite it, player back sprite bottom-left with the player status
@@ -114,6 +120,14 @@ export default function PokeBattleLayout({
   playerHitPulse,
   enemyFloats,
   playerFloats,
+  // Optional explicit sprite basenames (no .png), e.g. 'officer_attack' or
+  // 'player_crouch' - PoliceFightModal's punch/kick/weapon/special moves and
+  // guard/down states need more poses than the plain acting/idle binary
+  // below can express. Omitted by both existing callers (FinanceSkirmishModal,
+  // RiftCombatModal), which keep exactly the old officer_front/officer_command
+  // and player_back/player_command behavior.
+  enemySpriteKey,
+  playerSpriteKey,
 }) {
   // Both engines keep a rolling log; the message box shows its tail, the way
   // the reference shows the last couple of lines rather than a scrollback.
@@ -161,7 +175,7 @@ export default function PokeBattleLayout({
           </div>
           <div key={`enemy-${enemyHitPulse}`} className="animate-shake absolute right-8 top-1">
             <img
-              src={`${SPRITES}/${enemyActing ? 'officer_command' : 'officer_front'}.png`}
+              src={`${SPRITES}/${enemySpriteKey || (enemyActing ? 'officer_command' : 'officer_front')}.png`}
               alt=""
               className="h-[118px] w-auto [@media(min-height:700px)]:h-[152px]"
               style={{ imageRendering: 'pixelated' }}
@@ -180,7 +194,7 @@ export default function PokeBattleLayout({
               enemy, the way a back sprite reads as nearer the camera. */}
           <div key={`player-${playerHitPulse}`} className="animate-shake absolute bottom-0 left-4">
             <img
-              src={`${SPRITES}/${playerActing ? 'player_command' : 'player_back'}.png`}
+              src={`${SPRITES}/${playerSpriteKey || (playerActing ? 'player_command' : 'player_back')}.png`}
               alt=""
               className="h-[132px] w-auto [@media(min-height:700px)]:h-[178px]"
               style={{ imageRendering: 'pixelated' }}

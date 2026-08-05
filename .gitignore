@@ -61,3 +61,10 @@ public/assets/packs/Lisa/*.png
 public/assets/packs/Lisa/Lisa no bg/
 public/assets/packs/Lisa/Lisa w bg/
 public/assets/packs/Lisa/Background/
+
+# Same deal for packs/Warren/ and packs/Ince/ (WarrenModal.jsx/IncModal.jsx) -
+# raw full-res AI-generated stills with a solid white background. Only the
+# processed cutouts under portraits/ are committed; both reuse packs/Lisa/
+# scenes/ for backdrops rather than needing their own.
+public/assets/packs/Warren/*.png
+public/assets/packs/Ince/*.png

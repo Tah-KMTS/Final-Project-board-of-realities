@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { getPresidentialGunPolicy, canPurchaseLegalFirearm } from './firearmLegislationEngine'
-import { WEAPONS_DATABASE } from './toolsWeaponsCatalog'
+import { WEAPONS_DATABASE, weaponToInventoryItem } from './toolsWeaponsCatalog'
 import { THEFT_ITEM } from '../../game/vehicleGen'
 
 export default function GunStoreModal({ onClose }) {
@@ -32,9 +32,11 @@ export default function GunStoreModal({ onClose }) {
     }
 
     addCash(-price)
-    // Weapons here are flavor purchases (no inventory effect) except the
-    // theft tool, which the Vehicle Theft flow actually checks for by id.
-    if (weapon.id === THEFT_ITEM.id) addItem(THEFT_ITEM)
+    // THEFT_ITEM keeps its own canonical object (InventoryModal reads its
+    // description/sellValue directly) - every other catalog weapon converts
+    // through weaponToInventoryItem so a real fight's "use weapon" option
+    // has something to find in state.inventory.
+    addItem(weapon.id === THEFT_ITEM.id ? THEFT_ITEM : weaponToInventoryItem(weapon))
     setFeedbackMsg(`🔫 LEGAL PURCHASE: Bought 1x ${weapon.name} for $${price.toFixed(2)} under ${policy.title}!`)
   }
 
@@ -46,7 +48,7 @@ export default function GunStoreModal({ onClose }) {
     }
 
     addCash(-blackMarketPrice)
-    if (weapon.id === THEFT_ITEM.id) addItem(THEFT_ITEM)
+    addItem(weapon.id === THEFT_ITEM.id ? THEFT_ITEM : weaponToInventoryItem(weapon))
     setFeedbackMsg(`🕵️ BLACK MARKET ARMS: Bought untraceable 1x ${weapon.name} for $${blackMarketPrice.toFixed(2)} from Sal! No background check required.`)
   }
 

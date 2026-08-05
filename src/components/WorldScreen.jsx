@@ -26,6 +26,8 @@ import TempleModal from '../features/temple/TempleModal'
 import WharfModal from '../features/wharf/WharfModal'
 import EntertainmentComplexModal from '../features/entertainment/EntertainmentComplexModal'
 import LisaModal from '../features/lisa/LisaModal'
+import WarrenModal from '../features/finance/WarrenModal'
+import IncModal from '../features/finance/IncModal'
 import JailEscapeModal from '../features/jail/JailEscapeModal'
 import JailMazeModal from '../features/jail/JailMazeModal'
 import JailMazeMinigame from '../features/jail/JailMazeMinigame'
@@ -746,15 +748,39 @@ export default function WorldScreen() {
         <EntertainmentComplexModal onClose={closeModal} />
       )}
       {/* Lisa Manobal gets a bespoke visual-novel modal instead of the shared
-          NamedNpcModal. Two entry points, both landing here: walking up to
-          her as she roams the map (type 'building', id 'namedRoamer',
-          npcId 'lisa' - see OverworldScene.js's roamer interaction emit), or
-          walking into her HQ building (id 'lisaHq'). This must sit ABOVE the
-          generic `activeModal.npcId && <NamedNpcModal>` branch below, or she
-          would render both modals at once. */}
-      {activeModal?.type === 'building' &&
-        (activeModal.id === 'lisaHq' || activeModal.npcId === 'lisa') && (
+          NamedNpcModal. Same two entry points every other named roamer has,
+          both carrying npcId 'lisa': walking up to her directly as she roams
+          the map (type 'building', id 'namedRoamer' - see OverworldScene.js's
+          roamer interaction emit), or the desk inside her home building's
+          walk-in interior (id 'home_lisa', from the auto-generated
+          characterHomeBuildings.js entry every roster member gets - no
+          bespoke building of her own). This must sit ABOVE the generic
+          `activeModal.npcId && <NamedNpcModal>` branch below, or she would
+          render both modals at once. */}
+      {activeModal?.type === 'building' && activeModal.npcId === 'lisa' && (
         <LisaModal onClose={closeModal} buildingId={activeModal.buildingId || activeModal.id} />
+      )}
+      {/* Warren Buffett gets the same VN-style treatment as Lisa, just kept
+          on his existing roster-driven persona (see WarrenModal.jsx's own
+          header) rather than a hand-authored one - only the interaction
+          SCREEN changed, not who he is or what he can do. Same "must sit
+          above the generic fallback" reasoning as Lisa's guard above. */}
+      {activeModal?.type === 'building' && activeModal.npcId === 'buffett' && (
+        <WarrenModal
+          onClose={closeModal}
+          buildingId={activeModal.buildingId || activeModal.id}
+          onAttack={() => {
+            const npc = getAnyCharacter('buffett')
+            const guard = generateBodyguardMonster(npc)
+            const proceed = window.confirm(
+              `${npc?.name || 'This target'}'s security detail looks serious - roughly ${guard.maxHp} HP, hitting for ` +
+              `~${guard.attack} per swing. You won't die if you lose, but you'll get hospitalized ` +
+              `and lose a cut of your cash. Attack anyway?`
+            )
+            if (!proceed) return
+            setActiveModal({ type: 'financeCombat', npcId: 'buffett' })
+          }}
+        />
       )}
       {/* The 4 Phase-2/4 consolidated hubs - each is a tabbed modal wrapping
           several formerly-standalone buildings' content via the `embedded`
@@ -804,9 +830,10 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id !== 'temple' && DISTRICT_BUILDING_IDS.includes(activeModal.id) && (
         <DistrictBuildingModal buildingId={activeModal.id} onClose={closeModal} />
       )}
-      {/* Generic roster fallback. Excludes 'lisa' - she has her own bespoke
-          modal above, and without this guard both would mount together. */}
-      {activeModal?.type === 'building' && activeModal.npcId && activeModal.npcId !== 'lisa' && (
+      {/* Generic roster fallback. Excludes 'lisa'/'buffett' - they have their
+          own bespoke modals above, and without this guard both would mount
+          together. */}
+      {activeModal?.type === 'building' && activeModal.npcId && activeModal.npcId !== 'lisa' && activeModal.npcId !== 'buffett' && (
         <NamedNpcModal
           npcId={activeModal.npcId}
           onClose={closeModal}
@@ -835,27 +862,48 @@ export default function WorldScreen() {
           }}
         />
       )}
-      {activeModal?.type === 'ambientNpc' && (
-        <AmbientNpcModal
-          npcName={activeModal.npcName}
-          onClose={closeModal}
-          onMug={() => {
-            const res = useGameStore.getState().executeCrime({
-              type: 'mug',
-              baseSuccessChance: 0.8,
-              payout: 50,
-              notorietyIncreaseOnFail: 5,
-              wantedIncreaseOnFail: 1,
-              energyCost: 15,
-              assetSeizureOnFail: 0,
-              jailChanceOnFail: 0,
-            })
-            // if we had a toast we could show res.message
-            closeModal()
-          }}
-          onAttack={() => setActiveModal({ type: 'ambientCombat', npcId: activeModal.npcId })}
-        />
-      )}
+      {/* Both ambient-NPC branches below share the exact same Mug/Attack
+          mechanics (WorldScreen never changed what these DO, only how
+          they're presented for Ince) - defined once here rather than
+          duplicated across both modals. */}
+      {activeModal?.type === 'ambientNpc' && (() => {
+        const handleMug = () => {
+          const res = useGameStore.getState().executeCrime({
+            type: 'mug',
+            baseSuccessChance: 0.8,
+            payout: 50,
+            notorietyIncreaseOnFail: 5,
+            wantedIncreaseOnFail: 1,
+            energyCost: 15,
+            assetSeizureOnFail: 0,
+            jailChanceOnFail: 0,
+            // Physically standing next to the mark in the overworld - a
+            // botched mug only raises heat if a bystander (or a patrolling
+            // officer) was actually close enough to see it happen.
+            checkWitnesses: true,
+            excludeVictimWitness: true,
+          })
+          // if we had a toast we could show res.message
+          closeModal()
+        }
+        const handleAttack = () => setActiveModal({ type: 'ambientCombat', npcId: activeModal.npcId })
+
+        // finance_ambient_2 deterministically hashes to "Ince" every run
+        // (see npcGenerator.js's FIRST_NAMES pool) - the only one of the 6
+        // ambient slots with a bespoke modal (IncModal.jsx). The other 5
+        // fall through to the plain AmbientNpcModal below, unchanged.
+        if (activeModal.npcId === 'finance_ambient_2') {
+          return <IncModal onClose={closeModal} onMug={handleMug} onAttack={handleAttack} />
+        }
+        return (
+          <AmbientNpcModal
+            npcName={activeModal.npcName}
+            onClose={closeModal}
+            onMug={handleMug}
+            onAttack={handleAttack}
+          />
+        )
+      })()}
       {/* Finance-world street-level combats (bodyguard fights, ambient
           street-target skirmishes) use the 4-choice Attack/Heavy/Guard/Dodge
           skirmish engine, not Hunter's Rift's stat-based combat -
@@ -882,7 +930,7 @@ export default function WorldScreen() {
         />
       )}
       {activeModal?.type === 'financePoliceEncounter' && (
-        <PoliceStopModal wantedLevel={activeModal.wantedLevel} onClose={closeModal} />
+        <PoliceStopModal wantedLevel={activeModal.wantedLevel} isFBI={activeModal.isFBI} onClose={closeModal} />
       )}
 
       {/* World 3 */}

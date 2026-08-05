@@ -43,7 +43,6 @@ const REAL_BUILDING_IDS = [
   'stockExchange', 'businessCenter', 'governmentBuilding',
   'bank', 'realEstateAgency', 'temple',
   'casino', 'underworld', 'industrialZone', 'trainStation',
-  'lisaHq',
 ]
 
 // Crime members plausibly frequent underworld-facing venues rather than the
@@ -203,9 +202,11 @@ function deriveSociabilityAndAffinity(tier, character, fidelity, syndicateSignal
 // (e.g. two industrialist buildings both becoming 'industrialZone') are
 // deduped down to a single slot rather than repeated.
 const WORK_BUILDING_OVERRIDES = {
-  // An entertainer-turned-mogul splits her day between her own media HQ,
-  // deal-making at the business center, and being seen in public.
-  lisa: ['lisaHq', 'businessCenter', 'entertainmentComplex'],
+  // An entertainer-turned-mogul splits her day between deal-making at the
+  // business center and being seen in public - same shared hubs every other
+  // titan uses, no bespoke building of her own (see home_lisa's "Starlight
+  // Media HQ" flavor name in characterBuildingsCatalog.js instead).
+  lisa: ['businessCenter', 'entertainmentComplex'],
   jobs: ['businessCenter', 'stockExchange'],
   musk: ['businessCenter', 'stockExchange'],
   huang: ['stockExchange', 'businessCenter', 'governmentBuilding'],

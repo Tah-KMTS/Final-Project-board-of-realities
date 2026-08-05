@@ -102,4 +102,15 @@ export const CHARACTER_BUILDINGS_CATALOG = [
     dailyYield: 0,
     specialPerk: 'Direct Benchmark Rate Adjustment Control & Inflation Liquidity Pumps',
   },
+  {
+    ownerId: 'lisa',
+    ownerName: 'Lisa Manobal',
+    buildingName: 'Starlight Media HQ',
+    city: 'Tokyo',
+    coordinates: { x: 55, y: 40 },
+    constructionCost: 80000000,
+    architecture: 'Mirrored Glass Media Tower with Rooftop Concert Stage',
+    dailyYield: 40000,
+    specialPerk: 'Her name on a launch moves sentiment - +10% Social/X post reach',
+  },
 ]

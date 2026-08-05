@@ -145,6 +145,16 @@ function createDefaultState() {
     cash: 1000,
     wantedLevel: 0,
     notoriety: 0, // 0-100 stat for crime visibility
+    // Live count of NPCs (police, ambient pedestrians, named roamers) within
+    // witness range of the player right now - published every ~400ms by
+    // OverworldScene.updateNearbyWitnesses while the player is in the
+    // overworld (0 the rest of the time: interiors have no equivalent
+    // physical-bystander concept, so any crime resolved from inside one is
+    // deliberately never routed through the checkWitnesses gate at all -
+    // see applyCrimeOutcome). Read by applyCrimeOutcome to decide whether a
+    // failed street crime's caught-in-the-act consequences (notoriety/
+    // wanted/seizure/jail) actually apply.
+    nearbyWitnesses: 0,
     // Jail: a sibling top-level field to wantedLevel/notoriety, not nested in
     // world2 - being locked up is a cross-world consequence of Heat, not a
     // Finance-only concept, even though every crime that can trigger it
@@ -989,6 +999,13 @@ export const useGameStore = create((set, get) => ({
     set((state) => ({ notoriety: Math.max(0, Math.min(100, state.notoriety + amount)) }))
   },
 
+  // See nearbyWitnesses' own comment above (initial state) for what this
+  // feeds - OverworldScene is the only writer, applyCrimeOutcome the only
+  // reader.
+  setNearbyWitnesses: (count) => {
+    set({ nearbyWitnesses: Math.max(0, count) })
+  },
+
   // player.stats.luck was read by nothing until this pass. Every formula that
   // wants Luck must call this instead of reading player.stats.luck raw, so
   // the Chapel Blessing (a temporary bonus, added at read time - never
@@ -1014,7 +1031,21 @@ export const useGameStore = create((set, get) => ({
   // old behavior back. Only a caller that DOES know it's running a job for
   // one of the 7 canonical syndicates (see syndicateStandingEngine.js) opts
   // into the standing/territory effects below by passing them.
-  applyCrimeOutcome: ({ success, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, assetSeizureOnFail, jailChanceOnFail = 0, syndicateId = null, inHomeTurf = false }) => {
+  //
+  // checkWitnesses/excludeVictimWitness are the same kind of opt-in: only
+  // the handful of crimes that physically happen out in the open overworld
+  // (mugging, vehicle theft - see their call sites) pass checkWitnesses:
+  // true, gating the caught-in-the-act consequences below on
+  // nearbyWitnesses actually being > 0 at the moment of failure. Every other
+  // crime (temple theft, crypto hacking, syndicate collude/extort, vault
+  // cracking...) has no equivalent physical-bystander concept and omits it,
+  // getting the exact old always-applies behavior. excludeVictimWitness
+  // additionally discounts one witness - the mugging target themselves is
+  // always within nearbyWitnesses' radius by definition of being
+  // interactable, but the target knowing they got mugged isn't the same as
+  // a BYSTANDER seeing it and reacting in the moment, which is what actually
+  // drives an instant Wanted bump here.
+  applyCrimeOutcome: ({ success, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, assetSeizureOnFail, jailChanceOnFail = 0, syndicateId = null, inHomeTurf = false, checkWitnesses = false, excludeVictimWitness = false }) => {
     const state = get()
     const effectiveLuck = get().getEffectiveLuck()
     const homeStanding = syndicateId ? get().getSyndicateStanding(syndicateId) : 0
@@ -1029,6 +1060,16 @@ export const useGameStore = create((set, get) => ({
       if (syndicateId) get().recordSyndicateJobOutcome(syndicateId, 'success')
       return { success: true, payout: finalPayout, message: `Success! You got away with $${finalPayout.toLocaleString()}.` }
     } else {
+      // A failed street crime that literally nobody saw still means you
+      // walked away with nothing, but there's no one to report it - same
+      // "committed discreetly" house rule requested for this feature.
+      if (checkWitnesses) {
+        const witnessCount = Math.max(0, state.nearbyWitnesses - (excludeVictimWitness ? 1 : 0))
+        if (witnessCount <= 0) {
+          if (syndicateId) get().recordSyndicateJobOutcome(syndicateId, 'failNoJail')
+          return { success: false, fine: 0, jailed: false, message: "You fumbled it, but no one was around to notice - you got away clean." }
+        }
+      }
       let failMsg = 'You were caught!'
       // CRITICAL BALANCE CONSTRAINT (see syndicateStandingEngine.js's
       // getHomeTurfJailChanceReduction comment for the full rationale):
@@ -1037,7 +1078,10 @@ export const useGameStore = create((set, get) => ({
       // NEVER discount the two lines below - heat keeps accumulating on
       // every failure no matter how friendly you are with the local
       // syndicate, or a maxed relationship becomes a risk-free money
-      // printer that can also never gain a Wanted level.
+      // printer that can also never gain a Wanted level. (checkWitnesses
+      // above is a different, orthogonal gate - already-returned by this
+      // point for any failure it applies to - not a second discount stacked
+      // on top of standing.)
       if (notorietyIncreaseOnFail) state.addNotoriety(notorietyIncreaseOnFail)
       if (wantedIncreaseOnFail) state.addWantedLevel(wantedIncreaseOnFail)
 
@@ -1078,10 +1122,12 @@ export const useGameStore = create((set, get) => ({
     }
   },
 
-  // syndicateId/inHomeTurf just pass straight through to applyCrimeOutcome
-  // (see its own comment) - optional, so any existing caller that doesn't
-  // know which of the 7 named syndicates a job belongs to is unaffected.
-  executeCrime: ({ type, baseSuccessChance, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, energyCost, assetSeizureOnFail, jailChanceOnFail = 0, syndicateId = null, inHomeTurf = false }) => {
+  // syndicateId/inHomeTurf/checkWitnesses/excludeVictimWitness just pass
+  // straight through to applyCrimeOutcome (see its own comment) - optional,
+  // so any existing caller that doesn't know which of the 7 named
+  // syndicates a job belongs to, or has no physical-bystander concept, is
+  // unaffected.
+  executeCrime: ({ type, baseSuccessChance, payout, notorietyIncreaseOnFail, wantedIncreaseOnFail, energyCost, assetSeizureOnFail, jailChanceOnFail = 0, syndicateId = null, inHomeTurf = false, checkWitnesses = false, excludeVictimWitness = false }) => {
     const state = get()
     if (!state.spendEnergy(energyCost)) return { success: false, reason: 'Not enough energy' }
 
@@ -1103,6 +1149,8 @@ export const useGameStore = create((set, get) => ({
       jailChanceOnFail,
       syndicateId,
       inHomeTurf,
+      checkWitnesses,
+      excludeVictimWitness,
     })
   },
 
@@ -2243,6 +2291,9 @@ export const useGameStore = create((set, get) => ({
         energyCost: 10,
         assetSeizureOnFail: 0,
         jailChanceOnFail: 0.10,
+        // Standing next to a physical parked car in the overworld - same
+        // witness gate as mugging, no victim NPC to exclude here.
+        checkWitnesses: true,
       })
       if (result.success) {
         get().addOwnedVehicle(vehicle)
@@ -2262,6 +2313,7 @@ export const useGameStore = create((set, get) => ({
       energyCost: 15,
       assetSeizureOnFail: 0,
       jailChanceOnFail: 0.20,
+      checkWitnesses: true,
     })
     if (result.success) {
       get().addOwnedVehicle(vehicle)

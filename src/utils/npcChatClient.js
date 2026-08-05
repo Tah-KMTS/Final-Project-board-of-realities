@@ -27,18 +27,26 @@ const FALLBACK_REPLY = "(...they don't seem to hear you. Try again in a moment.)
  *   roster, so the backend builds the persona from real data instead of a
  *   hand-written one. Omit for worlds using the backend's static personas
  *   (Hunter's Rift, King of Games).
- * @returns {Promise<{ reply: string, ok: boolean, agreed: boolean|null, relationshipDelta: number, error?: string }>}
+ * @param {string|null} [params.situationContext] - free-text scene state a
+ *   static NPC_PERSONAS entry can't otherwise carry per-request (see
+ *   backend/main.py) - e.g. PoliceStopModal's Talk option describing the
+ *   current Wanted Level and attempts remaining.
+ * @returns {Promise<{ reply: string, ok: boolean, agreed: boolean|null, relationshipDelta: number, suggestedReplies: string[], error?: string }>}
  *   `agreed`/`relationshipDelta` reflect whether this specific character was
  *   persuaded by the player's message and how it moved their opinion;
  *   `agreed` is null (not false) when the request failed, so callers can
- *   tell "declined" apart from "we don't know".
+ *   tell "declined" apart from "we don't know". `suggestedReplies` is up to
+ *   4 contextual next-lines generated fresh for THIS point in the
+ *   conversation (see backend/main.py's SUGGESTED_REPLIES_INSTRUCTIONS) -
+ *   empty on failure, so callers should fall back to their own static
+ *   opening choices rather than showing a blank list.
  */
-export async function sendNpcMessage({ npcId, playerText, relationshipTier = 0, conversationHistory = [], character = null }) {
+export async function sendNpcMessage({ npcId, playerText, relationshipTier = 0, conversationHistory = [], character = null, situationContext = null }) {
   try {
     const res = await fetch(NPC_CHAT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ npcId, playerText, relationshipTier, conversationHistory, character }),
+      body: JSON.stringify({ npcId, playerText, relationshipTier, conversationHistory, character, situationContext }),
     })
 
     if (!res.ok) {
@@ -54,6 +62,7 @@ export async function sendNpcMessage({ npcId, playerText, relationshipTier = 0, 
       ok: true,
       agreed: typeof data.agreed === 'boolean' ? data.agreed : false,
       relationshipDelta: typeof data.relationshipDelta === 'number' ? data.relationshipDelta : 0,
+      suggestedReplies: Array.isArray(data.suggestedReplies) ? data.suggestedReplies.filter((s) => typeof s === 'string' && s.trim()) : [],
     }
   } catch (err) {
     return {
@@ -61,6 +70,7 @@ export async function sendNpcMessage({ npcId, playerText, relationshipTier = 0, 
       ok: false,
       agreed: null,
       relationshipDelta: 0,
+      suggestedReplies: [],
       error: err?.message || String(err),
     }
   }

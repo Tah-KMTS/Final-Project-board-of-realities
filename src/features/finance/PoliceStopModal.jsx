@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import FinanceSkirmishModal from './FinanceSkirmishModal'
-import { getPoliceReadProbability } from './financeSkirmishEngine'
-import { generateSwatSquad } from './financeNpcs'
+import { sendNpcMessage } from '../../utils/npcChatClient'
+import PoliceFightModal from './PoliceFightModal'
 
-// The "real arrest pipeline" - replaces the old flat financePoliceEncounter
-// (which dropped the player straight into combat with no other options).
-// This is the choice screen shown first; FinanceSkirmishModal (the 4-choice
-// Attack/Heavy/Guard/Dodge skirmish engine) is only reached here on a
-// "Fight Now" pick or after a failed Bribe/Flee attempt, following the same
-// internal-phase pattern as CynnEncounterModal (own onClose only from
-// WorldScreen's point of view - all escalation happens inside this
-// component).
-//
-// Flee's hit-zone width matches the spec's own formula
-// (max(0.08, 0.2 - wantedLevel*0.02)) - tighter than TradeMeter's fixed 0.2
-// width since a heftier Wanted level means faster, more coordinated cops.
+// The "real arrest pipeline" - the choice screen shown first when a chased-
+// down police/FBI encounter (OverworldScene.js's triggerPoliceArrestEncounter)
+// or a witnessed-crime jail roll opens this modal. Four top-level options,
+// each its own committed branch (none loop back to this screen):
+//   - Fight: PoliceFightModal (Punch/Kick/Use Weapon/Special Move)
+//   - Escape: the existing timing-bar Flee minigame
+//   - Bribe: the existing flat-cost bribe attempt
+//   - Talk: free-text/preset dialogue with a real LLM-backed officer persona
+//     (backend/main.py's NPC_PERSONAS['police']) that can end the stop
+//     immediately, for better or worse - see TALK_MAX_ATTEMPTS below.
+// Bribe/Escape failing still drops into Fight (the player gets a chance to
+// throw hands); Talk failing arrests the player directly, no fight chance -
+// a real officer doesn't offer a do-over once they've decided you're lying
+// or being hostile, which is also the more severe, more distinct-from-
+// Bribe/Escape outcome the "let you go or arrest you right away" request
+// specifically asked for.
 
 const FLEE_SWEEP_PERIOD_MS = 1200
 
@@ -23,13 +26,36 @@ function randomFleeZone(width) {
   return { start: Math.random() * (1 - width) }
 }
 
-export default function PoliceStopModal({ wantedLevel, onClose }) {
+// Up to 3 exchanges to talk your way out. A single reply landing at or below
+// TALK_ARREST_DELTA_THRESHOLD ends it immediately (visibly hostile, an
+// obvious lie, attempted bribery in conversation) rather than making the
+// player burn through all 3 attempts first - matching how a real officer
+// would react to one clearly bad answer, not just a slow accumulation of
+// mediocre ones.
+const TALK_MAX_ATTEMPTS = 3
+const TALK_ARREST_DELTA_THRESHOLD = -2
+
+const TALK_PRESET_CHOICES = [
+  { key: 'calm', label: "Is there a problem, officer? I haven't done anything wrong." },
+  { key: 'cooperate', label: "Look, I don't want any trouble. What do you need from me?" },
+  { key: 'deflect', label: "You've got the wrong person - check again." },
+  { key: 'dismiss', label: "Come on, we both know this is a waste of your time." },
+]
+
+export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, onClose }) {
   const cash = useGameStore((s) => s.cash)
   const attemptStreetBribe = useGameStore((s) => s.attemptStreetBribe)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
   const sendToJail = useGameStore((s) => s.sendToJail)
 
-  // 'choice' -> 'bribeResolved' | 'fleeAiming' -> 'fleeResolved' | 'combat'
+  // OverworldScene's chaser-contact path always sends isFBI; anything else
+  // that still opens this modal (a jail roll from a witnessed crime, say)
+  // won't, so fall back to the same wantedLevel>=4 threshold
+  // generateSwatSquad already uses rather than defaulting to false.
+  const isFBI = typeof isFBIProp === 'boolean' ? isFBIProp : wantedLevel >= 4
+  const unitLabel = isFBI ? 'FBI Tactical Unit' : 'local patrol'
+
+  // 'choice' -> 'bribeResolved' | 'fleeAiming' -> 'fleeResolved' | 'talk' -> 'combat'
   const [phase, setPhase] = useState('choice')
   const [resultText, setResultText] = useState('')
   const [resultSuccess, setResultSuccess] = useState(false)
@@ -43,6 +69,15 @@ export default function PoliceStopModal({ wantedLevel, onClose }) {
   const canAffordBribe = cash >= bribeCost
   const fleeZoneWidth = Math.max(0.08, 0.2 - wantedLevel * 0.02)
   const [fleeZone] = useState(() => randomFleeZone(fleeZoneWidth))
+
+  // --- Talk state ---
+  const [talkHistory, setTalkHistory] = useState([])
+  const [talkInputMode, setTalkInputMode] = useState('choice') // 'choice' | 'free'
+  const [talkInput, setTalkInput] = useState('')
+  const [talkLoading, setTalkLoading] = useState(false)
+  const [talkError, setTalkError] = useState(false)
+  const [talkAttempts, setTalkAttempts] = useState(0)
+  const [talkOutcome, setTalkOutcome] = useState(null) // null | 'released' | 'arrested'
 
   useEffect(() => {
     if (phase !== 'fleeAiming') return
@@ -89,78 +124,123 @@ export default function PoliceStopModal({ wantedLevel, onClose }) {
     if (resultSuccess) {
       onClose()
     } else {
-      // Bribe/flee failure - "no extra Wanted penalty here, they're already
-      // caught" per spec. Straight into the same combat the old flat
-      // encounter always opened, just gated behind a failed skill attempt
-      // now instead of being the only option.
+      // Bribe/flee failure - straight into Fight, same as before: caught,
+      // but still a chance to throw hands rather than an automatic loss.
       setPhase('combat')
     }
   }
 
+  const submitTalk = async (text) => {
+    if (!text.trim() || talkLoading || talkOutcome) return
+    const attemptNumber = talkAttempts + 1
+    const historyForRequest = talkHistory.map((h) => ({ role: h.role, text: h.text }))
+    setTalkHistory((h) => [...h, { role: 'player', text }])
+    setTalkInput('')
+    setTalkLoading(true)
+    setTalkError(false)
+    setTalkAttempts(attemptNumber)
+
+    const situationContext =
+      `Wanted Level: ${wantedLevel}/5. Unit: ${unitLabel}. ` +
+      `This is the player's attempt ${attemptNumber} of ${TALK_MAX_ATTEMPTS} to talk their way out of this stop. ` +
+      (attemptNumber >= TALK_MAX_ATTEMPTS
+        ? 'This is their LAST chance - if this answer does not genuinely convince you, arrest them.'
+        : '')
+
+    const { reply, ok, agreed, relationshipDelta } = await sendNpcMessage({
+      npcId: 'police',
+      playerText: text,
+      conversationHistory: historyForRequest,
+      character: null,
+      situationContext,
+    })
+
+    setTalkHistory((h) => [...h, { role: 'npc', text: reply, agreed: ok ? agreed : null }])
+    setTalkError(!ok)
+    setTalkLoading(false)
+
+    if (ok && agreed) {
+      addWantedLevel(-1)
+      setTalkOutcome('released')
+      return
+    }
+    // A clearly bad answer, or the last of 3 attempts with no yes yet, ends
+    // it right there - no fight chance, matching a real officer's actual
+    // last resort.
+    const severelyBad = ok && relationshipDelta <= TALK_ARREST_DELTA_THRESHOLD
+    if (severelyBad || attemptNumber >= TALK_MAX_ATTEMPTS) {
+      setTalkOutcome('arrested')
+    }
+  }
+
+  const handleTalkPreset = (choice) => submitTalk(choice.label)
+  const handleTalkFreeSubmit = (e) => {
+    e.preventDefault()
+    submitTalk(talkInput)
+  }
+
+  const handleTalkContinue = () => {
+    if (talkOutcome === 'arrested') {
+      sendToJail()
+    }
+    onClose()
+  }
+
   if (phase === 'combat') {
     return (
-      <FinanceSkirmishModal
-        title="Police Confrontation"
-        // GBA-style battle screen using the police sprite pack. Presentation
-        // only - the 4-choice engine underneath is unchanged and shared with
-        // the street fights, which keep the original panel.
-        skin="police"
-        monster={generateSwatSquad(wantedLevel)}
-        readProbability={getPoliceReadProbability(wantedLevel)}
+      <PoliceFightModal
+        wantedLevel={wantedLevel}
+        isFBI={isFBI}
         onClose={onClose}
-        // Win reward stays -1 (not the old Hunter-only -5 full-reset) -
-        // matches the "real arrest pipeline" nerf this same file already
-        // documents above for Bribe/Flee.
         onVictory={() => addWantedLevel(-1)}
         onDefeat={() => sendToJail()}
-        // Retreat used to be a free, instant escape from an active arrest -
-        // strictly better than both Bribe (costs cash) and Flee (real skill
-        // risk), so nobody had a reason to ever pick either. +1 Wanted for
-        // bailing on the fight (resisting, then running) makes Retreat a
-        // real third option with its own cost, not a dominant one - and
-        // since maybeSpawnPolice's re-encounter roll is driven by
-        // wantedLevel, this is also the fix for encounters feeling like
-        // they "pop right back" after a consequence-free retreat: now
-        // retreating is the one option that actively raises how likely the
-        // next one is, instead of the choice being invisible to that system.
         onRetreat={() => addWantedLevel(1)}
         retreatLabel="Break and Run (+1 Wanted)"
       />
     )
   }
 
+  const lastTalkNpcLine = [...talkHistory].reverse().find((h) => h.role === 'npc')
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[480px] border-4 border-blue-400 bg-[#1c1d3a] p-6 font-mono text-white">
-        <h2 className="mb-2 text-xl font-bold text-blue-300">Police Stop</h2>
+        <h2 className="mb-2 text-xl font-bold text-blue-300">{isFBI ? 'FBI Stop' : 'Police Stop'}</h2>
 
         {phase === 'choice' && (
           <>
             <p className="mb-4 text-sm text-gray-300">
-              Sirens. A patrol car pulls up on you - your heat finally caught up. {'★'.repeat(wantedLevel)}
+              {isFBI ? 'Federal agents box you in.' : 'Sirens. A patrol car pulls up on you'} - your heat finally
+              caught up. {'★'.repeat(wantedLevel)}
             </p>
             <div className="flex flex-col gap-2">
               <button
-                onClick={handleBribe}
-                disabled={!canAffordBribe}
-                className="flex flex-col items-start border-2 border-yellow-400 p-2 text-left hover:bg-yellow-400 hover:text-black disabled:opacity-30"
+                onClick={() => setPhase('combat')}
+                className="border-2 border-red-500 p-2 text-left font-bold hover:bg-red-500 hover:text-black"
               >
-                <span className="font-bold">Bribe on the spot</span>
-                <span className="text-xs">
-                  ${bribeCost.toLocaleString()}{!canAffordBribe ? ' — not enough cash' : ''}
-                </span>
+                Fight
               </button>
               <button
                 onClick={handleStartFlee}
                 className="border-2 border-green-400 p-2 text-left font-bold hover:bg-green-400 hover:text-black"
               >
-                Flee
+                Escape
               </button>
               <button
-                onClick={() => setPhase('combat')}
-                className="border-2 border-red-500 p-2 text-left font-bold hover:bg-red-500 hover:text-black"
+                onClick={handleBribe}
+                disabled={!canAffordBribe}
+                className="flex flex-col items-start border-2 border-yellow-400 p-2 text-left hover:bg-yellow-400 hover:text-black disabled:opacity-30"
               >
-                Fight Now
+                <span className="font-bold">Bribe</span>
+                <span className="text-xs">
+                  ${bribeCost.toLocaleString()}{!canAffordBribe ? ' — not enough cash' : ''}
+                </span>
+              </button>
+              <button
+                onClick={() => setPhase('talk')}
+                className="border-2 border-cyan-400 p-2 text-left font-bold hover:bg-cyan-400 hover:text-black"
+              >
+                Talk
               </button>
             </div>
           </>
@@ -199,6 +279,94 @@ export default function PoliceStopModal({ wantedLevel, onClose }) {
               {resultSuccess ? 'Continue' : 'Face Them'}
             </button>
           </div>
+        )}
+
+        {phase === 'talk' && (
+          <>
+            <div className="mb-3 min-h-[70px] border-2 border-gray-700 bg-[#0f1020] p-2 text-sm">
+              <p className="mb-1 text-xs font-bold text-cyan-400">{isFBI ? 'Agent' : 'Officer'}</p>
+              <p className="text-gray-200">
+                {lastTalkNpcLine ? lastTalkNpcLine.text : `"Stay right there. I need to ask you a few questions."`}
+              </p>
+              {talkError && (
+                <p className="mt-1 text-xs italic text-red-500">
+                  (Couldn't reach the NPC chat backend - is it running? See backend/README.md.)
+                </p>
+              )}
+            </div>
+
+            {talkOutcome ? (
+              <div className="text-center">
+                <p className={`mb-4 text-sm font-bold ${talkOutcome === 'released' ? 'text-green-400' : 'text-red-400'}`}>
+                  {talkOutcome === 'released'
+                    ? 'They buy it. You are clear to go.'
+                    : "They've heard enough. You're under arrest."}
+                </p>
+                <button
+                  onClick={handleTalkContinue}
+                  className={`border-4 px-6 py-2 font-bold ${
+                    talkOutcome === 'released'
+                      ? 'border-green-400 bg-green-500 text-black hover:bg-green-400'
+                      : 'border-red-500 bg-red-600 text-white hover:bg-red-500'
+                  }`}
+                >
+                  Continue
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="mb-2 text-xs text-gray-400">Attempt {talkAttempts + 1} of {TALK_MAX_ATTEMPTS}</p>
+                <div className="mb-2 flex gap-2 text-xs">
+                  <button
+                    onClick={() => setTalkInputMode('choice')}
+                    className={`border px-2 py-1 ${talkInputMode === 'choice' ? 'border-cyan-400 bg-cyan-900/50 text-cyan-200' : 'border-gray-700 text-gray-400'}`}
+                  >
+                    Choices
+                  </button>
+                  <button
+                    onClick={() => setTalkInputMode('free')}
+                    className={`border px-2 py-1 ${talkInputMode === 'free' ? 'border-cyan-400 bg-cyan-900/50 text-cyan-200' : 'border-gray-700 text-gray-400'}`}
+                  >
+                    Type your own
+                  </button>
+                </div>
+
+                {talkInputMode === 'choice' ? (
+                  <div className="flex flex-col gap-1.5">
+                    {TALK_PRESET_CHOICES.map((choice) => (
+                      <button
+                        key={choice.key}
+                        onClick={() => handleTalkPreset(choice)}
+                        disabled={talkLoading}
+                        className="border border-cyan-500/50 bg-[#141530] px-2 py-2 text-left text-xs text-cyan-100 hover:bg-cyan-900/50 disabled:opacity-40"
+                      >
+                        {choice.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <form onSubmit={handleTalkFreeSubmit} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={talkInput}
+                      onChange={(e) => setTalkInput(e.target.value)}
+                      placeholder="Say something to the officer..."
+                      disabled={talkLoading}
+                      maxLength={500}
+                      className="flex-1 border-2 border-cyan-500/60 bg-black/70 px-2 py-1 text-sm text-white placeholder:text-gray-500 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={talkLoading || !talkInput.trim()}
+                      className="border-2 border-cyan-400 px-3 py-1 text-sm font-bold text-cyan-300 hover:bg-cyan-400 hover:text-black disabled:opacity-30"
+                    >
+                      {talkLoading ? '...' : 'Send'}
+                    </button>
+                  </form>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
     </div>

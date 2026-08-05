@@ -3,11 +3,15 @@ import { useGameStore } from '../../store/useGameStore'
 import { sendNpcMessage } from '../../utils/npcChatClient'
 
 // Lisa Manobal - the Capital Syndicate roster's first entertainment-world
-// titan. Deliberately NOT part of the 90-character finance/crime/government
-// roster (characterLookup.js) - see backend/main.py's NPC_PERSONAS['lisa'] for
-// why: she's a hand-authored persona, same simple pattern 'tea'/
-// 'marriageCandidate' already use, not the roster-driven
-// build_character_persona path.
+// titan. She IS a real FINANCE_NPCS roster member (financeNpcs.js) - that's
+// what makes spawnNamedRoamers() walk her around the map and
+// characterHomeBuildings.js generate her a real, findable home building
+// (home_lisa, "Starlight Media HQ") - the same mechanism every other named
+// character uses. Her dialogue still runs through a hand-authored backend
+// persona (backend/main.py's NPC_PERSONAS['lisa'], the same simple pattern
+// 'tea'/'marriageCandidate' use) rather than the roster-driven
+// build_character_persona path, since her personality is bespoke, not
+// generated from FINANCE_NPCS' stat fields.
 //
 // This is a UI-polish pilot, not a new game mode: every action here (small
 // talk, a gift, pitching an investment, a hidden-agenda hustle, a pickpocket
@@ -28,9 +32,10 @@ const PORTRAITS = '/assets/packs/Lisa/portraits'
 const SCENES = '/assets/packs/Lisa/scenes'
 
 // Her worldPresenceEngine building -> the backdrop that matches it. Falls
-// back to the cafe interior, the most "having a conversation" of the set.
+// back to the cafe interior, the most "having a conversation" of the set -
+// that fallback is also what covers home_lisa (her own residence has no
+// dedicated backdrop art of its own).
 const SCENE_FOR_BUILDING = {
-  lisaHq: 'cafe',
   businessCenter: 'cafe_exterior',
   entertainmentComplex: 'street',
   trainStation: 'station',
@@ -45,6 +50,11 @@ const DISCLAIMER =
 const INTRO_LINE =
   "Oh - hey. Don't see a lot of new faces around here who aren't already holding a phone up at me."
 
+// The OPENING move only - there's no conversation yet for the model to
+// react to, so this is the one fixed menu in the whole flow. Every turn
+// after this one shows the backend's own suggestedReplies instead (see
+// submitText/currentChoices below), so the options actually evolve with
+// where the conversation goes rather than repeating this same set forever.
 // Tone varies the preset's flavor; agreed/relationshipDelta are still decided
 // live by the backend from Lisa's own persona (see PERSUASION_INSTRUCTIONS in
 // backend/main.py) - a preset is just a canned phrasing, not a shortcut that
@@ -103,6 +113,15 @@ export default function LisaModal({ onClose, buildingId }) {
   const [phase, setPhase] = useState('talk')
   const [mood, setMood] = useState('neutral')
   const [chatHistory, setChatHistory] = useState([])
+  // null until the first real reply lands, then holds the LLM's own 4
+  // contextual next-lines (see backend/main.py's SUGGESTED_REPLIES_
+  // INSTRUCTIONS) - PRESET_CHOICES below is only ever shown as the opening
+  // move, before there's any conversation for the model to react to.
+  // Without this the "Choices" tab showed the exact same 4 buttons forever
+  // regardless of what was actually said, which read as no progression at
+  // all - every subsequent turn now gets a fresh set shaped by what she just
+  // said and how the exchange is going.
+  const [dynamicChoices, setDynamicChoices] = useState(null)
   const [inputMode, setInputMode] = useState('choice') // 'choice' | 'free'
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
@@ -146,7 +165,7 @@ export default function LisaModal({ onClose, buildingId }) {
     setChatLoading(true)
     setChatError(false)
 
-    const { reply, ok, agreed, relationshipDelta } = await sendNpcMessage({
+    const { reply, ok, agreed, relationshipDelta, suggestedReplies } = await sendNpcMessage({
       npcId: 'lisa',
       playerText: text,
       relationshipTier: affection,
@@ -157,6 +176,10 @@ export default function LisaModal({ onClose, buildingId }) {
     setChatHistory((h) => [...h, { role: 'npc', text: reply, agreed: ok ? agreed : null }])
     setChatError(!ok)
     setChatLoading(false)
+    // On failure just leave whatever choices were already showing in place
+    // (nothing new to react to) rather than overwriting them with an empty
+    // list - a dropped request shouldn't strand the player with no options.
+    if (ok && suggestedReplies.length) setDynamicChoices(suggestedReplies)
 
     let delta = 0
     if (ok && typeof relationshipDelta === 'number') {
@@ -166,9 +189,19 @@ export default function LisaModal({ onClose, buildingId }) {
     // Reaction reads off BOTH how much she liked it and what kind of thing
     // was said - a big win to a flirty line looks different from a big win
     // to a business pitch, and a failed hustle should look put-off rather
-    // than merely neutral.
-    if (delta >= 2) setMood(tone === 'pitch' ? 'business' : 'delighted')
-    else if (delta > 0) setMood(tone === 'smalltalk' ? 'amused' : 'happy')
+    // than merely neutral. 'flirty'/'giddy' are the two big-win reactions
+    // that are specifically about HER warming up to the player personally
+    // (smalltalk/curious) rather than being impressed by a pitch, and
+    // 'fierce' is a sharper, more pointed reaction than plain 'annoyed' -
+    // reserved for when the player's message actually cost real ground
+    // (delta <= -2), not just a lukewarm miss.
+    if (delta >= 2) {
+      if (tone === 'pitch') setMood('business')
+      else if (tone === 'smalltalk') setMood('flirty')
+      else if (tone === 'curious') setMood('giddy')
+      else setMood('delighted')
+    } else if (delta > 0) setMood(tone === 'smalltalk' ? 'amused' : 'happy')
+    else if (delta <= -2) setMood('fierce')
     else if (delta < 0) setMood('annoyed')
     else if (tone === 'hustle') setMood('annoyed')
     else if (tone === 'pitch') setMood('business')
@@ -189,7 +222,10 @@ export default function LisaModal({ onClose, buildingId }) {
     }
     addCash(-gift.cost)
     applyAffectionDelta(gift.gain)
-    setMood('happy')
+    // The lavish gift (a genuinely personal, high-effort pick) gets the
+    // swept-up 'giddy' reaction instead of the flatter default 'happy' the
+    // smaller, more casual gifts still use.
+    setMood(gift.key === 'lavish' ? 'giddy' : 'happy')
     setFeedbackMsg(`She's genuinely pleased with the ${gift.label.toLowerCase()}. (+${gift.gain} affection)`)
     setPhase('talk')
   }
@@ -238,6 +274,12 @@ export default function LisaModal({ onClose, buildingId }) {
 
   const lastNpcLine = [...chatHistory].reverse().find((h) => h.role === 'npc')
   const dialogueText = lastNpcLine ? lastNpcLine.text : INTRO_LINE
+  // Static PRESET_CHOICES only ever covers the opening move, before there's
+  // a real conversation for the model to react to - every choice after that
+  // comes straight from the reply that just landed (see submitText).
+  const currentChoices = dynamicChoices
+    ? dynamicChoices.map((label, i) => ({ key: `dyn-${i}`, label, tone: 'free' }))
+    : PRESET_CHOICES
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 font-mono">
@@ -381,7 +423,7 @@ export default function LisaModal({ onClose, buildingId }) {
 
               {inputMode === 'choice' ? (
                 <div className="grid grid-cols-2 gap-1.5">
-                  {PRESET_CHOICES.map((choice) => (
+                  {currentChoices.map((choice) => (
                     <button
                       key={choice.key}
                       onClick={() => handlePreset(choice)}
