@@ -1,6 +1,8 @@
 import { useGameStore } from './store/useGameStore'
 import WelcomeScreen from './components/Menu/WelcomeScreen'
 import WorldScreen from './components/WorldScreen'
+import IntroCutscene from './features/cutscene/IntroCutscene'
+import EndingCutscene from './features/cutscene/EndingCutscene'
 import LeverageMeterDemo from './features/finance/LeverageMeterDemo'
 
 function GameOverScreen() {
@@ -21,7 +23,9 @@ function GameOverScreen() {
 
 const SCREENS = {
   welcome: WelcomeScreen,
+  cutscene: IntroCutscene,
   world: WorldScreen,
+  ending: EndingCutscene,
   gameOver: GameOverScreen,
 }
 

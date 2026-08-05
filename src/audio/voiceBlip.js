@@ -18,6 +18,13 @@ const VOICE_PRESETS = {
   receptionist: { base: 420, spread: 50, type: 'square' },
   marriageCandidate: { base: 460, spread: 80, type: 'sine' },
   narrator: { base: 240, spread: 30, type: 'triangle' },
+  // Opening-cutscene cast (see features/cutscene/introCutsceneScript.js):
+  // the player reads brighter than the narrator, his father sits well
+  // below both, and the broker's margin-call text is a flat, tuneless
+  // square with almost no spread so it sounds like a machine, not a person.
+  player: { base: 350, spread: 55, type: 'square' },
+  gruff: { base: 150, spread: 25, type: 'sawtooth' },
+  robot: { base: 200, spread: 8, type: 'square' },
 }
 
 export function playTalkBlip(voiceId = 'default') {

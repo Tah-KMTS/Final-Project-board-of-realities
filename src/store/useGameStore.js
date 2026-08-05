@@ -102,7 +102,12 @@ function crashResetCrypto() {
 
 function createDefaultState() {
   return {
-    screen: 'welcome', // welcome | world | gameOver
+    screen: 'welcome', // welcome | cutscene | world | ending | gameOver
+    // One-way latch for the ending, so the $10M cash watcher in
+    // WorldScreen.jsx fires the ending exactly once. Not persisted by
+    // saveGame(), so loading a save that is already at/over the target
+    // plays the ending again rather than silently swallowing it.
+    endingTriggered: false,
     // Gates the one-time "how to play / goal of the game" intro shown on
     // WorldScreen's first mount after a brand new game - false only on a
     // fresh startNewGame(); loadGame() always forces this true, since
@@ -323,7 +328,11 @@ export const useGameStore = create((set, get) => ({
 
   // Character creator and the dice-roll screen are removed - there's only
   // one world in play (Capital Syndicate/Finance) and one fixed character,
-  // so "New Game" goes straight from the welcome screen into the world.
+  // so "New Game" goes straight from the welcome screen into the opening
+  // cutscene (features/cutscene/IntroCutscene.jsx), which then hands off
+  // to the world. hasSeenIntro stays false through the cutscene, so the
+  // rules screen (WelcomeIntroModal) still shows on first world mount -
+  // story first, then how-to-play.
   startNewGame: () => {
     const fresh = createDefaultState()
     set({
@@ -331,8 +340,22 @@ export const useGameStore = create((set, get) => ({
       player: { ...fresh.player, name: 'Player', gender: 'male' },
       shadowMonarch: { ...fresh.shadowMonarch, conditionId: rollShadowMonarchCondition() },
       currentBlockId: 'finance',
-      screen: 'world',
+      screen: 'cutscene',
     })
+  },
+
+  // Leaves the opening cutscene for the world - whether it was read to the
+  // end or skipped, so there's one exit path and no way to strand the
+  // player on a cutscene screen with no world behind it.
+  finishCutscene: () => set({ screen: 'world' }),
+
+  // Cuts straight from the world to the ending cutscene + credits. Called
+  // by WorldScreen.jsx's cash watcher when the HUD cash figure reaches
+  // ENDING_CASH_TARGET; the endingTriggered latch makes it idempotent, so
+  // further cash changes in the same session can't re-enter it.
+  triggerEnding: () => {
+    if (get().endingTriggered) return
+    set({ endingTriggered: true, screen: 'ending' })
   },
 
   enterWorld: () => set({ screen: 'world' }),

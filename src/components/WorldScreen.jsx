@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../store/useGameStore'
 import GameCanvas, { createEventBridge } from '../game/GameCanvas'
 import WelcomeIntroModal from './WelcomeIntroModal'
+import { ENDING_CASH_TARGET } from '../features/cutscene/endingCutsceneScript'
 import RiftCombatModal from '../features/hunter/RiftCombatModal'
 import PoomQuestModal from '../features/hunter/PoomQuestModal'
 import MiniGolfModal from '../features/hunter/MiniGolfModal'
@@ -151,6 +152,7 @@ export default function WorldScreen() {
   const addOwnedVehicle = useGameStore((s) => s.addOwnedVehicle)
   const jail = useGameStore((s) => s.jail)
   const hasSeenIntro = useGameStore((s) => s.hasSeenIntro)
+  const triggerEnding = useGameStore((s) => s.triggerEnding)
 
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
@@ -256,6 +258,21 @@ export default function WorldScreen() {
     }
     prevClearedIdsRef.current = new Set(blocks.filter((b) => b.cleared).map((b) => b.id))
   }, [blocks])
+
+  // Ending watcher: the moment the HUD cash figure reaches $10,000,000 the
+  // game cuts to the ending cutscene + credits (features/cutscene/
+  // EndingCutscene.jsx). Deliberately watches raw `cash` rather than
+  // computeNetWorth(), because the brief was the number displayed at the
+  // top of the screen - which is what the HUD below renders.
+  //
+  // Sitting on the rendered value rather than inside the store means every
+  // route that can move cash (jobs, trades, heists, rent, End Day payouts,
+  // debug) is covered by one check, instead of needing a call added to each
+  // of the ~40 places that call set({ cash }). triggerEnding() carries its
+  // own one-way latch, so re-renders at or above the target are no-ops.
+  useEffect(() => {
+    if (cash >= ENDING_CASH_TARGET) triggerEnding()
+  }, [cash, triggerEnding])
 
   // Being arrested (jail.inJail flipping false -> true, from any executeCrime
   // call site - Temple/Bank/Crypto/collude/extort/vehicle theft) teleports
