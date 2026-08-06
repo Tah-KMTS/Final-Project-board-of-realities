@@ -52,8 +52,14 @@ import { initializeTransportationState, purchaseVehicle } from '../features/worl
 import { initializeRomanceState } from '../features/agents/romanceEngine'
 import { simulateAgentAssetPurchasing } from '../features/agents/agentAssetPurchasing'
 import { STARTER_DP_DECK } from '../features/domino/cardDatabase'
+import { ENDING_CASH_TARGET } from '../features/cutscene/endingCutsceneScript'
 
 const SAVE_KEY = 'board-of-realities-save'
+// Hard day limit for the whole run: if ENDING_CASH_TARGET isn't reached by
+// the time Days Left hits 0 (see endDay()'s check at the bottom of this
+// file), the run ends in a loss - see WorldScreen.jsx's header display and
+// App.jsx's GameOverScreen.
+export const DAYS_LIMIT = 30
 export const FINANCE_AMBIENT_NPC_COUNT = 8
 const FINANCE_TOTAL_NPCS = FINANCE_NPCS.length + FINANCE_AMBIENT_NPC_COUNT
 
@@ -108,6 +114,11 @@ function createDefaultState() {
     // saveGame(), so loading a save that is already at/over the target
     // plays the ending again rather than silently swallowing it.
     endingTriggered: false,
+    // Which GameOverScreen (App.jsx) message to show - 'permadeath' (Hunter's
+    // Rift HP hitting 0, see takeDamage) or 'daysUp' (Days Left hitting 0
+    // before ENDING_CASH_TARGET, see endDay). Only meaningful once
+    // screen === 'gameOver'.
+    gameOverReason: 'permadeath',
     // Gates the one-time "how to play / goal of the game" intro shown on
     // WorldScreen's first mount after a brand new game - false only on a
     // fresh startNewGame(); loadGame() always forces this true, since
@@ -443,7 +454,7 @@ export const useGameStore = create((set, get) => ({
     }
     set({ player: { ...state.player, hp: 0, alive: false } })
     localStorage.removeItem(SAVE_KEY)
-    set({ screen: 'gameOver' })
+    set({ screen: 'gameOver', gameOverReason: 'permadeath' })
   },
 
   // Non-lethal counterpart to takeDamage(), for Finance-world encounters
@@ -2147,6 +2158,16 @@ export const useGameStore = create((set, get) => ({
     // other cash/portfolio-affecting effect above has already landed, so it
     // reads a fully-settled computeNetWorth() for this tick.
     get().checkNetWorthMilestones()
+
+    // Day-limit loss: Days Left (DAYS_LIMIT - (day - 1), see WorldScreen.jsx's
+    // header) hitting 0 without reaching ENDING_CASH_TARGET ends the run.
+    // Checked last, after every cash-affecting effect above this tick has
+    // landed, and skipped if cash already cleared the target this same
+    // tick - that's a win (WorldScreen.jsx's cash-watching effect fires
+    // triggerEnding separately), not a loss.
+    if (nextDay - 1 >= DAYS_LIMIT && get().cash < ENDING_CASH_TARGET) {
+      set({ screen: 'gameOver', gameOverReason: 'daysUp' })
+    }
 
     // Fire-and-forget AI narration for exactly one "flagship" event this
     // tick - never awaited, so endDay() above has already fully resolved

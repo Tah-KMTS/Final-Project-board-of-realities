@@ -7,10 +7,18 @@ import LeverageMeterDemo from './features/finance/LeverageMeterDemo'
 
 function GameOverScreen() {
   const setScreen = useGameStore((s) => s.setScreen)
+  // 'permadeath' (Hunter's Rift HP hitting 0, save wiped - see takeDamage)
+  // vs 'daysUp' (Days Left hit 0 before the $10M target, see endDay) show
+  // different reasons here - only the former actually wipes the save.
+  const gameOverReason = useGameStore((s) => s.gameOverReason)
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-6 bg-black font-mono text-white">
       <h1 className="text-6xl font-bold text-red-600">GAME OVER</h1>
-      <p className="text-gray-400">Your save file has been wiped. Permadeath is permanent.</p>
+      <p className="text-gray-400">
+        {gameOverReason === 'daysUp'
+          ? "Time's up. 30 days came and went, and you never cleared the $10,000,000 balance."
+          : 'Your save file has been wiped. Permadeath is permanent.'}
+      </p>
       <button
         onClick={() => setScreen('welcome')}
         className="border-4 border-gray-500 px-6 py-2 font-bold hover:bg-gray-500"

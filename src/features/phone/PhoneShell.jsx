@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, ArrowLeft, Wallet, Siren, Rss, Heart, Sparkles, CalendarClock, TrendingUp, Map } from 'lucide-react'
+import { X, ArrowLeft, Wallet, Siren, Rss, Heart, Sparkles, TrendingUp, Map } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
 import { NET_WORTH_WIN_TARGET, NET_WORTH_MILESTONES } from '../../features/finance/marketData'
 
@@ -83,7 +83,6 @@ export default function PhoneShell({ onClose, apps = {} }) {
 
   const cash = useGameStore((s) => s.cash)
   const wantedLevel = useGameStore((s) => s.wantedLevel)
-  const day = useGameStore((s) => s.day)
   const computeNetWorth = useGameStore((s) => s.computeNetWorth)
   const world2 = useGameStore((s) => s.world2)
   const heatPct = Math.round((wantedLevel / 5) * 100)
@@ -128,11 +127,12 @@ export default function PhoneShell({ onClose, apps = {} }) {
         {/* Screen area - reuses the game's existing panel gradient */}
         <div className="relative flex h-full w-full flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#1c1d3a] px-4 pb-4 pt-3">
           {/* Status tray - Cash + Wanted/Heat from the original build, plus
-              Day and Net Worth (computed the same way FinanceStatusBar.jsx
-              used to before the header strip-down) now that this is the only
-              place those two are still shown. Two rows: not enough width in
-              this 360px frame for all 4 stats plus the back/close buttons on
-              one line. */}
+              Net Worth (computed the same way FinanceStatusBar.jsx used to
+              before the header strip-down) now that this is the only place
+              that's still shown. Day moved to WorldScreen.jsx's header as
+              "Days Left" - see useGameStore.js's DAYS_LIMIT. Two rows: not
+              enough width in this 360px frame for all 3 stats plus the
+              back/close buttons on one line. */}
           <div className="mb-3 text-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -145,8 +145,6 @@ export default function PhoneShell({ onClose, apps = {} }) {
                     <ArrowLeft size={14} />
                   </button>
                 )}
-                <CalendarClock size={14} className="text-cyan-300" />
-                <span className="font-bold text-cyan-300">Day {day}</span>
               </div>
               <button
                 onClick={onClose}

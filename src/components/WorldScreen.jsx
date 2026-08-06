@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useGameStore } from '../store/useGameStore'
+import { useGameStore, DAYS_LIMIT } from '../store/useGameStore'
 import GameCanvas, { createEventBridge } from '../game/GameCanvas'
 import WelcomeIntroModal from './WelcomeIntroModal'
 import { ENDING_CASH_TARGET } from '../features/cutscene/endingCutsceneScript'
@@ -136,6 +136,13 @@ export default function WorldScreen() {
   const player = useGameStore((s) => s.player)
   const cash = useGameStore((s) => s.cash)
   const wantedLevel = useGameStore((s) => s.wantedLevel)
+  // Days Left counts down from DAYS_LIMIT as `day` advances (End Day, see
+  // useGameStore.js's endDay) - day starts at 1, so Days Left starts at the
+  // full DAYS_LIMIT rather than DAYS_LIMIT-1. endDay() itself triggers the
+  // 'daysUp' game over once this hits 0 without ENDING_CASH_TARGET cleared;
+  // this is purely the read-only display.
+  const day = useGameStore((s) => s.day)
+  const daysLeft = Math.max(0, DAYS_LIMIT - (day - 1))
   const currentBlockId = useGameStore((s) => s.currentBlockId)
   const blocks = useGameStore((s) => s.blocks)
   const saveGame = useGameStore((s) => s.saveGame)
@@ -474,7 +481,19 @@ export default function WorldScreen() {
     <div className="flex h-full w-full flex-col items-center gap-4 bg-[#0f1020] p-4 font-mono text-white">
       {!hasSeenIntro && <WelcomeIntroModal />}
       {hasSeenIntro && showHelp && <WelcomeIntroModal onClose={() => setShowHelp(false)} />}
-      <div className="flex w-full max-w-[640px] flex-wrap items-center justify-between gap-2 border-2 border-gray-700 bg-[#1c1d3a] px-4 py-2 text-sm">
+      {/* justify-center + an explicit gap (not justify-between/justify-start)
+          - with "Days Left" added, justify-between stretched every item
+          (Days Left/Player/HP/Energy/Cash/Wanted on the first wrapped line,
+          district label + button group on the second) to fill the full
+          860px width, leaving oversized gaps between them; justify-start
+          then left-aligned both lines, leaving all the leftover space
+          bunched up on the right instead. Centering each wrapped line
+          keeps items close together AND balances the leftover space
+          evenly on both sides. */}
+      <div className="flex w-full max-w-[860px] flex-wrap items-center justify-center gap-x-5 gap-y-2 border-2 border-gray-700 bg-[#1c1d3a] px-4 py-2 text-sm">
+        <div>
+          Days Left: <span className={daysLeft <= 5 ? 'text-red-400' : 'text-cyan-300'}>{daysLeft}</span>
+        </div>
         <div>
           <span className="font-bold text-yellow-300">{player.name}</span>{' '}
           <span className="text-gray-400">Lv.{player.level}</span>
@@ -500,37 +519,47 @@ export default function WorldScreen() {
           </div>
         )}
         <div className="text-gray-400">{displayBlockName}</div>
-        <button
-          onClick={() => {
-            if (!document.fullscreenElement) {
-              document.documentElement.requestFullscreen()
-            } else {
-              document.exitFullscreen()
-            }
-          }}
-          className="border border-cyan-300 px-2 py-1 text-xs hover:bg-cyan-300 hover:text-black font-bold"
-          title="Toggle Fullscreen Mode"
-        >
-          📺 Fullscreen
-        </button>
-        <button
-          onClick={() => setActiveModal({ type: 'inventory' })}
-          className="border border-purple-300 px-2 py-1 text-xs hover:bg-purple-300 hover:text-black"
-        >
-          Inventory
-        </button>
-        <button
-          onClick={handleSave}
-          className="border border-blue-300 px-2 py-1 text-xs hover:bg-blue-300 hover:text-black"
-        >
-          Save
-        </button>
-        <button
-          onClick={() => setScreen('welcome')}
-          className="border border-gray-500 px-2 py-1 text-xs hover:bg-gray-500 hover:text-black"
-        >
-          Menu
-        </button>
+        {/* Grouped with a tight gap instead of left as separate flex
+            children of the header's own justify-between - on this second
+            wrapped line there are only 2-3 items total, so space-between
+            was spreading these 4 buttons across the full header width with
+            huge gaps between them. Clustering them into one flex child
+            keeps that same justify-between behavior for the line as a
+            whole (district label on the left, button group on the right)
+            without stretching the buttons themselves apart. */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen()
+              } else {
+                document.exitFullscreen()
+              }
+            }}
+            className="border border-cyan-300 px-2 py-1 text-xs hover:bg-cyan-300 hover:text-black font-bold"
+            title="Toggle Fullscreen Mode"
+          >
+            📺 Fullscreen
+          </button>
+          <button
+            onClick={() => setActiveModal({ type: 'inventory' })}
+            className="border border-purple-300 px-2 py-1 text-xs hover:bg-purple-300 hover:text-black"
+          >
+            Inventory
+          </button>
+          <button
+            onClick={handleSave}
+            className="border border-blue-300 px-2 py-1 text-xs hover:bg-blue-300 hover:text-black"
+          >
+            Save
+          </button>
+          <button
+            onClick={() => setScreen('welcome')}
+            className="border border-gray-500 px-2 py-1 text-xs hover:bg-gray-500 hover:text-black"
+          >
+            Menu
+          </button>
+        </div>
       </div>
 
       {mode === 'overworld' && (
