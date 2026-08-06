@@ -21,6 +21,7 @@ import { useGameStore } from '../../store/useGameStore'
 export default function JailEscapeModal({ onClose, onVictory }) {
   const jail = useGameStore((s) => s.jail)
   const cash = useGameStore((s) => s.cash)
+  const wantedLevel = useGameStore((s) => s.wantedLevel)
   const payBail = useGameStore((s) => s.payBail)
   const attemptJailBribe = useGameStore((s) => s.attemptJailBribe)
   const getEffectiveLuck = useGameStore((s) => s.getEffectiveLuck)
@@ -39,7 +40,15 @@ export default function JailEscapeModal({ onClose, onVictory }) {
     const cost = jail.bailCost
     const ok = payBail()
     if (ok) {
-      appendLog(`You paid $${cost.toLocaleString()} bail and walked out the front door.`)
+      // Bail releases you from the cell, it doesn't touch wantedLevel (see
+      // useGameStore.js's payBail) - only a successful bribe, Escape, Talk,
+      // or serving the sentence out actually works off heat. Said out loud
+      // here so walking straight into another chase afterward reads as the
+      // intended risk of the fast option, not a bug.
+      appendLog(
+        `You paid $${cost.toLocaleString()} bail and walked out the front door. ` +
+          `Still ${'★'.repeat(wantedLevel) || 'no'} Wanted - bail beats the booking, not the case.`
+      )
       setOutcome('freed')
     } else {
       appendLog("You don't have enough cash for bail.")
@@ -106,9 +115,11 @@ export default function JailEscapeModal({ onClose, onVictory }) {
             <button
               onClick={handlePayBail}
               disabled={busy || cash < jail.bailCost}
+              title="Gets you out now, but your Wanted Level stays exactly where it is."
               className="border-2 border-green-400 bg-green-950 py-1.5 text-sm font-bold text-green-400 hover:bg-green-500 hover:text-black disabled:opacity-30"
             >
               Pay Bail (${jail.bailCost.toLocaleString()})
+              <span className="block text-[10px] font-normal normal-case text-green-600">Does not reduce Wanted</span>
             </button>
 
             <div className="border-2 border-orange-900 bg-orange-950/40 p-2">

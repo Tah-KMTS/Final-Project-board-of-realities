@@ -14,6 +14,7 @@ import { generateHunterPolice, generateMonster } from '../features/hunter/monste
 import { hasRank } from '../features/hunter/skillEffects'
 import StockExchangeModal from '../features/finance/StockExchangeModal'
 import BankModal from '../features/finance/BankModal'
+import RealEstateModal from '../features/finance/RealEstateModal'
 import NamedNpcModal from '../features/finance/NamedNpcModal'
 import AmbientNpcModal from '../features/finance/AmbientNpcModal'
 import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
@@ -158,11 +159,17 @@ export default function WorldScreen() {
   const world4 = useGameStore((s) => s.world4)
   const addOwnedVehicle = useGameStore((s) => s.addOwnedVehicle)
   const jail = useGameStore((s) => s.jail)
+  const pendingCrimeArrest = useGameStore((s) => s.pendingCrimeArrest)
+  const policeWarning = useGameStore((s) => s.policeWarning)
+  const nearbyWitnesses = useGameStore((s) => s.nearbyWitnesses)
   const hasSeenIntro = useGameStore((s) => s.hasSeenIntro)
   const triggerEnding = useGameStore((s) => s.triggerEnding)
 
   const bridgeRef = useRef(createEventBridge())
   const [activeModal, setActiveModal] = useState(null)
+  // Transient "CAUGHT RED-HANDED" flash shown before pendingCrimeArrest's
+  // effect (below) opens the actual encounter modal - see that effect.
+  const [caughtFlash, setCaughtFlash] = useState(false)
   // Lets GuideApp.jsx's "How to Play" button reopen WelcomeIntroModal on
   // demand, independent of the persisted hasSeenIntro flag (see that
   // component's own header comment on why re-reading the tutorial must
@@ -297,6 +304,52 @@ export default function WorldScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jail?.inJail])
 
+  // A failed crime's jail roll no longer arrests the player directly (see
+  // useGameStore.js's applyCrimeOutcome) - it sets pendingCrimeArrest as a
+  // request instead, so "caught in the act" gets the same Fight/Escape/
+  // Bribe/Talk choice the physical street-chase encounter gives, rather than
+  // an instant, unavoidable cell with zero warning. This force-replaces
+  // whatever crime modal was open (a vehicle theft attempt, say) with the
+  // encounter, same "arrest physically removes you from whatever you were
+  // doing" precedent jail?.inJail's own effect above already set.
+  //
+  // clearPendingCrimeArrest() is deliberately called INSIDE the timeout,
+  // not synchronously up front - this effect's dependency array is
+  // [pendingCrimeArrest], so clearing it synchronously here would flip that
+  // same value back to null WHILE this effect is still running, which React
+  // reads as "the dependency changed again" and responds by running this
+  // effect's own cleanup (clearTimeout) before the 900ms timer ever fires.
+  // That self-cancelling loop was a real bug: the flash would show, the
+  // timer got silently killed a tick later, and the player was stuck on it
+  // forever with no way to reach the actual encounter modal. Clearing it
+  // only once the timer has already done its job avoids the dependency
+  // ever changing mid-effect.
+  useEffect(() => {
+    if (!pendingCrimeArrest) return
+    const { isFBI, bailDiscountMultiplier } = pendingCrimeArrest
+    // Brief full-screen beat before the encounter modal opens - "caught in
+    // the act" reading as an instant, silent modal swap was part of what
+    // made this whole path feel like a bug rather than a real moment. The
+    // modal itself also carries caughtRedHanded: true so its opening line
+    // ("You've been caught red-handed!") matches this, distinct from the
+    // physical chase encounter's "your heat finally caught up" framing -
+    // see PoliceStopModal.jsx.
+    setCaughtFlash(true)
+    const t = setTimeout(() => {
+      setCaughtFlash(false)
+      setActiveModal({
+        type: 'financePoliceEncounter',
+        wantedLevel: useGameStore.getState().wantedLevel,
+        isFBI,
+        bailDiscountMultiplier,
+        caughtRedHanded: true,
+      })
+      useGameStore.getState().clearPendingCrimeArrest()
+    }, 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCrimeArrest])
+
   useEffect(() => {
     const bridge = bridgeRef.current
     const offInteract = bridge.on('interact', (payload) => {
@@ -323,11 +376,22 @@ export default function WorldScreen() {
       // never even opens the minigame modal.
       if (payload.type === 'jailMazeCheckpoint') {
         const jailState = useGameStore.getState().jail
-        const outOfOrder =
-          !jailState?.inJail ||
-          jailState.mazeAttemptedToday ||
-          payload.segmentIndex !== (jailState.mazeProgress || 0)
-        if (outOfOrder) {
+        if (!jailState?.inJail) {
+          bridge.emit('resumeScene')
+          return
+        }
+        // mazeAttemptedToday locks EVERY checkpoint, not just whichever one
+        // was failed (see attemptMazeSegment) - without this the player just
+        // sees nothing happen when they press E, with no indication that
+        // it's a "one run per day" lockout rather than a dead interactable.
+        if (jailState.mazeAttemptedToday) {
+          alert(
+            "You already tried the corridor today - too many eyes on it for a second run. Press End Day to serve a day and get another shot, or head back to the Booking Desk to pay bail or bribe your way out instead."
+          )
+          bridge.emit('resumeScene')
+          return
+        }
+        if (payload.segmentIndex !== (jailState.mazeProgress || 0)) {
           bridge.emit('resumeScene')
           return
         }
@@ -569,6 +633,21 @@ export default function WorldScreen() {
       {!worldCleared && (
         <div className="relative w-full max-w-7xl mx-auto my-2 rounded-xl overflow-hidden flex items-center justify-center">
           <GameCanvas mode={mode} bridge={bridgeRef.current} spawnOverride={overworldSpawnHint} />
+          {/* On-screen early-warning signs, overlaid on the canvas rather
+              than buried in the stat bar text - both read from state
+              OverworldScene.js already computes every frame/throttled tick
+              (policeWarning, nearbyWitnesses), this just surfaces them
+              visibly instead of only mattering the instant a crime resolves. */}
+          {policeWarning && (
+            <div className="absolute top-2 left-1/2 z-20 -translate-x-1/2 animate-pulse rounded border-2 border-red-500 bg-red-950/90 px-4 py-1 text-sm font-bold uppercase tracking-widest text-red-300 shadow-lg">
+              🚨 {policeWarning.isFBI ? 'FBI Agent' : 'Officer'} closing in!
+            </div>
+          )}
+          {nearbyWitnesses > 0 && (
+            <div className="absolute top-2 right-2 z-20 rounded border border-amber-400 bg-amber-950/85 px-2 py-1 text-xs font-bold text-amber-300 shadow-lg">
+              👁 Eyewitness nearby - a botched crime here raises Wanted
+            </div>
+          )}
         </div>
       )}
 
@@ -602,15 +681,17 @@ export default function WorldScreen() {
           onContinue={() => {
             if (activeModal.success && activeModal.final) {
               // Final checkpoint clear: jail is already resolved in the
-              // store (attemptMazeSegment cleared it) - swap to the
-              // jailUnderworld backdrop and open the real Underworld hub
-              // modal on top of it, satisfying "auto-open UnderworldModal
-              // once, framed as emerging through the tunnel" with zero new
-              // modal code. Deliberately skips resumeScene here (unlike the
-              // two branches below) - the scene stays paused straight
-              // through into the Underworld modal rather than letting the
-              // player move around the transient backdrop for a frame.
-              setActiveModal({ type: 'building', id: 'underworld', viaJailMaze: true })
+              // store (attemptMazeSegment cleared it) - swap the scene to
+              // the real, persistent underworldInterior room (see
+              // OverworldScene.js's enterUnderworldFromJail) and open the
+              // Underworld hub modal on top of it, satisfying "auto-open
+              // UnderworldModal once, framed as emerging through the
+              // tunnel" with zero new modal code. Deliberately skips
+              // resumeScene here (unlike the two branches below) - the
+              // scene stays paused straight through into the Underworld
+              // modal rather than letting the player move around the room
+              // for a frame before it opens.
+              setActiveModal({ type: 'building', id: 'underworld' })
               bridgeRef.current.emit('enterJailUnderworld')
             } else if (activeModal.success) {
               // Non-final segment cleared - still standing in jailMaze,
@@ -757,11 +838,18 @@ export default function WorldScreen() {
           CorporateModal front doors) are gone too - Phase 4's 14-category
           trim deleted both outright, neither maps to a spec'd main-building
           category. */}
-      {/* Real Estate Agency is a new-district front door onto the same
-          existing Bank system, rather than duplicate mechanics - Commercial
-          District's realty wing. */}
+      {/* Real Estate Agency gets its own dedicated listings-only modal
+          (RealEstateModal.jsx) - it used to just open the full BankModal
+          (banking/work shift/rob vault/corporate holdings included), which
+          meant two different buildings on the map opened one identical
+          mega-modal. Real estate purchasing now lives ONLY here; BankModal
+          no longer has a Real Estate section at all (see its own header
+          comment) - it never displayed owned properties either, only the
+          buy-listing block this replaces. Properties bought here still show
+          up in the phone's Portfolio tab (PortfolioTab.jsx), unaffected by
+          this split - only the *buying* UI moved. */}
       {activeModal?.type === 'building' && activeModal.id === 'realEstateAgency' && (
-        <BankModal onClose={closeModal} />
+        <RealEstateModal onClose={closeModal} />
       )}
       {/* Casino got its own bespoke Phaser interior + a tabbed modal (real
           blackjack/poker/slots/NPC-challenge minigames), and now also hosts
@@ -871,25 +959,14 @@ export default function WorldScreen() {
           // that opens this modal), which UnderworldModal's own
           // `initialTab = 'blackMarket'` default already covers.
           initialTab={activeModal.initialTab}
-          onClose={
-            // Reached via the jail maze's tunnel rather than the normal
-            // overworld building - the scene is sitting on the transient
-            // jailUnderworld backdrop, not 'overworld', so closing needs to
-            // actually travel back rather than just unpausing in place.
-            activeModal.viaJailMaze
-              ? () => {
-                  setActiveModal(null)
-                  // interactionLocked was set by the pauseForModal() call
-                  // that fired when the final jailMazeCheckpoint was
-                  // triggered, and nothing since has resumed it (unlike the
-                  // failed-segment branch above, which does) - without this,
-                  // the player lands back on the overworld with movement and
-                  // interaction permanently frozen.
-                  bridgeRef.current.emit('resumeScene')
-                  bridgeRef.current.emit('exitJail')
-                }
-              : closeModal
-          }
+          // Reached via the jail maze's tunnel or the normal overworld
+          // building, doesn't matter which any more - enterUnderworldFromJail
+          // (OverworldScene.js) already lands the jail-tunnel arrival on this
+          // exact same persistent underworldInterior zone, so closing just
+          // unpauses in place like any other building visit. Whichever way
+          // the player got here, they're free to walk to another desk or
+          // leave through the room's own door.
+          onClose={closeModal}
         />
       )}
       {activeModal?.type === 'building' && activeModal.id === 'businessCenter' && (
@@ -957,8 +1034,14 @@ export default function WorldScreen() {
             checkWitnesses: true,
             excludeVictimWitness: true,
           })
-          // if we had a toast we could show res.message
-          closeModal()
+          // Stays open showing the actual roll outcome instead of closing
+          // silently - the old behavior gave zero indication of whether the
+          // mug succeeded, whiffed clean (no witness around), or got you
+          // caught, which is exactly what made "wanted level didn't move"
+          // read as a bug instead of the 80%-success/witness-gated roll it
+          // actually is. A pendingCrimeArrest hit (see useGameStore.js)
+          // still supersedes this on the very next render regardless.
+          setActiveModal({ ...activeModal, feedback: res.message })
         }
         const handleAttack = () => setActiveModal({ type: 'ambientCombat', npcId: activeModal.npcId })
 
@@ -967,7 +1050,7 @@ export default function WorldScreen() {
         // ambient slots with a bespoke modal (IncModal.jsx). The other 5
         // fall through to the plain AmbientNpcModal below, unchanged.
         if (activeModal.npcId === 'finance_ambient_2') {
-          return <IncModal onClose={closeModal} onMug={handleMug} onAttack={handleAttack} />
+          return <IncModal onClose={closeModal} onMug={handleMug} onAttack={handleAttack} feedback={activeModal.feedback} />
         }
         return (
           <AmbientNpcModal
@@ -975,6 +1058,7 @@ export default function WorldScreen() {
             onClose={closeModal}
             onMug={handleMug}
             onAttack={handleAttack}
+            feedback={activeModal.feedback}
           />
         )
       })()}
@@ -1004,7 +1088,20 @@ export default function WorldScreen() {
         />
       )}
       {activeModal?.type === 'financePoliceEncounter' && (
-        <PoliceStopModal wantedLevel={activeModal.wantedLevel} isFBI={activeModal.isFBI} onClose={closeModal} />
+        <PoliceStopModal
+          wantedLevel={activeModal.wantedLevel}
+          isFBI={activeModal.isFBI}
+          bailDiscountMultiplier={activeModal.bailDiscountMultiplier}
+          caughtRedHanded={activeModal.caughtRedHanded}
+          onClose={closeModal}
+        />
+      )}
+      {caughtFlash && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-red-950/90">
+          <p className="animate-pulse text-4xl font-black uppercase tracking-widest text-red-300">
+            Caught Red-Handed!
+          </p>
+        </div>
       )}
 
       {/* World 3 */}

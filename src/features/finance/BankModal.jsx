@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import { REAL_ESTATE_LISTINGS, JOB_ENERGY_COST } from './marketData'
+import { JOB_ENERGY_COST } from './marketData'
 import CorporateModal from './CorporateModal'
 import VaultCrackModal from './VaultCrackModal'
 import WorkShiftModal from './WorkShiftModal'
@@ -24,19 +24,20 @@ function MoneyField({ value, onChange, disabled }) {
 // BankingApp.jsx), skip the outer fixed-overlay wrapper and the bottom
 // "Leave" button - the wrapping hub (BankingApp / the phone shell) supplies
 // both, same convention as CryptoModal.jsx/GovernmentModal.jsx. Work Shift,
-// Rob Vault, Real Estate, AND Corporate Holdings (company acquisitions,
-// embeds CorporateModal.jsx - see that file) are ALSO gated to !embedded
+// Rob Vault, AND Corporate Holdings (company acquisitions, embeds
+// CorporateModal.jsx - see that file) are ALSO gated to !embedded
 // (building-only) - only deposits/withdrawals/loans stay phone-reachable
-// now. Clocking in for a shift, holding up the vault, or touring/acquiring
-// a property/company all only make sense standing in the building; assets
-// you already own still show up in the phone's Portfolio tab
-// (PortfolioTab.jsx), this just moves the *buying* actions to a building
-// visit.
+// now. Clocking in for a shift, holding up the vault, or acquiring a
+// company all only make sense standing in the building; assets you already
+// own still show up in the phone's Portfolio tab (PortfolioTab.jsx), this
+// just moves the *buying* actions to a building visit. Real Estate used to
+// live here too (a third building, Real Estate Agency, opened this exact
+// same modal just for its listing section) - it's split out into its own
+// RealEstateModal.jsx now, see WorldScreen.jsx's realEstateAgency case.
 export default function BankModal({ onClose, embedded = false }) {
   const cash = useGameStore((s) => s.cash)
   const world2 = useGameStore((s) => s.world2)
   const player = useGameStore((s) => s.player)
-  const buyRealEstate = useGameStore((s) => s.buyRealEstate)
   const currentJobTier = useGameStore((s) => s.currentJobTier)
   const depositCash = useGameStore((s) => s.depositCash)
   const withdrawCash = useGameStore((s) => s.withdrawCash)
@@ -145,45 +146,13 @@ export default function BankModal({ onClose, embedded = false }) {
           </div>
         </div>
 
-        {!embedded && (
-          <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3">
-            <p className="mb-2 text-sm font-bold">Real Estate</p>
-            {REAL_ESTATE_LISTINGS.map((listing) => {
-              const owned = world2.realEstate.includes(listing.id)
-              const milestoneLocked = listing.requiresMilestone && !(world2.netWorthMilestones || []).includes(listing.requiresMilestone)
-              return (
-                <div key={listing.id} className="mb-2 flex items-center justify-between border-b border-gray-700 pb-2 text-xs">
-                  <div>
-                    <p className="font-bold">{listing.name}</p>
-                    <p className="text-gray-400">${listing.price.toLocaleString()} • rent ${listing.rentPerTick}/tick</p>
-                    {milestoneLocked && (
-                      <p className="text-purple-400">Requires Conglomerate Threshold milestone ($1,000,000 net worth)</p>
-                    )}
-                  </div>
-                  {owned ? (
-                    <span className="text-green-400">Owned</span>
-                  ) : (
-                    <button
-                      onClick={() => buyRealEstate(listing)}
-                      disabled={cash < listing.price || milestoneLocked}
-                      className="border border-green-400 px-2 py-1 text-green-400 hover:bg-green-400 hover:text-black disabled:opacity-30"
-                    >
-                      Buy
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-
         {/* Corporate Holdings (company acquisitions) - moved here from the
             phone's Startups & M&A app, which was removed: CorporateModal
             had zero other entry point in the game (its old standalone
             buildings, "Corporate Holdings"/"VC Hub", were deleted in an
             earlier map-trim pass), so relocating it here rather than
-            deleting the feature outright. Same building-only gating as
-            Real Estate right above - reuses CorporateModal.jsx as-is via
+            deleting the feature outright. Building-only gated, same as
+            Work Shift/Rob Vault above - reuses CorporateModal.jsx as-is via
             its embedded prop instead of duplicating its listing markup. */}
         {!embedded && (
           <div className="mb-4 border-2 border-gray-600 bg-[#0f1020] p-3">

@@ -34,7 +34,7 @@ const PRESET_CHOICES = [
   { key: 'hustle', label: 'I need something done quietly - you in, no questions asked?' },
 ]
 
-export default function IncModal({ onClose, onMug, onAttack }) {
+export default function IncModal({ onClose, onMug, onAttack, feedback }) {
   const [mood, setMood] = useState('neutral')
   const [rapport, setRapport] = useState(0)
   const [chatHistory, setChatHistory] = useState([])
@@ -186,6 +186,11 @@ export default function IncModal({ onClose, onMug, onAttack }) {
             </form>
           )}
 
+          {feedback && (
+            <div className="mb-2 border border-orange-500/70 bg-orange-950/50 p-2 text-xs font-bold text-orange-200">
+              {feedback}
+            </div>
+          )}
           <div className="mt-2 flex gap-2">
             <button
               onClick={onMug}

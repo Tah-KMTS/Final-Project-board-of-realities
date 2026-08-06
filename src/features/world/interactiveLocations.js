@@ -78,7 +78,24 @@ export const INTERACTIVE_LOCATIONS = [
     description: 'Prohibition-era subterranean club frequented by Al Capone, Lucky Luciano, and Arnold Rothstein.',
     residentNpc: 'Al Capone & Lucky Luciano',
     items: [
+      { id: 'house_red', name: 'House Red', cost: 20, energyRestore: 15, bonusText: '+15 Energy' },
       { id: 'bootleg_whiskey', name: 'Prohibition Bootleg Whiskey', cost: 50, energyRestore: 30, bonusText: '-1 Wanted Level (Bribe Cop)' },
+      { id: 'capone_reserve', name: "Capone's Private Reserve", cost: 90, energyRestore: 50, bonusText: '+50 Energy' },
+      { id: 'backroom_medic', name: 'Back-Room Medic', cost: 120, healHp: 40, bonusText: '+40 HP' },
+    ],
+    // Rendered by InteractiveLocationModal's Factory/Studio Actions section
+    // (same shared shape ford_factory/apple_lab use), but 'lay_low' gets its
+    // own special-case handler there instead of the generic
+    // cost/rewardText-only purchase - see that file's handleLayLow.
+    actions: [
+      {
+        id: 'lay_low',
+        name: 'Lay Low for the Night',
+        cost: 300,
+        rewardText:
+          "Rent a back room and stay out of sight until morning - guaranteed -1 Wanted Level, plus a $150 cut " +
+          'from the night\'s take. Ends your day here, same as pressing End Day.',
+      },
     ],
   },
   {

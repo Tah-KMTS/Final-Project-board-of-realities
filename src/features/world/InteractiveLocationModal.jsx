@@ -16,11 +16,38 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
   const setVehicle = useGameStore((s) => s.setVehicle)
   const player = useGameStore((s) => s.player)
   const restoreEnergy = useGameStore((s) => s.restoreEnergy)
+  const healPlayer = useGameStore((s) => s.healPlayer)
+  const endDay = useGameStore((s) => s.endDay)
 
   const loc = INTERACTIVE_LOCATIONS.find((l) => l.id === locationId) || INTERACTIVE_LOCATIONS[0]
   const [feedback, setFeedback] = useState(null)
 
+  // 'lay_low' (Speakeasy Hotel) advances the whole day via endDay() - the
+  // only time-advancing action this game has (see useGameStore.js) - so a
+  // confirm dialog first, same as the named-NPC Attack warning in
+  // WorldScreen.jsx, rather than silently eating the player's day off a
+  // misclick in what otherwise looks like a plain purchase button.
+  const handleLayLow = (item) => {
+    if (cash < item.cost) {
+      setFeedback(`Insufficient funds! Need $${item.cost}.`)
+      return
+    }
+    const proceed = window.confirm(
+      `Lay low until morning? This ends your day (same as pressing End Day) and costs $${item.cost}.`
+    )
+    if (!proceed) return
+    addCash(-item.cost)
+    addCash(150)
+    addWantedLevel(-1)
+    setFeedback('You keep your head down until the room clears out. -1 Wanted, $150 richer.')
+    endDay()
+  }
+
   const handlePurchaseItem = (item) => {
+    if (item.id === 'lay_low') {
+      handleLayLow(item)
+      return
+    }
     if (cash < item.cost) {
       setFeedback(`Insufficient funds! Need $${item.cost}.`)
       return
@@ -28,9 +55,14 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
     // Buying a snack purely for its energyRestore when already at full
     // energy would just be burning cash for nothing - block it the same way
     // the cost check blocks an unaffordable purchase, rather than silently
-    // letting restoreEnergy's own maxEnergy clamp eat the difference.
+    // letting restoreEnergy's own maxEnergy clamp eat the difference. Same
+    // reasoning for healHp against full HP.
     if (item.energyRestore && player.energy >= player.maxEnergy) {
       setFeedback('Already at full Energy.')
+      return
+    }
+    if (item.healHp && player.hp >= player.maxHp) {
+      setFeedback('Already at full HP.')
       return
     }
     addCash(-item.cost)
@@ -39,6 +71,7 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
       addWantedLevel(-1)
     }
     if (item.energyRestore) restoreEnergy(item.energyRestore)
+    if (item.healHp) healPlayer(item.healHp)
 
     setFeedback(`Purchased ${item.name}! ${item.bonusText}`)
   }
@@ -114,10 +147,14 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
             </div>
           )}
 
-          {/* Factory / Studio Actions */}
+          {/* Factory / Studio Actions - also reused by speakeasy_club's
+              'lay_low' below, which isn't an "inspection" so the section
+              heading/button label swap for it specifically. */}
           {loc.actions && (
             <div>
-              <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-3">⚙️ Inspection & Production Operations</h3>
+              <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-3">
+                {loc.id === 'speakeasy_club' ? '🥃 Back Room' : '⚙️ Inspection & Production Operations'}
+              </h3>
               <div className="space-y-3">
                 {loc.actions.map((act) => (
                   <div key={act.id} className="rounded border border-cyan-500/40 bg-[#141b3d] p-4 flex justify-between items-center">
@@ -129,7 +166,7 @@ export default function InteractiveLocationModal({ locationId, onClose, onAcquir
                       onClick={() => handlePurchaseItem({ id: act.id, name: act.name, cost: act.cost, bonusText: act.rewardText })}
                       className="border border-cyan-400 bg-cyan-500/20 px-4 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-500 hover:text-black transition-all"
                     >
-                      Inspect (${act.cost})
+                      {act.id === 'lay_low' ? `Lay Low ($${act.cost})` : `Inspect ($${act.cost})`}
                     </button>
                   </div>
                 ))}

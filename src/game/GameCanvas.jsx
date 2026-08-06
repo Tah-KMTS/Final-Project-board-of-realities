@@ -120,8 +120,11 @@ export default function GameCanvas({ mode = 'overworld', bridge, spawnOverride }
     const unsubExitJail = bridge.on('exitJail', () => {
       sceneRef.current?.loadZone?.('overworld')
     })
+    // Lands the player in the REAL, persistent Underworld hub (same room a
+    // normal front-door visit reaches), not a disposable one-scene backdrop -
+    // see OverworldScene.js's enterUnderworldFromJail for why.
     const unsubEnterJailUnderworld = bridge.on('enterJailUnderworld', () => {
-      sceneRef.current?.loadZone?.('jailUnderworld')
+      sceneRef.current?.enterUnderworldFromJail?.()
     })
 
     const unsubCityTravel = bridge.on('cityTravel', ({ cityId }) => {

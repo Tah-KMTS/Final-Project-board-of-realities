@@ -19,6 +19,14 @@ import PoliceFightModal from './PoliceFightModal'
 // or being hostile, which is also the more severe, more distinct-from-
 // Bribe/Escape outcome the "let you go or arrest you right away" request
 // specifically asked for.
+//
+// bailDiscountMultiplier: only ever non-1 on the witnessed-crime path
+// (applyCrimeOutcome's home-turf syndicate discount, carried on
+// useGameStore's pendingCrimeArrest request since this modal only knows
+// wantedLevel/isFBI, not which syndicate job it came from). Threaded
+// straight through to every sendToJail() call in this file so that discount
+// still applies on a Fight loss or an arrested Talk outcome, same as it
+// always did when applyCrimeOutcome called sendToJail directly.
 
 const FLEE_SWEEP_PERIOD_MS = 1200
 
@@ -42,7 +50,7 @@ const TALK_PRESET_CHOICES = [
   { key: 'dismiss', label: "Come on, we both know this is a waste of your time." },
 ]
 
-export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, onClose }) {
+export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, bailDiscountMultiplier = 1, caughtRedHanded = false, onClose }) {
   const cash = useGameStore((s) => s.cash)
   const attemptStreetBribe = useGameStore((s) => s.attemptStreetBribe)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
@@ -78,6 +86,11 @@ export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, onClose
   const [talkError, setTalkError] = useState(false)
   const [talkAttempts, setTalkAttempts] = useState(0)
   const [talkOutcome, setTalkOutcome] = useState(null) // null | 'released' | 'arrested'
+  const talkScrollRef = useRef(null)
+
+  useEffect(() => {
+    if (talkScrollRef.current) talkScrollRef.current.scrollTop = talkScrollRef.current.scrollHeight
+  }, [talkHistory])
 
   useEffect(() => {
     if (phase !== 'fleeAiming') return
@@ -181,7 +194,7 @@ export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, onClose
 
   const handleTalkContinue = () => {
     if (talkOutcome === 'arrested') {
-      sendToJail()
+      sendToJail({ bailDiscountMultiplier })
     }
     onClose()
   }
@@ -193,14 +206,12 @@ export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, onClose
         isFBI={isFBI}
         onClose={onClose}
         onVictory={() => addWantedLevel(-1)}
-        onDefeat={() => sendToJail()}
+        onDefeat={() => sendToJail({ bailDiscountMultiplier })}
         onRetreat={() => addWantedLevel(1)}
         retreatLabel="Break and Run (+1 Wanted)"
       />
     )
   }
-
-  const lastTalkNpcLine = [...talkHistory].reverse().find((h) => h.role === 'npc')
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -209,10 +220,17 @@ export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, onClose
 
         {phase === 'choice' && (
           <>
-            <p className="mb-4 text-sm text-gray-300">
-              {isFBI ? 'Federal agents box you in.' : 'Sirens. A patrol car pulls up on you'} - your heat finally
-              caught up. {'★'.repeat(wantedLevel)}
-            </p>
+            {caughtRedHanded ? (
+              <p className="mb-4 text-sm text-gray-300">
+                <span className="font-bold text-red-400">You've been caught red-handed.</span> A patrol was already
+                close enough to see it happen - there was no time to run. {'★'.repeat(wantedLevel)}
+              </p>
+            ) : (
+              <p className="mb-4 text-sm text-gray-300">
+                {isFBI ? 'Federal agents box you in.' : 'Sirens. A patrol car pulls up on you'} - your heat finally
+                caught up. {'★'.repeat(wantedLevel)}
+              </p>
+            )}
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => setPhase('combat')}
@@ -283,13 +301,29 @@ export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, onClose
 
         {phase === 'talk' && (
           <>
-            <div className="mb-3 min-h-[70px] border-2 border-gray-700 bg-[#0f1020] p-2 text-sm">
-              <p className="mb-1 text-xs font-bold text-cyan-400">{isFBI ? 'Agent' : 'Officer'}</p>
-              <p className="text-gray-200">
-                {lastTalkNpcLine ? lastTalkNpcLine.text : `"Stay right there. I need to ask you a few questions."`}
-              </p>
+            {/* Full back-and-forth, not just the officer's latest line - the
+                old version discarded the player's own submitted lines
+                entirely and scrolled every earlier exchange off screen,
+                which made a 3-attempt conversation impossible to actually
+                follow. Auto-scrolls to the newest line via the ref below. */}
+            <div
+              ref={talkScrollRef}
+              className="mb-3 max-h-48 min-h-[70px] space-y-2 overflow-y-auto border-2 border-gray-700 bg-[#0f1020] p-2 text-sm"
+            >
+              <div>
+                <p className="mb-0.5 text-xs font-bold text-cyan-400">{isFBI ? 'Agent' : 'Officer'}</p>
+                <p className="text-gray-200">"Stay right there. I need to ask you a few questions."</p>
+              </div>
+              {talkHistory.map((line, i) => (
+                <div key={i}>
+                  <p className={`mb-0.5 text-xs font-bold ${line.role === 'player' ? 'text-emerald-400' : 'text-cyan-400'}`}>
+                    {line.role === 'player' ? 'You' : isFBI ? 'Agent' : 'Officer'}
+                  </p>
+                  <p className="text-gray-200">{line.text}</p>
+                </div>
+              ))}
               {talkError && (
-                <p className="mt-1 text-xs italic text-red-500">
+                <p className="text-xs italic text-red-500">
                   (Couldn't reach the NPC chat backend - is it running? See backend/README.md.)
                 </p>
               )}

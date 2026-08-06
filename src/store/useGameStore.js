@@ -60,6 +60,11 @@ const SAVE_KEY = 'board-of-realities-save'
 // file), the run ends in a loss - see WorldScreen.jsx's header display and
 // App.jsx's GameOverScreen.
 export const DAYS_LIMIT = 30
+// Flat success-chance penalty applied by getCrimeSuccessChance whenever a
+// checkWitnesses crime (mugging, vehicle theft) is attempted with someone
+// nearby to see it happen - see that selector's own comment for why this
+// is flat rather than scaled by witness count.
+const WITNESSED_ATTEMPT_PENALTY = 0.15
 export const FINANCE_AMBIENT_NPC_COUNT = 8
 const FINANCE_TOTAL_NPCS = FINANCE_NPCS.length + FINANCE_AMBIENT_NPC_COUNT
 
@@ -171,6 +176,20 @@ function createDefaultState() {
     // failed street crime's caught-in-the-act consequences (notoriety/
     // wanted/seizure/jail) actually apply.
     nearbyWitnesses: 0,
+    // Set by applyCrimeOutcome when a failed crime's jail roll hits - a
+    // REQUEST to open the same PoliceStopModal the physical street-chase
+    // system uses (Fight/Escape/Bribe/Talk), not a resolution in itself.
+    // WorldScreen.jsx watches this exactly like it watches jail?.inJail,
+    // opens the encounter, then clears it via clearPendingCrimeArrest so it
+    // can't refire. null when there's no pending encounter.
+    pendingCrimeArrest: null,
+    // Published every frame by OverworldScene.js's updatePoliceChasers while
+    // any physical chaser is within POLICE_WARNING_RADIUS_PX of the player -
+    // an early, visible "someone's closing in" cue for the general
+    // Wanted-heat chase, distinct from pendingCrimeArrest's "already caught,
+    // no time to react" case above. null when no chaser is close enough to
+    // warrant a warning.
+    policeWarning: null,
     // Jail: a sibling top-level field to wantedLevel/notoriety, not nested in
     // world2 - being locked up is a cross-world consequence of Heat, not a
     // Finance-only concept, even though every crime that can trigger it
@@ -337,6 +356,17 @@ export const useGameStore = create((set, get) => ({
       player: { ...state.player, stats: { ...state.player.stats, ...statPatch } },
     })),
 
+  // Clamped HP restore for food/drink/service items (AmenityStoreModal,
+  // InteractiveLocationModal's Speakeasy tab). Those call sites already read
+  // this exact name via `useGameStore((s) => s.healPlayer || (() => {}))` -
+  // there was never a real action behind it before, so every HP-restoring
+  // purchase in the game silently did nothing. This is the first actual
+  // implementation, not a rename.
+  healPlayer: (amount) =>
+    set((state) => ({
+      player: { ...state.player, hp: Math.min(state.player.maxHp, state.player.hp + amount) },
+    })),
+
   // Character creator and the dice-roll screen are removed - there's only
   // one world in play (Capital Syndicate/Finance) and one fixed character,
   // so "New Game" goes straight from the welcome screen into the opening
@@ -414,6 +444,11 @@ export const useGameStore = create((set, get) => ({
     set((state) => ({
       wantedLevel: Math.max(0, Math.min(5, state.wantedLevel + amount)),
     })),
+
+  // Called once by WorldScreen.jsx's pendingCrimeArrest effect right after
+  // it opens the PoliceStopModal the request asked for - clears the request
+  // so the same effect doesn't refire on every subsequent render.
+  clearPendingCrimeArrest: () => set({ pendingCrimeArrest: null }),
 
   addReputation: (amount) =>
     set((state) => ({
@@ -1040,6 +1075,17 @@ export const useGameStore = create((set, get) => ({
     set({ nearbyWitnesses: Math.max(0, count) })
   },
 
+  // warning is null (no chaser close enough) or { isFBI }. Only writes when
+  // the value actually changes (both null->null and same-isFBI->same-isFBI
+  // are no-ops) so this can be called every frame from
+  // OverworldScene.js's updatePoliceChasers without spamming re-renders.
+  setPoliceWarning: (warning) => {
+    const current = get().policeWarning
+    const same = (!current && !warning) || (current && warning && current.isFBI === warning.isFBI)
+    if (same) return
+    set({ policeWarning: warning })
+  },
+
   // player.stats.luck was read by nothing until this pass. Every formula that
   // wants Luck must call this instead of reading player.stats.luck raw, so
   // the Chapel Blessing (a temporary bonus, added at read time - never
@@ -1141,11 +1187,27 @@ export const useGameStore = create((set, get) => ({
       ))
       let jailed = false
       if (jailChance > 0 && Math.random() < jailChance) {
-        get().sendToJail({
-          bailDiscountMultiplier: syndicateId && inHomeTurf ? getHomeTurfBailDiscountMultiplier(homeStanding) : 1,
-        })
         jailed = true
-        failMsg += ' You were arrested and thrown in jail!'
+        failMsg += ' A patrol was already close enough to catch it happen.'
+        // Getting caught red-handed mid-crime used to call sendToJail()
+        // straight from here - an instant, unavoidable arrest with none of
+        // the Fight/Escape/Bribe/Talk choice the physical street-chase
+        // system (OverworldScene.js's police chasers, PoliceStopModal)
+        // gives everywhere else. That was the exact "why did this just warp
+        // me to jail with zero warning" gap flagged in playtesting.
+        // pendingCrimeArrest is a request, not a resolution - WorldScreen.jsx
+        // watches it and opens the same PoliceStopModal the chase system
+        // uses, which is what actually calls sendToJail now, only on a
+        // Fight loss or a failed Talk. bailDiscountMultiplier can't travel
+        // through that shared modal (it only knows wantedLevel/isFBI), so
+        // the home-turf discount is carried on the request instead and
+        // applied by WorldScreen's onDefeat/talk-arrest handlers.
+        set({
+          pendingCrimeArrest: {
+            isFBI: wantedLevelAfterFail >= 4,
+            bailDiscountMultiplier: syndicateId && inHomeTurf ? getHomeTurfBailDiscountMultiplier(homeStanding) : 1,
+          },
+        })
       }
 
       if (syndicateId) {
@@ -1154,6 +1216,35 @@ export const useGameStore = create((set, get) => ({
 
       return { success: false, fine, jailed, message: failMsg }
     }
+  },
+
+  // Pure success-chance computation, split out of executeCrime so a modal
+  // can display "this attempt is roughly X% likely to work" BEFORE
+  // committing (see VehicleTheftModal.jsx) using the exact same formula the
+  // real roll uses - no second, driftable copy of the math. Costs no
+  // energy, rolls nothing, safe to call on every render.
+  //
+  // checkWitnesses crimes (mugging, vehicle theft) now also take a flat
+  // WITNESSED_ATTEMPT_PENALTY off the roll itself whenever nearbyWitnesses
+  // is nonzero (after excludeVictimWitness's discount, same as
+  // applyCrimeOutcome's own witness count) - previously a bystander only
+  // ever changed the CONSEQUENCE of failing, never the odds of failing in
+  // the first place, which read backwards (a mark standing right there
+  // should make the attempt itself harder, not just riskier if botched).
+  // Flat, not scaled by witness COUNT - this world can get genuinely
+  // crowded (8-10 NPCs clustered at some buildings), and a per-witness
+  // linear penalty would make crime nearly impossible there; "someone's
+  // watching at all" is the trigger, not "how many."
+  getCrimeSuccessChance: ({ baseSuccessChance, checkWitnesses = false, excludeVictimWitness = false }) => {
+    const state = get()
+    const streetwise = state.player.stats.streetwise || 5
+    const effectiveLuck = get().getEffectiveLuck()
+    let successProb = baseSuccessChance + (streetwise * 0.02) - (state.notoriety * 0.002) + (effectiveLuck - 5) * 0.01
+    if (checkWitnesses) {
+      const witnessCount = Math.max(0, state.nearbyWitnesses - (excludeVictimWitness ? 1 : 0))
+      if (witnessCount > 0) successProb -= WITNESSED_ATTEMPT_PENALTY
+    }
+    return Math.max(0.05, Math.min(0.95, successProb))
   },
 
   // syndicateId/inHomeTurf/checkWitnesses/excludeVictimWitness just pass
@@ -1165,13 +1256,7 @@ export const useGameStore = create((set, get) => ({
     const state = get()
     if (!state.spendEnergy(energyCost)) return { success: false, reason: 'Not enough energy' }
 
-    // Streetwise increases success chance, Notoriety decreases it, Luck
-    // (base 5, so a Luck of 5 is a no-op) nudges it either way.
-    const streetwise = state.player.stats.streetwise || 5
-    const effectiveLuck = get().getEffectiveLuck()
-    const successProb = baseSuccessChance + (streetwise * 0.02) - (state.notoriety * 0.002) + (effectiveLuck - 5) * 0.01
-    const clampedProb = Math.max(0.05, Math.min(0.95, successProb))
-
+    const clampedProb = get().getCrimeSuccessChance({ baseSuccessChance, checkWitnesses, excludeVictimWitness })
     const isSuccess = Math.random() < clampedProb
 
     return get().applyCrimeOutcome({

@@ -1,9 +1,15 @@
-export default function AmbientNpcModal({ npcName, onClose, onMug, onAttack }) {
+export default function AmbientNpcModal({ npcName, onClose, onMug, onAttack, feedback }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[380px] border-4 border-gray-400 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-3 text-xl font-bold text-gray-200">{npcName}</h2>
         <p className="mb-4 text-sm text-gray-400">"Oh- uh, hi. Can I help you with something?"</p>
+
+        {feedback && (
+          <div className="mb-3 border-2 border-orange-500 bg-orange-950/70 p-2 text-xs font-bold text-orange-200">
+            {feedback}
+          </div>
+        )}
 
         <div className="flex flex-col gap-2">
           <button onClick={onMug} className="border-2 border-orange-400 py-1 text-sm hover:bg-orange-400 hover:text-black">

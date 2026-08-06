@@ -40,7 +40,11 @@ export default function JailMazeModal({ result, onContinue }) {
           {!success && (
             <>
               <p className="mb-1 font-bold text-red-500">Caught. The desk sergeant is not amused.</p>
-              <p className="text-xs text-gray-400">+1 day sentence, +8 Notoriety, +1 Wanted Level.</p>
+              <p className="mb-2 text-xs text-gray-400">+1 day sentence, +8 Notoriety, +1 Wanted Level.</p>
+              <p className="text-xs text-gray-500">
+                The corridor's done for today - too many eyes on it now. Press <span className="text-gray-300">End Day</span> to
+                serve a day and get another run, or pay/bribe your way out at the Booking Desk instead.
+              </p>
             </>
           )}
         </div>

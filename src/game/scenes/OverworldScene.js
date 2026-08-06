@@ -1040,6 +1040,12 @@ const POLICE_CHASE_SPEED_PX_PER_SEC = 140
 // stop-and-search encounter - one tile, so it reads as "caught up to you"
 // rather than a precise pixel graze.
 const POLICE_ARREST_RADIUS_PX = 40
+// Distance at which the HUD's on-screen "closing in" warning lights up -
+// well before POLICE_ARREST_RADIUS_PX's actual contact check, so it reads
+// as an early warning the player has time to react to (duck behind a
+// building, keep moving away) rather than firing at the same instant as
+// the encounter itself.
+const POLICE_WARNING_RADIUS_PX = 260
 // Spawned just outside typical view (rather than anywhere on the map) so a
 // new chaser reads as "closing in from off-screen", not a random teleport.
 const POLICE_SPAWN_MIN_RADIUS_PX = 320
@@ -1801,6 +1807,19 @@ export default class OverworldScene extends Phaser.Scene {
       this.tileMover.teleport(spawn.col, spawn.row)
     }
     this.cameras.main.startFollow(this.playerActor.sprite, true)
+
+    // clearZoneObjects() above just destroyed every chaser that was mid-
+    // pursuit (interiors have no chasers of their own) - without this, a
+    // still-wanted player stepping back onto the street had to wait up to
+    // policeTimer's full 9s before the next maybeSpawnPolice roll even had
+    // a chance to notice. One immediate roll here (same 40% chance/
+    // MAX_POLICE_CHASERS cap as the timer - see maybeSpawnPolice) means heat
+    // can pick back up right away instead of reading as "the police forgot
+    // about me" for however long the next tick takes. Placed after the
+    // teleport above so findPoliceSpawnSpot rings around where the player
+    // actually lands, not their pre-teleport position in whatever zone they
+    // just left.
+    if (zoneId === 'overworld') this.maybeSpawnPolice()
   }
 
   // Map flattening: there's only one city now, so `cityId` is accepted but
@@ -1851,6 +1870,11 @@ export default class OverworldScene extends Phaser.Scene {
     // loaded - stale count from the last overworld frame would otherwise
     // sit in the store until the next throttled recompute.
     useGameStore.getState().setNearbyWitnesses(0)
+    // Same staleness problem as nearbyWitnesses above: updatePoliceChasers
+    // only runs while currentZoneId === 'overworld', so without this a
+    // warning still lit the instant you stepped into a building would just
+    // sit there frozen instead of clearing.
+    useGameStore.getState().setPoliceWarning(null)
     // The sprites themselves are already destroyed above (they're in
     // zoneObjects) - this just drops the now-stale anim-state entries.
     this.animatedDoors = []
@@ -2077,7 +2101,21 @@ export default class OverworldScene extends Phaser.Scene {
     // route through the store's real failure consequence. Without this the
     // corridor had no way back at all short of engaging checkpoint 1 - see
     // production/backlog.md's 2026-08-02 note.
-    this.zones.push({
+    //
+    // unshift, not push: this rect's row (INTERIOR_EXIT, rows 7-8) overlaps
+    // the bottom edge of every checkpoint's 2-tile-tall rect (row 6, so it
+    // spans rows 5.5-7.5) - checkpoints 1-3 all clip into the door's column
+    // range too. triggerInteraction resolves a standing spot to a zone via
+    // `this.zones.find(...)`, first match wins, so whichever rect is EARLIER
+    // in this array wins that overlap. Pushing the exit last (the original
+    // bug) meant the sliver where the door and a checkpoint overlap always
+    // resolved to the checkpoint - pressing E right at the doorway could
+    // silently relaunch that checkpoint's minigame instead of retreating,
+    // reading as "stuck, can't get back to the guard desk" even though a
+    // checkpoint-free strip of the doorway does exist a step further in.
+    // Putting the exit first makes the door win that tie everywhere it
+    // overlaps a checkpoint, without shrinking either rect's real hitbox.
+    this.zones.unshift({
       type: 'exit',
       id: 'jailMazeRetreat',
       target: 'jailCell',
@@ -2153,6 +2191,33 @@ export default class OverworldScene extends Phaser.Scene {
       })),
       interiorExitZone(),
     ]
+  }
+
+  // Called by GameCanvas.jsx's 'enterJailUnderworld' handler when the final
+  // jailMaze checkpoint clears. Lands the player in this SAME persistent
+  // underworldInterior room a normal front-door visit reaches - not the
+  // disposable jailUnderworld backdrop this used to swap to, which had no
+  // interactables of its own and force-exited straight back to the
+  // overworld the moment its auto-opened UnderworldModal closed. That read
+  // as "teleported into a black market menu for a second, then kicked back
+  // outside" instead of "escaped into the Underworld" - matches the maze's
+  // own lore spec more literally too (production/next-session-plan.md: the
+  // tunnel "dead-ends at the *existing* Underworld building's back room").
+  //
+  // overworldReturnSpawn is set to the Underworld building's front door
+  // first, the same lookup triggerInteraction's normal 'underworld' walk-in
+  // branch does - without this, walking back out through this room's own
+  // exit door later would drop the player outside the jail instead (it was
+  // last set there by buildJailCellZone on arrest).
+  enterUnderworldFromJail() {
+    const building = FINANCE_BUILDINGS.find((b) => b.id === 'underworld')
+    if (building) {
+      this.overworldReturnSpawn = {
+        col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
+        row: building.tiles.r1 + 1,
+      }
+    }
+    this.loadZone('underworldInterior')
   }
 
   // Real tile-based rooms built from the chapel pack's Walls_Interior
@@ -4169,7 +4234,10 @@ export default class OverworldScene extends Phaser.Scene {
   // function's door/pacing/car machinery - a chaser has exactly one
   // destination (the player) for its entire lifetime.
   updatePoliceChasers(delta) {
-    if (!this.policeChasers.length) return
+    if (!this.policeChasers.length) {
+      useGameStore.getState().setPoliceWarning(null)
+      return
+    }
     // Namedroamers/ambient NPCs are deliberately still animated while a
     // modal is open (see update()'s interactionLocked early-return further
     // down) so the world doesn't visibly freeze - but a chaser's contact
@@ -4180,6 +4248,11 @@ export default class OverworldScene extends Phaser.Scene {
     const px = this.playerActor.x
     const py = this.playerActor.y
     const tileAt = (qx, qy) => this.isBuildingSolidTile(Math.floor(qx / TILE_SIZE), Math.floor(qy / TILE_SIZE))
+    // Tracks the closest chaser this tick so the HUD warning (see
+    // POLICE_WARNING_RADIUS_PX) reflects whoever's actually nearest, not
+    // just whichever chaser happens to iterate first below.
+    let nearestDist = Infinity
+    let nearestIsFBI = false
     for (const chaser of this.policeChasers) {
       if (chaser.dead) continue
       const prevX = chaser.actor.x
@@ -4207,11 +4280,19 @@ export default class OverworldScene extends Phaser.Scene {
       chaser.label.setPosition(chaser.actor.x, chaser.actor.y - 26)
       chaser.label.setDepth(chaser.actor.y + 500)
 
-      if (Phaser.Math.Distance.Between(px, py, chaser.actor.x, chaser.actor.y) < POLICE_ARREST_RADIUS_PX) {
+      const dist = Phaser.Math.Distance.Between(px, py, chaser.actor.x, chaser.actor.y)
+      if (dist < nearestDist) {
+        nearestDist = dist
+        nearestIsFBI = chaser.isFBI
+      }
+      if (dist < POLICE_ARREST_RADIUS_PX) {
         this.triggerPoliceArrestEncounter(chaser.isFBI)
         return
       }
     }
+    useGameStore.getState().setPoliceWarning(
+      nearestDist < POLICE_WARNING_RADIUS_PX ? { isFBI: nearestIsFBI } : null
+    )
   }
 
   triggerPoliceArrestEncounter(isFBI) {

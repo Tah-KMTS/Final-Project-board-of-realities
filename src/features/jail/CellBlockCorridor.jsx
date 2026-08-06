@@ -12,6 +12,12 @@ import { difficultyToParams } from './mazeDifficulty'
 // there's no separate "started" state to track for the walk-away rule -
 // Walk Away stays available right up until commit() fires, then this
 // component unmounts (the parent swaps in the result screen).
+// Time given before the sweep starts moving, so opening the checkpoint
+// doesn't drop the player straight into a target already in motion - long
+// enough to read the room, short enough that it isn't its own source of
+// tedium on a repeat run.
+const GET_READY_MS = 1200
+
 export default function CellBlockCorridor({ difficulty, onComplete, onWalkAway }) {
   const { zoneWidth, sweepPeriodMs } = difficultyToParams(0, difficulty)
   // Random zone start is picked once per mount (lazy ref init), not
@@ -19,13 +25,24 @@ export default function CellBlockCorridor({ difficulty, onComplete, onWalkAway }
   const zoneStartRef = useRef(Math.random() * (1 - zoneWidth))
   const zoneStart = zoneStartRef.current
 
+  const [ready, setReady] = useState(false)
   const [markerPos, setMarkerPos] = useState(0)
   const markerPosRef = useRef(0)
-  const startTimeRef = useRef(performance.now())
+  const startTimeRef = useRef(null)
   const rafRef = useRef(null)
   const resolvedRef = useRef(false)
 
   useEffect(() => {
+    const t = setTimeout(() => setReady(true), GET_READY_MS)
+    return () => clearTimeout(t)
+  }, [])
+
+  // Sweep only starts once `ready` flips true - startTimeRef is (re)armed
+  // here rather than at mount, so the first cycle's phase isn't skewed by
+  // however long the Get Ready beat took.
+  useEffect(() => {
+    if (!ready) return
+    startTimeRef.current = performance.now()
     const tick = (now) => {
       const elapsed = now - startTimeRef.current
       const pos = (Math.sin((elapsed / sweepPeriodMs) * Math.PI * 2) + 1) / 2
@@ -35,10 +52,10 @@ export default function CellBlockCorridor({ difficulty, onComplete, onWalkAway }
     }
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [sweepPeriodMs])
+  }, [ready, sweepPeriodMs])
 
   const commit = () => {
-    if (resolvedRef.current) return
+    if (resolvedRef.current || !ready) return
     resolvedRef.current = true
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     const pos = markerPosRef.current
@@ -57,23 +74,32 @@ export default function CellBlockCorridor({ difficulty, onComplete, onWalkAway }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [ready])
 
   return (
     <div className="flex flex-col gap-3">
       <div className="relative h-5 w-full border-2 border-gray-600 bg-[#0f1020]">
-        <div
-          className="absolute top-0 h-full bg-red-900/60"
-          style={{ left: `${zoneStart * 100}%`, width: `${zoneWidth * 100}%` }}
-        />
-        <div className="absolute top-0 h-full w-[3px] bg-yellow-300" style={{ left: `${markerPos * 100}%` }} />
+        {ready ? (
+          <>
+            <div
+              className="absolute top-0 h-full bg-red-900/60"
+              style={{ left: `${zoneStart * 100}%`, width: `${zoneWidth * 100}%` }}
+            />
+            <div className="absolute top-0 h-full w-[3px] bg-yellow-300" style={{ left: `${markerPos * 100}%` }} />
+          </>
+        ) : (
+          <div className="absolute inset-0 flex animate-pulse items-center justify-center text-xs font-bold uppercase tracking-widest text-yellow-300">
+            Get Ready...
+          </div>
+        )}
       </div>
       <p className="text-center text-xs uppercase tracking-widest text-gray-500">
         Red band = the guard's blind spot
       </p>
       <button
         onClick={commit}
-        className="w-full border-4 border-yellow-400 bg-yellow-500/20 py-2 font-bold uppercase tracking-widest text-yellow-300 hover:bg-yellow-500/40"
+        disabled={!ready}
+        className="w-full border-4 border-yellow-400 bg-yellow-500/20 py-2 font-bold uppercase tracking-widest text-yellow-300 hover:bg-yellow-500/40 disabled:opacity-40"
       >
         Go (Space)
       </button>

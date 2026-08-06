@@ -14,6 +14,12 @@ function buildSequence(length) {
 // features/entertainment/SprintRace.jsx documents for judging input
 // immediately rather than through a setState round-trip); stepIndex state
 // only exists to repaint which glyph is currently highlighted.
+// Same reasoning as CellBlockCorridor's GET_READY_MS - without this the
+// first press window used to arm the instant the modal mounted, so a
+// player who hadn't finished reading the sequence yet could fail before
+// ever pressing a key.
+const GET_READY_MS = 1200
+
 export default function ExerciseYard({ difficulty, onComplete, onWalkAway }) {
   const { length, perPressWindowMs } = difficultyToParams(1, difficulty)
   const sequenceRef = useRef(null)
@@ -25,6 +31,7 @@ export default function ExerciseYard({ difficulty, onComplete, onWalkAway }) {
   const timeoutRef = useRef(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [started, setStarted] = useState(false)
+  const [ready, setReady] = useState(false)
 
   const finish = (success) => {
     if (resolvedRef.current) return
@@ -34,6 +41,16 @@ export default function ExerciseYard({ difficulty, onComplete, onWalkAway }) {
   }
 
   useEffect(() => {
+    const t = setTimeout(() => setReady(true), GET_READY_MS)
+    return () => clearTimeout(t)
+  }, [])
+
+  // First window only arms once `ready` flips true - the sequence is still
+  // visible (with its first arrow pre-highlighted) during the Get Ready
+  // beat so there's something to plan against, it just isn't being timed
+  // yet.
+  useEffect(() => {
+    if (!ready) return
     const armWindow = () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       // A missed window (no press at all before perPressWindowMs elapses)
@@ -67,7 +84,7 @@ export default function ExerciseYard({ difficulty, onComplete, onWalkAway }) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [ready])
 
   const giveUp = () => {
     // Once the first press has registered there's no free walk-away left -
@@ -86,7 +103,7 @@ export default function ExerciseYard({ difficulty, onComplete, onWalkAway }) {
             className={`flex h-10 w-10 items-center justify-center border-2 text-xl font-bold ${
               i < stepIndex
                 ? 'border-green-500 bg-green-900/30 text-green-400'
-                : i === stepIndex
+                : i === stepIndex && ready
                 ? 'animate-pulse border-yellow-400 bg-yellow-900/30 text-yellow-300'
                 : 'border-gray-600 bg-[#0f1020] text-gray-500'
             }`}
@@ -96,7 +113,7 @@ export default function ExerciseYard({ difficulty, onComplete, onWalkAway }) {
         ))}
       </div>
       <p className="text-center text-xs uppercase tracking-widest text-gray-500">
-        Match the highlighted arrow before the window closes
+        {ready ? 'Match the highlighted arrow before the window closes' : 'Get Ready...'}
       </p>
       <button
         onClick={giveUp}
