@@ -223,6 +223,21 @@ const FINANCE_BUILDING_DEFS = [
   // back-door tunnel dead-ends into.
   { id: 'courtAndPrison', label: 'Capital City Central Booking', facadeStyle: 'modernBrick', color: 0x4a4a4a, width: 4, height: 3, zone: 'law' },
 
+  // Ince's house - she's a procedurally-generated finance-district ambient
+  // NPC (npcGenerator.js's finance_ambient_2), not a roster member, so she
+  // gets no characterHomeBuildings.js entry of her own. One bespoke hub-shaped
+  // def instead (rather than adding her to a roster, which would pull in
+  // unwanted side effects - dispositions, romance eligibility, a generic
+  // NamedNpcModal fallback - she's deliberately excluded from, see
+  // IncModal.jsx's header), but a real walk-in interior like every character
+  // home (not in the no-interior hub list below) - npcId is what
+  // buildGenericInteriorZone's interiorDesk forwards to WorldScreen.jsx so
+  // reaching the desk opens IncModal. facadeStyle is dead here (see
+  // BUILDING_IMAGE_FILES in tileGen.js - inceHome overrides it with the real
+  // bespoke art), kept only as a harmless fallback if that image ever failed
+  // to load.
+  { id: 'inceHome', label: "Ince's House", facadeStyle: 'modernBrick', color: 0x2a5a6a, width: 4, height: 3, zone: 'finance', npcId: 'finance_ambient_2' },
+
   // --- Character homes & hideouts (generated, see characterHomeBuildings.js) ---
   // Appended after the 10 hub defs above (not interleaved) - layoutFinanceMap
   // below never packs this combined array as one flat pool any more (that
@@ -319,7 +334,12 @@ function firstColumnClearOfStreets(col, width, streetCols, colEnd) {
 // Home style keys that land in the top band vs. the bottom band (see
 // residentialStyleKey in tileGen.js for the 8 possible values - every one is
 // assigned to exactly one of these two sets).
-const TOP_HOME_STYLES = new Set(['stone', 'woodHouse', 'hideout'])
+// 'bespoke_lisa' - see tileGen.js's residentialStyleKey/BESPOKE_HOME_STYLE_KEYS
+// - joins the top band since that's her natural (wealth-based) tier before
+// the bespoke-key override kicks in ($25M nets her 'woodHouse'); the override
+// only needs to change WHICH cluster she lands in (a cluster of one, for
+// safe overflow clearance), not which band.
+const TOP_HOME_STYLES = new Set(['stone', 'woodHouse', 'hideout', 'bespoke_lisa'])
 const BOTTOM_HOME_STYLES = new Set(['brick', 'stoneCottage', 'sereneRed', 'sereneGreen', 'sereneBlue'])
 
 // Bottom-right reservation for ambient habitat animals + wealthy pet pens
@@ -758,6 +778,12 @@ const BUILDING_INTERIOR_TEMPLATE = {
   trainStation: 'amenity',
   temple: 'amenity',
   courtAndPrison: 'holdingCell',
+  // inceHome has no `kind` (it's a hub-shaped def, not a
+  // characterHomeBuildings.js entry - see FINANCE_BUILDING_DEFS above), so
+  // interiorTemplateFor's kind-based fallback would miss it and land on the
+  // generic office-y 'amenity' palette. Explicit entry so her house reads as
+  // a house inside too.
+  inceHome: 'residence',
 }
 
 // Explicit id lookup first (the 4 hand-authored entries above); falls back
@@ -4388,7 +4414,14 @@ export default class OverworldScene extends Phaser.Scene {
       // (Concert Hall/Sports Stadium) joins the same way, routing to
       // EntertainmentComplexModal. Underworld left this list - it's now a
       // real walk-in interior (see the stockExchange/casino-style branch
-      // below), the first tabbed hub to get one.
+      // below), the first tabbed hub to get one. inceHome deliberately does
+      // NOT join this list - it's a house, not a hub, so it should feel like
+      // one: walking up to it enters a real walk-in interior (the generic
+      // buildingInterior fallback further down, same as any other building
+      // with no special case here) and IncModal only opens once you reach
+      // the desk inside (buildGenericInteriorZone's interiorDesk emits
+      // `{type:'building', id:'inceHome', npcId: building.npcId}` - see
+      // WorldScreen.jsx's `activeModal.id === 'inceHome'` case).
       if (
         zone.id === 'businessCenter' ||
         zone.id === 'governmentBuilding' ||

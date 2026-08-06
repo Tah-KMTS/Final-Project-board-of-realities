@@ -799,6 +799,34 @@ export default function WorldScreen() {
           }}
         />
       )}
+      {/* Ince's house - a bespoke hub building (OverworldScene.js's
+          FINANCE_BUILDING_DEFS, id 'inceHome') rather than a
+          characterHomeBuildings.js entry, since she's a procedural ambient
+          NPC, not a roster member (see IncModal.jsx's header). Reuses the
+          exact same Mug/Attack mechanics as her ambientNpc encounter below,
+          just hardcoded to her fixed id since there's no activeModal.npcId
+          on a building interaction. */}
+      {activeModal?.type === 'building' && activeModal.id === 'inceHome' && (
+        <IncModal
+          onClose={closeModal}
+          onMug={() => {
+            useGameStore.getState().executeCrime({
+              type: 'mug',
+              baseSuccessChance: 0.8,
+              payout: 50,
+              notorietyIncreaseOnFail: 5,
+              wantedIncreaseOnFail: 1,
+              energyCost: 15,
+              assetSeizureOnFail: 0,
+              jailChanceOnFail: 0,
+              checkWitnesses: true,
+              excludeVictimWitness: true,
+            })
+            closeModal()
+          }}
+          onAttack={() => setActiveModal({ type: 'ambientCombat', npcId: 'finance_ambient_2' })}
+        />
+      )}
       {/* The 4 Phase-2/4 consolidated hubs - each is a tabbed modal wrapping
           several formerly-standalone buildings' content via the `embedded`
           prop pattern (see each modal file for its TABS array). None of

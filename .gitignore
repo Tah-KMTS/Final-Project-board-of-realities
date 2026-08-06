@@ -74,3 +74,15 @@ public/assets/packs/Ince/*.png
 # Only the salvaged sheet under processed/ is committed; rebuild it with
 # `node production/salvagePlayerSprite.mjs`, which documents every transform.
 public/assets/packs/player/raw/
+
+# "lisa house"/"ince house" raw sources - full-res AI-generated building
+# illustrations (white background, no game-ready alpha) used to remodel
+# home_lisa and build the new inceHome facade. The salvaged, background-
+# removed output actually loaded by the game lives under
+# public/assets/buildings/ (home_lisa.png / home_ince.png, tracked normally
+# alongside the other bespoke building facades there) - rebuild it with
+# `python production/process_house_facades.py`, which documents every
+# transform. The "lisa house" pack's second file (a garden-decor prop sheet)
+# isn't currently used in-game - kept here for a possible future pass.
+public/assets/packs/lisa house/
+public/assets/packs/ince house/

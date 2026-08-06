@@ -158,6 +158,18 @@ export const BUILDING_IMAGE_FILES = {
   entertainmentComplex: 'entertainmentComplex.png',
   realEstateAgency: 'realEstateAgency.png',
   businessCenter: 'businessCenter.png',
+  // Bespoke home facades (AI-generated, salvaged the same way as the hub
+  // buildings above - see production/process_house_facades.py, padding via
+  // production/pad_house_facades.py) - override the generic tiny-town
+  // cottage packFacadeFor() would otherwise pick for these two specific
+  // homes. Keyed by BUILDING id (packFacadeFor's lookup key), not the image
+  // filename - home_lisa is her existing auto-generated
+  // characterHomeBuildings.js entry (a remodel, same id/footprint); inceHome
+  // is a new bespoke building def (OverworldScene.js's FINANCE_BUILDING_DEFS)
+  // since Ince isn't a roster member and gets no characterHomeBuildings.js
+  // entry of her own.
+  home_lisa: 'home_lisa.png',
+  inceHome: 'home_ince.png',
 }
 
 // Exported so OverworldScene.js's building-overflow cache (isBuildingSolidTile
@@ -393,7 +405,26 @@ function residentialHomeKit(npcId) {
 // same-style clusters before packing them (reported: wildly different home
 // styles - a log cabin, a flat office-style facade, a stone manor - kept
 // landing directly side by side with no visual grouping).
+// Homes whose facade comes from BUILDING_IMAGE_FILES (a real bespoke
+// illustration, not a flat-drawn nine-slice/prefab) always render with
+// drawPrefabImageFacade's full PREFAB_IMAGE_MAX_OVERFLOW_TILES budget on
+// whichever axis is source-aspect-bound (packRender.js's clamp always either
+// fits natively with zero overflow or clamps to EXACTLY that 1-tile budget -
+// there's no in-between for a source image this much higher-res than the
+// pipeline's native 16px/tile art). That's fine in the hub bands (BAND_GAP=4
+// tiles of clearance) but fatal in the home bands, where packHomeBand packs
+// same-cluster homes at literal ZERO gap, touching edge to edge (see its own
+// header) - two zero-overflow cottages touch cleanly, but a full-overflow
+// image butted against ANY neighbor overlaps it (reported: Lisa's remodeled
+// home_lisa visibly overlapping the house next door). Forcing a unique style
+// key here (checked below TOP_HOME_STYLES/BOTTOM_HOME_STYLES in
+// OverworldScene.js) isolates a home into a cluster of exactly one, so it
+// only ever meets a neighboring CLUSTER at CLUSTER_GAP=3 tiles - comfortably
+// more than double the 1-tile overflow budget on both sides combined.
+const BESPOKE_HOME_STYLE_KEYS = { lisa: 'bespoke_lisa' }
+
 export function residentialStyleKey(npcId, kind) {
+  if (BESPOKE_HOME_STYLE_KEYS[npcId]) return BESPOKE_HOME_STYLE_KEYS[npcId]
   if (kind === 'hideout') return 'hideout'
   const netWorth = getAnyCharacter(npcId)?.netWorth ?? 0
   if (netWorth >= WEALTH_STONE_THRESHOLD) return 'stone'
