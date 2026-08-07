@@ -3,7 +3,7 @@ import { useGameStore } from '../../store/useGameStore'
 import { playHitSound, playTakeDamageSound, playVictorySound, playDefeatSound, playRetreatSound } from '../../audio/sfx'
 import { generateSwatSquad } from './financeNpcs'
 import { rollPunchDamage, rollKickDamage, rollUnleashDamage, rollOfficerDamage } from './policeFightEngine'
-import { getCombatWeapon } from '../world/toolsWeaponsCatalog'
+import { getCarriedWeapons, getCombatArmor, applyArmorReduction } from '../world/toolsWeaponsCatalog'
 import PokeBattleLayout from './PokeBattleLayout'
 
 // The Fight branch of PoliceStopModal's Fight/Escape/Bribe/Talk menu -
@@ -21,6 +21,12 @@ import PokeBattleLayout from './PokeBattleLayout'
 // have been a net loss of player agency nobody asked for).
 //
 // Combat math lives in policeFightEngine.js, not here - see that file.
+// Equipment modifiers (getCombatWeapon/getCombatArmor/applyArmorReduction,
+// toolsWeaponsCatalog.js) are read from inventory the same way weapon
+// already was: armor reduces every officer hit (resolveTurn and the
+// charge-punish hit in handleSpecial both apply it) via a diminishing-
+// returns curve, never a flat subtraction - see applyArmorReduction's own
+// comment for why.
 
 let floatingTextSeq = 0
 
@@ -31,7 +37,11 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
 
   const [officer] = useState(() => generateSwatSquad(wantedLevel))
   const [officerHp, setOfficerHp] = useState(officer.hp)
-  const [log, setLog] = useState([`${officer.name} squares up. Pick your move.`])
+  const armor = getCombatArmor(inventory)
+  const [log, setLog] = useState([
+    `${officer.name} squares up. Pick your move.`,
+    ...(armor ? [`Your ${armor.name} is soaking up some of whatever's coming.`] : []),
+  ])
   const [busy, setBusy] = useState(false)
   const [outcome, setOutcome] = useState(null) // null | 'victory' | 'defeat'
   const [charging, setCharging] = useState(false)
@@ -48,7 +58,7 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
   const [enemyPose, setEnemyPose] = useState(isFBI ? 'officer_tactical' : 'officer_ready')
   const [playerPose, setPlayerPose] = useState('player_ready')
 
-  const weapon = getCombatWeapon(inventory)
+  const carriedWeapons = getCarriedWeapons(inventory)
 
   const appendLog = (line) => setLog((prev) => [...prev.slice(-5), line])
 
@@ -92,7 +102,7 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
         return
       }
 
-      const officerDamage = rollOfficerDamage(officer.attack)
+      const officerDamage = applyArmorReduction(rollOfficerDamage(officer.attack), armor)
       const stillStanding = takeFinanceCombatDamage(officerDamage)
       spawnFloat(setPlayerFloats, `-${officerDamage}`)
       setPlayerHitPulse((p) => p + 1)
@@ -118,10 +128,7 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
 
   const handlePunch = () => resolveTurn(rollPunchDamage(), 'You throw a punch...')
   const handleKick = () => resolveTurn(rollKickDamage(), 'You lead with a kick...')
-  const handleWeapon = () => {
-    if (!weapon) return
-    resolveTurn(weapon.damage, `You go for your ${weapon.name}...`)
-  }
+  const handleWeapon = (w) => resolveTurn(w.damage, `You go for your ${w.name}...`)
   const handleUnleash = () => resolveTurn(rollUnleashDamage(), 'You unleash the charged strike!')
 
   // Charging deals no damage this turn and skips straight to the officer's
@@ -134,7 +141,7 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
     setEnemyPose(enemyActionPose())
 
     setTimeout(() => {
-      const officerDamage = rollOfficerDamage(officer.attack)
+      const officerDamage = applyArmorReduction(rollOfficerDamage(officer.attack), armor)
       const stillStanding = takeFinanceCombatDamage(officerDamage)
       spawnFloat(setPlayerFloats, `-${officerDamage}`)
       setPlayerHitPulse((p) => p + 1)
@@ -168,14 +175,25 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
     onClose()
   }
 
+  // One "USE {name}" button per distinct carried weapon (not just the
+  // strongest) - this IS the weapon-select UI: which button the player
+  // presses this turn is the pick, same click-a-move interaction every
+  // other action here already uses, no separate picker widget needed.
+  // Unarmed shows a disabled hint in that same grid slot instead of a
+  // silent gap, pointing at where a weapon actually comes from.
   const actions = charging
     ? [{ key: 'unleash', label: 'UNLEASH!', onClick: handleUnleash, disabled: busy }]
     : [
         { key: 'punch', label: 'PUNCH', onClick: handlePunch, disabled: busy },
         { key: 'kick', label: 'KICK', onClick: handleKick, disabled: busy },
-        ...(weapon
-          ? [{ key: 'weapon', label: `USE ${weapon.name.split(' ')[0].toUpperCase()}`, onClick: handleWeapon, disabled: busy }]
-          : []),
+        ...(carriedWeapons.length
+          ? carriedWeapons.map((w) => ({
+              key: `weapon-${w.id}`,
+              label: `USE ${w.name.split(' ')[0].toUpperCase()} (${w.damage})`,
+              onClick: () => handleWeapon(w),
+              disabled: busy,
+            }))
+          : [{ key: 'noWeapon', label: 'NO WEAPON (Underworld Gun Store)', onClick: () => {}, disabled: true }]),
         { key: 'special', label: 'SPECIAL MOVE', onClick: handleSpecial, disabled: busy },
       ]
 

@@ -57,13 +57,17 @@ export const DISTRICT_BUILDINGS_CONFIG = {
         // their own distinct mechanic in the same pass that added this
         // field; stakes/payout/risk numbers below are untouched (mechanic
         // swap, not a rebalance - see game-designer's scoping notes).
-        minigame: 'lookoutWatch',
-        label: 'Shake Down a Local',
+        // Swapped from 'lookoutWatch' to 'shootingRange' (see
+        // ShootingRangeModal.jsx) per a later user request for a literal
+        // shooting-gallery minigame here - same swap philosophy, same
+        // stakes, only the resolution mechanic and its flavor text changed.
+        minigame: 'shootingRange',
+        label: 'Prove Your Aim',
         leverage: {
-          title: 'Back-Alley Shakedown',
-          markName: 'Some Guy Who Owes Somebody',
-          markDescription: 'Broken neon, borrowed muscle. A quick, cheap squeeze - lean on him before someone official wanders down here.',
-          buttonLabel: 'Lean On Him',
+          title: 'The Back-Lot Range',
+          markName: "Luciano's Crew",
+          markDescription: "Before Luciano trusts you with real work, his boys want to see you shoot straight - hit the paper, leave the civilians standing.",
+          buttonLabel: 'Take The Shot',
           stakes: {
             target: 50,
             suspicionCap: 100,

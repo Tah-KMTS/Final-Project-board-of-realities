@@ -5,6 +5,7 @@ import LeverageMeter from './LeverageMeter'
 import LookoutWatchModal from './LookoutWatchModal'
 import FencesTableModal from './FencesTableModal'
 import CallCenterQTEModal from './CallCenterQTEModal'
+import ShootingRangeModal from './ShootingRangeModal'
 
 // Maps each Underground District action's `minigame` field (districtBuildings.js)
 // to the racket-specific component it opens instead of the shared
@@ -17,6 +18,7 @@ const MINIGAME_COMPONENTS = {
   lookoutWatch: LookoutWatchModal,
   fencesTable: FencesTableModal,
   callCenterQte: CallCenterQTEModal,
+  shootingRange: ShootingRangeModal,
 }
 
 // Single reusable modal for every flavor-tier building added by the

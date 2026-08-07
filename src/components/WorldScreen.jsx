@@ -41,7 +41,6 @@ import AmenityStoreModal from '../features/world/AmenityStoreModal'
 import EssentialBuildingModal from '../features/world/EssentialBuildingModal'
 import BuildingInteriorModal from '../features/world/BuildingInteriorModal'
 import NpcLootModal from '../features/world/NpcLootModal'
-import GunStoreModal from '../features/world/GunStoreModal'
 import VehicleTheftModal from '../features/world/VehicleTheftModal'
 import NarcoticsTradeModal from '../features/world/NarcoticsTradeModal'
 import SyndicateOperationsModal from '../features/world/SyndicateOperationsModal'
@@ -761,7 +760,6 @@ export default function WorldScreen() {
       {activeModal?.type === 'npcLoot' && (
         <NpcLootModal victimNpc={activeModal.victimNpc || { name: 'Defeated Target', role: 'mobster' }} onClose={closeModal} />
       )}
-      {activeModal?.type === 'gunStore' && <GunStoreModal onClose={closeModal} />}
       {activeModal?.type === 'narcoticsTrade' && <NarcoticsTradeModal onClose={closeModal} />}
       {activeModal?.type === 'syndicateOperations' && <SyndicateOperationsModal onClose={closeModal} />}
       {activeModal?.type === 'hitmanContract' && <HitmanContractModal onClose={closeModal} />}

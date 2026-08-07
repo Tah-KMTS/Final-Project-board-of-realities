@@ -417,12 +417,23 @@ export function generateStreetTargetMonster() {
 }
 
 export function generateSwatSquad(wantedLevel) {
-  const unit = wantedLevel >= 4 ? 'FBI Tactical Unit' : 'SWAT Squad'
-  const scale = wantedLevel
+  const isFBI = wantedLevel >= 4
+  const unit = isFBI ? 'FBI Tactical Unit' : 'SWAT Squad'
   // Retuned for the 4-choice skirmish engine (FinanceSkirmishModal) - see
   // generateBodyguardMonster's comment above for why the scale changed.
-  const hp = 45 + wantedLevel * 7
-  const atk = 9 + scale * 2.2
+  //
+  // FBI (Wanted 4-5) deliberately breaks from the SWAT (1-3) curve instead
+  // of continuing it smoothly: PoliceFightModal.jsx's catalog weapons deal
+  // flat, unlimited-use damage (a Shotgun's 75 one-shots the old formula's
+  // whole Wanted 1-3 range), so SWAT stays exactly this cheap on purpose -
+  // Fight is meant to be a free win once you're armed, at low heat. FBI
+  // needed a real jump instead, or the same Shotgun one-shots the "FBI
+  // Tactical Unit" label too and the escalation is fake. 90+(w-3)*45 HP /
+  // 22+(w-3)*9 atk means even a Shotgun needs 2-3 hits and eats 1-2 real
+  // swings back (worse without Kevlar - see applyArmorReduction) - punching
+  // it bare-fisted is no longer viable at all, which is the point.
+  const hp = isFBI ? 90 + (wantedLevel - 3) * 45 : 45 + wantedLevel * 7
+  const atk = isFBI ? 22 + (wantedLevel - 3) * 9 : 9 + wantedLevel * 2.2
   return {
     name: unit,
     maxHp: Math.round(hp),

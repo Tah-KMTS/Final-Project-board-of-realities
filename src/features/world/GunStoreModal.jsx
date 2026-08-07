@@ -4,7 +4,7 @@ import { getPresidentialGunPolicy, canPurchaseLegalFirearm } from './firearmLegi
 import { WEAPONS_DATABASE, weaponToInventoryItem } from './toolsWeaponsCatalog'
 import { THEFT_ITEM } from '../../game/vehicleGen'
 
-export default function GunStoreModal({ onClose }) {
+export default function GunStoreModal({ onClose, embedded = false }) {
   const [activeTab, setActiveTab] = useState('legal') // 'legal' | 'black_market'
   const [feedbackMsg, setFeedbackMsg] = useState(null)
 
@@ -12,8 +12,8 @@ export default function GunStoreModal({ onClose }) {
   const addCash = useGameStore((s) => s.addCash)
   const addItem = useGameStore((s) => s.addItem)
   const world2 = useGameStore((s) => s.world2)
-  const hasFfl = useGameStore((s) => s.hasFfl || false)
-  const buyFflLicense = useGameStore((s) => s.buyFflLicense || (() => ({ success: true })))
+  const hasFfl = useGameStore((s) => s.hasFfl)
+  const buyFflLicense = useGameStore((s) => s.buyFflLicense)
 
   const president = (world2.governmentState || {}).president || { name: 'Reagan' }
   const policy = getPresidentialGunPolicy(president)
@@ -57,14 +57,21 @@ export default function GunStoreModal({ onClose }) {
       setFeedbackMsg('Insufficient cash for Federal Firearm License (FFL $5,000)!')
       return
     }
+    addCash(-5000)
     buyFflLicense()
     setFeedbackMsg('📜 LICENSING AUTHORIZED: Acquired Federal Firearm License (FFL)! Legal gun purchases unlocked.')
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 font-mono text-white">
-      <div className="w-full max-w-3xl border-4 border-yellow-500/80 bg-[#140e06] p-6 shadow-2xl">
-        {/* Header */}
+  // embedded: true when this is the Underworld hub's "Gun Store" tab
+  // (UnderworldModal.jsx) - the only live call site, matching every other
+  // tenant there (Black Market/Call Center Ops/Crime Alley/Speakeasy). Skips
+  // the full-screen overlay/outer border AND the "Close Gun Store" footer
+  // button, since the hub modal already supplies both (its own bordered
+  // panel + "Leave the Underworld" button) - defaults to false so a
+  // standalone call site would still get a complete, self-contained modal.
+  const body = (
+    <>
+      {/* Header */}
         <div className="flex items-start justify-between border-b border-yellow-500/40 pb-3">
           <div>
             <span className="rounded bg-yellow-950 px-2 py-0.5 text-xs font-bold text-yellow-300 uppercase tracking-wider">FIREARM & AMMUNITION EMPORIUM</span>
@@ -146,7 +153,7 @@ export default function GunStoreModal({ onClose }) {
           })}
         </div>
 
-        {/* Footer */}
+      {!embedded && (
         <div className="border-t border-gray-800 bg-[#120b04] p-3 text-right">
           <button
             onClick={onClose}
@@ -155,7 +162,15 @@ export default function GunStoreModal({ onClose }) {
             Close Gun Store
           </button>
         </div>
-      </div>
+      )}
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 font-mono text-white">
+      <div className="w-full max-w-3xl border-4 border-yellow-500/80 bg-[#140e06] p-6 shadow-2xl">{body}</div>
     </div>
   )
 }

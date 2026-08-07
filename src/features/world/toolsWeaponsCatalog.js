@@ -55,8 +55,47 @@ export function weaponToInventoryItem(weapon) {
 // crowbar (30, catalog category 'tool') still counts, same as any firearm
 // or melee weapon, because a crowbar swung at someone is obviously a weapon
 // regardless of which NPC type the catalog defaults it to.
+// Every distinct combat-eligible weapon the player is carrying (same
+// category/damage-floor filter getCombatWeapon always used), deduped by id
+// - addItem never stacks a repeat purchase into a quantity, it just pushes
+// another inventory entry, so without the dedupe a 2nd Glock would render
+// as two identical "USE GLOCK" buttons. Sorted strongest-first so
+// PoliceFightModal's per-weapon action list reads as a ranked choice, not
+// catalog order. Backs the actual weapon-select UI (PoliceFightModal.jsx
+// - one "USE {name}" button per carried weapon, so the player picks THIS
+// fight's weapon by which button they press) - getCombatWeapon below still
+// exists for anything that only wants the single best pick.
+export function getCarriedWeapons(inventory) {
+  const seen = new Set()
+  const list = []
+  for (const item of inventory) {
+    if (item.category === 'armor' || !(item.damage >= 15) || seen.has(item.id)) continue
+    seen.add(item.id)
+    list.push(item)
+  }
+  return list.sort((a, b) => b.damage - a.damage)
+}
+
 export function getCombatWeapon(inventory) {
-  const candidates = inventory.filter((item) => item.category !== 'armor' && item.damage >= 15)
+  return getCarriedWeapons(inventory)[0] || null
+}
+
+// getCombatWeapon's defensive counterpart - only kevlar_vest qualifies today
+// (the catalog's one `category: 'armor'` entry), but reduce-to-best mirrors
+// getCombatWeapon's shape in case a heavier armor item is ever added.
+export function getCombatArmor(inventory) {
+  const candidates = inventory.filter((item) => item.category === 'armor' && item.defense > 0)
   if (!candidates.length) return null
-  return candidates.reduce((best, item) => (item.damage > best.damage ? item : best))
+  return candidates.reduce((best, item) => (item.defense > best.defense ? item : best))
+}
+
+// Diminishing-returns curve (defense/(defense+100)) rather than a flat
+// per-point cut, so a future higher-defense item can't approach 100%
+// reduction and make the wearer unhittable - kevlar_vest's defense:50 works
+// out to a 1/3 cut. Math.max(1, ...) floor matches rollOfficerDamage's own
+// "always at least 1" floor - armor mitigates, never fully no-sells a hit.
+export function applyArmorReduction(rawDamage, armor) {
+  if (!armor) return rawDamage
+  const reduction = armor.defense / (armor.defense + 100)
+  return Math.max(1, Math.round(rawDamage * (1 - reduction)))
 }
