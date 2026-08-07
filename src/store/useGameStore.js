@@ -166,6 +166,12 @@ function createDefaultState() {
     cash: 1000,
     wantedLevel: 0,
     notoriety: 0, // 0-100 stat for crime visibility
+    // GunStoreModal.jsx's Federal Firearm License flag - a one-way unlock
+    // (see buyFflLicense below), gates legal-tab purchases under a
+    // requiresFfl presidential policy (firearmLegislationEngine.js's
+    // canPurchaseLegalFirearm). Top-level, not nested in world2, matching
+    // wantedLevel/notoriety above - same "not Finance-only" reasoning.
+    hasFfl: false,
     // Live count of NPCs (police, ambient pedestrians, named roamers) within
     // witness range of the player right now - published every ~400ms by
     // OverworldScene.updateNearbyWitnesses while the player is in the
@@ -444,6 +450,14 @@ export const useGameStore = create((set, get) => ({
     set((state) => ({
       wantedLevel: Math.max(0, Math.min(5, state.wantedLevel + amount)),
     })),
+
+  // One-way unlock - GunStoreModal.jsx already checks cash < 5000 itself
+  // before calling this, so no cash/error handling needed here (matches
+  // that button's own disabled-state gate).
+  buyFflLicense: () => {
+    set({ hasFfl: true })
+    return { success: true }
+  },
 
   // Called once by WorldScreen.jsx's pendingCrimeArrest effect right after
   // it opens the PoliceStopModal the request asked for - clears the request

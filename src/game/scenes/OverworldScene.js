@@ -2147,8 +2147,10 @@ export default class OverworldScene extends Phaser.Scene {
   // fixed INTERIOR_DESK slot drawInteriorRoom always renders (the room's
   // one "real" desk facade + label, same prominence jail's guard desk gets)
   // IS the Boss Jobs + Standing back office - no separate Standing stop,
-  // see INTERIOR_TEMPLATES.underworldInterior's own comment for why. All 5
-  // interactables use the bespoke 'underworldDesk' zone.type (see
+  // see INTERIOR_TEMPLATES.underworldInterior's own comment for why. Gun
+  // Store got its own 6th desk in a later pass (top-right corner) rather
+  // than staying tab-only. All 6 interactables use the bespoke
+  // 'underworldDesk' zone.type (see
   // triggerInteraction) rather than the generic 'interiorDesk' one, so none
   // of their ids can collide with DISTRICT_BUILDING_IDS.
   buildUnderworldInteriorZone() {
@@ -2160,6 +2162,11 @@ export default class OverworldScene extends Phaser.Scene {
       { col: 8, row: 4, initialTab: 'callCenterOps', label: 'Call Center Ops' },
       { col: 3, row: 6, initialTab: 'crimeAlley', label: 'Crime Alley' },
       { col: 8, row: 6, initialTab: 'speakeasy', label: 'Speakeasy Hotel' },
+      // 6th desk (later addition, same pattern as the 4 above): the empty
+      // top-right corner, clear of the fixed Boss Jobs desk (INTERIOR_DESK,
+      // roughly cols4-7/rows1-4) and the Call Center/Speakeasy column (col8)
+      // - the only genuinely free spot left in this room.
+      { col: 10, row: 2, initialTab: 'gunStore', label: 'Gun Store' },
     ]
 
     this.zones = [

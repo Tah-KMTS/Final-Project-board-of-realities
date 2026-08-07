@@ -7,6 +7,7 @@ import SyndicateStandingPanel from './SyndicateStandingPanel'
 import EscobarAirDropModal from './EscobarAirDropModal'
 import OffshoreAuditModal from './OffshoreAuditModal'
 import ContractDeductionModal from './ContractDeductionModal'
+import GunStoreModal from '../world/GunStoreModal'
 import { useGameStore } from '../../store/useGameStore'
 import { RANK_GATE } from '../agents/syndicateStandingEngine'
 
@@ -156,6 +157,13 @@ const TABS = [
   { id: 'callCenterOps', label: 'Call Center Ops' },
   { id: 'crimeAlley', label: 'Crime Alley' },
   { id: 'speakeasy', label: 'Speakeasy Hotel' },
+  // GunStoreModal.jsx (Legal Retail Store + Underground Black Market Dealer
+  // tabs, incl. THEFT_ITEM/Slim Jim - see VehicleTheftModal.jsx's quiet
+  // theft method) folded in here rather than given its own building on the
+  // map - same "one access point, not a scattered standalone" consolidation
+  // this whole hub already applies to Black Market/Call Center Ops/Crime
+  // Alley/Speakeasy Hotel.
+  { id: 'gunStore', label: 'Gun Store' },
   { id: 'bossJobs', label: 'Boss Jobs' },
   // Read-only Standing display (v1 scope: 7 Bosses only) - see
   // src/features/agents/syndicateStandingEngine.js for the underlying model.
@@ -198,7 +206,11 @@ export default function UnderworldModal({ onClose, initialTab = 'blackMarket' })
           ))}
         </div>
 
-        <div className="mb-4 max-h-[460px] overflow-y-auto">
+        {/* Raised from a flat 460px and made viewport-relative when the Crime
+            Alley tab's shooting-range minigame grew to a 560x300 viewport -
+            at 460 the range sat in a cramped scroller. Only a cap, so every
+            other (shorter) tab renders exactly as before. */}
+        <div className="mb-4 max-h-[72vh] overflow-y-auto">
           {tab === 'blackMarket' && <DistrictBuildingModal buildingId="blackMarket" embedded />}
           {tab === 'callCenterOps' && <DistrictBuildingModal buildingId="callCenterOps" embedded />}
           {tab === 'crimeAlley' && <DistrictBuildingModal buildingId="crimeAlley" embedded />}
@@ -221,6 +233,7 @@ export default function UnderworldModal({ onClose, initialTab = 'blackMarket' })
               />
             </>
           )}
+          {tab === 'gunStore' && <GunStoreModal embedded />}
           {tab === 'bossJobs' && (
             bossJobSelection == null ? (
               <BossJobsMenu onSelect={setBossJobSelection} />
