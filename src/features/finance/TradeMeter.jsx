@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
+import { playClickSound, playGoodHitSound, playBadHitSound } from '../../audio/sfx'
 
 const SWEEP_PERIOD_MS = 1600
 const ZONE_WIDTH = 0.2
@@ -51,6 +52,7 @@ export default function TradeMeter({ stock, holding, shortHolding }) {
   }, [direction])
 
   const startAiming = (dir) => {
+    playClickSound()
     setResultText('')
     setZone(randomZone())
     startTimeRef.current = performance.now()
@@ -61,28 +63,34 @@ export default function TradeMeter({ stock, holding, shortHolding }) {
     const pos = markerPosRef.current
     const multiplier = multiplierFor(direction, pos, zone)
     const hit = multiplier !== 1
+    let ok = false
 
     if (direction === 'buy') {
-      const ok = buyStock(stock.ticker, qty, multiplier)
+      ok = buyStock(stock.ticker, qty, multiplier)
       setResultText(
         !ok ? 'Not enough cash for that trade.' : hit ? `Filled at a ${Math.round((1 - multiplier) * 100)}% discount!` : 'Filled at market price.'
       )
     } else if (direction === 'sell') {
-      const ok = sellStock(stock.ticker, qty, multiplier)
+      ok = sellStock(stock.ticker, qty, multiplier)
       setResultText(
         !ok ? "You don't have enough shares." : hit ? `Filled at a ${Math.round((multiplier - 1) * 100)}% bonus!` : 'Filled at market price.'
       )
     } else if (direction === 'short') {
-      const ok = openShort(stock.ticker, qty, multiplier)
+      ok = openShort(stock.ticker, qty, multiplier)
       setResultText(
         !ok ? 'Could not open short.' : hit ? `Shorted at a ${Math.round((multiplier - 1) * 100)}% bonus!` : 'Shorted at market price.'
       )
     } else if (direction === 'cover') {
-      const ok = coverShort(stock.ticker, qty, multiplier)
+      ok = coverShort(stock.ticker, qty, multiplier)
       setResultText(
         !ok ? "Not enough cash to cover - you're stuck holding the position." : hit ? `Covered at a ${Math.round((1 - multiplier) * 100)}% discount!` : 'Covered at market price.'
       )
     }
+
+    if (!ok) playBadHitSound()
+    else if (hit) playGoodHitSound()
+    else playClickSound()
+
     setDirection(null)
     setZone(null)
   }

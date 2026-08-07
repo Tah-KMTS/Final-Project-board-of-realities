@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/useGameStore'
 import { createDeck, shuffle, evaluateHand, compareHands } from './playingCards'
 import { randomCasinoNpc } from './casinoNpcs'
 import PlayingCard from './PlayingCard'
+import { playCardFlipSound, playQuestCompleteSound, playPurchaseSound, playBadHitSound, playClickSound } from '../../audio/sfx'
 
 const BIG_WIN_REPUTATION_THRESHOLD = 300
 const MAX_DISCARD = 3 // standard draw-poker house rule (real games special-case a 4-of-a-kind draw's kicker; skipped here)
@@ -115,6 +116,7 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
     let d = shuffle(createDeck())
     const pHand = d.splice(d.length - 5, 5)
     const nHand = d.splice(d.length - 5, 5)
+    playCardFlipSound()
     setActiveNpc(useNpc)
     setAnte(useAnte)
     setDeck(d)
@@ -139,6 +141,7 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
   const drawCards = () => {
     let d = [...deck]
     const newHand = playerHand.map((c, i) => (held[i] ? c : d.pop()))
+    playCardFlipSound()
     const npcResult = npcDraw(npcHand, d)
     setPlayerHand(newHand)
     setNpcHand(npcResult.hand)
@@ -152,6 +155,17 @@ export default function Poker({ variant = 'house', npc, fixedStake = 0, onResolv
     setPhase('showdown')
     setOutcome(result)
     setMessage(msg)
+    // Sound only for 'house' (same reasoning as Blackjack.jsx's
+    // resolveHand): in 'playerHouse' the app-user plays as the house, and
+    // this file's own comment below notes the cash math flips what
+    // `result` actually means for them - a win/lose jingle would be
+    // unreliable there.
+    if (variant === 'house') {
+      if (payout >= BIG_WIN_REPUTATION_THRESHOLD && result === 'win') playQuestCompleteSound()
+      else if (result === 'win') playPurchaseSound()
+      else if (result === 'lose') playBadHitSound()
+      else playClickSound()
+    }
     if (variant === 'house') {
       if (payout > 0) addCash(payout)
       if (payout >= BIG_WIN_REPUTATION_THRESHOLD) addReputation(2)

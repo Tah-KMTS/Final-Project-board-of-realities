@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import CellBlockCorridor from './CellBlockCorridor'
 import ExerciseYard from './ExerciseYard'
 import FenceLine from './FenceLine'
 import FinalStretch from './FinalStretch'
+import { playDoorSound, playGoodHitSound, playVictorySound, playAlarmSound } from '../../audio/sfx'
 
 const SEGMENT_COMPONENTS = [CellBlockCorridor, ExerciseYard, FenceLine, FinalStretch]
 
@@ -39,8 +41,24 @@ const SEGMENT_INSTRUCTIONS = [
 export default function JailMazeMinigame({ segmentIndex, difficulty, onResolved }) {
   const attemptMazeSegment = useGameStore((s) => s.attemptMazeSegment)
 
+  // Fires once per checkpoint attempt (this component mounts fresh per
+  // checkpoint - see the header comment) - the "you stepped on the
+  // checkpoint and the challenge just opened" cue.
+  useEffect(() => {
+    playDoorSound()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleComplete = (success) => {
     const result = attemptMazeSegment(segmentIndex, success)
+    if (success) {
+      // Segment 3 (Final Stretch) clearing IS the escape - the bigger
+      // payoff jingle, not just "you cleared a checkpoint."
+      if (segmentIndex >= 3) playVictorySound()
+      else playGoodHitSound()
+    } else {
+      playAlarmSound()
+    }
     onResolved({ ...result, segmentIndex })
   }
 

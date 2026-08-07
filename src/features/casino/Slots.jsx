@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../../store/useGameStore'
+import { playSpinSound, playPurchaseSound, playQuestCompleteSound, playBadHitSound, playClickSound } from '../../audio/sfx'
 
 const MIN_BET = 5
 const SPIN_ANIM_MS = 700
@@ -85,6 +86,7 @@ export default function Slots() {
     if (spinning || cash < bet || bet < MIN_BET || energy < 5) return
     if (!spendEnergy(5)) return
     addCash(-bet)
+    playSpinSound()
     setSpinning(true)
     setMessage('')
 
@@ -102,9 +104,11 @@ export default function Slots() {
         const payout = bet * multiplier
         addCash(payout)
         if (multiplier >= BIG_WIN_REPUTATION_THRESHOLD) {
+          playQuestCompleteSound()
           addReputation(3)
           setMessage(`JACKPOT! Triple ${matchedSymbol.glyph} pays ${multiplier}x - $${payout.toLocaleString()}! The floor turns to watch.`)
         } else {
+          playPurchaseSound()
           setMessage(`Winner! ${matchedSymbol.glyph} pays ${multiplier}x - $${payout.toLocaleString()}.`)
         }
       } else {
@@ -116,9 +120,11 @@ export default function Slots() {
         const effectiveLuck = getEffectiveLuck()
         const luckSaveChance = Math.max(0, Math.min(0.15, (effectiveLuck - 5) * 0.02))
         if (Math.random() < luckSaveChance) {
+          playClickSound()
           addCash(bet)
           setMessage('No match... but a stray coin rolls back out of the tray. Push - your bet is returned.')
         } else {
+          playBadHitSound()
           setMessage('No match. Better luck next spin.')
         }
       }

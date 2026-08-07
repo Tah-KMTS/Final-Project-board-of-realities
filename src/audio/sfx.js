@@ -215,6 +215,84 @@ export function playStaggerSound() {
   })
 }
 
+// --- Minigame vocabulary (Vault Crack, the 5 Underworld racket games, the
+// Shooting Range, casino tables, Concert Hall/Sports Stadium, the Wharf, and
+// jail-maze checkpoints) - a small, reusable set rather than one bespoke
+// sound per minigame, so all of them read as the same sonic family per
+// audio-director's "SFX vocabulary consistency" rule. Combat already has its
+// own hit/damage/victory/defeat language above; these are the non-combat
+// equivalents (landing a precise action, landing on the wrong thing, a
+// bigger bust/alarm beat, dealing a card, spinning a reel, firing a gun).
+
+// Landing a precise/correct action outside combat - a Bullseye, a correct
+// Circuit stop, a winning trade-timing zone, a Perfect rhythm note. Distinct
+// from playHitSound so minigame feedback doesn't borrow the "you punched
+// someone" read.
+export function playGoodHitSound() {
+  moodyBlip({ freqStart: 700, freqEnd: 1150, duration: 0.09, type: 'triangle', volume: 0.22 })
+}
+
+// Landing on the wrong thing outside combat - the Shooting Range's Civilian
+// target, a wrong Circuit stop, a Poker/trade loss. A harsh buzz, distinct
+// from playTakeDamageSound's combat thud.
+export function playBadHitSound() {
+  moodyBlip({ freqStart: 260, freqEnd: 140, duration: 0.16, type: 'sawtooth', volume: 0.24, noiseAmount: 0.3 })
+}
+
+// A bigger bust/alarm beat, reserved for stakes above playBadHitSound's
+// everyday miss - Vault Crack's alarm, Russian Roulette's bang, getting
+// caught counting cards. Two-tone alternating klaxon.
+export function playAlarmSound() {
+  const audio = getContext()
+  ;[520, 380, 520, 380].forEach((freq, i) => {
+    const start = audio.currentTime + i * 0.11
+    const osc = audio.createOscillator()
+    const gain = audio.createGain()
+    osc.type = 'square'
+    osc.frequency.value = freq
+    gain.gain.setValueAtTime(0.22, start)
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.1)
+    osc.connect(gain)
+    gain.connect(audio.destination)
+    osc.start(start)
+    osc.stop(start + 0.1)
+  })
+}
+
+// A card dealt or flipped - Blackjack/Poker. Short percussive snap.
+export function playCardFlipSound() {
+  moodyBlip({ freqStart: 400, freqEnd: 250, duration: 0.06, type: 'square', volume: 0.14, noiseAmount: 0.5 })
+}
+
+// A reel/cylinder spinning up - Slots, Russian Roulette. Quick mechanical
+// descending whirr, played once at spin-start rather than per flicker-frame.
+export function playSpinSound() {
+  blip({ freqStart: 900, freqEnd: 300, duration: 0.5, type: 'sawtooth', volume: 0.1 })
+}
+
+// A gunshot crack - Shooting Range fire, played on every trigger pull (hit
+// or miss). Distinct from playHitSound's punch thud: sharp, noise-heavy,
+// fast pitch drop.
+export function playGunshotSound() {
+  moodyBlip({ freqStart: 1200, freqEnd: 80, duration: 0.09, type: 'square', volume: 0.28, noiseAmount: 0.55 })
+}
+
+// A car window smashed in - VehicleTheftModal's loud "Smash & Hotwire"
+// method. Heavier noise layer than playBadHitSound so it reads as breaking
+// glass, not a miss buzz.
+export function playSmashSound() {
+  moodyBlip({ freqStart: 500, freqEnd: 90, duration: 0.22, type: 'sawtooth', volume: 0.26, noiseAmount: 0.7 })
+}
+
+// The Circuit's 4-stop Simon-Says sequence, one fixed tone per stop id -
+// played both when the route flashes and echoed back on a correct player
+// click, so the flash and the recall share one sonic identity.
+const SEQUENCE_TONES = [392, 494, 587, 659] // G4 B4 D5 E5 - simple, pleasant, clearly distinct
+export function playSequenceTone(index) {
+  const freq = SEQUENCE_TONES[index % SEQUENCE_TONES.length]
+  blip({ freqStart: freq, freqEnd: freq, duration: 0.18, type: 'triangle', volume: 0.2 })
+}
+
 // A footstep-like double-tap fading downward, for breaking off a fight
 // (Retreat / Flee) - distinct from Defeat's single long sawtooth droop.
 export function playRetreatSound() {

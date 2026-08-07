@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
+import { playClickSound, playDiceSound, playVictorySound, playAlarmSound } from '../../audio/sfx'
 
 // Vault Cracking - replaces the old single-click coin-flip "Rob Vault"
 // button with a real Mastermind-style combination-cracking puzzle. Two
@@ -134,6 +135,7 @@ export default function VaultCrackModal({ onClose }) {
   }
 
   const fillSlot = (digit) => {
+    playClickSound()
     setCurrentSlots((prev) => {
       const idx = prev.indexOf(null)
       if (idx === -1) return prev
@@ -169,12 +171,15 @@ export default function VaultCrackModal({ onClose }) {
       assetSeizureOnFail: activeTier.assetSeizureOnFail,
       jailChanceOnFail: activeTier.jailChanceOnFail,
     })
+    if (success) playVictorySound()
+    else playAlarmSound()
     setResultData({ outcome: success ? 'crack' : 'alarm', guessesUsed: guessesUsedCount, tier: activeTier, res })
     setScreen('results')
   }
 
   const submitGuess = () => {
     if (!activeTier || currentSlots.some((v) => v == null)) return
+    playDiceSound()
     const guess = [...currentSlots]
     const { blackPegs, whitePegs } = scoreGuess(secret, guess)
     const newGuesses = [...guesses, { guess, blackPegs, whitePegs }]

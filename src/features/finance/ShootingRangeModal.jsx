@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { clamp, computeFavorability } from './crimeDifficulty'
+import { playGunshotSound, playGoodHitSound, playBadHitSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 
 // Crime Alley's minigame (successor to LookoutWatchModal, then a click-a-lane
 // version, then flat-2D mouse-aim, then a fake-3D corridor, then multi-target)
@@ -363,6 +364,8 @@ export default function ShootingRangeModal({
         inHomeTurf,
       })
       if (!success && reputationDeltaOnFail) addReputation(reputationDeltaOnFail)
+      if (success) playVictorySound()
+      else playDefeatSound()
       setResultData({ success, res, shots, hits, centers, accuracy, centerRate, multiplier, gradedPayout })
       setScreen('result')
     },
@@ -430,6 +433,7 @@ export default function ShootingRangeModal({
     if (now - lastFiredAtRef.current < FIRE_COOLDOWN_MS) return
     lastFiredAtRef.current = now
     setFiredAt(now)
+    playGunshotSound()
     shotsRef.current += 1
 
     const shot = crosshairRef.current
@@ -469,6 +473,7 @@ export default function ShootingRangeModal({
       // Only shoot-targets count as "hits" for accuracy - drilling a Civilian
       // is the opposite of good shooting, so it stays a miss on the ledger on
       // top of its Suspicion cost.
+      playGoodHitSound()
       hitsRef.current += 1
       if (hitZone === 'center') centersRef.current += 1
       const base =
@@ -493,6 +498,7 @@ export default function ShootingRangeModal({
         return
       }
     } else {
+      playBadHitSound()
       comboRef.current = 0
       setCombo(0)
       suspicionRef.current += lockedRef.current.suspicionPerCivilianHit
@@ -557,6 +563,7 @@ export default function ShootingRangeModal({
           missedStreakRef.current += expiredShooters
           if (missedStreakRef.current >= MISS_STREAK_LIMIT) {
             missedStreakRef.current = 0
+            playBadHitSound()
             suspicionRef.current += lockedRef.current.suspicionPerMissedStreak
             setSuspicion(suspicionRef.current)
             if (suspicionRef.current >= suspicionCap) {

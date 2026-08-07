@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { computeFavorability } from './crimeDifficulty'
+import { playClickSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 
 // Leverage - the shared "dual-meter race" negotiation minigame. Built to
 // replace the flat Math.random() < 0.5 coin-flip DistrictBuildingModal
@@ -200,6 +201,8 @@ export default function LeverageMeter({
       // reputation consequence don't lose it just because the shared
       // resolver doesn't know about it.
       if (!success && reputationDeltaOnFail) addReputation(reputationDeltaOnFail)
+      if (success) playVictorySound()
+      else playDefeatSound()
       setResultData({ success, res })
       setScreen('result')
     },
@@ -225,6 +228,7 @@ export default function LeverageMeter({
     const now = performance.now()
     if (now - lastTapTsRef.current < MIN_TAP_INTERVAL_MS) return // universal rate limit, see header comment
     lastTapTsRef.current = now
+    playClickSound()
     leverageRef.current += lockedRef.current.pressurePerTap
     suspicionRef.current += SUSPICION_PER_TAP
     setLeverage(leverageRef.current)

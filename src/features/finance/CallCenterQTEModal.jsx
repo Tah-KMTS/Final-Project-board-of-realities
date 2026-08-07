@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { clamp, computeFavorability } from './crimeDifficulty'
+import { playGoodHitSound, playBadHitSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 
 // Call Center Ops' minigame - "Keep Them On The Line". Replaces the shared
 // LeverageMeter race with a Simon-Says cue-matching QTE (arrow keys, same
@@ -88,6 +89,8 @@ export default function CallCenterQTEModal({
         inHomeTurf,
       })
       if (!success && reputationDeltaOnFail) addReputation(reputationDeltaOnFail)
+      if (success) playVictorySound()
+      else playDefeatSound()
       setResultData({ success, res })
       setScreen('result')
     },
@@ -114,6 +117,7 @@ export default function CallCenterQTEModal({
   }, [])
 
   const missCue = useCallback(() => {
+    playBadHitSound()
     suspicionRef.current += lockedRef.current.suspicionPerMiss
     setSuspicion(suspicionRef.current)
     if (suspicionRef.current >= suspicionCap) {
@@ -132,6 +136,7 @@ export default function CallCenterQTEModal({
       if (screen !== 'race' || resolvedRef.current || !cueRef.current || cueScoredRef.current) return
       cueScoredRef.current = true
       if (key === cueRef.current.key) {
+        playGoodHitSound()
         leverageRef.current += lockedRef.current.leveragePerCue
         setLeverage(leverageRef.current)
         if (leverageRef.current >= target) {

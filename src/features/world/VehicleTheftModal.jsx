@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { THEFT_ITEM } from '../../game/vehicleGen'
+import { playClickSound, playSmashSound, playVictorySound, playAlarmSound } from '../../audio/sfx'
 
 // Mirrors the exact baseSuccessChance/checkWitnesses stealVehicle() passes
 // to executeCrime for each method (useGameStore.js) - kept here purely to
@@ -60,6 +61,8 @@ export default function VehicleTheftModal({ vehicle, onClose, onStolen }) {
       onClose()
       return
     }
+    if (chosenMethod === 'equipment') playClickSound()
+    else playSmashSound()
     setMethod(chosenMethod)
     setResult(outcome)
     setPhase('attempting')
@@ -67,8 +70,13 @@ export default function VehicleTheftModal({ vehicle, onClose, onStolen }) {
 
   useEffect(() => {
     if (phase !== 'attempting') return
-    const t = setTimeout(() => setPhase('result'), ATTEMPT_DURATION_MS)
+    const t = setTimeout(() => {
+      if (result.success) playVictorySound()
+      else playAlarmSound()
+      setPhase('result')
+    }, ATTEMPT_DURATION_MS)
     return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
 
   const handleFooterClick = () => {

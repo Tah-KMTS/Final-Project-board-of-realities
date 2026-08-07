@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
+import { playClickSound, playAlarmSound, playPurchaseSound, playQuestCompleteSound } from '../../audio/sfx'
 
 const MIN_BET = 25
 const ENERGY_COST = 5
@@ -103,12 +104,14 @@ export default function RussianRoulette() {
     const bang = Math.random() < bangChance
 
     if (bang) {
+      playAlarmSound()
       setPhase('result')
       setOutcome('bust')
       setMessage(pickRandom(BUST_MESSAGES))
       return
     }
 
+    playClickSound()
     const newRound = round + 1
     setRound(newRound)
     setMessage(SURVIVE_MESSAGES[newRound - 1])
@@ -119,7 +122,12 @@ export default function RussianRoulette() {
     const multiplier = ROUND_MULTIPLIERS[round - 1]
     const payout = Math.round(bet * multiplier)
     addCash(payout)
-    if (round >= BIG_WIN_REPUTATION_THRESHOLD) addReputation(3)
+    if (round >= BIG_WIN_REPUTATION_THRESHOLD) {
+      playQuestCompleteSound()
+      addReputation(3)
+    } else {
+      playPurchaseSound()
+    }
     setPhase('result')
     setOutcome('cashout')
     setMessage(`You set the revolver down and pocket the pot. ${round}/${MAX_ROUNDS} chambers cleared - $${payout.toLocaleString()} (${multiplier}x).`)

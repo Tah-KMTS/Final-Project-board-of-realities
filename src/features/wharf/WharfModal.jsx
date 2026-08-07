@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
+import { playClickSound, playCounterPrimeSound, playBadHitSound, playGoodHitSound, playQuestCompleteSound, playPurchaseSound } from '../../audio/sfx'
 
 // Bonded Cargo Pier ("the wharf") - Cast & Reel fishing + manifest-fraud.
 // Self-contained like Slots.jsx/RussianRoulette.jsx: owns its own
@@ -160,12 +161,18 @@ export default function WharfModal({ onClose }) {
   const finishReel = (outcome, elapsedAtWinMs) => {
     setReeling(false)
     if (outcome === 'lose') {
+      playBadHitSound()
       setMessage(randomLine(GOT_AWAY_LINES))
       return
     }
     const quality = Math.max(0, Math.min(1, inZoneMsRef.current / elapsedAtWinMs))
     const tier = rollCatchTier(quality)
-    if (tier.key === 'record') addReputation(RECORD_REPUTATION_GAIN)
+    if (tier.key === 'record') {
+      playQuestCompleteSound()
+      addReputation(RECORD_REPUTATION_GAIN)
+    } else {
+      playGoodHitSound()
+    }
     setMessage(`${tier.label}! ${tier.flavor}`)
     setPendingCatch(tier)
   }
@@ -267,6 +274,7 @@ export default function WharfModal({ onClose }) {
     // Order per spec: check cash/energy sufficient (canCast above) -> spendEnergy -> addCash(-bait).
     if (!spendEnergy(CAST_ENERGY_COST)) return
     addCash(-CAST_CASH_COST)
+    playClickSound()
     setCasting(true)
     setMessage(randomLine(CAST_LINES))
 
@@ -280,6 +288,7 @@ export default function WharfModal({ onClose }) {
         return
       }
 
+      playCounterPrimeSound()
       setMessage(BITE_LINE)
       startReel()
     }, CAST_ANIM_MS)
@@ -287,6 +296,7 @@ export default function WharfModal({ onClose }) {
 
   const declareHonest = () => {
     if (!pendingCatch) return
+    playPurchaseSound()
     addCash(pendingCatch.value)
     setMessage(`You weigh it, log it, and take the honest cut ($${pendingCatch.value.toLocaleString()}). The clipboard is satisfied.`)
     setPendingCatch(null)
@@ -309,8 +319,10 @@ export default function WharfModal({ onClose }) {
     // result text executeCrime already built (mirrors BankModal/TempleModal's
     // "just surface res.message" pattern).
     if (res.success) {
+      playPurchaseSound()
       setMessage(`The manifest clears customs without a second glance. ${res.message}`)
     } else {
+      playBadHitSound()
       setMessage(`An inspector actually reads the manifest this time. ${res.message || res.reason}`)
     }
     setPendingCatch(null)

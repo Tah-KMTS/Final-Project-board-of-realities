@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
+import { playGoodHitSound, playClickSound, playBadHitSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 
 // Concert Hall arrow-key rhythm minigame. Follows the ClawMachine.jsx/
 // MiniGolfModal.jsx shadow-state rAF pattern: refs own the per-frame truth
@@ -100,6 +101,13 @@ export default function RhythmGame({ song, onFinish }) {
     if (finishedRef.current) return
     finishedRef.current = true
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    // Payout tiers are ConcertHallTab.jsx's own concern (payoutMultiplierFor)
+    // - this is just a closing sonic beat, gated on the same "did you
+    // actually play well" read a listener would use, not the real payout math.
+    if (reason === 'complete') {
+      if (maxScore > 0 && scoreRef.current / maxScore >= 0.5) playVictorySound()
+      else playDefeatSound()
+    }
     onFinish({
       score: scoreRef.current,
       maxScore,
@@ -122,6 +130,10 @@ export default function RhythmGame({ song, onFinish }) {
 
     if (result === 'miss') setComboValue(0)
     else setComboValue(comboRef.current + 1)
+
+    if (result === 'perfect') playGoodHitSound()
+    else if (result === 'good') playClickSound()
+    else playBadHitSound()
 
     showToast(result === 'perfect' ? 'PERFECT' : result === 'good' ? 'GOOD' : 'MISS', result)
     hideNoteEl(idx)

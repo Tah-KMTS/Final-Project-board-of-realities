@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { createDeck, shuffle, blackjackTotal, isBlackjack } from './playingCards'
 import PlayingCard from './PlayingCard'
+import { playCardFlipSound, playAlarmSound, playQuestCompleteSound, playPurchaseSound, playBadHitSound, playClickSound } from '../../audio/sfx'
 
 const CARD_COUNT_CATCH_CHANCE = 0.2
 const BIG_WIN_REPUTATION_THRESHOLD = 300
@@ -56,6 +57,7 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
       if (countCards && variant !== 'playerHouse') {
         usingCount = true
         if (Math.random() < effectiveCatchChance) {
+          playAlarmSound()
           setCaughtCounting(true)
           setCountCards(false)
           addWantedLevel(1)
@@ -71,6 +73,7 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
     let d = shuffle(createDeck())
     const pHand = [d.pop(), d.pop()]
     const dHand = [d.pop(), d.pop()]
+    playCardFlipSound()
     setDeck(d)
     setPlayerHand(pHand)
     setDealerHand(dHand)
@@ -90,6 +93,7 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
     const d = [...deck]
     if (d.length === 0) return
     const card = d.pop()
+    playCardFlipSound()
     const pHand = [...playerHand, card]
     setDeck(d)
     setPlayerHand(pHand)
@@ -109,6 +113,7 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
     const d = [...deck]
     if (d.length === 0) return
     const card = d.pop()
+    playCardFlipSound()
     const pHand = [...playerHand, card]
     setDeck(d)
     setPlayerHand(pHand)
@@ -178,6 +183,18 @@ export default function Blackjack({ variant = 'house', dealerName = 'The House',
 
     setOutcome(result)
     setMessage(msg)
+
+    // Sound only for the 'house' variant: in 'playerHouse' the app-user is
+    // playing AS the dealer, so `result === 'win'` (the pHand-vs-dHand
+    // comparison, computed the same regardless of variant) actually means
+    // THEY lost money - see the cash math below. Adding a win/lose jingle
+    // there would play backwards.
+    if (variant === 'house') {
+      if (result === 'win' && checkedNaturals && playerBJ) playQuestCompleteSound()
+      else if (result === 'win') playPurchaseSound()
+      else if (result === 'lose') playBadHitSound()
+      else playClickSound()
+    }
 
     if (variant === 'house') {
       if (payout > 0) addCash(payout)

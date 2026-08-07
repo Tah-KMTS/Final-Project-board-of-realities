@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { clamp, computeFavorability } from './crimeDifficulty'
+import { playGoodHitSound, playBadHitSound, playPurchaseSound, playClickSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 
 const ITEM_NAMES = [
   'a gold watch', 'a case of bootleg cigarettes', 'a stack of blank checks', 'a fur coat',
@@ -76,6 +77,8 @@ export default function FencesTableModal({
       inHomeTurf,
     })
     if (!success && reputationDeltaOnFail) addReputation(reputationDeltaOnFail)
+    if (success) playVictorySound()
+    else playDefeatSound()
     setResultData({ success, res })
     setScreen('result')
   }
@@ -131,20 +134,28 @@ export default function FencesTableModal({
     setItem(rollItem())
   }
 
-  const handleTake = () => nextItem(locked.lowball, 0, `Took the lowball offer - +${locked.lowball} leverage.`)
+  const handleTake = () => {
+    playPurchaseSound()
+    nextItem(locked.lowball, 0, `Took the lowball offer - +${locked.lowball} leverage.`)
+  }
 
   const handlePush = () => {
     const hit = Math.random() < locked.favorability
     if (hit) {
+      playGoodHitSound()
       const rollFrac = clamp(0, 1, 0.5 + (locked.favorability - 0.5))
       const value = Math.round(locked.pushMin + rollFrac * (locked.pushMax - locked.pushMin))
       nextItem(value, 0, `Pushed and got it - +${value} leverage.`)
     } else {
+      playBadHitSound()
       nextItem(0, locked.pushFailSuspicion, `He balked. Nothing banked, +${locked.pushFailSuspicion} suspicion.`)
     }
   }
 
-  const handleSkip = () => nextItem(0, 0, 'Passed on that one.')
+  const handleSkip = () => {
+    playClickSound()
+    nextItem(0, 0, 'Passed on that one.')
+  }
 
   const walkAway = () => {
     setLocked(null)

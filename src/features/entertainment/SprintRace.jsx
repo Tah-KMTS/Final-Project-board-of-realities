@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
+import { playClickSound, playStaggerSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 
 // Sports Stadium arrow-key sprint QTE. Mirrors RhythmGame.jsx's shadow-state
 // rAF architecture as closely as a "count discrete alternating strides"
@@ -154,6 +155,11 @@ export default function SprintRace({ tier, fixApplied, onFinish }) {
       // against a live AI timer/callback.
       const beatenByCount = aiFinishTimes.filter((t) => t < finishTime).length
       place = beatenByCount + 1
+      // Matches SportsStadiumTab.jsx's own PLACE_MULTIPLIER - 1st/2nd/3rd
+      // pay, 4th-6th don't - so this jingle tracks the same "did it pay"
+      // line the results screen shows, not an arbitrary threshold.
+      if (place <= 3) playVictorySound()
+      else playDefeatSound()
     }
 
     onFinish({
@@ -197,6 +203,7 @@ export default function SprintRace({ tier, fixApplied, onFinish }) {
           return
         }
         // Deliberate stumble: locks out counted strides for a beat.
+        playStaggerSound()
         lockoutUntilRef.current = now + cfg.stumbleLockoutMs
         setStumbleToast(true)
         if (stumbleToastTimeoutRef.current) clearTimeout(stumbleToastTimeoutRef.current)
@@ -217,6 +224,7 @@ export default function SprintRace({ tier, fixApplied, onFinish }) {
         return
       }
 
+      playClickSound()
       playerStrideCountRef.current = nextStrideNumber
       lastStrideKeyRef.current = dir
       lastStrideTimeRef.current = now

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { clamp, computeFavorability } from './crimeDifficulty'
+import { playSequenceTone, playGoodHitSound, playBadHitSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 
 const STOPS = [
   { id: 0, label: 'Green Mill', icon: '🎷' },
@@ -91,6 +92,8 @@ export default function TheCircuitModal({
         inHomeTurf,
       })
       if (!success && reputationDeltaOnFail) addReputation(reputationDeltaOnFail)
+      if (success) playVictorySound()
+      else playDefeatSound()
       setResultData({ success, res })
       setScreen('result')
     },
@@ -117,7 +120,10 @@ export default function TheCircuitModal({
     const flashMs = lockedRef.current.flashMs
     seq.forEach((stopId, i) => {
       flashTimeoutsRef.current.push(
-        setTimeout(() => setFlashIndex(stopId), i * flashMs * 1.6)
+        setTimeout(() => {
+          setFlashIndex(stopId)
+          playSequenceTone(stopId)
+        }, i * flashMs * 1.6)
       )
       flashTimeoutsRef.current.push(
         setTimeout(() => setFlashIndex(-1), i * flashMs * 1.6 + flashMs)
@@ -148,10 +154,12 @@ export default function TheCircuitModal({
     if (screen !== 'race' || phase !== 'input' || resolvedRef.current) return
     const idx = inputProgressRef.current
     if (stopId === sequenceRef.current[idx]) {
+      playSequenceTone(stopId)
       const nextIdx = idx + 1
       inputProgressRef.current = nextIdx
       setInputProgress(nextIdx)
       if (nextIdx >= sequenceRef.current.length) {
+        playGoodHitSound()
         leverageRef.current += lockedRef.current.leveragePerRound
         setLeverage(leverageRef.current)
         setRoundMsg(`Clean run - +${lockedRef.current.leveragePerRound} leverage. The route grows.`)
@@ -162,6 +170,7 @@ export default function TheCircuitModal({
         startRound(true)
       }
     } else {
+      playBadHitSound()
       suspicionRef.current += lockedRef.current.suspicionPerMistake
       setSuspicion(suspicionRef.current)
       setRoundMsg(`Wrong stop - +${lockedRef.current.suspicionPerMistake} suspicion. Same route, try again.`)

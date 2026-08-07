@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { clamp, computeFavorability } from './crimeDifficulty'
+import { playGoodHitSound, playBadHitSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
 
 // Crime Alley's minigame - "Lookout Watch". Replaces the shared LeverageMeter
 // race with a reaction game: a Safe/Hot signal alternates on a real-time
@@ -78,6 +79,8 @@ export default function LookoutWatchModal({
         inHomeTurf,
       })
       if (!success && reputationDeltaOnFail) addReputation(reputationDeltaOnFail)
+      if (success) playVictorySound()
+      else playDefeatSound()
       setResultData({ success, res })
       setScreen('result')
     },
@@ -116,11 +119,13 @@ export default function LookoutWatchModal({
     if (signalActedRef.current) return // one score per window
     signalActedRef.current = true
     if (signalRef.current === 'safe') {
+      playGoodHitSound()
       leverageRef.current += lockedRef.current.leveragePerHit
       missedStreakRef.current = 0
       setLeverage(leverageRef.current)
       if (leverageRef.current >= target) resolve(true)
     } else {
+      playBadHitSound()
       suspicionRef.current += lockedRef.current.suspicionPerHotClick
       setSuspicion(suspicionRef.current)
       if (suspicionRef.current >= suspicionCap) resolve(false)
