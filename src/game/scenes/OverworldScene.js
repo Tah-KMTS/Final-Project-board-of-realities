@@ -716,6 +716,70 @@ function financeTileType(r, c) {
   return 'grass'
 }
 
+// ---------------- Lisa's bespoke home interior ----------------
+// Two hand-authored full-room background images (public/assets/packs/
+// interior/) instead of the generic tile-drawn "residence" room every other
+// character's home uses - see buildLisaHallZone/buildLisaWorkZone below.
+// Both are already opaque, already close to the 480x360 (INTERIOR_COLS x
+// INTERIOR_ROWS x TILE_SIZE) room canvas every interior renders at (470x356
+// and 460x352 respectively), so they're stretched to fill it exactly rather
+// than needing any background-removal/crop salvage pass first - unlike every
+// other AI-generated asset this project has processed, these were already
+// delivered as complete, rectangular room renders.
+const LISA_HALL_BG_KEY = 'lisaHallBg'
+const LISA_WORK_BG_KEY = 'lisaWorkBg'
+const LISA_BEDROOM_BG_KEY = 'lisaBedroomBg'
+
+function preloadLisaHouseInterior(scene) {
+  if (!scene.textures.exists(LISA_HALL_BG_KEY)) {
+    scene.load.image(LISA_HALL_BG_KEY, '/assets/packs/interior/hall.png')
+  }
+  if (!scene.textures.exists(LISA_WORK_BG_KEY)) {
+    scene.load.image(LISA_WORK_BG_KEY, '/assets/packs/interior/work.png')
+  }
+  // Bedroom.png is a much higher-res source (2342x1792, vs. hall/work's
+  // already-480x360-ish renders) - setDisplaySize in buildLisaBedroomZone
+  // stretches it down to the same room canvas exactly like the other two,
+  // no extra processing needed either way.
+  if (!scene.textures.exists(LISA_BEDROOM_BG_KEY)) {
+    scene.load.image(LISA_BEDROOM_BG_KEY, '/assets/packs/interior/Bedroom.png')
+  }
+}
+
+// Tile-rect -> Phaser.Geom.Rectangle, padded by half a tile on every side -
+// the exact same convention buildGenericInteriorZone's INTERIOR_DESK zone
+// uses, so standing just outside a piece of furniture still counts as "at"
+// it. `extra` fields (target/spawn/npcId/label) get spread onto the returned
+// zone object so this one helper covers both 'exit' and 'interiorDesk'
+// zones interchangeably - triggerInteraction dispatches on `type`, not on
+// which fields happen to be present.
+function lisaRoomZone(type, id, tileRect, extra = {}) {
+  return {
+    type,
+    id,
+    rect: new Phaser.Geom.Rectangle(
+      tileRect.c0 * TILE_SIZE - TILE_SIZE / 2,
+      tileRect.r0 * TILE_SIZE - TILE_SIZE / 2,
+      (tileRect.c1 - tileRect.c0 + 1) * TILE_SIZE + TILE_SIZE,
+      (tileRect.r1 - tileRect.r0 + 1) * TILE_SIZE + TILE_SIZE
+    ),
+    ...extra,
+  }
+}
+
+// Fills `set` with every "c,r" tile key in the given rect (inclusive) -
+// builds up a room's this.interiorBlockedTiles the same way chapel/teaHouse
+// already populate theirs from their own real tileset wall data, just from
+// hand-estimated furniture bounding boxes instead (see buildLisaHallZone/
+// buildLisaWorkZone/buildLisaBedroomZone - these 3 rooms are a single flat
+// illustration each, not a tile-by-tile authored map, so there's no wall
+// data to read collision off of directly).
+function fillBlockedRect(set, c0, r0, c1, r1) {
+  for (let c = c0; c <= c1; c++) {
+    for (let r = r0; r <= r1; r++) set.add(`${c},${r}`)
+  }
+}
+
 // ---------------- Building interiors ----------------
 // A single 12x9 room shape (INTERIOR_COLS/ROWS, matching DominoWorldScene's
 // own room convention) is reused for every building's interior; only the
@@ -824,6 +888,15 @@ const ZONES = {
   // existing zone (the jail escape tunnel's transient back-room backdrop) -
   // reusing either name here would collide with real, already-working code.
   underworldInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  // Lisa's bespoke two-room home interior (see buildLisaHallZone/
+  // buildLisaWorkZone below) - a full-image backdrop per room rather than
+  // the generic tile-drawn residence, so it reuses the same shared
+  // INTERIOR_COLS x INTERIOR_ROWS room shape purely for the collision/camera
+  // math every other interior already gets for free, not because the art
+  // was authored to that grid.
+  lisaHall: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  lisaWork: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  lisaBedroom: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
 }
 
 // ---------------- shared small helpers ----------------
@@ -1613,6 +1686,15 @@ export default class OverworldScene extends Phaser.Scene {
     this.zoneObjects = []
     this.currentZoneId = 'overworld'
     this.currentInteriorBuildingId = null
+    // One-shot override for loadZone's teleport spawn (see lisaRoomZone's
+    // `spawn` field / the 'exit' zone.type handler in triggerInteraction) -
+    // Lisa's hall has TWO distinct entry points (the front door from the
+    // overworld, and the stairs coming back down from the study) that need
+    // to land the player in two different spots, which a single per-zoneId
+    // default (every other interior's shared INTERIOR_SPAWN) can't express.
+    // Read once by loadZone then cleared, so it never leaks into an
+    // unrelated later zone load that didn't set it.
+    this.pendingInteriorSpawn = null
     this.overworldReturnSpawn = DEFAULT_SPAWN
     this.financeNamedNpcActors = {}
     this.financeAmbientActors = []
@@ -1676,6 +1758,7 @@ export default class OverworldScene extends Phaser.Scene {
     preloadCuteTerrain(this)
     preloadCuteTrees(this)
     preloadTopDownVehicles(this)
+    preloadLisaHouseInterior(this)
   }
 
   create() {
@@ -1762,6 +1845,9 @@ export default class OverworldScene extends Phaser.Scene {
     else if (zoneId === 'jailMaze') this.buildJailMazeZone()
     else if (zoneId === 'jailUnderworld') this.buildJailUnderworldZone()
     else if (zoneId === 'underworldInterior') this.buildUnderworldInteriorZone()
+    else if (zoneId === 'lisaHall') this.buildLisaHallZone()
+    else if (zoneId === 'lisaWork') this.buildLisaWorkZone()
+    else if (zoneId === 'lisaBedroom') this.buildLisaBedroomZone()
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
     const zone = ZONES[zoneId]
@@ -1793,17 +1879,25 @@ export default class OverworldScene extends Phaser.Scene {
     if (teleportPlayer) {
       // chapelInterior/teaHouseInterior carry their own room-specific spawn
       // tile (their rooms aren't INTERIOR_COLS/ROWS-shaped) - every other
-      // interior still reuses the one shared INTERIOR_SPAWN.
+      // interior still reuses the one shared INTERIOR_SPAWN, EXCEPT
+      // pendingInteriorSpawn (set by the 'exit' zone that triggered this
+      // load - see lisaRoomZone's `spawn` field) always wins when present:
+      // Lisa's hall/work/bedroom each have more than one entry point (front
+      // door vs. stairs, board vs. door) that need to land the player next
+      // to whichever one was actually used, which a single fixed
+      // per-zoneId default can't express.
       const spawn =
-        zoneId === 'overworld'
+        this.pendingInteriorSpawn ||
+        (zoneId === 'overworld'
           ? this.overworldReturnSpawn
           : zoneId === 'chapelInterior'
             ? CHAPEL_ROOM.spawn
             : zoneId === 'chapelExterior'
               ? CHAPEL_EXTERIOR_ROOM.spawn
-            : zoneId === 'teaHouseInterior'
-              ? TEA_HOUSE_ROOM.spawn
-              : INTERIOR_SPAWN
+              : zoneId === 'teaHouseInterior'
+                ? TEA_HOUSE_ROOM.spawn
+                : INTERIOR_SPAWN)
+      this.pendingInteriorSpawn = null
       this.tileMover.teleport(spawn.col, spawn.row)
     }
     this.cameras.main.startFollow(this.playerActor.sprite, true)
@@ -2005,6 +2099,162 @@ export default class OverworldScene extends Phaser.Scene {
         ),
       },
       interiorExitZone(),
+    ]
+  }
+
+  // Lisa's home (home_lisa) - bespoke three-room interior instead of
+  // buildGenericInteriorZone's shared tile-drawn residence, per the supplied
+  // hall.png/work.png/Bedroom.png art: ground-floor hall -> (stairs) ->
+  // upstairs study -> (a wall board) -> her private bedroom, each connection
+  // a real door/landmark you walk up to and press E at, not an abstract
+  // zone edge - and each one two-way (the far side's own door/landmark
+  // brings you straight back). All 3 build*Zone methods below share the same
+  // shape: draw the single background image full-bleed, populate
+  // interiorBlockedTiles with the art's actual furniture/wall footprints
+  // (measured against a 12x9 grid overlaid on the reference art - see
+  // production/ for how - not literally pixel-perfect against a live
+  // render, so nudge these if a specific piece of furniture still reads as
+  // walkable or a doorway reads as blocked once this is actually played),
+  // and list this.zones for whichever doors/desk live in that room.
+  buildLisaHallZone() {
+    const bg = this.add.image(0, 0, LISA_HALL_BG_KEY).setOrigin(0, 0)
+    bg.setDisplaySize(INTERIOR_COLS * TILE_SIZE, INTERIOR_ROWS * TILE_SIZE)
+    bg.setDepth(0)
+    this.zoneObjects.push(bg)
+
+    const building = FINANCE_BUILDINGS.find((b) => b.id === 'home_lisa')
+    this.regionLabel.setText(building?.label || "Lisa's House")
+
+    // The room's own drawn wall margin (top/left/right full, bottom split
+    // around the door so interiorExitZone's cols 5-7 stay walkable) plus
+    // furniture the player can't walk through - the two curved staircases
+    // (their walkable steps are the stairUp zone below, cols 4-7, left
+    // deliberately open), the two flanking statues, and the corner
+    // plant/bench decor. The open floor (the seal medallion, cols 4-7 rows
+    // 4-6) stays walkable.
+    this.interiorBlockedTiles = new Set()
+    fillBlockedRect(this.interiorBlockedTiles, 0, 0, 11, 0)
+    fillBlockedRect(this.interiorBlockedTiles, 0, 0, 0, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 11, 0, 11, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 0, 8, 4, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 8, 8, 11, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 2, 0, 4, 3)
+    fillBlockedRect(this.interiorBlockedTiles, 7, 0, 9, 3)
+    fillBlockedRect(this.interiorBlockedTiles, 1, 2, 1, 4)
+    fillBlockedRect(this.interiorBlockedTiles, 10, 2, 10, 4)
+    fillBlockedRect(this.interiorBlockedTiles, 1, 6, 1, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 10, 5, 10, 8)
+
+    this.zones = [
+      interiorExitZone(),
+      lisaRoomZone('exit', 'stairUp', { c0: 4, r0: 1, c1: 7, r1: 3 }, {
+        label: 'Climb the stairs',
+        target: 'lisaWork',
+        spawn: { col: 6, row: 6 },
+      }),
+    ]
+  }
+
+  // Upstairs - her study/office. The desk trigger lives here now (moved off
+  // the generic fixed slot since there's no generic desk box drawn here -
+  // the desks are baked into work.png itself), still emitting the exact
+  // same {type:'building', id:'home_lisa', npcId:'lisa'} shape
+  // buildGenericInteriorZone's desk always has, so WorldScreen.jsx's
+  // existing LisaModal routing needs no changes at all. The wall board at
+  // the far end of the room (opposite the door) is the way through to her
+  // bedroom.
+  buildLisaWorkZone() {
+    const bg = this.add.image(0, 0, LISA_WORK_BG_KEY).setOrigin(0, 0)
+    bg.setDisplaySize(INTERIOR_COLS * TILE_SIZE, INTERIOR_ROWS * TILE_SIZE)
+    bg.setDepth(0)
+    this.zoneObjects.push(bg)
+
+    const building = FINANCE_BUILDINGS.find((b) => b.id === 'home_lisa')
+    this.regionLabel.setText(`${building?.label || "Lisa's House"} - Study`)
+
+    // The room's own drawn wall margin (top split around the board at cols
+    // 4-7, bottom/left/right full - the door at rows 6-7 sits one row shy of
+    // the true bottom wall, so it doesn't need its own gap) plus the 4 desk
+    // clusters (2x2, each ~3 cols wide) and the furniture columns running
+    // down both side walls. Row 1 at the left wall (the standing figure -
+    // the desk-interact zone below) stays walkable.
+    this.interiorBlockedTiles = new Set()
+    fillBlockedRect(this.interiorBlockedTiles, 0, 0, 3, 0)
+    fillBlockedRect(this.interiorBlockedTiles, 8, 0, 11, 0)
+    fillBlockedRect(this.interiorBlockedTiles, 0, 8, 11, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 0, 0, 0, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 11, 0, 11, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 2, 1, 4, 3)
+    fillBlockedRect(this.interiorBlockedTiles, 7, 1, 9, 3)
+    fillBlockedRect(this.interiorBlockedTiles, 2, 4, 4, 6)
+    fillBlockedRect(this.interiorBlockedTiles, 7, 4, 9, 6)
+    // Deliberately NOT blocking col 1 (unlike col 10-11's mirrored
+    // furniture column) - the desk-interact zone below sits at col 1, row 1
+    // (the standing figure by the left wall), and that column's own
+    // furniture (shelf/monitor stack/washers) would wall it in with no
+    // walkable tile connecting it to the rest of the room otherwise. Left
+    // fully open (floor-level walk-through) rather than half-blocked, so
+    // there's no leftover isolated pocket.
+    fillBlockedRect(this.interiorBlockedTiles, 10, 1, 11, 6)
+
+    this.zones = [
+      lisaRoomZone('exit', 'workDoor', { c0: 4, r0: 6, c1: 7, r1: 7 }, {
+        label: 'Head back downstairs',
+        target: 'lisaHall',
+        spawn: { col: 6, row: 2 },
+      }),
+      lisaRoomZone('exit', 'workBoard', { c0: 4, r0: 0, c1: 7, r1: 1 }, {
+        label: 'Check the board',
+        target: 'lisaBedroom',
+        spawn: { col: 6, row: 7 },
+      }),
+      lisaRoomZone('interiorDesk', 'home_lisa', { c0: 1, r0: 0, c1: 2, r1: 1 }, {
+        npcId: 'lisa',
+        label: 'talk to Lisa',
+      }),
+    ]
+  }
+
+  // Her bedroom - the last stop, only reachable through the study's board.
+  // No NPC trigger of its own (talking to her stays in the study); the only
+  // interactive is the "LALISA'S ROOM - PRIVATE" door back out.
+  buildLisaBedroomZone() {
+    const bg = this.add.image(0, 0, LISA_BEDROOM_BG_KEY).setOrigin(0, 0)
+    bg.setDisplaySize(INTERIOR_COLS * TILE_SIZE, INTERIOR_ROWS * TILE_SIZE)
+    bg.setDepth(0)
+    this.zoneObjects.push(bg)
+
+    const building = FINANCE_BUILDINGS.find((b) => b.id === 'home_lisa')
+    this.regionLabel.setText(`${building?.label || "Lisa's House"} - Bedroom`)
+
+    // The room's own drawn wall margin (top/left/right full, bottom split
+    // around the door at cols 5-7) plus the bed, both nightstands, the
+    // wardrobe+bookshelf wall, the vanity/cat-tree/guitar corner, the
+    // desk+chair, and the right-side shelf/couch - leaves the rug (cols 5-9,
+    // rows 4-7) walkable.
+    this.interiorBlockedTiles = new Set()
+    fillBlockedRect(this.interiorBlockedTiles, 0, 0, 11, 0)
+    fillBlockedRect(this.interiorBlockedTiles, 0, 0, 0, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 11, 0, 11, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 0, 8, 4, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 8, 8, 11, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 2, 1, 4, 4)
+    fillBlockedRect(this.interiorBlockedTiles, 1, 1, 1, 2)
+    fillBlockedRect(this.interiorBlockedTiles, 5, 2, 6, 3)
+    fillBlockedRect(this.interiorBlockedTiles, 7, 1, 9, 3)
+    fillBlockedRect(this.interiorBlockedTiles, 9, 1, 11, 4)
+    fillBlockedRect(this.interiorBlockedTiles, 1, 5, 1, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 3, 5, 5, 7)
+    fillBlockedRect(this.interiorBlockedTiles, 1, 6, 2, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 10, 5, 11, 8)
+    fillBlockedRect(this.interiorBlockedTiles, 8, 8, 9, 8)
+
+    this.zones = [
+      lisaRoomZone('exit', 'bedroomDoor', { c0: 5, r0: 7, c1: 7, r1: 8 }, {
+        label: "Leave Lisa's room",
+        target: 'lisaWork',
+        spawn: { col: 6, row: 1 },
+      }),
     ]
   }
 
@@ -2607,7 +2857,15 @@ export default class OverworldScene extends Phaser.Scene {
     if (
       this.currentZoneId === 'chapelInterior' ||
       this.currentZoneId === 'chapelExterior' ||
-      this.currentZoneId === 'teaHouseInterior'
+      this.currentZoneId === 'teaHouseInterior' ||
+      // Lisa's 3-room house (buildLisaHallZone/buildLisaWorkZone/
+      // buildLisaBedroomZone) - same shape as chapel/teaHouse above (border
+      // + a hand-populated interiorBlockedTiles set), just estimated from a
+      // flat reference illustration instead of read off real tileset wall
+      // data.
+      this.currentZoneId === 'lisaHall' ||
+      this.currentZoneId === 'lisaWork' ||
+      this.currentZoneId === 'lisaBedroom'
     ) {
       const zone = ZONES[this.currentZoneId]
       if (col < 0 || col >= zone.cols || row < 0 || row >= zone.rows) return true
@@ -4473,8 +4731,13 @@ export default class OverworldScene extends Phaser.Scene {
     if (zone.type === 'exit') {
       // `target` lets an exit lead somewhere other than the overworld - the
       // chapel is nested (interior -> courtyard -> overworld). Absent target
-      // keeps every pre-existing exit behaving exactly as before.
+      // keeps every pre-existing exit behaving exactly as before. `spawn`
+      // (lisaRoomZone's doors/stairs/board) overrides loadZone's own
+      // per-zoneId default so arriving via a specific door/stair/board lands
+      // the player next to whichever one was actually used - see
+      // pendingInteriorSpawn's own comment in the constructor.
       const target = zone.target || 'overworld'
+      if (zone.spawn) this.pendingInteriorSpawn = zone.spawn
       const CHAPEL_ZONES = ['chapelInterior', 'chapelExterior']
       if (CHAPEL_ZONES.includes(target) || CHAPEL_ZONES.includes(this.currentZoneId)) {
         this.transitionToZone(target)
@@ -4566,6 +4829,15 @@ export default class OverworldScene extends Phaser.Scene {
       }
       if (zone.id === 'temple') {
         this.transitionToZone('chapelInterior')
+        return
+      }
+      // Lisa's home gets the bespoke two-room interior (buildLisaHallZone/
+      // buildLisaWorkZone) instead of the generic single-room fallback below
+      // - same overworldReturnSpawn-then-loadZone shape every other special-
+      // cased entry above uses, just landing on 'lisaHall' (the ground
+      // floor) rather than 'buildingInterior'.
+      if (zone.id === 'home_lisa') {
+        this.loadZone('lisaHall')
         return
       }
       this.currentInteriorBuildingId = zone.id
