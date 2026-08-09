@@ -30,12 +30,16 @@ import PokeBattleLayout from './PokeBattleLayout'
 
 let floatingTextSeq = 0
 
-export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictory, onDefeat, onRetreat, retreatLabel }) {
+export default function PoliceFightModal({ wantedLevel, isFBI, officer: officerProp, onClose, onVictory, onDefeat, onRetreat, retreatLabel }) {
   const player = useGameStore((s) => s.player)
   const inventory = useGameStore((s) => s.inventory)
   const takeFinanceCombatDamage = useGameStore((s) => s.takeFinanceCombatDamage)
 
-  const [officer] = useState(() => generateSwatSquad(wantedLevel))
+  // officerProp carries over the same SWAT/FBI unit shown on PoliceStopModal's
+  // choice screen (same name/HP the player already saw before picking Fight)
+  // rather than rolling a fresh one now - falls back to a fresh roll for any
+  // future caller that doesn't have one to hand over.
+  const [officer] = useState(() => officerProp || generateSwatSquad(wantedLevel))
   const [officerHp, setOfficerHp] = useState(officer.hp)
   const armor = getCombatArmor(inventory)
   const [log, setLog] = useState([
@@ -45,6 +49,10 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
   const [busy, setBusy] = useState(false)
   const [outcome, setOutcome] = useState(null) // null | 'victory' | 'defeat'
   const [charging, setCharging] = useState(false)
+  // Which line of the post-defeat arrest beat is showing - see
+  // DEFEAT_LINES/handleContinue below. Stays 0 for a victory, which still
+  // continues in one click same as before.
+  const [defeatStep, setDefeatStep] = useState(0)
 
   const [enemyFloats, setEnemyFloats] = useState([])
   const [playerFloats, setPlayerFloats] = useState([])
@@ -115,6 +123,7 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
       if (!stillStanding) {
         appendLog('You’ve been beaten badly.')
         setPlayerPose('player_crouch')
+        setEnemyPose('officer_command')
         setOutcome('defeat')
         setBusy(false)
         playDefeatSound()
@@ -152,6 +161,7 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
       if (!stillStanding) {
         appendLog('You’ve been beaten badly.')
         setPlayerPose('player_crouch')
+        setEnemyPose('officer_command')
         setOutcome('defeat')
         setBusy(false)
         playDefeatSound()
@@ -169,7 +179,25 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
     onClose()
   }
 
+  // A short arrest beat between "you're beaten" and actually landing in a
+  // cell - onDefeat() (sendToJail) used to fire the instant defeat's
+  // CONTINUE was clicked, which meant the game teleported you into the jail
+  // cell zone off a single generic line with no one so much as speaking to
+  // you first. Same CONTINUE button, just walked through DEFEAT_LINES one
+  // click at a time before the real onDefeat/onClose fires on the last one.
+  const DEFEAT_LINES = [
+    'They put you down. You wake up later, patched up and lighter in the wallet.',
+    `${officer.name} hauls you up and cuffs you.`,
+    isFBI
+      ? '"You have the right to remain silent. Anything you say can and will be used against you in a court of law."'
+      : '"That\'s enough out of you. Let\'s go."',
+  ]
+
   const handleContinue = () => {
+    if (outcome === 'defeat' && defeatStep < DEFEAT_LINES.length - 1) {
+      setDefeatStep((s) => s + 1)
+      return
+    }
     if (outcome === 'victory' && onVictory) onVictory()
     if (outcome === 'defeat' && onDefeat) onDefeat()
     onClose()
@@ -210,7 +238,7 @@ export default function PoliceFightModal({ wantedLevel, isFBI, onClose, onVictor
       log={log}
       outcome={outcome}
       victoryText={`${officer.name} stands down. You are clear to go.`}
-      defeatText="They put you down. You wake up later, patched up and lighter in the wallet."
+      defeatText={DEFEAT_LINES[defeatStep]}
       actions={actions}
       retreat={{ label: retreatLabel, onClick: handleRetreat, disabled: busy }}
       onContinue={handleContinue}

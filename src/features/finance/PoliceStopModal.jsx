@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { sendNpcMessage } from '../../utils/npcChatClient'
 import PoliceFightModal from './PoliceFightModal'
+import PokeBattleLayout from './PokeBattleLayout'
+import { generateSwatSquad } from './financeNpcs'
 
 // The "real arrest pipeline" - the choice screen shown first when a chased-
 // down police/FBI encounter (OverworldScene.js's triggerPoliceArrestEncounter)
@@ -52,9 +54,16 @@ const TALK_PRESET_CHOICES = [
 
 export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, bailDiscountMultiplier = 1, caughtRedHanded = false, onClose }) {
   const cash = useGameStore((s) => s.cash)
+  const player = useGameStore((s) => s.player)
   const attemptStreetBribe = useGameStore((s) => s.attemptStreetBribe)
   const addWantedLevel = useGameStore((s) => s.addWantedLevel)
   const sendToJail = useGameStore((s) => s.sendToJail)
+
+  // Rolled once here (not inside PoliceFightModal) so the same unit shown
+  // on the choice screen below is the one you actually fight if Fight is
+  // picked, rather than the choice screen showing one SWAT Squad and combat
+  // rolling a different one behind it.
+  const [officer] = useState(() => generateSwatSquad(wantedLevel))
 
   // OverworldScene's chaser-contact path always sends isFBI; anything else
   // that still opens this modal (a jail roll from a witnessed crime, say)
@@ -204,6 +213,7 @@ export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, bailDis
       <PoliceFightModal
         wantedLevel={wantedLevel}
         isFBI={isFBI}
+        officer={officer}
         onClose={onClose}
         onVictory={() => addWantedLevel(-1)}
         onDefeat={() => sendToJail({ bailDiscountMultiplier })}
@@ -213,56 +223,52 @@ export default function PoliceStopModal({ wantedLevel, isFBI: isFBIProp, bailDis
     )
   }
 
+  // Same PokeBattleLayout skin as the Fight screen itself (sprites, HP bars,
+  // white command box) rather than a plain text modal, so the top-level
+  // Fight/Escape/Bribe/Talk choice reads as the opening beat of the same
+  // confrontation instead of a different screen entirely. Officer/player are
+  // both shown at full HP here since nothing has traded blows yet.
+  if (phase === 'choice') {
+    return (
+      <PokeBattleLayout
+        title={isFBI ? 'FBI Stop' : 'Police Stop'}
+        enemyName={officer.name}
+        enemyHp={officer.hp}
+        enemyMaxHp={officer.maxHp}
+        playerName={player.name}
+        playerHp={player.hp}
+        playerMaxHp={player.maxHp}
+        log={[
+          caughtRedHanded
+            ? `You've been caught red-handed. A patrol was already close enough to see it happen - there was no time to run. ${'★'.repeat(wantedLevel)}`
+            : `${isFBI ? 'Federal agents box you in.' : 'Sirens. A patrol car pulls up on you'} - your heat finally caught up. ${'★'.repeat(wantedLevel)}`,
+        ]}
+        outcome={null}
+        actions={[
+          { key: 'fight', label: 'Fight', onClick: () => setPhase('combat') },
+          { key: 'escape', label: 'Escape', onClick: handleStartFlee },
+          {
+            key: 'bribe',
+            label: `Bribe ($${bribeCost.toLocaleString()})${!canAffordBribe ? ' - not enough cash' : ''}`,
+            onClick: handleBribe,
+            disabled: !canAffordBribe,
+          },
+          { key: 'talk', label: 'Talk', onClick: () => setPhase('talk') },
+        ]}
+        enemyHitPulse={0}
+        playerHitPulse={0}
+        enemyFloats={[]}
+        playerFloats={[]}
+        enemySpriteKey={isFBI ? 'officer_tactical' : 'officer_ready'}
+        playerSpriteKey="player_ready"
+      />
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[480px] border-4 border-blue-400 bg-[#1c1d3a] p-6 font-mono text-white">
         <h2 className="mb-2 text-xl font-bold text-blue-300">{isFBI ? 'FBI Stop' : 'Police Stop'}</h2>
-
-        {phase === 'choice' && (
-          <>
-            {caughtRedHanded ? (
-              <p className="mb-4 text-sm text-gray-300">
-                <span className="font-bold text-red-400">You've been caught red-handed.</span> A patrol was already
-                close enough to see it happen - there was no time to run. {'★'.repeat(wantedLevel)}
-              </p>
-            ) : (
-              <p className="mb-4 text-sm text-gray-300">
-                {isFBI ? 'Federal agents box you in.' : 'Sirens. A patrol car pulls up on you'} - your heat finally
-                caught up. {'★'.repeat(wantedLevel)}
-              </p>
-            )}
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => setPhase('combat')}
-                className="border-2 border-red-500 p-2 text-left font-bold hover:bg-red-500 hover:text-black"
-              >
-                Fight
-              </button>
-              <button
-                onClick={handleStartFlee}
-                className="border-2 border-green-400 p-2 text-left font-bold hover:bg-green-400 hover:text-black"
-              >
-                Escape
-              </button>
-              <button
-                onClick={handleBribe}
-                disabled={!canAffordBribe}
-                className="flex flex-col items-start border-2 border-yellow-400 p-2 text-left hover:bg-yellow-400 hover:text-black disabled:opacity-30"
-              >
-                <span className="font-bold">Bribe</span>
-                <span className="text-xs">
-                  ${bribeCost.toLocaleString()}{!canAffordBribe ? ' — not enough cash' : ''}
-                </span>
-              </button>
-              <button
-                onClick={() => setPhase('talk')}
-                className="border-2 border-cyan-400 p-2 text-left font-bold hover:bg-cyan-400 hover:text-black"
-              >
-                Talk
-              </button>
-            </div>
-          </>
-        )}
 
         {phase === 'fleeAiming' && (
           <>
