@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { DISTRICT_BUILDINGS_CONFIG } from './districtBuildings'
 import LeverageMeter from './LeverageMeter'
-import LookoutWatchModal from './LookoutWatchModal'
+import CrimeAlleyHeistModal from './CrimeAlleyHeistModal'
 import FencesTableModal from './FencesTableModal'
 import CallCenterQTEModal from './CallCenterQTEModal'
 
@@ -15,9 +15,11 @@ import CallCenterQTEModal from './CallCenterQTEModal'
 // alongside it). ShootingRangeModal used to live here too (crimeAlley's
 // 'shootingRange') - it's now GunStoreModal.jsx's free "Test-Fire Range" tab
 // instead, called directly (no stakes, so nothing for this leverage-job
-// dispatch table to do).
+// dispatch table to do). LookoutWatchModal ('lookoutWatch') also used to
+// live here - deleted when crimeAlley's action swapped to the real stealth
+// heist below.
 const MINIGAME_COMPONENTS = {
-  lookoutWatch: LookoutWatchModal,
+  crimeAlleyHeist: CrimeAlleyHeistModal,
   fencesTable: FencesTableModal,
   callCenterQte: CallCenterQTEModal,
 }

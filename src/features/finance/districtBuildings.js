@@ -58,35 +58,36 @@ export const DISTRICT_BUILDINGS_CONFIG = {
         // field; stakes/payout/risk numbers below are untouched (mechanic
         // swap, not a rebalance - see game-designer's scoping notes).
         // Was briefly 'shootingRange' (ShootingRangeModal.jsx) for a literal
-        // shooting-gallery minigame here. That component has since moved to
-        // GunStoreModal.jsx's "Test-Fire Range" tab instead - a legal gun
-        // store test range has no business carrying crime stakes
-        // (notoriety/wanted/jail on a bad run), which is exactly what this
-        // slot needs, so the two could no longer share one component once
-        // the range dropped that layer. Back to 'lookoutWatch'
-        // (LookoutWatchModal.jsx) - unused by any other building since that
-        // swap, and the original mechanic here before it - same swap
-        // philosophy, same stakes, only the resolution mechanic and its
-        // flavor text changed again.
-        minigame: 'lookoutWatch',
-        label: 'Lean On Him',
+        // shooting-gallery minigame here, then 'lookoutWatch'
+        // (LookoutWatchModal.jsx, a Safe/Hot reaction game) after the range
+        // moved to GunStoreModal.jsx's "Test-Fire Range" tab. Now
+        // 'crimeAlleyHeist' (CrimeAlleyHeistModal.jsx) - a real stealth
+        // side-view heist (walk/crouch/hide/loot/takedown against 2 patrol
+        // guards) replacing the abstract reaction-timer entirely. Same swap
+        // philosophy as the two before it: only the resolution mechanic and
+        // its flavor text changed, notoriety/wanted/reputation/jail numbers
+        // below carry over unchanged. payout/target/suspicionCap/
+        // baseSuccessChance are gone - this mechanic pays out per-crate via
+        // addCash live during the run instead of one lump sum on a meter
+        // filling, so there's no single "payout" stake to carry; see
+        // CrimeAlleyHeistModal.jsx's own header comment for the full stakes
+        // split (its fixed numbers - heat thresholds, guard speeds/cone,
+        // loot range, takedown heat costs - live as constants in that file,
+        // not threaded through this stakes object).
+        minigame: 'crimeAlleyHeist',
+        label: 'Rob The Stashes',
         leverage: {
-          title: 'Lookout Watch',
-          markName: 'Some Guy Who Owes Luciano',
+          title: 'Crime Alley Heist',
+          markName: "Luciano's Back-Lot Stash",
           markDescription:
-            "He owes the Five Families and he knows it. Lean on him when the street's clear - a beat cop wandering past at the wrong moment turns a shakedown into a scene.",
-          buttonLabel: 'Lean On Him',
+            "The Five Families stash their overflow cash in crates down this alley, watched by a couple of hired guards. Slip past them, crack the crates, and get out before the street lights up.",
+          buttonLabel: 'Run The Job',
           stakes: {
-            target: 50,
-            suspicionCap: 100,
-            payout: 400,
-            notorietyIncreaseOnFail: 0,
-            wantedIncreaseOnFail: 1,
-            reputationDeltaOnFail: -2,
-            assetSeizureOnFail: 0,
-            jailChanceOnFail: 0,
-            energyCost: 10,
-            baseSuccessChance: 0.65,
+            energyCost: 20,
+            notorietyIncreaseOnFail: 1,
+            wantedIncreaseOnFail: 2,
+            reputationDeltaOnFail: -3,
+            jailChanceOnFail: 0.15,
             syndicateId: 'five_families',
             inHomeTurf: false,
           },

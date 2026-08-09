@@ -110,14 +110,15 @@ export default function GunStoreModal({ onClose, embedded = false }) {
             🕵️ Underground Black Market Dealer (ALWAYS ACCESSIBLE)
           </button>
           {/* ShootingRangeModal.jsx, moved here from Crime Alley - see that
-              file's header comment. Free, no stakes: just a score-attack
-              practice session against a personal best, "come try the
-              merchandise" flavor for a legal gun store. */}
+              file's header comment. No jail/notoriety stakes: a score-attack
+              session paid out in cash by final Score, energy-gated same as
+              any other hustle - "come try the merchandise" flavor for a
+              legal gun store, but the range itself pays if you're good. */}
           <button
             onClick={() => setActiveTab('range')}
             className={`flex-1 py-2.5 ${activeTab === 'range' ? 'bg-cyan-500 text-black font-extrabold' : 'text-gray-400 hover:text-white'}`}
           >
-            🎯 Test-Fire Range (FREE)
+            🎯 Test-Fire Range
           </button>
         </div>
 

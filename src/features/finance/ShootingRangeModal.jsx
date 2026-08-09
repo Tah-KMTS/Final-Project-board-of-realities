@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { clamp } from './crimeDifficulty'
 import { playGunshotSound, playGoodHitSound, playBadHitSound, playVictorySound } from '../../audio/sfx'
+import { useGameStore } from '../../store/useGameStore'
 
 // GunStoreModal.jsx's "Test-Fire Range" tab (src/features/world/GunStoreModal.jsx)
 // - moved here from Crime Alley (districtBuildings.js's crimeAlley entry now
 // uses LookoutWatchModal instead; see that file's header comment). A gun
 // store test range has no reason to carry crime stakes, so this is no
-// longer a `type: 'leverage'`/applyCrimeOutcome job at all: free to play, no
-// energy cost, no cash/notoriety/wanted/jail consequences on a bad run - a
-// pure score-attack arcade session against a localStorage-backed personal
-// best (BEST_SCORE_STORAGE_KEY below). Civilian hits still dock points
-// (that's the actual skill test - shoot/no-shoot discrimination, not a
-// legal penalty) and the run still ends when the clock runs out; there's
-// just nothing riding on it anymore beyond the number on screen.
+// longer a `type: 'leverage'`/applyCrimeOutcome job at all: no notoriety/
+// wanted/jail consequences on a bad run - a score-attack arcade session
+// against a localStorage-backed personal best (BEST_SCORE_STORAGE_KEY
+// below) that still costs energy to start and pays cash out by final score
+// (RANGE_ENERGY_COST/SCORE_TO_CASH below), same as any other energy-gated
+// hustle. Civilian hits still dock points (that's the actual skill test -
+// shoot/no-shoot discrimination, not a legal penalty) and the run still
+// ends when the clock runs out; there's just no jail/notoriety riding on it.
 //
 // MECHANIC: mouse-aimed shooting gallery, timed. The crosshair follows the
 // mouse but SWAYS around it - sway shrinks toward 0 only while the mouse
@@ -122,6 +124,15 @@ const COMBO_BONUS = 3
 const SCORE_PENALTY_PER_CIVILIAN = 6
 
 const BEST_SCORE_STORAGE_KEY = 'capitalSyndicate.gunRangeBestScore'
+
+// Entry fee/payout: 15 energy to step up to the line (a shade under
+// JOB_ENERGY_COST's 20, since a run is only 30s but skill-gated rather than
+// a guaranteed payday), $2 cash per final Score point on the result screen.
+// A solid run (~200-300 pts) nets $400-600, comparable to an Analyst shift
+// for less energy - a hot streak with combo bonuses can beat that, which is
+// the point: this is the skill-based earner, not the reliable one.
+const RANGE_ENERGY_COST = 15
+const SCORE_TO_CASH = 2
 
 // Crosshair color: red while the aim is still drifting, green once it's
 // settled - this is what replaced the old sway ring as the "how steady am
@@ -253,7 +264,12 @@ function resolveShot(t, distPx) {
 }
 
 export default function ShootingRangeModal({ onClose, embedded = false }) {
+  const energy = useGameStore((s) => s.player.energy)
+  const spendEnergy = useGameStore((s) => s.spendEnergy)
+  const addCash = useGameStore((s) => s.addCash)
+
   const [screen, setScreen] = useState('intro') // 'intro' | 'range' | 'result'
+  const [energyError, setEnergyError] = useState(false)
   const [score, setScore] = useState(0)
   const [timeLeftMs, setTimeLeftMs] = useState(TIME_LIMIT_MS)
   const [targets, setTargets] = useState([])
@@ -304,9 +320,11 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
       localStorage.setItem(BEST_SCORE_STORAGE_KEY, String(finalScore))
       playVictorySound()
     }
-    setResultData({ finalScore, shots, hits, centers, accuracy, isNewBest })
+    const payout = finalScore * SCORE_TO_CASH
+    if (payout > 0) addCash(payout)
+    setResultData({ finalScore, shots, hits, centers, accuracy, isNewBest, payout })
     setScreen('result')
-  }, [])
+  }, [addCash])
 
   const spawnTarget = useCallback((nowMs) => {
     // Progress reads the clock, not the score - the range gets harder as
@@ -508,6 +526,11 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
   }, [screen, handleFire])
 
   const begin = () => {
+    if (!spendEnergy(RANGE_ENERGY_COST)) {
+      setEnergyError(true)
+      return
+    }
+    setEnergyError(false)
     scoreRef.current = 0
     timeLeftMsRef.current = TIME_LIMIT_MS
     comboRef.current = 0
@@ -568,9 +591,9 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
       {screen === 'intro' && (
         <div className="flex flex-col gap-3">
           <div className="border-2 border-yellow-600/50 bg-[#0f1020] p-3">
-            <p className="text-sm font-bold text-yellow-300">Try before you buy.</p>
+            <p className="text-sm font-bold text-yellow-300">Put your money where your aim is.</p>
             <p className="mt-1 text-xs text-gray-400">
-              Take a few rounds downrange, on the house - see how you shoot before you spend a dime.
+              {RANGE_ENERGY_COST} energy a run, paid out at ${SCORE_TO_CASH}/point on your final Score - shoot well, get paid.
             </p>
           </div>
           <p className="text-xs text-gray-400">
@@ -580,16 +603,23 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
             wild shot that drifts into it docks Score the same as a deliberate hit. 3 hits in a row pays a bonus, one
             miss resets it. You've got {Math.round(TIME_LIMIT_MS / 1000)} seconds - see how high you can run it.
           </p>
-          {bestScore > 0 && (
-            <div className="border-2 border-cyan-600/50 bg-[#0f1020] p-2 text-center text-xs text-cyan-300">
-              Personal Best: <span className="text-base font-bold">{bestScore}</span>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">Energy: <span className={energy < RANGE_ENERGY_COST ? 'text-red-400' : 'text-gray-300'}>{energy}</span></span>
+            {bestScore > 0 && (
+              <span className="text-cyan-300">Personal Best: <span className="font-bold">{bestScore}</span></span>
+            )}
+          </div>
+          {energyError && (
+            <div className="border-2 border-red-500/60 bg-red-950/40 p-2 text-center text-xs text-red-300">
+              Not enough energy - need {RANGE_ENERGY_COST}, have {energy}.
             </div>
           )}
           <button
             onClick={begin}
-            className="w-full border-2 border-yellow-400 py-1.5 text-sm font-bold uppercase tracking-widest text-yellow-300 hover:bg-yellow-400 hover:text-black"
+            disabled={energy < RANGE_ENERGY_COST}
+            className="w-full border-2 border-yellow-400 py-1.5 text-sm font-bold uppercase tracking-widest text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:border-gray-600 disabled:text-gray-500 disabled:hover:bg-transparent"
           >
-            Step Up To The Line
+            Step Up To The Line ({RANGE_ENERGY_COST} Energy)
           </button>
         </div>
       )}
@@ -801,6 +831,7 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
           <p className="text-center text-3xl font-bold text-yellow-300">
             {resultData.finalScore} <span className="text-sm font-normal text-gray-400">pts</span>
           </p>
+          <p className="text-center text-base font-bold text-emerald-400">+${resultData.payout}</p>
 
           {/* Scorecard - so every session tells the player how they actually
               shot, not just the final number. */}
