@@ -5,7 +5,6 @@ import LeverageMeter from './LeverageMeter'
 import LookoutWatchModal from './LookoutWatchModal'
 import FencesTableModal from './FencesTableModal'
 import CallCenterQTEModal from './CallCenterQTEModal'
-import ShootingRangeModal from './ShootingRangeModal'
 
 // Maps each Underground District action's `minigame` field (districtBuildings.js)
 // to the racket-specific component it opens instead of the shared
@@ -13,12 +12,14 @@ import ShootingRangeModal from './ShootingRangeModal'
 // each one distinct. Falls back to LeverageMeter for any action that
 // doesn't set `minigame` (none currently do, but this keeps a future
 // flat-leverage action from silently crashing if this map isn't updated
-// alongside it).
+// alongside it). ShootingRangeModal used to live here too (crimeAlley's
+// 'shootingRange') - it's now GunStoreModal.jsx's free "Test-Fire Range" tab
+// instead, called directly (no stakes, so nothing for this leverage-job
+// dispatch table to do).
 const MINIGAME_COMPONENTS = {
   lookoutWatch: LookoutWatchModal,
   fencesTable: FencesTableModal,
   callCenterQte: CallCenterQTEModal,
-  shootingRange: ShootingRangeModal,
 }
 
 // Single reusable modal for every flavor-tier building added by the

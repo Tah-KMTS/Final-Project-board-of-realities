@@ -1,74 +1,137 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useGameStore } from '../../store/useGameStore'
-import { clamp, computeFavorability } from './crimeDifficulty'
-import { playGunshotSound, playGoodHitSound, playBadHitSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
+import { clamp } from './crimeDifficulty'
+import { playGunshotSound, playGoodHitSound, playBadHitSound, playVictorySound } from '../../audio/sfx'
 
-// Crime Alley's minigame (successor to LookoutWatchModal, then a click-a-lane
-// version, then flat-2D mouse-aim, then a fake-3D corridor, then multi-target)
-// - "The Range".
+// GunStoreModal.jsx's "Test-Fire Range" tab (src/features/world/GunStoreModal.jsx)
+// - moved here from Crime Alley (districtBuildings.js's crimeAlley entry now
+// uses LookoutWatchModal instead; see that file's header comment). A gun
+// store test range has no reason to carry crime stakes, so this is no
+// longer a `type: 'leverage'`/applyCrimeOutcome job at all: free to play, no
+// energy cost, no cash/notoriety/wanted/jail consequences on a bad run - a
+// pure score-attack arcade session against a localStorage-backed personal
+// best (BEST_SCORE_STORAGE_KEY below). Civilian hits still dock points
+// (that's the actual skill test - shoot/no-shoot discrimination, not a
+// legal penalty) and the run still ends when the clock runs out; there's
+// just nothing riding on it anymore beyond the number on screen.
 //
-// MECHANIC: mouse-aimed shooting gallery. The crosshair follows the mouse but
-// SWAYS around it - sway shrinks toward 0 only while the mouse holds still
-// (steadyMs), so a precise shot means aim, hold, fire, not just click a label.
-// Bullseye/Crew are "shoot" (bank Leverage - a dead-center Bullseye pays more
-// than an outer-ring hit); Civilian is "no-shoot" (a shot landing in its circle,
-// deliberate OR sway-induced, costs Suspicion - the role LookoutWatch's Hot
-// window played). Letting shoot targets expire unshot costs nothing alone, but
-// MISS_STREAK_LIMIT of them costs Suspicion, same "the mark wanders off while
-// you hesitate" penalty. A wide miss just burns the reload cooldown. The
-// resolve()->applyCrimeOutcome contract, stakes shape, and the "danger only
-// exists while you commit" no-passive-creep rule are unchanged from every
-// earlier version.
+// MECHANIC: mouse-aimed shooting gallery, timed. The crosshair follows the
+// mouse but SWAYS around it - sway shrinks toward 0 only while the mouse
+// holds still (STEADY_MS), so a precise shot means aim, hold, fire, not
+// just click a label. Bullseye/Crew are "shoot" (bank Score - a dead-center
+// Bullseye pays more than an outer-ring hit); Civilian is "no-shoot" (a shot
+// landing in its circle, deliberate OR sway-induced, docks Score instead).
+// TIME_LIMIT_MS is the only clock - it just runs out and shows the final
+// tally, no win/lose branch.
 //
-// PRESENTATION: fake-3D rail shooter. drawCorridor paints a static perspective
-// hall (plain Canvas 2D trapezoids converging on a vanishing point - no 3D
-// engine, no external assets). Targets live in CORRIDOR SPACE (depth 0=far,
-// 1=near; lateral -1..1 across the hall at that depth) and are projected to
-// screen every frame by projectFromCorridor, so depth drives both apparent size
-// AND the real hit-circle radius - a far target is a genuinely smaller hitbox,
-// making distance a difficulty axis rather than decoration. Several targets run
-// at once, they move (see rollMotion/stepTarget), and a wave ramp reads live
-// progress to widen concurrency + speed as the run advances, so a single job
-// escalates instead of running at one flat intensity.
+// PRESENTATION: fake-3D rail shooter. RANGE_BG_URL is a static painted
+// backdrop (public/assets/packs/shooting-range/range_bg.png). VP_X/VP_Y/
+// VP_HALF_W/NEAR_Y/NEAR_HALF_W below are hand-tuned to that image's own
+// floor lines/doorway rather than derived from a formula, so a target at
+// depth 1 still lands on the image's near lane markings instead of an
+// arbitrary shape. Targets live in CORRIDOR SPACE (depth 0=far, 1=near;
+// lateral -1..1 across the hall at that depth) and are projected to screen
+// every frame by projectFromCorridor, so depth drives both apparent size
+// AND the real hit-circle radius - a far target is a genuinely smaller
+// hitbox, making distance a difficulty axis rather than decoration. Several
+// targets run at once, they move (see rollMotion/stepTarget), and a wave
+// ramp reads live time-elapsed progress to widen concurrency + speed as the
+// session advances.
 //
-// THIS PASS: (1) the range viewport roughly doubled in area - every geometry
-// constant below is expressed against RANGE_W/RANGE_H or scaled alongside them
-// (target radii, sway, the gun), so the corridor and its difficulty read the
-// same at the new size rather than becoming a bigger box with the same tiny
-// targets; (2) PERFORMANCE-BASED PAYOUT - the flat `payout` from stakes is now
-// a BASELINE that gets multiplied by how well the player actually shot (see
-// scorePayoutMultiplier), so the same job pays differently run to run. That
-// multiplier is applied BEFORE applyCrimeOutcome, deliberately: the store's own
-// home-turf payout multiplier then composes on top of it, exactly as it would
-// have with the old flat figure.
+// spriteAspect = width/height of the source PNG (each is a tall standing
+// board/figure, not a square icon, so width has to be derived from height
+// per-render rather than assumed). anchorX/anchorY are WHERE IN THE SPRITE
+// (0..1 of its own box) the actual hit-test center lives - the paper
+// target's rings, or the civilian's torso - not the sprite's bounding-box
+// center, since both images carry a stand/legs below that point.
 const TARGET_TYPES = [
-  { id: 'bullseye', weight: 55, icon: '🎯', label: 'Bullseye', shoot: true, outerRadius: 36, innerRadius: 16 },
-  { id: 'crew', weight: 25, icon: '🕴️', label: 'Crew', shoot: true, outerRadius: 44, innerRadius: null },
-  { id: 'civilian', weight: 20, icon: '🚫', label: 'DO NOT SHOOT', shoot: false, outerRadius: 38, innerRadius: null },
+  {
+    id: 'bullseye',
+    weight: 55,
+    label: 'Bullseye',
+    shoot: true,
+    outerRadius: 36,
+    innerRadius: 16,
+    spriteUrl: '/assets/packs/shooting-range/target_bullseye.png',
+    spriteAspect: 353 / 666,
+    anchorX: 0.47,
+    anchorY: 0.3,
+  },
+  {
+    id: 'crew',
+    weight: 25,
+    label: 'Crew',
+    shoot: true,
+    outerRadius: 44,
+    innerRadius: null,
+    spriteUrl: '/assets/packs/shooting-range/target_crew.png',
+    spriteAspect: 268 / 597,
+    anchorX: 0.5,
+    anchorY: 0.28,
+  },
+  {
+    id: 'civilian',
+    weight: 20,
+    label: 'DO NOT SHOOT',
+    shoot: false,
+    outerRadius: 38,
+    innerRadius: null,
+    spriteUrl: '/assets/packs/shooting-range/target_civilian.png',
+    spriteAspect: 267 / 664,
+    anchorX: 0.5,
+    anchorY: 0.42,
+  },
 ]
 const TOTAL_WEIGHT = TARGET_TYPES.reduce((sum, t) => sum + t.weight, 0)
+
+// Displayed sprite height at depth-scale 1 (the near plane) - width is
+// derived per target from its own spriteAspect. Independent of outerRadius
+// (the invisible hit-test circle): a standing board/figure and a hit-circle
+// tuned for gameplay feel don't have to be the same number, the way a
+// hitbox in most games doesn't pixel-match its sprite either.
+const TARGET_SPRITE_BASE_H = 130
 
 const RANGE_W = 560
 const RANGE_H = 300
 const FIRE_COOLDOWN_MS = 260 // reload/recoil delay - the anti-spam-click knob
 
-// Raised from 3 alongside concurrent targets: with up to 4 on screen, expiries
-// naturally happen more often, so the old 3-strike threshold would have fired
-// on ordinary play rather than on actual hesitation. A hit still resets it.
-const MISS_STREAK_LIMIT = 4
+// Painted range backdrop (2704x1568) - rendered with object-fit:cover into
+// the RANGE_W x RANGE_H viewport, object-position:center. Cover's scale is
+// width-constrained here (560/2704 > 300/1568), so it crops a sliver off the
+// top and bottom only - the full lane width survives.
+const RANGE_BG_URL = '/assets/packs/shooting-range/range_bg.png'
 
-// --- Performance-based payout ------------------------------------------------
-// Two things the player actually controls, both judged: did the shots land at
-// all (accuracy), and did they land WELL (center hits on Bullseyes). Weighted
-// so accuracy matters more than precision - a steady shooter who rarely wastes
-// a round out-earns a streaky one who occasionally nails a center. Baseline
-// 0.6 means even sloppy-but-successful work still pays most of the sticker
-// price; the ceiling rewards a clean run without ever doubling it, so the
-// range can't out-earn the higher-tier rackets it's meant to sit below.
-const PAYOUT_MULT_MIN = 0.6
-const PAYOUT_MULT_MAX = 1.6
-function scorePayoutMultiplier(accuracy, centerRate) {
-  return clamp(PAYOUT_MULT_MIN, PAYOUT_MULT_MAX, 0.6 + accuracy * 0.6 + centerRate * 0.4)
+// Player back-view sprite, fixed at the shooter's own position (not tied to
+// the mouse - the crosshair alone carries aim). Height chosen to read as a
+// solid foreground presence without blocking much of the hall.
+const PLAYER_SPRITE_URL = '/assets/packs/shooting-range/player_shooter.png'
+const PLAYER_SPRITE_ASPECT = 212 / 489
+const PLAYER_SPRITE_H = 150
+
+// Fixed difficulty/timing - there's no more per-job favorability to scale
+// these off (no stakes object anymore), so they're just picked at a
+// reasonable mid-tier fixed value instead of derived from one.
+const TIME_LIMIT_MS = 30000
+const TARGET_LIFETIME_MS = 2600
+const SPAWN_GAP_MS = 480
+const MAX_SWAY_PX = 46
+const STEADY_MS = 420
+const SCORE_PER_CENTER = 10
+const SCORE_PER_EDGE = 5
+const SCORE_PER_CREW = 8
+const COMBO_BONUS = 3
+const SCORE_PENALTY_PER_CIVILIAN = 6
+
+const BEST_SCORE_STORAGE_KEY = 'capitalSyndicate.gunRangeBestScore'
+
+// Crosshair color: red while the aim is still drifting, green once it's
+// settled - this is what replaced the old sway ring as the "how steady am
+// I" read, so it has to actually communicate that.
+function laserColor(steadiness) {
+  const t = clamp(0, 1, steadiness)
+  const r = Math.round(255 + (92 - 255) * t)
+  const g = Math.round(90 + (255 - 90) * t)
+  const b = Math.round(69 + (122 - 69) * t)
+  return `rgb(${r}, ${g}, ${b})`
 }
 
 // Corridor bounds. Targets are clamped/bounced inside these rather than the
@@ -78,15 +141,16 @@ const DEPTH_MIN = 0.14
 const DEPTH_MAX = 0.96
 const LATERAL_LIMIT = 0.85
 
-// Corridor geometry, shared by drawCorridor's canvas draw and
-// projectFromCorridor's target placement so the two stay consistent (a target
-// at depth 1 lands exactly on the near plane the canvas paints). VP =
-// vanishing point; NEAR_* is the closest visible plane (bottom of the box).
-// All expressed against RANGE_W/RANGE_H so resizing the viewport rescales the
-// whole hall rather than leaving a fixed-size corridor in a bigger frame.
-const VP_X = RANGE_W / 2
-const VP_Y = RANGE_H * 0.36
-const VP_HALF_W = RANGE_W * 0.08 // corridor mouth AT the vanishing point (a little width reads better than a true point)
+// Corridor geometry, matched to RANGE_BG_URL's own painted floor lines/back
+// doorway (not derived from a formula the way an earlier Canvas-drawn hall's
+// were) so projectFromCorridor's target placement actually lands on that
+// artwork - a target at depth 1 sits on the image's near lane markings,
+// depth 0 sits at the doorway. VP = vanishing point (the doorway, roughly
+// centered but a touch right of it in this piece); NEAR_* is the closest
+// visible plane (bottom of the box, at the shooter's own feet).
+const VP_X = RANGE_W * 0.53
+const VP_Y = RANGE_H * 0.29
+const VP_HALF_W = RANGE_W * 0.14 // the doorway's own width at the vanishing point
 const NEAR_Y = RANGE_H - 14
 const NEAR_HALF_W = RANGE_W * 0.46
 
@@ -113,9 +177,10 @@ function projectFromCorridor(depth, lateral) {
   }
 }
 
-// Movement profile, rolled per target. `progress` (0..1 through the job) makes
-// later targets likelier to move and likelier to pick a harder pattern - the
-// wave ramp's difficulty half (waveParams below is its density half).
+// Movement profile, rolled per target. `progress` (0..1 through the session)
+// makes later targets likelier to move and likelier to pick a harder
+// pattern - the wave ramp's difficulty half (waveParams below is its
+// density half).
 //   static  - stands still (always some, so the range never becomes pure chaos
 //             with nothing safe to line up on)
 //   strafe  - slides across the hall, bouncing off both walls
@@ -169,93 +234,9 @@ function stepTarget(t, dtSec, speedMul, nowMs) {
   t.innerR = t.type.innerRadius != null ? t.type.innerRadius * p.scale : null
 }
 
-// Static perspective backdrop - drawn once when the range screen mounts (the
-// geometry never changes mid-run, so this is not a per-frame cost). Plain
-// trapezoid fills + lines converging on VP_X/VP_Y; no images, no 3D context.
-function drawCorridor(ctx) {
-  ctx.clearRect(0, 0, RANGE_W, RANGE_H)
-
-  const glow = ctx.createRadialGradient(VP_X, VP_Y, 2, VP_X, VP_Y, RANGE_W * 0.55)
-  glow.addColorStop(0, '#1b3440')
-  glow.addColorStop(1, '#04070a')
-  ctx.fillStyle = glow
-  ctx.fillRect(0, 0, RANGE_W, RANGE_H)
-
-  ctx.fillStyle = '#0b1218'
-  ctx.beginPath()
-  ctx.moveTo(0, 0)
-  ctx.lineTo(RANGE_W, 0)
-  ctx.lineTo(VP_X + VP_HALF_W, VP_Y)
-  ctx.lineTo(VP_X - VP_HALF_W, VP_Y)
-  ctx.closePath()
-  ctx.fill()
-
-  ctx.fillStyle = '#12160f'
-  ctx.beginPath()
-  ctx.moveTo(0, RANGE_H)
-  ctx.lineTo(RANGE_W, RANGE_H)
-  ctx.lineTo(VP_X + VP_HALF_W, VP_Y)
-  ctx.lineTo(VP_X - VP_HALF_W, VP_Y)
-  ctx.closePath()
-  ctx.fill()
-
-  ctx.fillStyle = '#0d1420'
-  ctx.beginPath()
-  ctx.moveTo(0, 0)
-  ctx.lineTo(0, RANGE_H)
-  ctx.lineTo(VP_X - VP_HALF_W, VP_Y)
-  ctx.closePath()
-  ctx.fill()
-  ctx.beginPath()
-  ctx.moveTo(RANGE_W, 0)
-  ctx.lineTo(RANGE_W, RANGE_H)
-  ctx.lineTo(VP_X + VP_HALF_W, VP_Y)
-  ctx.closePath()
-  ctx.fill()
-
-  // Floor lane dividers, converging on the vanishing point.
-  ctx.strokeStyle = 'rgba(60, 220, 255, 0.22)'
-  ctx.lineWidth = 1
-  for (const l of [-1, -0.5, 0, 0.5, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(VP_X + l * NEAR_HALF_W, NEAR_Y + 10)
-    ctx.lineTo(VP_X, VP_Y)
-    ctx.stroke()
-  }
-
-  // Floor + ceiling "panel rung" cross-lines at a few depths, endpoints
-  // interpolated along the same converging edges the fills use so they land on
-  // the trapezoids rather than floating.
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)'
-  for (const t of [0.22, 0.42, 0.64, 0.85]) {
-    const floorY = VP_Y + (RANGE_H - VP_Y) * t
-    const leftX = VP_X - VP_HALF_W + (0 - (VP_X - VP_HALF_W)) * t
-    const rightX = VP_X + VP_HALF_W + (RANGE_W - (VP_X + VP_HALF_W)) * t
-    ctx.beginPath()
-    ctx.moveTo(leftX, floorY)
-    ctx.lineTo(rightX, floorY)
-    ctx.stroke()
-
-    const ceilY = VP_Y + (0 - VP_Y) * t
-    ctx.beginPath()
-    ctx.moveTo(leftX, ceilY)
-    ctx.lineTo(rightX, ceilY)
-    ctx.stroke()
-  }
-
-  // Hanging lamp glows.
-  for (const lx of [VP_X - VP_HALF_W - 58, VP_X + VP_HALF_W + 58]) {
-    const lamp = ctx.createRadialGradient(lx, 8, 1, lx, 8, 42)
-    lamp.addColorStop(0, 'rgba(255,230,150,0.35)')
-    lamp.addColorStop(1, 'rgba(255,230,150,0)')
-    ctx.fillStyle = lamp
-    ctx.fillRect(lx - 42, 0, 84, 56)
-  }
-}
-
-// Wave ramp: how dense and how fast the range is right now. Reads live job
-// progress so a single run escalates. Concurrency steps rather than scaling
-// smoothly, so the player can feel each new tier arrive.
+// Wave ramp: how dense and how fast the range is right now. Reads live
+// elapsed-time progress so a single session escalates. Concurrency steps
+// rather than scaling smoothly, so the player can feel each new tier arrive.
 function waveParams(progress) {
   return {
     maxConcurrent: progress > 0.75 ? 4 : progress > 0.4 ? 3 : 2,
@@ -271,40 +252,10 @@ function resolveShot(t, distPx) {
   return 'miss'
 }
 
-export default function ShootingRangeModal({
-  onClose,
-  embedded = false,
-  title = 'The Back-Lot Range',
-  markName = "Luciano's Crew",
-  markDescription = '',
-  buttonLabel = 'Take The Shot',
-  stakes,
-}) {
-  const {
-    target,
-    suspicionCap = 100,
-    payout,
-    notorietyIncreaseOnFail,
-    wantedIncreaseOnFail,
-    reputationDeltaOnFail,
-    assetSeizureOnFail,
-    jailChanceOnFail,
-    energyCost,
-    baseSuccessChance,
-    syndicateId = null,
-    inHomeTurf = false,
-  } = stakes
-
-  const player = useGameStore((s) => s.player)
-  const spendEnergy = useGameStore((s) => s.spendEnergy)
-  const applyCrimeOutcome = useGameStore((s) => s.applyCrimeOutcome)
-  const addReputation = useGameStore((s) => s.addReputation)
-  const declineSyndicateJob = useGameStore((s) => s.declineSyndicateJob)
-
+export default function ShootingRangeModal({ onClose, embedded = false }) {
   const [screen, setScreen] = useState('intro') // 'intro' | 'range' | 'result'
-  const [locked, setLocked] = useState(null)
-  const [leverage, setLeverage] = useState(0)
-  const [suspicion, setSuspicion] = useState(0)
+  const [score, setScore] = useState(0)
+  const [timeLeftMs, setTimeLeftMs] = useState(TIME_LIMIT_MS)
   const [targets, setTargets] = useState([])
   const [crosshair, setCrosshair] = useState({ x: RANGE_W / 2, y: RANGE_H / 2 })
   const [steadiness, setSteadiness] = useState(0) // 0 = just moved, 1 = fully settled
@@ -313,12 +264,13 @@ export default function ShootingRangeModal({
   const [firedAt, setFiredAt] = useState(0) // drives muzzle flash + screen kick
   const [combo, setCombo] = useState(0)
   const [tally, setTally] = useState({ shots: 0, hits: 0, centers: 0 })
+  const [bestScore, setBestScore] = useState(() => Number(localStorage.getItem(BEST_SCORE_STORAGE_KEY)) || 0)
 
-  const leverageRef = useRef(0)
-  const suspicionRef = useRef(0)
+  const scoreRef = useRef(0)
+  const timeLeftMsRef = useRef(TIME_LIMIT_MS)
+  const bestScoreRef = useRef(bestScore)
   const targetsRef = useRef([])
   const nextSpawnAtRef = useRef(0)
-  const missedStreakRef = useRef(0)
   const rawAimRef = useRef({ x: RANGE_W / 2, y: RANGE_H / 2 })
   const lastMoveAtRef = useRef(0)
   const lastFiredAtRef = useRef(0)
@@ -326,90 +278,63 @@ export default function ShootingRangeModal({
   const swaySeedRef = useRef(0)
   const crosshairRef = useRef({ x: RANGE_W / 2, y: RANGE_H / 2 })
   const comboRef = useRef(0)
-  // Shot ledger backing the payout multiplier. Refs, not state, so resolve()
+  // Shot ledger for the end-of-run scorecard. Refs, not state, so resolve()
   // reads the true final numbers rather than whatever React had committed at
-  // the moment the winning shot landed.
+  // the moment the last shot landed.
   const shotsRef = useRef(0)
   const hitsRef = useRef(0)
   const centersRef = useRef(0)
   const rafRef = useRef(null)
   const resolvedRef = useRef(false)
-  const lockedRef = useRef(null)
-  const canvasRef = useRef(null)
 
-  const resolve = useCallback(
-    (success) => {
-      if (resolvedRef.current) return
-      resolvedRef.current = true
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+  const resolve = useCallback(() => {
+    if (resolvedRef.current) return
+    resolvedRef.current = true
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
 
-      const shots = shotsRef.current
-      const hits = hitsRef.current
-      const centers = centersRef.current
-      const accuracy = shots > 0 ? hits / shots : 0
-      const centerRate = hits > 0 ? centers / hits : 0
-      // Only a win is graded - a failed run pays nothing regardless, so
-      // scaling its (nonexistent) payout would be noise.
-      const multiplier = success ? scorePayoutMultiplier(accuracy, centerRate) : 1
-      const gradedPayout = Math.round(payout * multiplier)
+    const shots = shotsRef.current
+    const hits = hitsRef.current
+    const centers = centersRef.current
+    const accuracy = shots > 0 ? hits / shots : 0
+    const finalScore = Math.floor(scoreRef.current)
+    const isNewBest = finalScore > bestScoreRef.current
+    if (isNewBest) {
+      bestScoreRef.current = finalScore
+      setBestScore(finalScore)
+      localStorage.setItem(BEST_SCORE_STORAGE_KEY, String(finalScore))
+      playVictorySound()
+    }
+    setResultData({ finalScore, shots, hits, centers, accuracy, isNewBest })
+    setScreen('result')
+  }, [])
 
-      const res = applyCrimeOutcome({
-        success,
-        payout: gradedPayout,
-        notorietyIncreaseOnFail,
-        wantedIncreaseOnFail,
-        assetSeizureOnFail,
-        jailChanceOnFail,
-        syndicateId,
-        inHomeTurf,
-      })
-      if (!success && reputationDeltaOnFail) addReputation(reputationDeltaOnFail)
-      if (success) playVictorySound()
-      else playDefeatSound()
-      setResultData({ success, res, shots, hits, centers, accuracy, centerRate, multiplier, gradedPayout })
-      setScreen('result')
-    },
-    [
-      applyCrimeOutcome,
-      addReputation,
-      payout,
-      notorietyIncreaseOnFail,
-      wantedIncreaseOnFail,
-      reputationDeltaOnFail,
-      assetSeizureOnFail,
-      jailChanceOnFail,
-      syndicateId,
-      inHomeTurf,
-    ]
-  )
-
-  const spawnTarget = useCallback(
-    (nowMs) => {
-      const progress = target > 0 ? clamp(0, 1, leverageRef.current / target) : 0
-      const type = rollTargetType()
-      const t = {
-        id: ++targetSeq,
-        type,
-        depth: DEPTH_MIN + Math.random() * (DEPTH_MAX - DEPTH_MIN),
-        lateral: (Math.random() * 2 - 1) * LATERAL_LIMIT,
-        motion: rollMotion(progress),
-        bornAt: nowMs,
-        lifetimeMs: lockedRef.current.targetLifetimeMs,
-        handled: false,
-        x: 0,
-        y: 0,
-        scale: 1,
-        outerR: 0,
-        innerR: null,
-      }
-      stepTarget(t, 0, 1, nowMs) // seed x/y/scale/radii before its first render
-      targetsRef.current = [...targetsRef.current, t]
-    },
-    [target]
-  )
+  const spawnTarget = useCallback((nowMs) => {
+    // Progress reads the clock, not the score - the range gets harder as
+    // time runs low regardless of how far along the player's Score is, so
+    // stalling doesn't also stall the difficulty ramp.
+    const progress = clamp(0, 1, 1 - timeLeftMsRef.current / TIME_LIMIT_MS)
+    const type = rollTargetType()
+    const t = {
+      id: ++targetSeq,
+      type,
+      depth: DEPTH_MIN + Math.random() * (DEPTH_MAX - DEPTH_MIN),
+      lateral: (Math.random() * 2 - 1) * LATERAL_LIMIT,
+      motion: rollMotion(progress),
+      bornAt: nowMs,
+      lifetimeMs: TARGET_LIFETIME_MS,
+      handled: false,
+      x: 0,
+      y: 0,
+      scale: 1,
+      outerR: 0,
+      innerR: null,
+    }
+    stepTarget(t, 0, 1, nowMs) // seed x/y/scale/radii before its first render
+    targetsRef.current = [...targetsRef.current, t]
+  }, [])
 
   const handleMouseMove = useCallback((e) => {
-    if (!lockedRef.current) return
+    if (resolvedRef.current) return
     const rect = e.currentTarget.getBoundingClientRect()
     // Scale client px -> range px: the viewport may be laid out smaller than
     // its intrinsic RANGE_W/RANGE_H on a narrow screen, and aiming has to stay
@@ -428,7 +353,7 @@ export default function ShootingRangeModal({
   }
 
   const handleFire = useCallback(() => {
-    if (screen !== 'range' || resolvedRef.current || !lockedRef.current) return
+    if (screen !== 'range' || resolvedRef.current) return
     const now = performance.now()
     if (now - lastFiredAtRef.current < FIRE_COOLDOWN_MS) return
     lastFiredAtRef.current = now
@@ -472,68 +397,50 @@ export default function ShootingRangeModal({
     if (hit.type.shoot) {
       // Only shoot-targets count as "hits" for accuracy - drilling a Civilian
       // is the opposite of good shooting, so it stays a miss on the ledger on
-      // top of its Suspicion cost.
+      // top of docking Score.
       playGoodHitSound()
       hitsRef.current += 1
       if (hitZone === 'center') centersRef.current += 1
-      const base =
-        hitZone === 'center'
-          ? lockedRef.current.leveragePerCenter
-          : hit.type.id === 'crew'
-            ? lockedRef.current.leveragePerCrew
-            : lockedRef.current.leveragePerEdge
+      const base = hitZone === 'center' ? SCORE_PER_CENTER : hit.type.id === 'crew' ? SCORE_PER_CREW : SCORE_PER_EDGE
       comboRef.current += 1
       setCombo(comboRef.current)
       // Every 3rd consecutive hit pays a small bonus - rewards sustained
       // accuracy across a busy screen without letting a lucky spray out-earn
       // deliberate aim, since one miss (or one Civilian) resets it to 0.
-      const bonus = comboRef.current % 3 === 0 ? lockedRef.current.comboBonus : 0
-      leverageRef.current += base + bonus
-      missedStreakRef.current = 0
-      setLeverage(leverageRef.current)
+      const bonus = comboRef.current % 3 === 0 ? COMBO_BONUS : 0
+      scoreRef.current += base + bonus
+      setScore(scoreRef.current)
       addMark(shot.x, shot.y, true)
       setTally({ shots: shotsRef.current, hits: hitsRef.current, centers: centersRef.current })
-      if (leverageRef.current >= target) {
-        resolve(true)
-        return
-      }
     } else {
+      // A Civilian hit just docks the Score this run has banked, floored at
+      // 0 so one bad shot can't push it negative - that's the actual
+      // shoot/no-shoot skill test here, not a legal consequence (there is
+      // none anymore - see this file's header comment).
       playBadHitSound()
       comboRef.current = 0
       setCombo(0)
-      suspicionRef.current += lockedRef.current.suspicionPerCivilianHit
-      setSuspicion(suspicionRef.current)
+      scoreRef.current = Math.max(0, scoreRef.current - SCORE_PENALTY_PER_CIVILIAN)
+      setScore(scoreRef.current)
       addMark(shot.x, shot.y, false)
       setTally({ shots: shotsRef.current, hits: hitsRef.current, centers: centersRef.current })
-      if (suspicionRef.current >= suspicionCap) {
-        resolve(false)
-        return
-      }
     }
     setTargets([...targetsRef.current])
-  }, [screen, target, suspicionCap, resolve])
-
-  // Static corridor draw - once per range-screen mount (the canvas only exists
-  // in that branch, so the ref is non-null exactly when this runs).
-  useEffect(() => {
-    if (screen !== 'range' || !canvasRef.current) return
-    drawCorridor(canvasRef.current.getContext('2d'))
   }, [screen])
 
   // Single rAF loop owning the whole live screen: crosshair sway, per-target
-  // movement, expiry, and spawning. Same "one loop" shape every earlier
-  // version used, just with a target list instead of one slot.
+  // movement, expiry, and spawning.
   useEffect(() => {
     if (screen !== 'range') return
     lastFrameAtRef.current = performance.now()
     const tick = (now) => {
-      if (!resolvedRef.current && lockedRef.current) {
+      if (!resolvedRef.current) {
         const dtSec = Math.min(0.05, (now - lastFrameAtRef.current) / 1000)
         lastFrameAtRef.current = now
 
-        const steady = clamp(0, 1, (now - lastMoveAtRef.current) / lockedRef.current.steadyMs)
+        const steady = clamp(0, 1, (now - lastMoveAtRef.current) / STEADY_MS)
         setSteadiness(steady)
-        const swayRadius = lockedRef.current.maxSwayPx * (1 - steady)
+        const swayRadius = MAX_SWAY_PX * (1 - steady)
         const swayX = Math.sin(now * 0.006 + swaySeedRef.current) * swayRadius
         const swayY = Math.cos(now * 0.0047 + swaySeedRef.current * 1.3) * swayRadius
         crosshairRef.current = {
@@ -542,9 +449,20 @@ export default function ShootingRangeModal({
         }
         setCrosshair(crosshairRef.current)
 
-        const progress = target > 0 ? clamp(0, 1, leverageRef.current / target) : 0
+        // The clock is the only thing that ends a session now - it just
+        // runs out and resolve() shows the final tally, no win/lose branch.
+        timeLeftMsRef.current = Math.max(0, timeLeftMsRef.current - dtSec * 1000)
+        setTimeLeftMs(timeLeftMsRef.current)
+        if (timeLeftMsRef.current <= 0) {
+          resolve()
+          return
+        }
+
+        const progress = clamp(0, 1, 1 - timeLeftMsRef.current / TIME_LIMIT_MS)
         const wave = waveParams(progress)
 
+        // Letting a shoot-target expire unshot still breaks the combo (you
+        // hesitated), same as a miss.
         let expiredShooters = 0
         const alive = []
         for (const t of targetsRef.current) {
@@ -560,22 +478,11 @@ export default function ShootingRangeModal({
         if (expiredShooters > 0) {
           comboRef.current = 0
           setCombo(0)
-          missedStreakRef.current += expiredShooters
-          if (missedStreakRef.current >= MISS_STREAK_LIMIT) {
-            missedStreakRef.current = 0
-            playBadHitSound()
-            suspicionRef.current += lockedRef.current.suspicionPerMissedStreak
-            setSuspicion(suspicionRef.current)
-            if (suspicionRef.current >= suspicionCap) {
-              resolve(false)
-              return
-            }
-          }
         }
 
         if (targetsRef.current.length < wave.maxConcurrent && now >= nextSpawnAtRef.current) {
           spawnTarget(now)
-          nextSpawnAtRef.current = now + lockedRef.current.spawnGapMs
+          nextSpawnAtRef.current = now + SPAWN_GAP_MS
         }
 
         setTargets([...targetsRef.current])
@@ -586,7 +493,7 @@ export default function ShootingRangeModal({
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [screen, target, suspicionCap, resolve, spawnTarget])
+  }, [screen, resolve, spawnTarget])
 
   useEffect(() => {
     if (screen !== 'range') return
@@ -601,30 +508,8 @@ export default function ShootingRangeModal({
   }, [screen, handleFire])
 
   const begin = () => {
-    if (player.energy < energyCost) return
-    if (!spendEnergy(energyCost)) return
-    const favorability = computeFavorability(baseSuccessChance)
-    const params = {
-      favorability,
-      targetLifetimeMs: 1700 + favorability * 2000,
-      spawnGapMs: 620 - favorability * 260,
-      // Scaled with the bigger viewport (was 46 - fav*28 at 380x200) so the
-      // reticle wanders the same FRACTION of the hall, not the same pixels -
-      // otherwise a larger screen would have silently made aiming easier.
-      maxSwayPx: 66 - favorability * 40,
-      steadyMs: 550 - favorability * 300,
-      leveragePerCenter: Math.max(6, Math.round(target / 6)),
-      leveragePerEdge: Math.max(3, Math.round(target / 10)),
-      leveragePerCrew: Math.max(5, Math.round(target / 7)),
-      comboBonus: Math.max(2, Math.round(target / 14)),
-      suspicionPerCivilianHit: Math.max(10, Math.round(suspicionCap / 4)),
-      suspicionPerMissedStreak: Math.max(8, Math.round(suspicionCap / 5)),
-    }
-    lockedRef.current = params
-    setLocked(params)
-    leverageRef.current = 0
-    suspicionRef.current = 0
-    missedStreakRef.current = 0
+    scoreRef.current = 0
+    timeLeftMsRef.current = TIME_LIMIT_MS
     comboRef.current = 0
     shotsRef.current = 0
     hitsRef.current = 0
@@ -637,8 +522,8 @@ export default function ShootingRangeModal({
     lastMoveAtRef.current = performance.now()
     lastFiredAtRef.current = 0
     swaySeedRef.current = Math.random() * Math.PI * 2
-    setLeverage(0)
-    setSuspicion(0)
+    setScore(0)
+    setTimeLeftMs(TIME_LIMIT_MS)
     setTargets([])
     setCombo(0)
     setTally({ shots: 0, hits: 0, centers: 0 })
@@ -650,22 +535,18 @@ export default function ShootingRangeModal({
     setScreen('range')
   }
 
-  const walkAway = () => {
+  const stopEarly = () => {
     resolvedRef.current = true
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    lockedRef.current = null
     targetsRef.current = []
-    setLocked(null)
     setTargets([])
     setScreen('intro')
-    if (syndicateId) declineSyndicateJob(syndicateId)
   }
 
-  const leveragePct = target > 0 ? clamp(0, 100, (leverage / target) * 100) : 0
-  const suspicionPct = suspicionCap > 0 ? clamp(0, 100, (suspicion / suspicionCap) * 100) : 0
-  const swayRingRadius = locked ? 8 + locked.maxSwayPx * (1 - steadiness) * 0.5 : 8
+  const timeLeftPct = clamp(0, 100, (timeLeftMs / TIME_LIMIT_MS) * 100)
+  const timeLeftSec = Math.ceil(timeLeftMs / 1000)
   const recentlyFired = firedAt > 0 && performance.now() - firedAt < 90
-  const waveTier = waveParams(target > 0 ? clamp(0, 1, leverage / target) : 0).maxConcurrent
+  const waveTier = waveParams(clamp(0, 1, 1 - timeLeftMs / TIME_LIMIT_MS)).maxConcurrent
   const liveAccuracy = tally.shots > 0 ? Math.round((tally.hits / tally.shots) * 100) : 100
   // Far targets render first so nearer ones overlap them, the way depth reads.
   const drawOrder = [...targets].sort((a, b) => a.depth - b.depth)
@@ -682,42 +563,38 @@ export default function ShootingRangeModal({
         </button>
       )}
 
-      <h2 className="mb-2 text-xl font-bold text-red-400">{title}</h2>
+      <h2 className="mb-2 text-xl font-bold text-yellow-400">Test-Fire Range</h2>
 
       {screen === 'intro' && (
         <div className="flex flex-col gap-3">
-          <div className="border-2 border-red-500/60 bg-[#0f1020] p-3">
-            <p className="text-sm font-bold text-red-300">{markName}</p>
-            {markDescription && <p className="mt-1 text-xs text-gray-400">{markDescription}</p>}
+          <div className="border-2 border-yellow-600/50 bg-[#0f1020] p-3">
+            <p className="text-sm font-bold text-yellow-300">Try before you buy.</p>
+            <p className="mt-1 text-xs text-gray-400">
+              Take a few rounds downrange, on the house - see how you shoot before you spend a dime.
+            </p>
           </div>
           <p className="text-xs text-gray-400">
-            Move the mouse to aim - the reticle sways until you hold still. Click (or Space) to fire. Several targets
-            run the hall at once and they move; deeper ones are smaller and harder to land. Bullseye/Crew are shoot
-            targets, the Civilian target (🚫) isn't, and a wild shot that drifts into it counts the same as a
-            deliberate one. 3 hits in a row pays a bonus - one miss resets it.
+            Move the mouse to aim - the crosshair sways until you hold still, turning green once it's settled. Click
+            (or Space) to fire. Several targets run the lane at once and they move; deeper ones are smaller and
+            harder to land. Bullseye/Crew are shoot targets and bank Score; the marked-out civilian target isn't - a
+            wild shot that drifts into it docks Score the same as a deliberate hit. 3 hits in a row pays a bonus, one
+            miss resets it. You've got {Math.round(TIME_LIMIT_MS / 1000)} seconds - see how high you can run it.
           </p>
-          <div className="border-2 border-yellow-600/50 bg-[#0f1020] p-2 text-xs text-gray-400">
-            <span className="font-bold uppercase tracking-widest text-yellow-400">Luciano pays by results.</span>{' '}
-            The figure below is the baseline - your accuracy and your center hits set what actually lands in your
-            pocket, from {Math.round(PAYOUT_MULT_MIN * 100)}% to {Math.round(PAYOUT_MULT_MAX * 100)}% of it.
-          </div>
-          <div className="grid grid-cols-2 gap-y-1 text-xs">
-            <span className="uppercase tracking-widest text-gray-500">Energy Cost</span>
-            <span className="text-right text-yellow-300">{energyCost}</span>
-            <span className="uppercase tracking-widest text-gray-500">Baseline Payout</span>
-            <span className="text-right text-green-400">${payout.toLocaleString()}</span>
-          </div>
+          {bestScore > 0 && (
+            <div className="border-2 border-cyan-600/50 bg-[#0f1020] p-2 text-center text-xs text-cyan-300">
+              Personal Best: <span className="text-base font-bold">{bestScore}</span>
+            </div>
+          )}
           <button
             onClick={begin}
-            disabled={player.energy < energyCost}
-            className="w-full border-2 border-red-400 py-1.5 text-sm font-bold uppercase tracking-widest text-red-300 hover:bg-red-400 hover:text-black disabled:opacity-30"
+            className="w-full border-2 border-yellow-400 py-1.5 text-sm font-bold uppercase tracking-widest text-yellow-300 hover:bg-yellow-400 hover:text-black"
           >
-            Begin
+            Step Up To The Line
           </button>
         </div>
       )}
 
-      {screen === 'range' && locked && (
+      {screen === 'range' && (
         <div className="flex flex-col gap-3">
           <div
             onMouseMove={handleMouseMove}
@@ -731,51 +608,63 @@ export default function ShootingRangeModal({
             className="relative mx-auto select-none overflow-hidden border-4 border-cyan-800 bg-[#0a0f16] transition-transform duration-75"
           >
             <div className="absolute inset-0">
-              <canvas ref={canvasRef} width={RANGE_W} height={RANGE_H} className="pointer-events-none absolute inset-0" />
+              <img
+                src={RANGE_BG_URL}
+                alt=""
+                className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center"
+                style={{ imageRendering: 'pixelated' }}
+              />
 
               {drawOrder.map((t) => {
                 const lifeFrac = clamp(0, 1, 1 - (performance.now() - t.bornAt) / t.lifetimeMs)
+                // Sprite box for this target: height scales with depth same
+                // as the old hit-circle did (t.scale), width follows the
+                // art's own aspect ratio. anchorX/Y is where in that box the
+                // real hit-test point (resolveShot's t.x/t.y) actually is -
+                // the rings, or the civilian's torso - so left/top offset by
+                // that fraction rather than the box's plain center.
+                const spriteH = TARGET_SPRITE_BASE_H * t.scale
+                const spriteW = spriteH * t.type.spriteAspect
                 return (
                   <div
                     key={t.id}
                     className="pointer-events-none absolute"
                     style={{ left: t.x, top: t.y, transform: 'translate(-50%, -50%)' }}
                   >
-                    {/* ground-contact shadow - sells the depth cue */}
+                    {/* ground-contact shadow at the sprite's own base (feet /
+                        tripod legs), not the old hit-circle's center - sells
+                        the depth cue the same way, just relocated. */}
                     <div
                       className="absolute rounded-full bg-black/40"
                       style={{
-                        width: t.outerR * 1.6,
-                        height: t.outerR * 0.5,
-                        left: -t.outerR * 0.8,
-                        top: t.outerR * 0.55,
+                        width: spriteW * 0.75,
+                        height: t.outerR * 0.42,
+                        left: -spriteW * 0.375,
+                        top: spriteH * (1 - t.type.anchorY) - t.outerR * 0.25,
                       }}
                     />
-                    {t.type.id === 'bullseye' ? (
-                      <>
-                        <div
-                          className="absolute rounded-full border-2 border-cyan-300/80"
-                          style={{ width: t.outerR * 2, height: t.outerR * 2, left: -t.outerR, top: -t.outerR }}
-                        />
-                        <div
-                          className="absolute rounded-full border-2 border-cyan-300 bg-cyan-400/20"
-                          style={{ width: t.innerR * 2, height: t.innerR * 2, left: -t.innerR, top: -t.innerR }}
-                        />
-                      </>
-                    ) : (
-                      <div
-                        className={`absolute rounded-full border-2 ${
-                          t.type.shoot ? 'border-cyan-300 bg-cyan-400/10' : 'animate-pulse border-red-500 bg-red-500/20'
-                        }`}
-                        style={{ width: t.outerR * 2, height: t.outerR * 2, left: -t.outerR, top: -t.outerR }}
-                      />
-                    )}
-                    <span
+                    <img
+                      src={t.type.spriteUrl}
+                      alt=""
                       className="absolute"
-                      style={{ left: -11 * t.scale - 3, top: -13 * t.scale - 3, fontSize: 18 * t.scale + 5 }}
-                    >
-                      {t.type.icon}
-                    </span>
+                      style={{
+                        width: spriteW,
+                        height: spriteH,
+                        // This wrapper div only sets left/top (not right/
+                        // bottom), so with nothing but absolutely-positioned
+                        // children it collapses to a 0-width containing
+                        // block - Tailwind Preflight's `img { max-width:
+                        // 100% }` then resolves against THAT 0, clamping the
+                        // image to invisible regardless of the width above.
+                        // maxWidth/maxHeight: none overrides that.
+                        maxWidth: 'none',
+                        maxHeight: 'none',
+                        left: -spriteW * t.type.anchorX,
+                        top: -spriteH * t.type.anchorY,
+                        imageRendering: 'pixelated',
+                        filter: t.type.shoot ? undefined : 'saturate(1.15)',
+                      }}
+                    />
                     {/* per-target life bar - with several on screen at once a
                         single shared timer bar would say nothing useful */}
                     <div
@@ -801,22 +690,25 @@ export default function ShootingRangeModal({
                 />
               ))}
 
-              {/* crosshair - a ring that widens with sway, plus a fixed center dot */}
-              <div
-                className="pointer-events-none absolute rounded-full border-2 border-yellow-300/90"
+              {/* Player, back view, fixed at the firing line - not tied to
+                  the mouse (the crosshair alone carries aim). Nearest the
+                  camera, so it renders after targets/marks to occlude them
+                  rather than the other way around. */}
+              <img
+                src={PLAYER_SPRITE_URL}
+                alt=""
+                className="pointer-events-none absolute bottom-0 left-6"
                 style={{
-                  width: swayRingRadius * 2,
-                  height: swayRingRadius * 2,
-                  left: crosshair.x - swayRingRadius,
-                  top: crosshair.y - swayRingRadius,
+                  height: PLAYER_SPRITE_H,
+                  width: PLAYER_SPRITE_H * PLAYER_SPRITE_ASPECT,
+                  imageRendering: 'pixelated',
                 }}
-              />
-              <div
-                className="pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-yellow-300"
-                style={{ left: crosshair.x - 3, top: crosshair.y - 3 }}
               />
 
               <div className="pointer-events-none absolute left-2 top-2 flex gap-1.5">
+                <span className="border border-yellow-400/70 bg-black/55 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-yellow-300">
+                  {Math.floor(score)} pts
+                </span>
                 <span className="border border-cyan-500/50 bg-black/55 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-cyan-300/90">
                   {liveAccuracy}% acc
                 </span>
@@ -830,22 +722,43 @@ export default function ShootingRangeModal({
                 {waveTier} up
               </div>
 
-              {/* foreground gun-in-hand - decorative, sells the first-person
-                  read. Tilts slightly opposite the aim offset (a held weapon
-                  leaning with your point of view) and flashes at the barrel on
-                  every trigger pull, hit or miss. */}
+              {/* Crosshair cursor - this IS the mouse now (cursor:none on the
+                  range div above hides the OS pointer entirely). A plain
+                  plus-sign centered exactly on crosshair.x/y - the real fire
+                  point - colored red->green by how settled the aim currently
+                  is, same read the old laser dot gave, just as the whole mark
+                  rather than a separate dot. */}
               <div
-                className="pointer-events-none absolute bottom-0 right-0"
+                className="pointer-events-none absolute"
                 style={{
-                  transform: `translate(${(crosshair.x - RANGE_W / 2) * 0.05}px, ${(crosshair.y - RANGE_H / 2) * 0.035}px)`,
+                  left: crosshair.x,
+                  top: crosshair.y,
+                  transform: `translate(-50%, -50%) scale(${recentlyFired ? 0.85 : 1})`,
+                  transition: 'transform 75ms',
                 }}
               >
-                <svg width="134" height="104" viewBox="0 0 92 72">
-                  <path d="M18 72 L18 44 L46 36 L62 44 L62 72 Z" fill="#26211b" />
-                  <path d="M42 42 L92 26 L92 38 L60 48 L42 48 Z" fill="#17140f" />
-                  <rect x="84" y="20" width="8" height="10" fill="#0a0906" />
-                  {recentlyFired && <circle cx="90" cy="24" r="7" fill="#ffcf4d" opacity="0.9" />}
-                </svg>
+                <div
+                  className="absolute rounded-sm"
+                  style={{
+                    left: -1.5,
+                    top: -10,
+                    width: 3,
+                    height: 20,
+                    background: laserColor(steadiness),
+                    boxShadow: `0 0 ${3 + steadiness * 3}px ${laserColor(steadiness)}`,
+                  }}
+                />
+                <div
+                  className="absolute rounded-sm"
+                  style={{
+                    left: -10,
+                    top: -1.5,
+                    width: 20,
+                    height: 3,
+                    background: laserColor(steadiness),
+                    boxShadow: `0 0 ${3 + steadiness * 3}px ${laserColor(steadiness)}`,
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -860,48 +773,37 @@ export default function ShootingRangeModal({
           </div>
 
           <div>
-            <div className="mb-0.5 flex items-center justify-between text-xs uppercase tracking-widest text-cyan-300">
-              <span>Leverage</span>
-              <span>
-                {Math.floor(leverage)} / {target}
-              </span>
-            </div>
-            <div className="h-5 w-full border-2 border-cyan-500 bg-[#0a0a16]">
-              <div className="h-full bg-cyan-500 transition-[width] duration-75" style={{ width: `${leveragePct}%` }} />
-            </div>
-          </div>
-
-          <div>
             <div className="mb-0.5 flex items-center justify-between text-xs uppercase tracking-widest text-red-400">
-              <span>Suspicion</span>
-              <span>
-                {Math.floor(suspicion)} / {suspicionCap}
-              </span>
+              <span>Time Left</span>
+              <span>{timeLeftSec}s</span>
             </div>
             <div className="h-5 w-full border-2 border-red-500 bg-[#0a0a16]">
               <div
-                className={`h-full bg-red-600 transition-[width] duration-75 ${suspicionPct > 75 ? 'animate-pulse' : ''}`}
-                style={{ width: `${suspicionPct}%` }}
+                className={`h-full bg-red-600 transition-[width] duration-75 ${timeLeftPct < 25 ? 'animate-pulse' : ''}`}
+                style={{ width: `${timeLeftPct}%` }}
               />
             </div>
           </div>
 
-          <p className="text-center text-xs text-gray-500">{buttonLabel} - click or Space to fire</p>
+          <p className="text-center text-xs text-gray-500">Click or Space to fire</p>
 
-          <button onClick={walkAway} className="w-full border-2 border-gray-500 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
-            Walk Away
+          <button onClick={stopEarly} className="w-full border-2 border-gray-500 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+            Stop
           </button>
         </div>
       )}
 
       {screen === 'result' && resultData && (
-        <div className="flex flex-col gap-2 border-2 border-red-500 bg-[#0f1020] p-3 text-sm">
-          <p className="text-center text-lg font-bold text-red-300">
-            {resultData.success ? "Luciano's Boys Nod" : 'You Flinched'}
+        <div className="flex flex-col gap-2 border-2 border-yellow-500 bg-[#0f1020] p-3 text-sm">
+          <p className="text-center text-lg font-bold text-yellow-300">
+            {resultData.isNewBest ? 'New Personal Best!' : "Time's Up"}
+          </p>
+          <p className="text-center text-3xl font-bold text-yellow-300">
+            {resultData.finalScore} <span className="text-sm font-normal text-gray-400">pts</span>
           </p>
 
-          {/* Scorecard - shown either way, so a failed run still tells the
-              player how they were actually shooting before it went wrong. */}
+          {/* Scorecard - so every session tells the player how they actually
+              shot, not just the final number. */}
           <div className="grid grid-cols-3 gap-1 border border-gray-700 bg-black/30 p-2 text-center text-[11px]">
             <div>
               <div className="uppercase tracking-widest text-gray-500">Shots</div>
@@ -919,39 +821,12 @@ export default function ShootingRangeModal({
             </div>
           </div>
 
-          {resultData.success ? (
-            <>
-              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
-                <span>${payout.toLocaleString()}</span>
-                <span className="text-gray-600">×</span>
-                <span className={resultData.multiplier >= 1 ? 'font-bold text-green-400' : 'font-bold text-orange-400'}>
-                  {resultData.multiplier.toFixed(2)}
-                </span>
-                <span className="text-gray-600">=</span>
-                <span className="text-gray-300">${resultData.gradedPayout.toLocaleString()}</span>
-              </div>
-              <p className="text-center text-base font-bold text-green-400">+${resultData.res.payout.toLocaleString()}</p>
-              {resultData.res.payout !== resultData.gradedPayout && (
-                <p className="text-center text-[10px] uppercase tracking-widest text-gray-500">
-                  incl. home-turf standing bonus
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="text-center text-base font-bold text-red-400">{resultData.res.message}</p>
-              <p className="text-center text-xs text-gray-400">
-                Notoriety +{notorietyIncreaseOnFail} &middot; Wanted +{wantedIncreaseOnFail}
-                {!!reputationDeltaOnFail && ` · Reputation ${reputationDeltaOnFail > 0 ? '+' : ''}${reputationDeltaOnFail}`}
-                {resultData.res.fine > 0 && ` · Seized $${resultData.res.fine.toLocaleString()}`}
-                {resultData.res.jailed && ' · Arrested'}
-              </p>
-            </>
-          )}
+          <p className="text-center text-xs text-gray-500">Personal Best: {bestScore}</p>
+
           <div className="mt-1 flex gap-2">
             <button
               onClick={() => setScreen('intro')}
-              className="flex-1 border-2 border-red-400 py-1.5 text-sm font-bold text-red-300 hover:bg-red-400 hover:text-black"
+              className="flex-1 border-2 border-yellow-400 py-1.5 text-sm font-bold text-yellow-300 hover:bg-yellow-400 hover:text-black"
             >
               Try Again
             </button>
@@ -968,7 +843,7 @@ export default function ShootingRangeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="glass-panel relative w-[640px] max-w-[95vw] max-h-[92vh] overflow-y-auto border-4 border-red-500 bg-[#1c1d3a] p-6 font-mono text-white">
+      <div className="glass-panel relative w-[640px] max-w-[95vw] max-h-[92vh] overflow-y-auto border-4 border-yellow-500 bg-[#1c1d3a] p-6 font-mono text-white">
         {body}
       </div>
     </div>

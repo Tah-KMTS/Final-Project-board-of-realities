@@ -3,9 +3,10 @@ import { useGameStore } from '../../store/useGameStore'
 import { getPresidentialGunPolicy, canPurchaseLegalFirearm } from './firearmLegislationEngine'
 import { WEAPONS_DATABASE, weaponToInventoryItem } from './toolsWeaponsCatalog'
 import { THEFT_ITEM } from '../../game/vehicleGen'
+import ShootingRangeModal from '../finance/ShootingRangeModal'
 
 export default function GunStoreModal({ onClose, embedded = false }) {
-  const [activeTab, setActiveTab] = useState('legal') // 'legal' | 'black_market'
+  const [activeTab, setActiveTab] = useState('legal') // 'legal' | 'black_market' | 'range'
   const [feedbackMsg, setFeedbackMsg] = useState(null)
 
   const cash = useGameStore((s) => s.cash)
@@ -94,7 +95,7 @@ export default function GunStoreModal({ onClose, embedded = false }) {
           </div>
         </div>
 
-        {/* Tab Selection: Legal vs Black Market */}
+        {/* Tab Selection: Legal vs Black Market vs Test-Fire Range */}
         <div className="flex border-b border-gray-800 bg-[#21160a] text-xs font-bold my-3">
           <button
             onClick={() => setActiveTab('legal')}
@@ -108,6 +109,16 @@ export default function GunStoreModal({ onClose, embedded = false }) {
           >
             🕵️ Underground Black Market Dealer (ALWAYS ACCESSIBLE)
           </button>
+          {/* ShootingRangeModal.jsx, moved here from Crime Alley - see that
+              file's header comment. Free, no stakes: just a score-attack
+              practice session against a personal best, "come try the
+              merchandise" flavor for a legal gun store. */}
+          <button
+            onClick={() => setActiveTab('range')}
+            className={`flex-1 py-2.5 ${activeTab === 'range' ? 'bg-cyan-500 text-black font-extrabold' : 'text-gray-400 hover:text-white'}`}
+          >
+            🎯 Test-Fire Range (FREE)
+          </button>
         </div>
 
         {/* Feedback Alert */}
@@ -117,41 +128,47 @@ export default function GunStoreModal({ onClose, embedded = false }) {
           </div>
         )}
 
-        {/* Weapons List */}
-        <div className="my-3 space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
-          {WEAPONS_DATABASE.map((weapon) => {
-            const price = activeTab === 'legal' ? weapon.value * (1 + policy.legalTax) : weapon.value * 1.5
-            return (
-              <div key={weapon.id} className="flex items-center justify-between rounded border border-yellow-500/30 bg-[#24170b] p-3 text-xs">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-yellow-300 text-sm">{weapon.name}</span>
-                    <span className="rounded bg-yellow-950 px-1.5 py-0.5 text-xs text-yellow-300 uppercase">{weapon.category}</span>
+        {activeTab === 'range' ? (
+          <div className="my-3">
+            <ShootingRangeModal embedded onClose={() => setActiveTab('legal')} />
+          </div>
+        ) : (
+          /* Weapons List */
+          <div className="my-3 space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
+            {WEAPONS_DATABASE.map((weapon) => {
+              const price = activeTab === 'legal' ? weapon.value * (1 + policy.legalTax) : weapon.value * 1.5
+              return (
+                <div key={weapon.id} className="flex items-center justify-between rounded border border-yellow-500/30 bg-[#24170b] p-3 text-xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-yellow-300 text-sm">{weapon.name}</span>
+                      <span className="rounded bg-yellow-950 px-1.5 py-0.5 text-xs text-yellow-300 uppercase">{weapon.category}</span>
+                    </div>
+                    <div className="text-xs text-gray-300 mt-0.5">
+                      Damage/Stats: <b className="text-cyan-300">{weapon.damage || weapon.defense || 'Utility'}</b> • Price: <b className="text-emerald-400">${price.toFixed(2)}</b>
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-300 mt-0.5">
-                    Damage/Stats: <b className="text-cyan-300">{weapon.damage || weapon.defense || 'Utility'}</b> • Price: <b className="text-emerald-400">${price.toFixed(2)}</b>
-                  </div>
-                </div>
 
-                {activeTab === 'legal' ? (
-                  <button
-                    onClick={() => handleLegalBuy(weapon)}
-                    className="rounded border border-emerald-500 bg-emerald-950 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500 hover:text-black transition-all"
-                  >
-                    💵 Buy Legal
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleBlackMarketBuy(weapon)}
-                    className="rounded border border-red-500 bg-red-950 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-600 hover:text-white transition-all"
-                  >
-                    🕵️ Buy Untraceable
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                  {activeTab === 'legal' ? (
+                    <button
+                      onClick={() => handleLegalBuy(weapon)}
+                      className="rounded border border-emerald-500 bg-emerald-950 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500 hover:text-black transition-all"
+                    >
+                      💵 Buy Legal
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleBlackMarketBuy(weapon)}
+                      className="rounded border border-red-500 bg-red-950 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-600 hover:text-white transition-all"
+                    >
+                      🕵️ Buy Untraceable
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
 
       {!embedded && (
         <div className="border-t border-gray-800 bg-[#120b04] p-3 text-right">

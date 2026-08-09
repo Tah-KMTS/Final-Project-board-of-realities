@@ -57,17 +57,25 @@ export const DISTRICT_BUILDINGS_CONFIG = {
         // their own distinct mechanic in the same pass that added this
         // field; stakes/payout/risk numbers below are untouched (mechanic
         // swap, not a rebalance - see game-designer's scoping notes).
-        // Swapped from 'lookoutWatch' to 'shootingRange' (see
-        // ShootingRangeModal.jsx) per a later user request for a literal
-        // shooting-gallery minigame here - same swap philosophy, same
-        // stakes, only the resolution mechanic and its flavor text changed.
-        minigame: 'shootingRange',
-        label: 'Prove Your Aim',
+        // Was briefly 'shootingRange' (ShootingRangeModal.jsx) for a literal
+        // shooting-gallery minigame here. That component has since moved to
+        // GunStoreModal.jsx's "Test-Fire Range" tab instead - a legal gun
+        // store test range has no business carrying crime stakes
+        // (notoriety/wanted/jail on a bad run), which is exactly what this
+        // slot needs, so the two could no longer share one component once
+        // the range dropped that layer. Back to 'lookoutWatch'
+        // (LookoutWatchModal.jsx) - unused by any other building since that
+        // swap, and the original mechanic here before it - same swap
+        // philosophy, same stakes, only the resolution mechanic and its
+        // flavor text changed again.
+        minigame: 'lookoutWatch',
+        label: 'Lean On Him',
         leverage: {
-          title: 'The Back-Lot Range',
-          markName: "Luciano's Crew",
-          markDescription: "Before Luciano trusts you with real work, his boys want to see you shoot straight - hit the paper, leave the civilians standing.",
-          buttonLabel: 'Take The Shot',
+          title: 'Lookout Watch',
+          markName: 'Some Guy Who Owes Luciano',
+          markDescription:
+            "He owes the Five Families and he knows it. Lean on him when the street's clear - a beat cop wandering past at the wrong moment turns a shakedown into a scene.",
+          buttonLabel: 'Lean On Him',
           stakes: {
             target: 50,
             suspicionCap: 100,

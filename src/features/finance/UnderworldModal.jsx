@@ -158,11 +158,11 @@ const TABS = [
   { id: 'crimeAlley', label: 'Crime Alley' },
   { id: 'speakeasy', label: 'Speakeasy Hotel' },
   // GunStoreModal.jsx (Legal Retail Store + Underground Black Market Dealer
-  // tabs, incl. THEFT_ITEM/Slim Jim - see VehicleTheftModal.jsx's quiet
-  // theft method) folded in here rather than given its own building on the
-  // map - same "one access point, not a scattered standalone" consolidation
-  // this whole hub already applies to Black Market/Call Center Ops/Crime
-  // Alley/Speakeasy Hotel.
+  // + free Test-Fire Range tabs, incl. THEFT_ITEM/Slim Jim - see
+  // VehicleTheftModal.jsx's quiet theft method) folded in here rather than
+  // given its own building on the map - same "one access point, not a
+  // scattered standalone" consolidation this whole hub already applies to
+  // Black Market/Call Center Ops/Crime Alley/Speakeasy Hotel.
   { id: 'gunStore', label: 'Gun Store' },
   { id: 'bossJobs', label: 'Boss Jobs' },
   // Read-only Standing display (v1 scope: 7 Bosses only) - see
@@ -206,10 +206,11 @@ export default function UnderworldModal({ onClose, initialTab = 'blackMarket' })
           ))}
         </div>
 
-        {/* Raised from a flat 460px and made viewport-relative when the Crime
-            Alley tab's shooting-range minigame grew to a 560x300 viewport -
-            at 460 the range sat in a cramped scroller. Only a cap, so every
-            other (shorter) tab renders exactly as before. */}
+        {/* Raised from a flat 460px and made viewport-relative when a
+            560x300 shooting-range viewport first landed in a tab here (then
+            Crime Alley's, now the Gun Store tab's Test-Fire Range) - at 460
+            the range sat in a cramped scroller. Only a cap, so every other
+            (shorter) tab renders exactly as before. */}
         <div className="mb-4 max-h-[72vh] overflow-y-auto">
           {tab === 'blackMarket' && <DistrictBuildingModal buildingId="blackMarket" embedded />}
           {tab === 'callCenterOps' && <DistrictBuildingModal buildingId="callCenterOps" embedded />}
