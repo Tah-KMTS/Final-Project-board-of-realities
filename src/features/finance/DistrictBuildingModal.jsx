@@ -5,10 +5,12 @@ import LeverageMeter from './LeverageMeter'
 import CrimeAlleyHeistModal from './CrimeAlleyHeistModal'
 import FencesTableModal from './FencesTableModal'
 import CallCenterQTEModal from './CallCenterQTEModal'
+import LockpickModal from './LockpickModal'
+import SignalInterceptModal from './SignalInterceptModal'
 
 // Maps each Underground District action's `minigame` field (districtBuildings.js)
 // to the racket-specific component it opens instead of the shared
-// LeverageMeter - see those 3 files' own header comments for what makes
+// LeverageMeter - see those files' own header comments for what makes
 // each one distinct. Falls back to LeverageMeter for any action that
 // doesn't set `minigame` (none currently do, but this keeps a future
 // flat-leverage action from silently crashing if this map isn't updated
@@ -17,11 +19,17 @@ import CallCenterQTEModal from './CallCenterQTEModal'
 // instead, called directly (no stakes, so nothing for this leverage-job
 // dispatch table to do). LookoutWatchModal ('lookoutWatch') also used to
 // live here - deleted when crimeAlley's action swapped to the real stealth
-// heist below.
+// heist below. fencesTable/callCenterQte are still exported and importable
+// (nothing deletes the files) but no longer referenced by any
+// districtBuildings.js entry - blackMarket swapped to 'lockpick'
+// (LockpickModal.jsx) and callCenterOps swapped to 'signalIntercept'
+// (SignalInterceptModal.jsx), both at the user's explicit request.
 const MINIGAME_COMPONENTS = {
   crimeAlleyHeist: CrimeAlleyHeistModal,
   fencesTable: FencesTableModal,
   callCenterQte: CallCenterQTEModal,
+  lockpick: LockpickModal,
+  signalIntercept: SignalInterceptModal,
 }
 
 // Single reusable modal for every flavor-tier building added by the

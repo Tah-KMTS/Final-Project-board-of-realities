@@ -8,8 +8,62 @@ import EscobarAirDropModal from './EscobarAirDropModal'
 import OffshoreAuditModal from './OffshoreAuditModal'
 import ContractDeductionModal from './ContractDeductionModal'
 import GunStoreModal from '../world/GunStoreModal'
+import UnderworldMapScene, { ROOMS, IMAGE_URL, NATIVE_W, NATIVE_H } from './UnderworldMapScene'
 import { useGameStore } from '../../store/useGameStore'
 import { RANK_GATE } from '../agents/syndicateStandingEngine'
+
+// Matches the non-map panel's inner content width (w-[640px] minus the
+// p-6/24px padding on each side, see the panel className below) - the
+// default for every tab except callCenterOps, which gets its own wider
+// panel (WIDE_PANEL_W below) so SignalInterceptModal.jsx's console (CRT +
+// keypad + slider) has room to read as a real horizontal control panel
+// instead of a cramped, scrolling column - the user's own explicit request
+// after seeing it packed into the narrow default width.
+const BANNER_W = 592
+const WIDE_BANNER_W = 856 // WIDE_PANEL_W (900) minus the same 48px padding
+const BANNER_H = 150
+
+// A room's own tab used to swap straight to a flat dark panel with no
+// visual link back to the room you just walked into (UnderworldMapScene.jsx)
+// - jarring, like you'd left the building entirely rather than opened a
+// door inside it. This crops the SAME source illustration to that room's
+// own rect (ROOMS, shared with the map scene so the two never drift out of
+// sync) and shows it as a banner above the room's actual content, so the
+// tab still visually reads as "inside this specific room." The crop is
+// vertically centered on the room's own rect rather than pinned to its top
+// - a room's most recognizable feature (its sign, its counter) usually
+// isn't right at the top wall.
+function RoomBanner({ roomId, width = BANNER_W }) {
+  const room = ROOMS.find((r) => r.id === roomId)
+  if (!room) return null
+
+  const scale = width / (room.x1 - room.x0)
+  const bgW = NATIVE_W * scale
+  const bgH = NATIVE_H * scale
+  const cropCenterY = room.bannerY ?? room.y0 + (room.y1 - room.y0) / 2
+  const bannerNativeH = BANNER_H / scale
+  const bgPosX = -(room.x0 * scale)
+  const bgPosY = -((cropCenterY - bannerNativeH / 2) * scale)
+
+  return (
+    <div
+      className="relative mb-3 border-2 border-gray-700"
+      style={{
+        width,
+        height: BANNER_H,
+        backgroundImage: `url(${IMAGE_URL})`,
+        backgroundSize: `${bgW}px ${bgH}px`,
+        backgroundPosition: `${bgPosX}px ${bgPosY}px`,
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-10"
+        style={{ background: 'linear-gradient(to bottom, transparent, #1c1d3a)' }}
+      />
+    </div>
+  )
+}
 
 // The Speakeasy Hotel tab's one skill-checked criminal action: a bootleg &
 // protection squeeze with Al Capone. Before this, chicago_outfit had no
@@ -152,25 +206,7 @@ function BossJobsMenu({ onSelect }) {
 // here. Black Market and Crime Alley's tabs are DistrictBuildingModal-only
 // now - a NamedNpcModal composition under each (Ochoa, newly added this
 // pass; Luciano, pre-existing) was removed at the user's request.
-const TABS = [
-  { id: 'blackMarket', label: 'Black Market' },
-  { id: 'callCenterOps', label: 'Call Center Ops' },
-  { id: 'crimeAlley', label: 'Crime Alley' },
-  { id: 'speakeasy', label: 'Speakeasy Hotel' },
-  // GunStoreModal.jsx (Legal Retail Store + Underground Black Market Dealer
-  // + free Test-Fire Range tabs, incl. THEFT_ITEM/Slim Jim - see
-  // VehicleTheftModal.jsx's quiet theft method) folded in here rather than
-  // given its own building on the map - same "one access point, not a
-  // scattered standalone" consolidation this whole hub already applies to
-  // Black Market/Call Center Ops/Crime Alley/Speakeasy Hotel.
-  { id: 'gunStore', label: 'Gun Store' },
-  { id: 'bossJobs', label: 'Boss Jobs' },
-  // Read-only Standing display (v1 scope: 7 Bosses only) - see
-  // src/features/agents/syndicateStandingEngine.js for the underlying model.
-  { id: 'standing', label: 'Standing' },
-]
-
-export default function UnderworldModal({ onClose, initialTab = 'blackMarket' }) {
+export default function UnderworldModal({ onClose, initialTab = 'map' }) {
   const [tab, setTab] = useState(initialTab)
   // Which Boss job (if any) is currently open within the Boss Jobs tab -
   // null shows BossJobsMenu instead. Reset whenever the player leaves the
@@ -184,7 +220,35 @@ export default function UnderworldModal({ onClose, initialTab = 'blackMarket' })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="glass-panel w-[640px] border-4 border-red-500 bg-[#1c1d3a] p-6 font-mono text-white">
+      <div
+        className={`glass-panel max-h-[92vh] overflow-y-auto overflow-x-hidden border-4 border-red-500 bg-[#1c1d3a] p-6 font-mono text-white ${
+          // The map tab needs real width to keep the source illustration's
+          // signage legible (see UnderworldMapScene.jsx's DISPLAY_W).
+          // callCenterOps gets its own wider panel too (WIDE_BANNER_W above
+          // is sized to match) - SignalInterceptModal.jsx's CRT+keypad+
+          // slider console read as cramped and needed to horizontally
+          // scroll inside the original 640px width, per direct user report.
+          // Every other tab keeps that original 640px panel unchanged.
+          //
+          // max-h-[92vh] + overflow-y-auto live on THIS outer panel (not
+          // just the inner content div below) so the whole modal - title,
+          // room banner, "Back" button, action content, AND the "Leave the
+          // Underworld" button - scrolls together as one unit on short
+          // screens. Previously only the inner content div capped/scrolled
+          // at 72vh; on a viewport shorter than about 900px the outer panel
+          // (a `fixed inset-0` overlay, which page-level scroll can never
+          // reach) had no cap of its own, so its header and Leave button
+          // could get pushed off both the top and bottom of the screen
+          // simultaneously with no way to scroll to either - reported by
+          // the user as a horizontal+vertical scrollbar cutting off the
+          // Call Center Ops tab even at 100% zoom.
+          tab === 'map'
+            ? 'w-[1180px] max-w-[95vw]'
+            : tab === 'callCenterOps'
+              ? 'w-[900px] max-w-[95vw]'
+              : 'w-[640px]'
+        }`}
+      >
         <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Underground District</p>
         <h2 className="mb-2 text-xl font-bold text-red-400">The Underworld</h2>
         <p className="mb-3 text-xs text-gray-400">
@@ -192,26 +256,36 @@ export default function UnderworldModal({ onClose, initialTab = 'blackMarket' })
           nobody official ever checks.
         </p>
 
-        <div className="mb-3 flex flex-wrap gap-2">
-          {TABS.map((t) => (
+        {/* No direct-jump tab buttons any more - the point of the walkable
+            hub (UnderworldMapScene.jsx) is that every racket is reached by
+            actually walking to it in the room, not by clicking a menu.
+            The only way back OUT of a room's content is this single button,
+            which returns to the map (not to any other room) - same
+            "walk there yourself" principle applies leaving as entering. */}
+        {tab !== 'map' && (
+          <>
+            <RoomBanner roomId={tab} width={tab === 'callCenterOps' ? WIDE_BANNER_W : BANNER_W} />
             <button
-              key={t.id}
-              onClick={() => selectTab(t.id)}
-              className={`border-2 px-3 py-1 text-xs font-bold ${
-                tab === t.id ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-gray-600 text-gray-400 hover:border-gray-400'
-              }`}
+              onClick={() => selectTab('map')}
+              className="mb-3 border-2 border-gray-600 px-3 py-1 text-xs font-bold text-gray-400 hover:border-gray-400"
             >
-              {t.label}
+              ← Back to the Underworld
             </button>
-          ))}
-        </div>
+          </>
+        )}
 
-        {/* Raised from a flat 460px and made viewport-relative when a
-            560x300 shooting-range viewport first landed in a tab here (then
-            Crime Alley's, now the Gun Store tab's Test-Fire Range) - at 460
-            the range sat in a cramped scroller. Only a cap, so every other
-            (shorter) tab renders exactly as before. */}
-        <div className="mb-4 max-h-[72vh] overflow-y-auto">
+        {/* No max-height/scroll of its own any more - the outer panel div
+            above now caps and scrolls the whole modal as one unit (see its
+            comment). This nested div used to also cap+scroll at 72vh,
+            which meant a tall tab's own "Leave the Underworld" button sat
+            OUTSIDE this scroller and could still end up unreachable when
+            the outer panel had no cap of its own; two independent scroll
+            regions in one modal was also just confusing UX (which one do
+            you scroll to see more?). Kept as a plain wrapper div (not
+            removed outright) since every tab branch below still needs a
+            single container to render into. */}
+        <div className="mb-4">
+          {tab === 'map' && <UnderworldMapScene onEnter={selectTab} />}
           {tab === 'blackMarket' && <DistrictBuildingModal buildingId="blackMarket" embedded />}
           {tab === 'callCenterOps' && <DistrictBuildingModal buildingId="callCenterOps" embedded />}
           {tab === 'crimeAlley' && <DistrictBuildingModal buildingId="crimeAlley" embedded />}

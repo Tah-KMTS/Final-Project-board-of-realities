@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { clamp } from './crimeDifficulty'
 import { useGameStore } from '../../store/useGameStore'
-import { playAlarmSound, playSmashSound, playPurchaseSound, playVictorySound, playDefeatSound } from '../../audio/sfx'
+import {
+  playAlarmSound,
+  playSmashSound,
+  playPurchaseSound,
+  playVictorySound,
+  playDefeatSound,
+  playTakeDamageSound,
+} from '../../audio/sfx'
 
 // Crime Alley's minigame - a stealth heist. Replaces the old LookoutWatchModal
 // "Lean On Him" reaction game (see districtBuildings.js's crimeAlley entry
@@ -25,17 +32,22 @@ import { playAlarmSound, playSmashSound, playPurchaseSound, playVictorySound, pl
 // behavior the angle was for (guards can't see behind themselves, range
 // shrinks when you crouch) is fully implemented.
 //
-// Two meters only, per spec: Heat (one-way ratchet, never decays mid-run -
-// same "why" as LookoutWatchModal's Suspicion meter) and a loot counter.
-// There is no player-health meter and no game-over-by-damage - the only bust
-// conditions are Heat hitting 100 or an ALERT guard physically touching the
-// player. Cash loots bank immediately via addCash the instant a hold
-// completes (same "already yours" feel as the Shooting Range's live score);
-// a bust claws back only this run's own loot via addCash(-lootedThisRun),
-// never the player's pre-existing bankroll, and assetSeizureOnFail is
-// passed 0 to applyCrimeOutcome for exactly that reason - the cash
-// consequence already happened here, that call is purely for
-// notoriety/wanted/the jail-chance roll.
+// Heat (one-way ratchet, never decays mid-run - same "why" as
+// LookoutWatchModal's Suspicion meter), a loot counter, and a player HP pool
+// (added alongside guard HP - see handleAttack and the tick loop's melee
+// section). Bust conditions are Heat hitting 100 or player HP hitting 0 -
+// the old "an ALERT guard physically touching the player = instant bust"
+// rule is gone; being caught is a real fight you can lose on points now,
+// not a single-touch trip wire. Cash loots bank immediately via addCash the
+// instant a hold completes (same "already yours" feel as the Shooting
+// Range's live score); a bust claws back only this run's own loot via
+// addCash(-lootedThisRun), never the player's pre-existing bankroll, and
+// assetSeizureOnFail is passed 0 to applyCrimeOutcome for exactly that
+// reason - the cash consequence already happened here. No Wanted/jail stake
+// either any more (see districtBuildings.js's crimeAlley entry) - the
+// Underworld's own back-alley jobs don't reach the police; losing a fight
+// here costs the run's take and standing with the crew (notoriety/
+// reputation), not an arrest.
 
 // RANGE_W/RANGE_H is the fixed CAMERA VIEWPORT - what's actually visible at
 // once, sized to fit inside UnderworldModal's w-[640px] p-6 panel (592px of
@@ -53,11 +65,13 @@ const RANGE_H = 265
 // RANGE_BG_URL below), so that fraction carries straight over to viewport px.
 const GROUND_Y = 234
 
-// The alley is 1600px of walkable world, ~2.76x the visible viewport - long
+// The alley is 1850px of walkable world, ~3.2x the visible viewport - long
 // enough that the camera pan (see cameraX in the component below) actually
-// matters, and long enough to fit 3 guard patrol zones with real gaps
-// between them instead of one crowded screen.
-const WORLD_W = 1600
+// matters, and long enough to fit 4 guard patrol zones with real gaps
+// between them instead of one crowded screen. Widened from 1600 (3 guards)
+// when a 4th guard was added to what used to be a totally safe final
+// stretch - see GUARD_DEFS's own comment for why.
+const WORLD_W = 1850
 
 const ALLEY_BG_URL = '/assets/packs/crime-alley/alley_bg.png'
 // 3168x1344 (2.357:1). No longer stretched to the viewport via object-fit -
@@ -97,7 +111,7 @@ const WALK_FRAME_MS = 140
 const WALK_SPEED = 91 // px/s
 const CROUCH_SPEED = 46 // px/s, half of WALK_SPEED
 const PLAYER_MIN_X = 20
-const EXIT_X = 1560 // walking at/past this x = clean getaway (near WORLD_W's far edge)
+const EXIT_X = 1820 // walking at/past this x = clean getaway (near WORLD_W's far edge)
 
 // --- Interact reach ---
 const LOOT_REACH = 28
@@ -114,39 +128,57 @@ const ALERT_SPEED = 75 // px/s while charging the player
 const BASE_CONE_RANGE = 124
 const DETECTION_FILL_PER_SEC = 100 / 1.2 // 100% over 1.2s continuous exposure
 const DETECTION_DECAY_PER_SEC = 100 / 2 // 100% over 2s out of exposure
-const TOUCH_BUST_RADIUS = 17
+// Once a guard is alert, they're a real melee threat within this range - the
+// same reach the player's own attack uses (ATTACK_REACH), so "close enough
+// to hit them" and "close enough for them to hit you" are the same distance
+// in both directions, not two different radii to keep straight.
+const GUARD_MELEE_RANGE = ATTACK_REACH
+const GUARD_MELEE_COOLDOWN_MS = 700
+
+// --- Combat (see handleAttack's own comment for the sneak-vs-fight split) ---
+const GUARD_MAX_HP = 2
+const PLAYER_MAX_HP = 3
+const GUARD_HIT_DAMAGE = 1
+const PLAYER_HIT_DAMAGE = 1
 
 // --- Heat ---
 const HEAT_ALERT_SPIKE = 25
 const HEAT_SNEAK_TAKEDOWN = 5
-const HEAT_ALERT_TAKEDOWN = 20
 const HEAT_ESCALATION_THRESHOLD = 50
 const HEAT_ESCALATION_SPEED_MULT = 1.25
 const HEAT_ESCALATION_CONE_MULT = 1.2
 const HEAT_BUST_THRESHOLD = 100
 
-// Fixed layout - a straight line down the 1600px alley from the entrance
-// (left) to the getaway edge (right), now long enough for 3 guard patrol
-// zones with real breathing room between them instead of 2 crowded onto one
-// screen. Positions are spaced so a dumpster's own reach circle never
-// overlaps its paired crate's, so a single E press/hold near that pair is
-// never ambiguous between "loot" and "hide".
+// Fixed layout - a straight line down the 1850px alley from the entrance
+// (left) to the getaway edge (right), long enough for 4 guard patrol zones
+// with real breathing room between them instead of one crowded screen.
+// Positions are spaced so a dumpster's own reach circle never overlaps its
+// paired crate's, so a single E press/hold near that pair is never
+// ambiguous between "loot" and "hide".
 const CRATE_DEFS = [
   { id: 'crate1', x: 60 },
   { id: 'crate2', x: 270 }, // sits inside guard1's patrol zone
   { id: 'crate3', x: 630 }, // sits inside guard2's patrol zone
   { id: 'crate4', x: 820 }, // the safer gap between guard2 and guard3
   { id: 'crate5', x: 1040 }, // sits inside guard3's patrol zone
+  { id: 'crate6', x: 1370 }, // sits inside guard4's patrol zone
 ]
 const DUMPSTER_DEFS = [
   { id: 'dumpsterA', x: 450 }, // safe gap between guard1 and guard2
   { id: 'dumpsterB', x: 900 }, // safe gap between guard2 and guard3
-  { id: 'dumpsterC', x: 1200 }, // past guard3, last hideout before the exit
+  { id: 'dumpsterC', x: 1200 }, // safe gap between guard3 and guard4
+  { id: 'dumpsterD', x: 1650 }, // past guard4, last hideout before the exit
 ]
+// guard4 is new - it used to be a totally safe 420px final sprint from
+// guard3's zone straight to the old EXIT_X (1560), the only stretch of the
+// whole alley with zero threat in it. Placed past dumpsterC so that
+// dumpster is still a real "duck in here before the last guard" beat, not
+// swallowed by his patrol zone.
 const GUARD_DEFS = [
   { id: 'guard1', minX: 170, maxX: 360, x: 170, dir: 1 },
   { id: 'guard2', minX: 540, maxX: 740, x: 740, dir: -1 },
   { id: 'guard3', minX: 940, maxX: 1140, x: 1140, dir: -1 },
+  { id: 'guard4', minX: 1250, maxX: 1500, x: 1500, dir: -1 },
 ]
 
 function isInCone(guard, playerX, playerCrouching, coneRange) {
@@ -189,6 +221,7 @@ export default function CrimeAlleyHeistModal({
   const [guards, setGuards] = useState([])
   const [crates, setCrates] = useState([])
   const [heat, setHeat] = useState(0)
+  const [hp, setHp] = useState(PLAYER_MAX_HP)
   const [lootedThisRun, setLootedThisRun] = useState(0)
   const [stashesLooted, setStashesLooted] = useState(0)
   const [heldCrateId, setHeldCrateId] = useState(null)
@@ -200,6 +233,7 @@ export default function CrimeAlleyHeistModal({
   const guardsRef = useRef([])
   const cratesRef = useRef([])
   const heatRef = useRef(0)
+  const hpRef = useRef(PLAYER_MAX_HP)
   const lootedThisRunRef = useRef(0)
   const stashesLootedRef = useRef(0)
   const keysRef = useRef(new Set())
@@ -295,6 +329,19 @@ export default function CrimeAlleyHeistModal({
     setPlayerState({ ...p })
   }
 
+  // Two completely different outcomes depending on whether the target ever
+  // saw you coming:
+  //   - CLEAN (detection still at 0, never alert): a real sneak attack -
+  //     one hit, guard gone outright, cheap Heat. Rewards actually staying
+  //     hidden instead of just being a free kill button.
+  //   - ANYTHING ELSE (mid-fill detection, or already fully alert): no more
+  //     instant kill. This is a straight fight now - GUARD_HIT_DAMAGE per
+  //     swing against the guard's own GUARD_MAX_HP, on the same
+  //     ATTACK_COOLDOWN_MS as before. Being caught still shoves the guard
+  //     to fully alert (if they weren't already) and pays the one-time
+  //     Heat spike for it, exactly like getting spotted the normal way -
+  //     but from here it's a trade, not a bust. The guard trades back too:
+  //     see the tick loop's melee section below for their side of it.
   const handleAttack = useCallback(() => {
     if (resolvedRef.current || screen !== 'heist') return
     const p = playerRef.current
@@ -304,11 +351,26 @@ export default function CrimeAlleyHeistModal({
     const target = guardsRef.current.find((g) => !g.removed && Math.abs(g.x - p.x) <= ATTACK_REACH)
     if (!target) return
     lastAttackAtRef.current = now
-    const wasAlert = target.alert
-    target.removed = true
-    playSmashSound()
-    const heatDelta = wasAlert ? HEAT_ALERT_TAKEDOWN : HEAT_SNEAK_TAKEDOWN
-    heatRef.current = Math.min(100, heatRef.current + heatDelta)
+
+    const clean = !target.alert && target.detection <= 0
+    if (clean) {
+      target.removed = true
+      playSmashSound()
+      heatRef.current = Math.min(100, heatRef.current + HEAT_SNEAK_TAKEDOWN)
+    } else {
+      const wasAlreadyAlert = target.alert
+      if (!wasAlreadyAlert) {
+        target.alert = true
+        target.detection = 100
+        target.targetX = p.x
+        playAlarmSound()
+        heatRef.current = Math.min(100, heatRef.current + HEAT_ALERT_SPIKE)
+      }
+      target.hp = (target.hp ?? GUARD_MAX_HP) - GUARD_HIT_DAMAGE
+      playSmashSound()
+      if (target.hp <= 0) target.removed = true
+    }
+
     setHeat(heatRef.current)
     setGuards(guardsRef.current.map((g) => ({ ...g })))
     if (heatRef.current >= HEAT_BUST_THRESHOLD) bust()
@@ -378,7 +440,7 @@ export default function CrimeAlleyHeistModal({
       }
       prevEHeldRef.current = eHeld
 
-      let bustTouch = false
+      let playerDamage = 0
       for (const g of guardsRef.current) {
         if (g.removed) continue
         const speedMul = heatEscalated ? HEAT_ESCALATION_SPEED_MULT : 1
@@ -392,7 +454,15 @@ export default function CrimeAlleyHeistModal({
             const step = ALERT_SPEED * speedMul * dtSec
             g.x += dirToTarget * Math.min(step, dist)
           }
-          if (!p.hiding && Math.abs(p.x - g.x) <= TOUCH_BUST_RADIUS) bustTouch = true
+          // Melee: an alert guard within range lands a hit on their own
+          // cooldown, same shape as the player's ATTACK_COOLDOWN_MS - a real
+          // fight both directions now, not "touch player = instant bust."
+          if (!p.hiding && Math.abs(p.x - g.x) <= GUARD_MELEE_RANGE) {
+            if (now - (g.lastMeleeAt || 0) >= GUARD_MELEE_COOLDOWN_MS) {
+              g.lastMeleeAt = now
+              playerDamage += PLAYER_HIT_DAMAGE
+            }
+          }
         } else {
           const speed = BASE_GUARD_SPEED * speedMul
           g.x += g.dir * speed * dtSec
@@ -419,8 +489,14 @@ export default function CrimeAlleyHeistModal({
         }
       }
 
+      if (playerDamage > 0) {
+        hpRef.current = Math.max(0, hpRef.current - playerDamage)
+        setHp(hpRef.current)
+        playTakeDamageSound()
+      }
+
       setHeat(heatRef.current)
-      if (heatRef.current >= HEAT_BUST_THRESHOLD || bustTouch) {
+      if (heatRef.current >= HEAT_BUST_THRESHOLD || hpRef.current <= 0) {
         bust()
         return
       }
@@ -475,9 +551,10 @@ export default function CrimeAlleyHeistModal({
     }
     setEnergyError(false)
     playerRef.current = { x: PLAYER_MIN_X + 20, facing: 'left', crouching: false, hiding: false, hidingAt: null, moving: false }
-    guardsRef.current = GUARD_DEFS.map((g) => ({ ...g, alert: false, detection: 0, removed: false, targetX: g.x }))
+    guardsRef.current = GUARD_DEFS.map((g) => ({ ...g, alert: false, detection: 0, removed: false, targetX: g.x, hp: GUARD_MAX_HP, lastMeleeAt: 0 }))
     cratesRef.current = CRATE_DEFS.map((c) => ({ ...c, looted: false }))
     heatRef.current = 0
+    hpRef.current = PLAYER_MAX_HP
     lootedThisRunRef.current = 0
     stashesLootedRef.current = 0
     keysRef.current = new Set()
@@ -490,6 +567,7 @@ export default function CrimeAlleyHeistModal({
     setGuards(guardsRef.current.map((g) => ({ ...g })))
     setCrates(cratesRef.current.map((c) => ({ ...c })))
     setHeat(0)
+    setHp(PLAYER_MAX_HP)
     setLootedThisRun(0)
     setStashesLooted(0)
     setHeldCrateId(null)
@@ -503,9 +581,17 @@ export default function CrimeAlleyHeistModal({
 
   const heatPct = clamp(0, 100, heat)
   // Camera follows the player, centered, clamped so it never shows past
-  // either end of the 1600px world - the pan that makes "spread the map
+  // either end of the 1850px world - the pan that makes "spread the map
   // out" actually read as more alley instead of just more empty margin.
   const cameraX = clamp(0, Math.max(0, WORLD_W - RANGE_W), playerState.x - RANGE_W / 2)
+
+  // Drives the "Sneak Attack"/"Fight!" prompt over the player's head - same
+  // clean/not-clean split handleAttack itself uses, computed here too so the
+  // label always matches what pressing Space would actually do.
+  const nearGuard = !playerState.hiding
+    ? guards.find((g) => !g.removed && Math.abs(g.x - playerState.x) <= ATTACK_REACH)
+    : null
+  const nearGuardIsClean = !!nearGuard && !nearGuard.alert && nearGuard.detection <= 0
 
   const renderCharacter = (x, facing, moving, frameIdle, frameWalk, displayH, extraStyle) => {
     const frames = moving ? frameWalk : [frameIdle]
@@ -559,10 +645,12 @@ export default function CrimeAlleyHeistModal({
           <p className="text-xs text-gray-400">
             A/D or arrows to move, S/down to crouch (slower, but guards see half as far). E to loot a crate
             (hold) or hide in a dumpster (tap - undetectable while hidden, but you can't move or act). Space or
-            click to take down a guard when you're right next to them - a sneak takedown is quiet, decking one
-            who's already onto you is loud. Walk off the far end of the alley (or Bail Out any time) to keep
-            whatever you've grabbed and get out clean. Trip Heat to 100, or let an alerted guard reach you, and
-            you lose this run's take and the street knows your face.
+            click to attack a guard when you're right next to them: sneak up on one who hasn't noticed a thing
+            and it's a clean one-hit takedown. Attack one who's already caught on, though, and it doesn't kill
+            them any more - it's a real fight from there, trading hits until one of you goes down. Walk off the
+            far end of the alley (or Bail Out any time) to keep whatever you've grabbed and get out clean. Trip
+            Heat to 100 or run out of HP and you lose this run's take - the crew doesn't forget it, but the
+            police never hear about it.
           </p>
           <div className="grid grid-cols-2 gap-y-1 text-xs">
             <span className="uppercase tracking-widest text-gray-500">Energy Cost</span>
@@ -726,10 +814,21 @@ export default function CrimeAlleyHeistModal({
                   )}
                   {g.alert && (
                     <div
-                      className="pointer-events-none absolute whitespace-nowrap text-[10px] font-bold uppercase tracking-widest text-red-400"
-                      style={{ left: g.x, top: GROUND_Y - GUARD_DISPLAY_H - 16, transform: 'translateX(-50%)' }}
+                      className="pointer-events-none absolute flex flex-col items-center whitespace-nowrap"
+                      style={{ left: g.x, top: GROUND_Y - GUARD_DISPLAY_H - 24, transform: 'translateX(-50%)' }}
                     >
-                      ! Alert !
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">! Alert !</span>
+                      {/* HP only ever shows once a guard is alert/fighting -
+                          a sneak attack bypasses it entirely (see
+                          handleAttack), so an unaware guard showing a health
+                          bar would be a spoiler-y lie about how they die. */}
+                      <span className="text-[10px] font-bold leading-none">
+                        {Array.from({ length: GUARD_MAX_HP }).map((_, i) => (
+                          <span key={i} className={i < (g.hp ?? GUARD_MAX_HP) ? 'text-orange-400' : 'text-gray-700'}>
+                            ♥
+                          </span>
+                        ))}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -748,6 +847,19 @@ export default function CrimeAlleyHeistModal({
                 performance.now() - lastAttackAtRef.current < 120 ? { transform: 'translate(-50%, -100%) scale(1.12)' } : undefined
               )}
 
+            {nearGuard && (
+              <div
+                className={`pointer-events-none absolute whitespace-nowrap border px-1 text-[9px] font-bold uppercase tracking-widest ${
+                  nearGuardIsClean
+                    ? 'border-emerald-400/70 bg-black/70 text-emerald-300'
+                    : 'border-red-400/70 bg-black/70 text-red-300'
+                }`}
+                style={{ left: playerState.x, top: GROUND_Y - PLAYER_DISPLAY_H - 14, transform: 'translateX(-50%)' }}
+              >
+                {nearGuardIsClean ? 'Space: Sneak Attack' : 'Space: Fight!'}
+              </div>
+            )}
+
               {/* Floating loot pickup markers */}
               {lootPops.map((p) => (
                 <div
@@ -762,6 +874,13 @@ export default function CrimeAlleyHeistModal({
 
             {/* HUD overlay - screen-space, outside the camera-panned world layer above */}
             <div className="pointer-events-none absolute left-2 top-2 flex flex-col gap-1">
+              <span className="border border-red-400/70 bg-black/60 px-1.5 py-0.5 text-xs font-bold tracking-widest">
+                {Array.from({ length: PLAYER_MAX_HP }).map((_, i) => (
+                  <span key={i} className={i < hp ? 'text-red-400' : 'text-gray-700'}>
+                    ♥
+                  </span>
+                ))}
+              </span>
               <span className="border border-emerald-400/70 bg-black/60 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-300">
                 Banked: ${lootedThisRun}
               </span>
@@ -810,9 +929,14 @@ export default function CrimeAlleyHeistModal({
                 Lost this run's take (${resultData.lootedThisRun.toLocaleString()})
               </p>
               <p className="text-center text-xs text-gray-400">
-                Notoriety +{notorietyIncreaseOnFail} &middot; Wanted +{wantedIncreaseOnFail}
-                {!!reputationDeltaOnFail && ` · Reputation ${reputationDeltaOnFail > 0 ? '+' : ''}${reputationDeltaOnFail}`}
-                {resultData.res?.jailed && ' · Arrested'}
+                {/* No Wanted/jail line any more - see districtBuildings.js's
+                    crimeAlley stakes comment: the deep Underworld doesn't
+                    reach the police, getting beaten off a job here only
+                    costs the run's take and standing with the crew, not
+                    your record. */}
+                {!!notorietyIncreaseOnFail && `Notoriety +${notorietyIncreaseOnFail}`}
+                {!!reputationDeltaOnFail &&
+                  `${notorietyIncreaseOnFail ? ' · ' : ''}Reputation ${reputationDeltaOnFail > 0 ? '+' : ''}${reputationDeltaOnFail}`}
               </p>
             </>
           )}

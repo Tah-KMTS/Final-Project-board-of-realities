@@ -78,8 +78,12 @@ function PhoneMascot() {
  * this shell works standalone today and just starts rendering real content
  * the moment a caller passes e.g. `apps={{ banking: () => <BankModal .../> }}`.
  */
-export default function PhoneShell({ onClose, apps = {} }) {
-  const [screen, setScreen] = useState('home') // 'home' | appId
+export default function PhoneShell({ onClose, apps = {}, initialApp = 'home' }) {
+  // initialApp lets a caller open the phone straight into a specific app
+  // (e.g. DailyReportModal's "View Full Feed" jumping to 'social') instead
+  // of always landing on the home screen - same shape as every other
+  // "initialTab" prop in this codebase (UnderworldModal.jsx etc).
+  const [screen, setScreen] = useState(initialApp) // 'home' | appId
 
   const cash = useGameStore((s) => s.cash)
   const wantedLevel = useGameStore((s) => s.wantedLevel)

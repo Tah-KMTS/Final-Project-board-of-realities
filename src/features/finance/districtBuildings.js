@@ -61,33 +61,39 @@ export const DISTRICT_BUILDINGS_CONFIG = {
         // shooting-gallery minigame here, then 'lookoutWatch'
         // (LookoutWatchModal.jsx, a Safe/Hot reaction game) after the range
         // moved to GunStoreModal.jsx's "Test-Fire Range" tab. Now
-        // 'crimeAlleyHeist' (CrimeAlleyHeistModal.jsx) - a real stealth
-        // side-view heist (walk/crouch/hide/loot/takedown against 2 patrol
-        // guards) replacing the abstract reaction-timer entirely. Same swap
-        // philosophy as the two before it: only the resolution mechanic and
-        // its flavor text changed, notoriety/wanted/reputation/jail numbers
-        // below carry over unchanged. payout/target/suspicionCap/
-        // baseSuccessChance are gone - this mechanic pays out per-crate via
-        // addCash live during the run instead of one lump sum on a meter
-        // filling, so there's no single "payout" stake to carry; see
-        // CrimeAlleyHeistModal.jsx's own header comment for the full stakes
-        // split (its fixed numbers - heat thresholds, guard speeds/cone,
-        // loot range, takedown heat costs - live as constants in that file,
-        // not threaded through this stakes object).
+        // 'crimeAlleyHeist' (CrimeAlleyHeistModal.jsx) - a real stealth/
+        // combat side-view heist (walk/crouch/hide/loot/fight against 4
+        // patrol guards) replacing the abstract reaction-timer entirely.
+        // payout/target/suspicionCap/baseSuccessChance are gone - this
+        // mechanic pays out per-crate via addCash live during the run
+        // instead of one lump sum on a meter filling, so there's no single
+        // "payout" stake to carry; see CrimeAlleyHeistModal.jsx's own header
+        // comment for the full stakes split (its fixed numbers - heat
+        // thresholds, guard speeds/cone, HP, loot range - live as constants
+        // in that file, not threaded through this stakes object).
+        //
+        // wantedIncreaseOnFail/jailChanceOnFail were dropped from here (the
+        // job used to carry both) at the user's explicit request: the deep
+        // Underworld is framed as shielded from police by the syndicate's
+        // own protection - losing a fight down here gets you thrown out and
+        // costs the run's take plus standing with the Family
+        // (notoriety/reputation, both kept), not an arrest. That's a real,
+        // deliberate difference from every OTHER criminal action in the
+        // game (which still carry Wanted/jail), scoped to this one job -
+        // not a precedent to copy onto other Underworld actions without the
+        // same explicit call.
         minigame: 'crimeAlleyHeist',
         label: 'Rob The Stashes',
         leverage: {
           title: 'Crime Alley Heist',
           markName: "Luciano's Back-Lot Stash",
           markDescription:
-            "The Five Families stash their overflow cash in crates down this alley, watched by a couple of hired guards. Slip past them, crack the crates, and get out before the street lights up.",
+            "The Five Families stash their overflow cash in crates down this alley, watched by a few hired guards. Slip past them, crack the crates, and get out - or fight your way through if you get made.",
           buttonLabel: 'Run The Job',
           stakes: {
             energyCost: 20,
             notorietyIncreaseOnFail: 1,
-            wantedIncreaseOnFail: 2,
             reputationDeltaOnFail: -3,
-            jailChanceOnFail: 0.15,
             syndicateId: 'five_families',
             inHomeTurf: false,
           },
@@ -114,18 +120,25 @@ export const DISTRICT_BUILDINGS_CONFIG = {
     textClass: 'text-purple-300',
     flavor: 'Everything has a price down here, and nobody asks where it came from.',
     actions: [
+      // Swapped from 'fencesTable' (FencesTableModal.jsx, a haggling
+      // ladder - the file's still here, just no longer wired to anything)
+      // to 'lockpick' (LockpickModal.jsx, a real-time lockpick/safe-cracker)
+      // at the user's explicit request. Mechanic swap, not a rebalance -
+      // target/suspicionCap/baseSuccessChance are gone (LockpickModal.jsx
+      // doesn't use a favorability roll, see its own header comment) but
+      // every stake that still applies (payout, energyCost, the fail
+      // consequences, syndicateId/inHomeTurf) carries over unchanged, same
+      // convention crimeAlley's own swap to CrimeAlleyHeistModal used.
       {
         type: 'leverage',
-        minigame: 'fencesTable',
-        label: 'Fence Stolen Goods',
+        minigame: 'lockpick',
+        label: 'Crack The Safe',
         leverage: {
-          title: 'Fence Stolen Goods',
+          title: 'Crack The Safe',
           markName: 'A Fence Who Asks No Questions',
-          markDescription: 'Haggling over goods that fell off a truck. Mid stakes - he wants a good story more than he wants trouble.',
-          buttonLabel: 'Haggle',
+          markDescription: "He's got a lockbox in the back he can't be seen opening himself. Yours if you can crack it quietly.",
+          buttonLabel: 'Pick The Lock',
           stakes: {
-            target: 85,
-            suspicionCap: 100,
             payout: 800,
             notorietyIncreaseOnFail: 0,
             wantedIncreaseOnFail: 2,
@@ -133,7 +146,6 @@ export const DISTRICT_BUILDINGS_CONFIG = {
             assetSeizureOnFail: 0,
             jailChanceOnFail: 0,
             energyCost: 18,
-            baseSuccessChance: 0.55,
             syndicateId: 'medellin_cartel',
             inHomeTurf: true,
           },
@@ -158,18 +170,23 @@ export const DISTRICT_BUILDINGS_CONFIG = {
     textClass: 'text-yellow-300',
     flavor: "Rows of headsets and scripted lies. 'Ma'am, this is about your car's extended warranty.'",
     actions: [
+      // Swapped from 'callCenterQte' (CallCenterQTEModal.jsx - still here,
+      // just no longer wired) to 'signalIntercept' (SignalInterceptModal.jsx,
+      // a real-time keypad-QTE + frequency-tuning dual-task) at the user's
+      // explicit request. Mechanic swap, not a rebalance - same reasoning
+      // as blackMarket's lockpick swap above, see this file's own header
+      // comment: target/suspicionCap/baseSuccessChance drop out (no
+      // favorability roll in the new mechanic), everything else unchanged.
       {
         type: 'leverage',
-        minigame: 'callCenterQte',
+        minigame: 'signalIntercept',
         label: 'Run a Scam Script',
         leverage: {
           title: 'Run a Scam Script',
           markName: 'Whoever Picked Up',
           markDescription: 'Scripted lies down a headset. The longest con of the three - keep the mark on the line without spooking them.',
-          buttonLabel: 'Keep Them On The Line',
+          buttonLabel: 'Patch In',
           stakes: {
-            target: 120,
-            suspicionCap: 100,
             payout: 1200,
             notorietyIncreaseOnFail: 0,
             wantedIncreaseOnFail: 2,
@@ -177,7 +194,6 @@ export const DISTRICT_BUILDINGS_CONFIG = {
             assetSeizureOnFail: 0,
             jailChanceOnFail: 0,
             energyCost: 25,
-            baseSuccessChance: 0.45,
           },
         },
       },

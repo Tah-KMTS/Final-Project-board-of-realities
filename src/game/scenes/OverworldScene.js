@@ -2389,20 +2389,29 @@ export default class OverworldScene extends Phaser.Scene {
     this.zones = []
   }
 
-  // Underworld's walkable interior - the first tabbed hub building
-  // (Business Center/Government Building/Industrial Zone stay straight-to-
-  // modal) to get one. Layout per the scoping pass: the front counter
-  // (Black Market) and the two side rackets (Call Center Ops, Crime Alley)
-  // sit in the open floor; Speakeasy Hotel by the stairs-down flavor; the
-  // fixed INTERIOR_DESK slot drawInteriorRoom always renders (the room's
-  // one "real" desk facade + label, same prominence jail's guard desk gets)
-  // IS the Boss Jobs + Standing back office - no separate Standing stop,
-  // see INTERIOR_TEMPLATES.underworldInterior's own comment for why. Gun
-  // Store got its own 6th desk in a later pass (top-right corner) rather
-  // than staying tab-only. All 6 interactables use the bespoke
-  // 'underworldDesk' zone.type (see
-  // triggerInteraction) rather than the generic 'interiorDesk' one, so none
-  // of their ids can collide with DISTRICT_BUILDING_IDS.
+  // Underworld's bare-box walkable interior - used to be reached from the
+  // overworld front door too (the first tabbed hub building to get a real
+  // walk-in room), but that front door now goes straight to UnderworldModal
+  // (see triggerInteraction's straight-to-modal id list above), whose
+  // default 'map' tab is a proper walkable hub built from the actual
+  // reference illustration (UnderworldMapScene.jsx) instead of this
+  // generic-facade room. This room and its 6 desks are NOT dead code
+  // though: enterUnderworldFromJail (below) still lands the jail-tunnel
+  // escape beat here on purpose, as a real physical room to walk out of -
+  // ripping it out would turn that "framed as emerging through the tunnel"
+  // beat into a teleport straight to a menu. Layout per the original
+  // scoping pass: the front counter (Black Market) and the two side rackets
+  // (Call Center Ops, Crime Alley) sit in the open floor; Speakeasy Hotel by
+  // the stairs-down flavor; the fixed INTERIOR_DESK slot drawInteriorRoom
+  // always renders (the room's one "real" desk facade + label, same
+  // prominence jail's guard desk gets) IS the Boss Jobs + Standing back
+  // office - no separate Standing stop, see
+  // INTERIOR_TEMPLATES.underworldInterior's own comment for why. Gun Store
+  // got its own 6th desk in a later pass (top-right corner) rather than
+  // staying tab-only. All 6 interactables use the bespoke 'underworldDesk'
+  // zone.type (see triggerInteraction) rather than the generic
+  // 'interiorDesk' one, so none of their ids can collide with
+  // DISTRICT_BUILDING_IDS.
   buildUnderworldInteriorZone() {
     drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.underworldInterior)
     this.regionLabel.setText('The Underworld')
@@ -4763,14 +4772,22 @@ export default class OverworldScene extends Phaser.Scene {
       // same reason too, but routes to a bespoke WharfModal instead - see
       // WorldScreen.jsx's `activeModal.id === 'wharf'` case. entertainmentComplex
       // (Concert Hall/Sports Stadium) joins the same way, routing to
-      // EntertainmentComplexModal. Underworld left this list - it's now a
-      // real walk-in interior (see the stockExchange/casino-style branch
-      // below), the first tabbed hub to get one. inceHome deliberately does
-      // NOT join this list - it's a house, not a hub, so it should feel like
-      // one: walking up to it enters a real walk-in interior (the generic
-      // buildingInterior fallback further down, same as any other building
-      // with no special case here) and IncModal only opens once you reach
-      // the desk inside (buildGenericInteriorZone's interiorDesk emits
+      // EntertainmentComplexModal. Underworld REJOINED this list - it used
+      // to be a real walk-in interior (the bare-box underworldInterior room
+      // below, the first tabbed hub to get one), but UnderworldModal now
+      // opens its own walkable hub (UnderworldMapScene.jsx, the real
+      // reference-art cutaway with a proper 'Enter room' interaction) as its
+      // default 'map' tab, so front-door entry goes straight to the modal
+      // exactly like these other hubs rather than making the player walk
+      // twice (once out here, once again inside a second bare room). The
+      // underworldInterior zone/its 6 desks are NOT deleted - they're still
+      // exactly how enterUnderworldFromJail (below) lands the jail-tunnel
+      // escape beat, unchanged. inceHome deliberately does NOT join this
+      // list - it's a house, not a hub, so it should feel like one: walking
+      // up to it enters a real walk-in interior (the generic buildingInterior
+      // fallback further down, same as any other building with no special
+      // case here) and IncModal only opens once you reach the desk inside
+      // (buildGenericInteriorZone's interiorDesk emits
       // `{type:'building', id:'inceHome', npcId: building.npcId}` - see
       // WorldScreen.jsx's `activeModal.id === 'inceHome'` case).
       if (
@@ -4779,7 +4796,8 @@ export default class OverworldScene extends Phaser.Scene {
         zone.id === 'industrialZone' ||
         zone.id === 'foodCourt' ||
         zone.id === 'wharf' ||
-        zone.id === 'entertainmentComplex'
+        zone.id === 'entertainmentComplex' ||
+        zone.id === 'underworld'
       ) {
         this.pauseForModal()
         this.bridge.emit('interact', { type: 'building', id: zone.id })
@@ -4814,15 +4832,6 @@ export default class OverworldScene extends Phaser.Scene {
         this.loadZone('casinoInterior')
         return
       }
-      if (zone.id === 'underworld') {
-        this.overworldReturnSpawn = {
-          col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
-          row: building.tiles.r1 + 1,
-        }
-        this.loadZone('underworldInterior')
-        return
-      }
-      
       this.overworldReturnSpawn = {
         col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
         row: building.tiles.r1 + 1,

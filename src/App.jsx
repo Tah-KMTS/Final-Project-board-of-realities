@@ -49,7 +49,20 @@ function App() {
   const isLeverageDemo = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('leverageDemo')
 
   return (
-    <div className="h-screen w-screen overflow-hidden">
+    // min-h-screen + overflow-y-auto (not h-screen + overflow-hidden) - the
+    // old fixed-height clip silently cut off the bottom of WorldScreen's
+    // stack (status header + FinanceStatusBar + 600px game canvas + hint
+    // text) on any viewport shorter than ~900px, which is most laptop
+    // screens once browser chrome is subtracted. That forced players to
+    // zoom the whole browser out just to see the clipped content, which
+    // then made all the text too small to read - and the in-game
+    // "Fullscreen" button (plain requestFullscreen()) only removes browser
+    // chrome, it doesn't change this math, so it didn't help. Letting the
+    // page scroll instead of clipping means nothing is ever invisible at
+    // 100% zoom; horizontal overflow is still guarded (w-screen behavior
+    // preserved via overflow-x-hidden) since every inner layout is designed
+    // to fit width, not height.
+    <div className="min-h-screen w-screen overflow-y-auto overflow-x-hidden">
       {isLeverageDemo ? <LeverageMeterDemo /> : <Screen />}
     </div>
   )
