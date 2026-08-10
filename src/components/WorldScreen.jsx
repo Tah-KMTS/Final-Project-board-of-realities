@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useGameStore, DAYS_LIMIT } from '../store/useGameStore'
 import GameCanvas, { createEventBridge } from '../game/GameCanvas'
 import WelcomeIntroModal from './WelcomeIntroModal'
+import DailyReportModal from './DailyReportModal'
 import { ENDING_CASH_TARGET } from '../features/cutscene/endingCutsceneScript'
 import RiftCombatModal from '../features/hunter/RiftCombatModal'
 import PoomQuestModal from '../features/hunter/PoomQuestModal'
@@ -174,6 +175,12 @@ export default function WorldScreen() {
   // component's own header comment on why re-reading the tutorial must
   // never re-flip a save-state flag that's already true).
   const [showHelp, setShowHelp] = useState(false)
+  // "What happened today" recap, shown once right after End Day resolves -
+  // see handleEndDay below. Null hides DailyReportModal entirely; End Day
+  // no longer calls the store's endDay() directly (FinanceStatusBar used
+  // to), it goes through this wrapper instead so a before/after snapshot
+  // can be diffed into a report.
+  const [dailyReport, setDailyReport] = useState(null)
   const [worldCleared, setWorldCleared] = useState(null)
   // Snapshot of which block ids were already cleared, used by the global
   // win-condition watcher below.
@@ -488,6 +495,46 @@ export default function WorldScreen() {
     bridgeRef.current.emit('resumeScene')
   }
 
+  // Wraps the store's raw endDay() (previously called directly from
+  // FinanceStatusBar's button) with a before/after snapshot so
+  // DailyReportModal can show what actually changed - endDay() itself
+  // mutates cash/wantedLevel/notoriety/jail through a dozen scattered
+  // set()/addCash()/addWantedLevel() calls with no single return value, so
+  // diffing getState() before and after is far less invasive than trying to
+  // thread a summary object out through that whole function. topEvents
+  // reads world2.agentEventFeed AFTER the call - endDay() already prepends
+  // this tick's fresh entries onto that same array (see its own comment),
+  // the exact feed the Phone's Social/X app reads, so "View Full Feed"
+  // below opens straight into it rather than a second, separate feed.
+  const handleEndDay = () => {
+    const before = useGameStore.getState()
+    const wasJailed = !!before.jail?.inJail
+    const cashBefore = before.cash
+    const wantedBefore = before.wantedLevel
+    const notorietyBefore = before.notoriety
+    const dayBefore = before.day
+
+    before.endDay()
+
+    const after = useGameStore.getState()
+    const stillJailed = !!after.jail?.inJail
+
+    let jailLine = null
+    if (wasJailed && !stillJailed) jailLine = "Released - your sentence is served."
+    else if (stillJailed) jailLine = `Still locked up - ${after.jail.sentenceDaysRemaining} day${after.jail.sentenceDaysRemaining === 1 ? '' : 's'} left on your sentence.`
+
+    setDailyReport({
+      dayEnded: dayBefore,
+      daysLeft: Math.max(0, DAYS_LIMIT - (after.day - 1)),
+      cashDelta: after.cash - cashBefore,
+      wantedDelta: after.wantedLevel - wantedBefore,
+      notorietyDelta: after.notoriety - notorietyBefore,
+      jailLine,
+      headline: after.newsHeadline,
+      topEvents: (after.world2.agentEventFeed || []).slice(0, 3),
+    })
+  }
+
   const handleSave = () => {
     saveGame()
     alert('Game saved!')
@@ -540,10 +587,26 @@ export default function WorldScreen() {
     bridgeRef.current.emit('acquireVehicle', vehicle)
   }
 
+  // min-h-screen (not h-full) - the parent in App.jsx now sets min-h-screen
+  // instead of a hard h-screen, and percentage/h-full heights don't
+  // reliably resolve against an ancestor's min-height across browsers.
+  // min-h-screen here keeps the background filling at least the viewport
+  // while still letting this stack grow taller (and scroll, via App.jsx's
+  // overflow-y-auto) when its content exceeds one screen.
   return (
-    <div className="flex h-full w-full flex-col items-center gap-4 bg-[#0f1020] p-4 font-mono text-white">
+    <div className="flex min-h-screen w-full flex-col items-center gap-4 bg-[#0f1020] p-4 font-mono text-white">
       {!hasSeenIntro && <WelcomeIntroModal />}
       {hasSeenIntro && showHelp && <WelcomeIntroModal onClose={() => setShowHelp(false)} />}
+      {dailyReport && (
+        <DailyReportModal
+          report={dailyReport}
+          onClose={() => setDailyReport(null)}
+          onOpenFeed={() => {
+            setDailyReport(null)
+            setActiveModal({ type: 'phone', initialApp: 'social' })
+          }}
+        />
+      )}
       {/* justify-center + an explicit gap (not justify-between/justify-start)
           - with "Days Left" added, justify-between stretched every item
           (Days Left/Player/HP/Energy/Cash/Wanted on the first wrapped line,
@@ -626,7 +689,7 @@ export default function WorldScreen() {
       </div>
 
       {mode === 'overworld' && (
-        <FinanceStatusBar onOpenPhone={() => setActiveModal({ type: 'phone' })} />
+        <FinanceStatusBar onOpenPhone={() => setActiveModal({ type: 'phone' })} onEndDay={handleEndDay} />
       )}
 
       {!worldCleared && (
@@ -729,6 +792,7 @@ export default function WorldScreen() {
       {activeModal?.type === 'phone' && (
         <PhoneShell
           onClose={closeModal}
+          initialApp={activeModal.initialApp}
           apps={{
             social: () => <SocialApp />,
             banking: () => <BankingApp />,
@@ -950,12 +1014,14 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id === 'underworld' && (
         <UnderworldModal
           // Set by the underworldInterior zone's desk interactables
-          // (OverworldScene.js's 'underworldDesk' zone type) so walking up
-          // to a specific racket opens UnderworldModal straight to that
-          // tab, instead of always landing on Black Market. Undefined for
-          // every other entry point (jail-tunnel arrival, anything else
-          // that opens this modal), which UnderworldModal's own
-          // `initialTab = 'blackMarket'` default already covers.
+          // (OverworldScene.js's 'underworldDesk' zone type, still used by
+          // the jail-tunnel escape room) so walking up to a specific racket
+          // there opens UnderworldModal straight to that tab. Undefined for
+          // every other entry point - the normal overworld front door now
+          // included (see triggerInteraction's straight-to-modal id list)
+          // - which UnderworldModal's own `initialTab = 'map'` default
+          // covers by landing on its walkable hub (UnderworldMapScene.jsx)
+          // instead of guessing a tab.
           initialTab={activeModal.initialTab}
           // Reached via the jail maze's tunnel or the normal overworld
           // building, doesn't matter which any more - enterUnderworldFromJail

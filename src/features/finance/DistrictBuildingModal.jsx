@@ -2,23 +2,34 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { DISTRICT_BUILDINGS_CONFIG } from './districtBuildings'
 import LeverageMeter from './LeverageMeter'
-import LookoutWatchModal from './LookoutWatchModal'
+import CrimeAlleyHeistModal from './CrimeAlleyHeistModal'
 import FencesTableModal from './FencesTableModal'
 import CallCenterQTEModal from './CallCenterQTEModal'
-import ShootingRangeModal from './ShootingRangeModal'
+import LockpickModal from './LockpickModal'
+import SignalInterceptModal from './SignalInterceptModal'
 
 // Maps each Underground District action's `minigame` field (districtBuildings.js)
 // to the racket-specific component it opens instead of the shared
-// LeverageMeter - see those 3 files' own header comments for what makes
+// LeverageMeter - see those files' own header comments for what makes
 // each one distinct. Falls back to LeverageMeter for any action that
 // doesn't set `minigame` (none currently do, but this keeps a future
 // flat-leverage action from silently crashing if this map isn't updated
-// alongside it).
+// alongside it). ShootingRangeModal used to live here too (crimeAlley's
+// 'shootingRange') - it's now GunStoreModal.jsx's free "Test-Fire Range" tab
+// instead, called directly (no stakes, so nothing for this leverage-job
+// dispatch table to do). LookoutWatchModal ('lookoutWatch') also used to
+// live here - deleted when crimeAlley's action swapped to the real stealth
+// heist below. fencesTable/callCenterQte are still exported and importable
+// (nothing deletes the files) but no longer referenced by any
+// districtBuildings.js entry - blackMarket swapped to 'lockpick'
+// (LockpickModal.jsx) and callCenterOps swapped to 'signalIntercept'
+// (SignalInterceptModal.jsx), both at the user's explicit request.
 const MINIGAME_COMPONENTS = {
-  lookoutWatch: LookoutWatchModal,
+  crimeAlleyHeist: CrimeAlleyHeistModal,
   fencesTable: FencesTableModal,
   callCenterQte: CallCenterQTEModal,
-  shootingRange: ShootingRangeModal,
+  lockpick: LockpickModal,
+  signalIntercept: SignalInterceptModal,
 }
 
 // Single reusable modal for every flavor-tier building added by the
