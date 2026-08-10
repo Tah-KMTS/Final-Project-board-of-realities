@@ -86,3 +86,29 @@ public/assets/packs/player/raw/
 # isn't currently used in-game - kept here for a possible future pass.
 public/assets/packs/lisa house/
 public/assets/packs/ince house/
+
+# Pixel_16_interiors_v2_free - same deal again: raw full-res AI-generated
+# furniture/prop stills (white background), used to furnish the 87 character
+# home interiors (OverworldScene.js's HOME_ROOM_KITS/buildHomeInteriorZone).
+# Only the pieces actually used are salvaged, under processed/ (tracked
+# normally) - rebuild the single-subject ones with
+# `python production/process_home_furniture.py`; the rest (floor swatches,
+# wardrobe, palace banquet table, the whole hideout pedestal/bookshelf set,
+# etc.) were picked by hand out of the _sliced_*/ directories (items.png,
+# "walls and stair.png", 73.png, 85.png, and "tiles and items.png" -
+# connected-component-sliced by `python production/slice_contact_sheet.py`) -
+# regenerate those dirs with that script, then re-copy whichever pieces
+# processed/ needs by index (see each HOME_FURNITURE_FILES entry's own name
+# for which).
+public/assets/packs/Pixel_16_interiors_v2_free/*.png
+public/assets/packs/Pixel_16_interiors_v2_free/_sliced_items/
+public/assets/packs/Pixel_16_interiors_v2_free/_sliced_walls/
+public/assets/packs/Pixel_16_interiors_v2_free/_sliced_73/
+public/assets/packs/Pixel_16_interiors_v2_free/_sliced_85/
+public/assets/packs/Pixel_16_interiors_v2_free/_sliced_tiles/
+# RPGMAKERMV/mv (RPG Maker character sheets, a different asset category
+# bundled in the same download) and reference/ (the pack's own marketing
+# screenshots) - neither is used by anything in src/.
+public/assets/packs/Pixel_16_interiors_v2_free/RPGMAKERMV/
+public/assets/packs/Pixel_16_interiors_v2_free/mv/
+public/assets/packs/Pixel_16_interiors_v2_free/reference/
