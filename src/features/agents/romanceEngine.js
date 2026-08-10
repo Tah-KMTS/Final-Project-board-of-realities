@@ -5,6 +5,17 @@ export function initializeRomanceState() {
     relationships: {},
     spouses: [],
     datingHistory: [],
+    // npcId -> full raw chat transcript ([{ role, text }]), capped per-npc.
+    // Separate from datingHistory (curated highlight log fed to the LLM as
+    // situationContext) - this is the player-facing "what have we actually
+    // talked about" log, not a summary. Added for LisaModal's history
+    // viewer; empty object is a no-op for every NPC that doesn't use it.
+    chatLog: {},
+    // npcId -> in-game day of that NPC's last completed date, mirrors
+    // world2.bossJobLastDay's "once per day" cooldown pattern
+    // (isBossJobAvailableToday in useGameStore.js) so a date can't just be
+    // spammed for repeat big affection gains.
+    lastDateDay: {},
   }
 }
 
