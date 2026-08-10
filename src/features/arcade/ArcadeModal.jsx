@@ -60,7 +60,14 @@ export default function ArcadeModal({ onClose, embedded = false }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="glass-panel w-[460px] border-4 border-cyan-400 bg-[#1c1d3a] p-6 font-mono text-white">
+      {/* w-[580px] (was 460px) + max-h-[92vh] overflow-y-auto - the claw
+          machine's real cabinet art (ClawMachine.jsx) shows the FULL
+          480x480 photo uncropped now, which no longer fits the old 460px
+          panel width, and the taller content needs the same "whole modal
+          scrolls as one unit instead of silently clipping on a short
+          screen" fix UnderworldModal.jsx/CasinoModal.jsx already got - see
+          either of those files' own comments for why. */}
+      <div className="glass-panel max-h-[92vh] w-[580px] overflow-y-auto overflow-x-hidden border-4 border-cyan-400 bg-[#1c1d3a] p-6 font-mono text-white">
         {body}
       </div>
     </div>
