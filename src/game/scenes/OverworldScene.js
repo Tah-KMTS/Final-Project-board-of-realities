@@ -47,10 +47,8 @@ import { preloadPlayerRealSprite } from '../packs/playerRealSprite'
 // ---------------------------------------------------------------------------
 // OverworldScene is the single walkable map for Capital Syndicate (the
 // Finance world). Zones: the outdoor `overworld` map, the Stock Exchange's
-// own bespoke `stockExchangeInterior` trading floor, the Casino's own
-// bespoke `casinoInterior` gaming floor (blackjack/poker/slots/NPC
-// challenges - too much going on for the generic template, same reasoning
-// as the Stock Exchange), and a generic `buildingInterior` room (see
+// own bespoke `stockExchangeInterior` trading floor, and a generic
+// `buildingInterior` room (see
 // INTERIOR_TEMPLATES) reused by every other building - which template a
 // given building gets is looked up from BUILDING_INTERIOR_TEMPLATE, falling
 // back to a `residence`/`hideout` template by the building's `kind` for the
@@ -1242,12 +1240,10 @@ function interiorTemplateFor(building) {
 const ZONES = {
   overworld: { cols: MAP_COLS, rows: MAP_ROWS },
   stockExchangeInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
-  casinoInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   buildingInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   // Bespoke real-tileset rooms (see src/game/interiors/tmxWallInterior.js) -
-  // same "own room shape, own zone id" pattern as stockExchangeInterior/
-  // casinoInterior above, just variable-sized instead of reusing
-  // INTERIOR_COLS/ROWS.
+  // same "own room shape, own zone id" pattern as stockExchangeInterior
+  // above, just variable-sized instead of reusing INTERIOR_COLS/ROWS.
   chapelInterior: { cols: CHAPEL_ROOM.cols, rows: CHAPEL_ROOM.rows },
   chapelExterior: { cols: CHAPEL_EXTERIOR_ROOM.cols, rows: CHAPEL_EXTERIOR_ROOM.rows },
   teaHouseInterior: { cols: TEA_HOUSE_ROOM.cols, rows: TEA_HOUSE_ROOM.rows },
@@ -2230,7 +2226,6 @@ export default class OverworldScene extends Phaser.Scene {
 
     if (zoneId === 'overworld') this.buildOverworldZone()
     else if (zoneId === 'stockExchangeInterior') this.buildStockExchangeInteriorZone()
-    else if (zoneId === 'casinoInterior') this.buildCasinoInteriorZone()
     else if (zoneId === 'chapelInterior') this.buildChapelInteriorZone()
     else if (zoneId === 'chapelExterior') this.buildChapelExteriorZone()
     else if (zoneId === 'teaHouseInterior') this.buildTeaHouseInteriorZone()
@@ -2439,32 +2434,6 @@ export default class OverworldScene extends Phaser.Scene {
         type: 'interiorDesk',
         id: 'stockExchange',
         label: 'Trading Floor',
-        rect: new Phaser.Geom.Rectangle(
-          INTERIOR_DESK.c0 * TILE_SIZE - TILE_SIZE / 2,
-          INTERIOR_DESK.r0 * TILE_SIZE - TILE_SIZE / 2,
-          (INTERIOR_DESK.c1 - INTERIOR_DESK.c0 + 1) * TILE_SIZE + TILE_SIZE,
-          (INTERIOR_DESK.r1 - INTERIOR_DESK.r0 + 1) * TILE_SIZE + TILE_SIZE
-        ),
-      },
-      interiorExitZone(),
-    ]
-  }
-
-  buildCasinoInteriorZone() {
-    drawInteriorRoom(this, this.zoneObjects, {
-      floorA: 0x2a1030,
-      floorB: 0x230d28,
-      deskColor: 0x8a1f6a,
-      deskLabel: 'Casino Floor',
-    })
-
-    this.regionLabel.setText('Neon Dragon Casino')
-
-    this.zones = [
-      {
-        type: 'interiorDesk',
-        id: 'casino',
-        label: 'Casino Floor',
         rect: new Phaser.Geom.Rectangle(
           INTERIOR_DESK.c0 * TILE_SIZE - TILE_SIZE / 2,
           INTERIOR_DESK.r0 * TILE_SIZE - TILE_SIZE / 2,
@@ -3473,7 +3442,6 @@ export default class OverworldScene extends Phaser.Scene {
     }
     if (
       this.currentZoneId === 'stockExchangeInterior' ||
-      this.currentZoneId === 'casinoInterior' ||
       this.currentZoneId === 'buildingInterior' ||
       this.currentZoneId === 'jailCell' ||
       this.currentZoneId === 'jailMaze' ||
@@ -5187,6 +5155,57 @@ export default class OverworldScene extends Phaser.Scene {
 
   resumeFromModal() {
     this.interactionLocked = false
+    // Only set by enterHubWithWalkIn below - every other pauseForModal()
+    // call site never faded the camera out, so this only ever fires the fade
+    // BACK in for the one flow that faded out in the first place.
+    if (this._fadedForModal) {
+      this._fadedForModal = false
+      this.cameras.main.fadeIn(240, 0, 0, 0)
+    }
+  }
+
+  // Underworld/Casino open their own walkable interior INSIDE a React
+  // modal now (UnderworldMapScene.jsx/CasinoMapScene.jsx), not a Phaser
+  // walk-in room - see triggerInteraction's straight-to-modal comment. But
+  // an instant modal popup while the overworld player sprite just stands
+  // frozen at the door reads as "a menu opened", not "I walked inside" -
+  // per the user's own explicit complaint after playing it. This plays a
+  // short, PURELY COSMETIC step-through-the-door beat first: face up, tween
+  // half a tile forward (into the doorway the building's own facade art
+  // already draws), fade the camera to black, then open the modal once the
+  // screen is actually dark - so the modal's own walkable scene is the
+  // first thing you see AFTER visibly walking in, not a popup over your
+  // still-outside self. The tween deliberately bypasses tileMover/collision
+  // entirely (this is a scripted beat the game itself is playing, not a
+  // player-directed move, and the building's footprint tiles are normally
+  // solid) and the sprite snaps back to its exact starting tile the instant
+  // the screen goes black, before the modal ever opens - so the persisted
+  // overworld position is untouched and stepping back out through the same
+  // door next time looks identical. resumeFromModal (above) fades the
+  // camera back in once the modal closes.
+  enterHubWithWalkIn(id) {
+    this.interactionLocked = true
+    const actor = this.playerActor
+    const startY = actor.sprite.y
+    const stepPx = TILE_SIZE * 0.55
+    actor.setFacing('up')
+    actor.setMoving(true)
+    this.tweens.add({
+      targets: actor.sprite,
+      y: startY - stepPx,
+      duration: 260,
+      ease: 'Sine.easeIn',
+      onComplete: () => {
+        actor.setMoving(false)
+        this.cameras.main.fadeOut(240, 0, 0, 0)
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          actor.sprite.setPosition(actor.sprite.x, startY)
+          this._fadedForModal = true
+          this.pauseForModal()
+          this.bridge.emit('interact', { type: 'building', id })
+        })
+      },
+    })
   }
 
   removeFinanceAmbientNpc(npcId) {
@@ -5378,7 +5397,20 @@ export default class OverworldScene extends Phaser.Scene {
       // twice (once out here, once again inside a second bare room). The
       // underworldInterior zone/its 6 desks are NOT deleted - they're still
       // exactly how enterUnderworldFromJail (below) lands the jail-tunnel
-      // escape beat, unchanged. inceHome deliberately does NOT join this
+      // escape beat, unchanged.
+      // Casino joins for the exact same reason Underworld did: it used to
+      // load its own bespoke bare-box casinoInterior zone (a flat pink
+      // "Casino Floor" prop, buildCasinoInteriorZone - deleted outright, not
+      // kept dormant like underworldInterior, since nothing else ever
+      // re-enters it) via a dedicated `if (zone.id === 'casino')` branch
+      // that used to sit further down where the stockExchange/casino
+      // special-cases below now only have stockExchange left. CasinoModal
+      // now opens its own walkable floor (CasinoMapScene.jsx, the real
+      // reference-art cutaway) as the first thing it shows, with the actual
+      // game-picker tab bar reached by walking up to the 777 machine and
+      // pressing Enter/E - so front-door entry goes straight to the modal
+      // here too, same shape as Underworld, at the user's explicit request.
+      // inceHome deliberately does NOT join this
       // list - it's a house, not a hub, so it should feel like one: walking
       // up to it enters a real walk-in interior (the generic buildingInterior
       // fallback further down, same as any other building with no special
@@ -5392,11 +5424,21 @@ export default class OverworldScene extends Phaser.Scene {
         zone.id === 'industrialZone' ||
         zone.id === 'foodCourt' ||
         zone.id === 'wharf' ||
-        zone.id === 'entertainmentComplex' ||
-        zone.id === 'underworld'
+        zone.id === 'entertainmentComplex'
       ) {
         this.pauseForModal()
         this.bridge.emit('interact', { type: 'building', id: zone.id })
+        return
+      }
+      // Underworld/Casino get the walk-through-the-door beat (see
+      // enterHubWithWalkIn's own header comment) instead of the instant
+      // pauseForModal()+emit every other straight-to-modal hub above uses -
+      // their modals both open onto a real walkable interior scene
+      // (UnderworldMapScene.jsx/CasinoMapScene.jsx), so it's worth the extra
+      // beat to actually walk in first, rather than a scene worth walking
+      // around in appearing as an abrupt popup over your still-outside self.
+      if (zone.id === 'underworld' || zone.id === 'casino') {
+        this.enterHubWithWalkIn(zone.id)
         return
       }
       // Court & Prison: walking up while free is a flavor no-op, never a
@@ -5418,14 +5460,6 @@ export default class OverworldScene extends Phaser.Scene {
           row: building.tiles.r1 + 1,
         }
         this.loadZone('stockExchangeInterior')
-        return
-      }
-      if (zone.id === 'casino') {
-        this.overworldReturnSpawn = {
-          col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
-          row: building.tiles.r1 + 1,
-        }
-        this.loadZone('casinoInterior')
         return
       }
       this.overworldReturnSpawn = {
