@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Capital Syndicate Act 1: Operation Ferrum Wings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game" width="720" height="960" aria-label="Capital Syndicate Act 1: Operation Ferrum Wings"></canvas>
+
+      <div id="hud" class="hidden" aria-live="polite">
+        <div class="hud-left">
+          <div class="hud-brand">CAPITAL SYNDICATE</div>
+          <div class="hud-row"><span>SCORE</span><strong id="hud-score">0</strong></div>
+          <div class="hud-row"><span>SECTOR</span><strong id="hud-level">1 / 4</strong></div>
+        </div>
+        <div class="hud-right">
+          <div class="hud-row"><span>FIGHTERS</span><strong id="hud-lives">3</strong></div>
+          <div class="meter">
+            <label>SHIELD</label>
+            <div class="bar"><i id="bar-shield"></i></div>
+          </div>
+          <div class="meter">
+            <label>HULL</label>
+            <div class="bar hull"><i id="bar-hull"></i></div>
+          </div>
+          <div class="meter">
+            <label>LASER</label>
+            <div class="bar laser"><i id="bar-laser"></i></div>
+          </div>
+          <div class="ammo-strip">
+            <div class="ammo" data-weapon="gun"><span>GUN</span><em id="ammo-gun">∞</em></div>
+            <div class="ammo" data-weapon="ion"><span>ION</span><em id="ammo-ion">0</em></div>
+            <div class="ammo" data-weapon="plasma"><span>PLASMA</span><em id="ammo-plasma">0</em></div>
+            <div class="ammo" data-weapon="rocket"><span>RKT</span><em id="ammo-rocket">0</em></div>
+          </div>
+        </div>
+      </div>
+
+      <section id="title-screen" class="overlay">
+        <div class="overlay-glow"></div>
+        <p class="eyebrow">ACT 1</p>
+        <h1>CAPITAL<br />SYNDICATE</h1>
+        <p class="title-op">Operation Ferrum Wings</p>
+        <p class="tagline">
+          Clear four sectors and break the blockade. Escort the freighter. Come back for what matters.
+        </p>
+        <div class="cta-row">
+          <button id="btn-start" class="btn primary">Launch Sortie</button>
+          <button id="btn-how" class="btn ghost">Briefing</button>
+        </div>
+        <p class="hint">Mouse / WASD to move · Hold click to fire · Space = super laser at 100% · 1–4 weapons · 0 self-destruct · M mute</p>
+      </section>
+
+      <section id="briefing-screen" class="overlay hidden">
+        <h2>Mission Briefing</h2>
+        <ul class="brief">
+          <li><strong>Survive the gauntlet.</strong> Destroy hostiles and dodge fire — ships that slip past the bottom simply leave.</li>
+          <li><strong>Ram them.</strong> Your hull is a weapon. Collisions hurt both ships.</li>
+          <li><strong>Conserve ammo.</strong> Gun is endless. Ion pierces. Plasma hits hard. Rockets (<kbd>4</kbd>) fire a 3-shot cone.</li>
+          <li><strong>Super laser.</strong> Kills charge the laser (5 / normal, 20 / boss). At 100%, press <kbd>Space</kbd> to fire.</li>
+          <li><strong>Strategic suicide.</strong> Press <kbd>0</kbd> twice to eject ammo and clear the sky for the next fighter.</li>
+          <li><strong>Power-ups.</strong> Grab shield / repair / super shield / rockets — or let them pass for score (super shield = extra life).</li>
+          <li><strong>Four sectors.</strong> Bosses guard sectors 1–3. Sector 4 ends with a three-phase final commander.</li>
+        </ul>
+        <button id="btn-brief-back" class="btn primary">Understood</button>
+      </section>
+
+      <section id="cutscene-screen" class="overlay cutscene hidden">
+        <button id="btn-skip-cutscene" class="btn ghost skip-btn">Skip</button>
+      </section>
+
+      <section id="pause-screen" class="overlay hidden">
+        <h2>Paused</h2>
+        <p class="tagline">Freighter holding position.</p>
+        <button id="btn-resume" class="btn primary">Resume</button>
+      </section>
+
+      <section id="gameover-screen" class="overlay hidden">
+        <p class="eyebrow">TRANSMISSION LOST</p>
+        <h2>Fighters Down</h2>
+        <p class="tagline">Final score <strong id="final-score">0</strong> · Sector <strong id="final-level">1</strong> / 4</p>
+        <button id="btn-restart" class="btn primary">Relaunch</button>
+      </section>
+
+      <section id="victory-screen" class="overlay victory-overlay hidden">
+        <div class="victory-stage" aria-hidden="true">
+          <img
+            class="victory-art"
+            src="assets/victory/zlisto-cheer.png"
+            alt=""
+            width="1024"
+            height="1536"
+          />
+          <div class="victory-blast"></div>
+          <div class="victory-shock"></div>
+          <div class="victory-embers"></div>
+        </div>
+        <div class="victory-copy">
+          <p class="eyebrow victory-brand">CAPITAL SYNDICATE</p>
+          <h2>Mission Complete</h2>
+          <p class="tagline">
+            Agent Zlisto clears the blockade · Score <strong id="victory-score">0</strong>
+          </p>
+          <button id="btn-victory-restart" class="btn primary">Play Again</button>
+        </div>
+      </section>
+
+      <section id="levelclear-screen" class="overlay toast hidden">
+        <h2 id="level-clear-title">Sector Cleared</h2>
+        <p class="tagline" id="level-clear-sub">Next wave inbound…</p>
+      </section>
+
+      <div id="volume-control" class="volume-control" aria-label="Volume controls">
+        <button id="btn-mute" class="volume-mute" type="button" aria-pressed="false" title="Mute">VOL</button>
+        <input
+          id="volume-slider"
+          class="volume-slider"
+          type="range"
+          min="0"
+          max="100"
+          value="70"
+          aria-label="Volume"
+        />
+        <span id="volume-value" class="volume-value">70</span>
+      </div>
+    </div>
+
+    <script type="module" src="js/main.js?v=opening-vo-6"></script>
+  </body>
+</html>
