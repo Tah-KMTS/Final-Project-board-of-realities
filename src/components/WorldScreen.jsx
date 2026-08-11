@@ -369,7 +369,7 @@ export default function WorldScreen() {
         if (useGameStore.getState().jail?.inJail) {
           setActiveModal({ type: 'jail' })
         } else {
-          alert('Capital City Central Booking. Best not to go in voluntarily.')
+          alert('Court & Jail. Best not to go in voluntarily.')
           bridge.emit('resumeScene')
         }
         return
@@ -636,6 +636,19 @@ export default function WorldScreen() {
         <div>
           Wanted: <span className="text-orange-400">{'★'.repeat(wantedLevel) || 'none'}</span>
         </div>
+        {/* Persistent "you are currently jailed" indicator - the jail cell
+            zone's own Phaser region label (OverworldScene.js's
+            buildJailCellZone, "Court & Jail") only shows while that specific
+            scene is on screen, so a player who tabs into the phone or another
+            modal while jailed had no visible confirmation they're still
+            locked up. This status-bar badge is visible everywhere, same as
+            Wanted above, and counts down using jail.sentenceDaysRemaining
+            (see useGameStore.js's sendToJail). */}
+        {jail?.inJail && (
+          <div className="animate-pulse font-bold text-red-400">
+            🔒 In Jail ({jail.sentenceDaysRemaining}d left)
+          </div>
+        )}
         {mode === 'domino' && (
           <div>
             DP: <span className="text-purple-300">{world4.dp}</span>{' '}

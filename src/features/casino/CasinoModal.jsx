@@ -81,8 +81,10 @@ export default function CasinoModal({ onClose }) {
         className={`glass-panel max-h-[92vh] overflow-y-auto overflow-x-hidden border-4 border-pink-400 bg-[#1c1d3a] p-6 font-mono text-white ${
           // The walk-in floor needs real width for CasinoMapScene's 1040px
           // stage (same reasoning as UnderworldModal.jsx's own per-tab width
-          // ternary) - the tab bar keeps the original 640px once inside.
-          entered ? 'w-[640px]' : 'w-[1120px] max-w-[95vw]'
+          // ternary) - the tab bar keeps the original 640px once inside
+          // (bumped to 720px so the arcade tab's 480px-wide claw cabinet has
+          // breathing room instead of hugging the padding edge).
+          entered ? 'w-[720px]' : 'w-[1120px] max-w-[95vw]'
         }`}
       >
         <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Commercial District</p>
@@ -121,7 +123,18 @@ export default function CasinoModal({ onClose }) {
               ))}
             </div>
 
-            <div className="mb-4 max-h-[460px] overflow-y-auto">
+            <div
+              className={`mb-4 overflow-y-auto ${
+                // The arcade tab's claw machine (ClawMachine.jsx) shows a full
+                // 480px-tall cabinet photo plus its own title/controls/message
+                // row above and below it - taller than every other tab here
+                // (cards/slots/roulette), so the shared 460px cap was clipping
+                // it and forcing a scroll to see the bottom of the cabinet.
+                // The outer modal's own max-h-[92vh] scroll still catches any
+                // overflow on short viewports, same as elsewhere in this file.
+                tab === 'arcade' ? 'max-h-[720px]' : 'max-h-[460px]'
+              }`}
+            >
               {tab === 'blackjack' && <Blackjack variant="house" />}
               {tab === 'poker' && <Poker variant="house" />}
               {tab === 'slots' && <Slots />}

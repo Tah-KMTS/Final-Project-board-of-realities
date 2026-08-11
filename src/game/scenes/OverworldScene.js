@@ -219,7 +219,7 @@ const FINANCE_BUILDING_DEFS = [
   // lore spec's "you don't check into a jail voluntarily" framing. zone:
   // 'law' puts it in the same column as `underworld`, which the maze's
   // back-door tunnel dead-ends into.
-  { id: 'courtAndPrison', label: 'Capital City Central Booking', facadeStyle: 'modernBrick', color: 0x4a4a4a, width: 4, height: 3, zone: 'law' },
+  { id: 'courtAndPrison', label: 'Court & Jail', facadeStyle: 'modernBrick', color: 0x4a4a4a, width: 4, height: 3, zone: 'law' },
 
   // Ince's house - she's a procedurally-generated finance-district ambient
   // NPC (npcGenerator.js's finance_ambient_2), not a roster member, so she
@@ -2245,7 +2245,7 @@ export default class OverworldScene extends Phaser.Scene {
     }
 
     drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.holdingCell)
-    this.regionLabel.setText('Capital City Central Booking')
+    this.regionLabel.setText('Court & Jail')
 
     this.zones = [
       // Guard desk - id 'courtAndPrison' reuses the exact same
