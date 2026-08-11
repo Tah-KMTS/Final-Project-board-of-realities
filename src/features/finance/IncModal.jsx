@@ -20,17 +20,35 @@ import { sendNpcMessage } from '../../utils/npcChatClient'
 // majority of the non-romanceable roster already works. Mug/Attack are her
 // pre-existing ambient-NPC mechanics (WorldScreen.jsx), kept as secondary
 // actions here exactly as before - only the interaction SCREEN changed.
-// These 4 files are the approved art - don't swap them for different
-// photos/renders without checking with the project owner first (it's
-// happened once already and was reverted). The `ince-portraits-golden` git
-// tag pins the approved bytes; `node production/restoreIncePortraits.mjs`
-// instantly restores them from it if they're ever changed.
+// These 7 files (see MOOD_POOL below) are the approved art - don't swap them
+// for different photos/renders without checking with the project owner
+// first (it's happened once already and was reverted). The
+// `ince-portraits-golden` git tag pins the approved bytes;
+// `node production/restoreIncePortraits.mjs` instantly restores them from it
+// if they're ever changed.
 const PORTRAITS = '/assets/packs/Ince/portraits'
 // No Ince-specific scene art - explicitly reusing Lisa's background pack.
 const SCENES = '/assets/packs/Lisa/scenes'
 const DEFAULT_SCENE = 'street'
 
 const INTRO_LINE = "Oh, hey! Don't think I've seen you around here before - what's up?"
+
+// 3 more source photos (pic 2/3/4 in the raw pack - see
+// production/process_ince_new_portraits.py) turned up alongside the original
+// 4, giving each reaction tier a small pool instead of one static image -
+// picked fresh per reply so a long conversation doesn't keep showing the
+// exact same frame. 'curious' (previously cropped but never actually wired
+// to any mood trigger) now doubles as her opening expression - a raised-
+// eyebrow "who's this?" look fits the intro line better than flat neutral.
+const MOOD_POOL = {
+  neutral: ['neutral'],
+  cheerful: ['cheerful', 'amused'],
+  delighted: ['delighted', 'laughing', 'playful'],
+}
+const pickMood = (tier) => {
+  const pool = MOOD_POOL[tier]
+  return pool[Math.floor(Math.random() * pool.length)]
+}
 
 const PRESET_CHOICES = [
   { key: 'smalltalk', label: 'Rough day, or is it just me?' },
@@ -40,7 +58,7 @@ const PRESET_CHOICES = [
 ]
 
 export default function IncModal({ onClose, onMug, onAttack, feedback }) {
-  const [mood, setMood] = useState('neutral')
+  const [mood, setMood] = useState('curious')
   const [rapport, setRapport] = useState(0)
   const [chatHistory, setChatHistory] = useState([])
   const [dynamicChoices, setDynamicChoices] = useState(null)
@@ -75,12 +93,11 @@ export default function IncModal({ onClose, onMug, onAttack, feedback }) {
       setRapport((r) => Math.max(0, Math.min(100, r + relationshipDelta)))
       delta = relationshipDelta
     }
-    // Only 4 source portraits exist (no clearly "annoyed" expression among
-    // them - see the build notes for why) - a cold reception still shows her
-    // plain neutral face rather than forcing an expression that isn't
-    // actually in the art.
-    if (delta >= 2) setMood('delighted')
-    else if (delta > 0) setMood('cheerful')
+    // No clearly "annoyed" expression exists among her source photos (see
+    // the build notes for why) - a cold reception still shows a neutral
+    // face rather than forcing an expression that isn't actually in the art.
+    if (delta >= 2) setMood(pickMood('delighted'))
+    else if (delta > 0) setMood(pickMood('cheerful'))
     else setMood('neutral')
   }
 

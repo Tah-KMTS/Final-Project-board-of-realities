@@ -16,7 +16,13 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const TAG = 'ince-portraits-golden'
-const FILES = ['ince_neutral', 'ince_cheerful', 'ince_delighted', 'ince_curious']
+const FILES = [
+  'ince_neutral', 'ince_cheerful', 'ince_delighted', 'ince_curious',
+  // 3 more added when pic 2/3/4 turned up alongside the original pic 1 -
+  // see production/process_ince_new_portraits.py and IncModal.jsx's
+  // MOOD_POOL. Same protection applies to these as to the original 4.
+  'ince_amused', 'ince_playful', 'ince_laughing',
+]
 const PORTRAIT_DIR = 'public/assets/packs/Ince/portraits'
 
 let restored = 0
