@@ -1,0 +1,7 @@
+# Ince's approved VN portraits (see IncModal.jsx and
+# production/restoreIncePortraits.mjs) got swapped for different art once
+# already. Any PR touching these files now requests review from the repo
+# owner before it can merge - this only actually blocks anything once
+# "Require review from Code Owners" is turned on for this branch under
+# Settings -> Branches; without that setting this file is advisory only.
+public/assets/packs/Ince/portraits/** @Tah-KMTS
