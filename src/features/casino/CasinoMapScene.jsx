@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { playDoorSound, playClickSound } from '../../audio/sfx'
 import { PLAYER_REAL_SPRITE } from '../../game/packs/playerRealSprite'
 
@@ -6,14 +6,13 @@ import { PLAYER_REAL_SPRITE } from '../../game/packs/playerRealSprite'
 // (public/assets/packs/casino-interior/casino_interior.png, a 2048x2048
 // casino+arcade floor) replaces the old flat pink "Casino Floor" Phaser prop
 // (buildCasinoInteriorZone in OverworldScene.js, now unreachable/deleted -
-// see that file's own header comment) - same "real image + a small React/CSS
+// see that file's own header comment). Same "real image + a small React/CSS
 // walker" technique UnderworldMapScene.jsx already established, at the
 // user's explicit request to walk up to the 777 slot machine instead of a
-// plain building box. Unlike Underworld (4 former buildings merged into
-// tabs, one walkable room per tab), Casino was always ONE building with
-// EVERY game mode already living in CasinoModal.jsx's tab bar - so this
-// scene has exactly one interactable (the 777 machine, the picture's own
-// most recognizable prop and literal center) rather than a room per tab.
+// plain building box, and later to walk this floor freely rather than
+// along one fixed line (see WALK_Y_MIN/MAX below - unlike Underworld's
+// two-level cutaway, this crop is one open floor with real depth, so it
+// gets a full 2D walkable rectangle instead of a lane+shaft layout).
 // Walking up and pressing Enter/E opens the SAME full tab bar as before,
 // it's just reached by walking instead of an instant building click.
 //
@@ -33,18 +32,24 @@ const DISPLAY_W = 1040
 const SCALE = DISPLAY_W / (CROP.x1 - CROP.x0)
 const DISPLAY_H = Math.round((CROP.y1 - CROP.y0) * SCALE)
 
-// Single walk lane (native image coords, full-picture space - same space
-// CROP/the hotspot rect below are measured in). No upper/lower lane split
-// like Underworld's two-level cutaway - this crop is one floor row.
-const LANE_Y = 1360
-const PLAYER_MIN_X = CROP.x0 + 40
-const PLAYER_MAX_X = CROP.x1 - 40
+// Real 2D walkable rectangle (native image coords, full-picture space -
+// same space CROP/the hotspot rect below are measured in), not a single
+// line - the floor's swirl-pattern carpet is open from just below the
+// arcade archway/monster-mouth signage down to the crop's own bottom edge.
+// No per-object collision against the chip stacks/blackjack table/arcade
+// cabinets (same limitation the single-line version already had for
+// anything not the 777 machine) - this only keeps the player on the
+// crop's own visible floor, not walking up into the signage band.
+const WALK = { x0: CROP.x0 + 40, x1: CROP.x1 - 40, y0: 700, y1: CROP.y1 - 40 }
+const WALK_SPEED = 720 // native px/sec, matches UnderworldMapScene.jsx, along either axis
 
-// The 777 machine's own x-range (a bit wider than its exact cabinet - see
+// The 777 machine's own x/y range (a bit wider than its exact cabinet - see
 // UnderworldMapScene.jsx's ROOMS comment on the same choice - so the "near"
 // zone reads as generous, not pixel-hunt-precise) plus its full cabinet
-// rect for the visual highlight box. Both in native image coords.
-const HOTSPOT = { x0: 800, x1: 1250 }
+// rect for the visual highlight box. Both in native image coords. Now a
+// real 2D rect (not just an x-range) since the player can approach it from
+// any direction on the open floor.
+const HOTSPOT = { x0: 800, x1: 1250, y0: 850, y1: 1000 }
 const HOTSPOT_BOX = { x0: 860, y0: 895, x1: 1185, y1: 1350 }
 
 function clamp(min, max, v) {
@@ -54,7 +59,8 @@ function clamp(min, max, v) {
 // See UnderworldMapScene.jsx's own copy of this function for why a plain
 // Math.round isn't enough - a whole CSS pixel still isn't a whole DEVICE
 // pixel on Windows' common 125%/150% display-scaling presets, and this
-// pixelated sprite shimmers on that sub-device-pixel remainder otherwise.
+// pixelated sprite shimmers on that sub-device-pixel remainder even when
+// its CSS position is already integer.
 function snapToDevicePixel(v) {
   const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
   return Math.round(v * dpr) / dpr
@@ -69,10 +75,14 @@ const SPRITE_SHEET_W = SPRITE_W * 2
 const SPRITE_SHEET_H = SPRITE_H * 4
 // Only the sheet's first walk-step column - see UnderworldMapScene.jsx's own
 // WALK_FRAME comment for why alternating it here reads as shaking in place
-// rather than walking.
+// rather than walking. No up/down-facing art either (see that file's own
+// comment) - vertical-only movement keeps whichever left/right pose was
+// last faced.
 const WALK_FRAME = 0
 
-const WALK_SPEED = 720 // native px/sec, matches UnderworldMapScene.jsx
+function spriteBackgroundPosition(facing) {
+  return `-${WALK_FRAME * SPRITE_W}px -${SPRITE_FACING_ROW[facing] * SPRITE_H}px`
+}
 
 // `onEnter()` fires once, when the player reaches the 777 machine and
 // presses Enter/E (or clicks it directly) - CasinoModal.jsx swaps from this
@@ -80,18 +90,24 @@ const WALK_SPEED = 720 // native px/sec, matches UnderworldMapScene.jsx
 // UnderworldMapScene.jsx's onEnter(tabId) except there's only one
 // destination here, so it takes no argument.
 export default function CasinoMapScene({ onEnter }) {
-  const [player, setPlayer] = useState({ x: 1000, facing: 'right' })
+  // Position lives in a ref, not React state - see paint()'s own comment
+  // for why a 60fps setState was a real, independent source of the
+  // "walking here looks laggy" complaint, on top of the Phaser-side fix
+  // OverworldScene.js's heavySimSuspended already covers.
+  const posRef = useRef({ x: 1000, y: WALK.y1, facing: 'right' })
+  const [isNear, setIsNear] = useState(false)
   // Same first-decode-hitch guard as UnderworldMapScene.jsx - this is a real
   // ~7.8MB illustration, and its first decode is real main-thread work that
   // can stall the player's first few movement frames if it overlaps with
   // them. See that file's own header comment for the full reasoning.
   const [bgReady, setBgReady] = useState(false)
-  const playerRef = useRef(player)
   const keysRef = useRef(new Set())
   const rafRef = useRef(null)
   const lastAtRef = useRef(performance.now())
   const wasNearRef = useRef(false)
   const prevEnterHeldRef = useRef(false)
+  const wrapElRef = useRef(null)
+  const spriteElRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
@@ -112,12 +128,8 @@ export default function CasinoMapScene({ onEnter }) {
   }, [])
 
   useEffect(() => {
-    playerRef.current = player
-  }, [player])
-
-  useEffect(() => {
     const onKeyDown = (e) => {
-      if (['ArrowLeft', 'ArrowRight', 'Enter', 'KeyA', 'KeyD', 'KeyE'].includes(e.code)) {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'KeyE'].includes(e.code)) {
         e.preventDefault()
         keysRef.current.add(e.code)
       }
@@ -132,43 +144,66 @@ export default function CasinoMapScene({ onEnter }) {
     }
   }, [])
 
+  // Paints the current posRef position/facing straight onto the DOM nodes,
+  // bypassing React entirely for the 60fps hot path - see this ref's own
+  // declaration comment above for why that matters here specifically.
+  const paint = useCallback(() => {
+    const p = posRef.current
+    if (wrapElRef.current) {
+      wrapElRef.current.style.transform = `translate3d(${snapToDevicePixel((p.x - CROP.x0) * SCALE - SPRITE_W / 2)}px, ${snapToDevicePixel((p.y - CROP.y0) * SCALE - SPRITE_H)}px, 0)`
+    }
+    if (spriteElRef.current) {
+      spriteElRef.current.style.backgroundPosition = spriteBackgroundPosition(p.facing)
+    }
+  }, [])
+
   useEffect(() => {
     if (!bgReady) return
+    paint()
     lastAtRef.current = performance.now()
     const tick = (now) => {
       const dt = Math.min(0.05, (now - lastAtRef.current) / 1000)
       lastAtRef.current = now
-      const p = playerRef.current
+      const p = posRef.current
 
       const left = keysRef.current.has('ArrowLeft') || keysRef.current.has('KeyA')
       const right = keysRef.current.has('ArrowRight') || keysRef.current.has('KeyD')
+      const up = keysRef.current.has('ArrowUp') || keysRef.current.has('KeyW')
+      const down = keysRef.current.has('ArrowDown') || keysRef.current.has('KeyS')
       const inputX = (right ? 1 : 0) - (left ? 1 : 0)
-      if (inputX !== 0) {
-        p.x = clamp(PLAYER_MIN_X, PLAYER_MAX_X, p.x + inputX * WALK_SPEED * dt)
-        p.facing = inputX > 0 ? 'right' : 'left'
+      const inputY = (down ? 1 : 0) - (up ? 1 : 0)
+      if (inputX !== 0 || inputY !== 0) {
+        // Real 2D movement across the open floor, not a single fixed line -
+        // normalized so a diagonal hold isn't sqrt(2) faster than straight.
+        const mag = Math.hypot(inputX, inputY) || 1
+        p.x = clamp(WALK.x0, WALK.x1, p.x + (inputX / mag) * WALK_SPEED * dt)
+        p.y = clamp(WALK.y0, WALK.y1, p.y + (inputY / mag) * WALK_SPEED * dt)
+        if (inputX !== 0) p.facing = inputX > 0 ? 'right' : 'left'
       }
 
-      const isNear = p.x >= HOTSPOT.x0 && p.x <= HOTSPOT.x1
-      if (isNear && !wasNearRef.current) playClickSound()
-      wasNearRef.current = isNear
+      const nowNear = p.x >= HOTSPOT.x0 && p.x <= HOTSPOT.x1 && p.y >= HOTSPOT.y0 && p.y <= HOTSPOT.y1
+      if (nowNear !== wasNearRef.current) {
+        if (nowNear) playClickSound()
+        wasNearRef.current = nowNear
+        setIsNear(nowNear) // the only per-transition (not per-frame) React update
+      }
 
       const enterHeld = keysRef.current.has('Enter') || keysRef.current.has('KeyE')
-      if (enterHeld && !prevEnterHeldRef.current && isNear) {
+      if (enterHeld && !prevEnterHeldRef.current && nowNear) {
         playDoorSound()
         onEnter()
       }
       prevEnterHeldRef.current = enterHeld
 
-      setPlayer({ ...p })
+      paint()
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [onEnter, bgReady])
+  }, [onEnter, bgReady, paint])
 
-  const isNear = player.x >= HOTSPOT.x0 && player.x <= HOTSPOT.x1
   const bg = NATIVE_SIZE * SCALE
 
   return (
@@ -215,23 +250,20 @@ export default function CasinoMapScene({ onEnter }) {
           />
         )}
 
-        {/* transform:translate3d + snapToDevicePixel, not left/top - same
-            shake fix as UnderworldMapScene.jsx, see its own comment. */}
+        {/* transform/backgroundPosition written imperatively via
+            wrapElRef/spriteElRef in paint() above, not as React style props
+            - see that ref's own comment for why (and UnderworldMapScene.jsx
+            for the shake-fix reasoning behind translate3d+snapToDevicePixel
+            in the first place). */}
         {bgReady && (
-          <div
-            className="pointer-events-none absolute left-0 top-0"
-            style={{
-              transform: `translate3d(${snapToDevicePixel((player.x - CROP.x0) * SCALE - SPRITE_W / 2)}px, ${snapToDevicePixel((LANE_Y - CROP.y0) * SCALE - SPRITE_H)}px, 0)`,
-              willChange: 'transform',
-            }}
-          >
+          <div ref={wrapElRef} className="pointer-events-none absolute left-0 top-0" style={{ willChange: 'transform' }}>
             <div
+              ref={spriteElRef}
               style={{
                 width: SPRITE_W,
                 height: SPRITE_H,
                 backgroundImage: `url(${PLAYER_REAL_SPRITE.path})`,
                 backgroundSize: `${SPRITE_SHEET_W}px ${SPRITE_SHEET_H}px`,
-                backgroundPosition: `-${WALK_FRAME * SPRITE_W}px -${SPRITE_FACING_ROW[player.facing] * SPRITE_H}px`,
                 imageRendering: 'pixelated',
               }}
             />
@@ -252,7 +284,7 @@ export default function CasinoMapScene({ onEnter }) {
             className="pointer-events-none absolute -translate-x-1/2 whitespace-nowrap rounded border border-yellow-400 bg-black/80 px-2 py-1 text-xs font-bold text-yellow-300"
             style={{
               left: ((HOTSPOT_BOX.x0 + HOTSPOT_BOX.x1) / 2 - CROP.x0) * SCALE,
-              top: (LANE_Y - CROP.y0) * SCALE - SPRITE_H - 26,
+              top: (HOTSPOT_BOX.y0 - CROP.y0) * SCALE - 26,
             }}
           >
             [Enter] Play

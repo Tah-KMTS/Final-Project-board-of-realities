@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import Blackjack from './Blackjack'
 import Poker from './Poker'
@@ -74,6 +74,12 @@ export default function CasinoModal({ onClose }) {
   // time the modal opens. true = the actual tab bar, reached by walking up
   // to the 777 machine and pressing Enter/E (or clicking it).
   const [entered, setEntered] = useState(false)
+  // useCallback: passed straight to CasinoMapScene.jsx as `onEnter`, which
+  // sits in that component's per-frame movement effect's dependency array
+  // - see UnderworldModal.jsx's identical selectTab comment for why an
+  // inline arrow here would tear down/rebuild that effect on every
+  // CasinoModal re-render.
+  const enterFloor = useCallback(() => setEntered(true), [])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -93,7 +99,7 @@ export default function CasinoModal({ onClose }) {
           Chips clatter under buzzing neon dragons. The house always has an edge - but so do you, tonight.
         </p>
 
-        {!entered && <CasinoMapScene onEnter={() => setEntered(true)} />}
+        {!entered && <CasinoMapScene onEnter={enterFloor} />}
 
         {entered && (
           <>

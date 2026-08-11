@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import DistrictBuildingModal from './DistrictBuildingModal'
 import InteractiveLocationModal from '../world/InteractiveLocationModal'
 import LeverageActionPanel from './LeverageActionPanel'
@@ -213,10 +213,18 @@ export default function UnderworldModal({ onClose, initialTab = 'map' }) {
   // tab entirely so switching away and back always starts at the menu.
   const [bossJobSelection, setBossJobSelection] = useState(null)
 
-  const selectTab = (id) => {
+  // useCallback, not a plain function: this is passed straight through to
+  // UnderworldMapScene.jsx as its `onEnter` prop, which sits in that
+  // component's per-frame movement effect's dependency array. An unstable
+  // reference here would tear down and rebuild that effect (and reset its
+  // rAF loop) on every UnderworldModal re-render, not just when the id
+  // it's called with actually changes - a real, independent source of
+  // walking-here-looks-laggy on top of what that file's own perf comments
+  // already cover.
+  const selectTab = useCallback((id) => {
     setTab(id)
     if (id !== 'bossJobs') setBossJobSelection(null)
-  }
+  }, [])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">

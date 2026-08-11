@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { playDoorSound, playClickSound } from '../../audio/sfx'
 import { PLAYER_REAL_SPRITE } from '../../game/packs/playerRealSprite'
 
@@ -16,24 +16,44 @@ import { PLAYER_REAL_SPRITE } from '../../game/packs/playerRealSprite'
 // so the character walking through this room is recognizably the player,
 // not an unrelated dot.
 //
-// The illustration reads as two horizontal levels: an upper walkway in
+// The illustration reads as two horizontal levels - an upper walkway in
 // front of Black Market / Call Center Ops / Crime Alley's stairwell / the
 // Speakeasy bar, and a lower walkway in front of Gun Store / Boss Jobs /
-// Standing & Services, linked by the open shaft under the main doors.
-// ROOMS below encodes exactly that layout in the image's own native pixel
-// coordinates - mapped by hand against a coordinate-grid overlay of the
-// source art (see production/ for the grid crops), not guessed - and
-// LANE_Y/CONNECTOR encode the two walk lines and the one x-range where the
-// player can move between them.
+// Standing & Services - each with real (if narrow) floor DEPTH, not a
+// single painted line, linked by an open shaft under the main doors. BANDS
+// below gives the player real 2D room within each walkway's own floor strip
+// (measured by hand against a coordinate-grid overlay of the source art,
+// not guessed) instead of pinning them to one fixed y per level - see
+// movement's own comment for exactly how those bands interact with the
+// connecting shaft. ROOMS encodes the same layout in the image's own native
+// pixel coordinates.
 export const IMAGE_URL = '/assets/packs/underworld-interior/underworld_interior.png'
 export const NATIVE_W = 3344
 export const NATIVE_H = 1248
 
-const LANE_Y = { upper: 760, lower: 1120 }
+// Real floor depth per level (native px), not a single line - see the
+// movement comment in the tick loop below for how these combine with
+// CONNECTOR to give the player actual 2D freedom instead of a 1D lane.
+const BANDS = {
+  upper: { y0: 660, y1: 800 },
+  lower: { y0: 960, y1: 1160 },
+}
+// Retained for anything that still wants "the" y of a level (room labels,
+// the enter prompt) - the vertical midpoint of that level's own floor band.
+const LANE_Y = { upper: (BANDS.upper.y0 + BANDS.upper.y1) / 2, lower: (BANDS.lower.y0 + BANDS.lower.y1) / 2 }
 const CONNECTOR = { x0: 1480, x1: 1900 }
 const PLAYER_MIN_X = 40
 const PLAYER_MAX_X = NATIVE_W - 40
-const WALK_SPEED = 720 // native px/sec
+const WALK_SPEED = 720 // native px/sec, along either axis
+
+// Which floor band a y-value currently belongs to - used both to clamp
+// movement (see the tick loop) and to decide which level's ROOMS/ambient
+// prompt apply, replacing the old explicit player.lane field now that y is
+// continuous rather than one of two fixed values.
+const BAND_MID = (BANDS.upper.y1 + BANDS.lower.y0) / 2
+function bandOf(y) {
+  return y < BAND_MID ? 'upper' : 'lower'
+}
 
 // tabId below matches UnderworldModal.jsx's tab ids exactly, so onEnter can
 // hand straight to selectTab() with no translation layer. Exported so
@@ -86,15 +106,18 @@ function snapToDevicePixel(v) {
 
 // Player sprite sizing - packs/playerRealSprite.js is a 2-col (walk step) x
 // 4-row (down/up/left/right) grid of cellW x cellH cells. Only the left/
-// right rows are ever shown here (this scene is pure left-right movement,
-// never up/down-facing) at a target on-screen height close to the source
-// illustration's own painted characters (~50px tall at this scene's SCALE),
-// not the sheet's native 65px overworld size. SPRITE_W/H are rounded to
-// whole pixels (and SHEET_W/H derived FROM those rounded values, not
-// computed independently) so every frame's background-position lands on an
-// exact pixel boundary every frame - the visible "shaking while walking"
-// bug was this sprite sub-pixel-sampling itself each frame as player.x's
-// float value scaled to a fractional CSS pixel position.
+// right rows are ever shown here (up/down input now MOVES the player - see
+// the tick loop - but there is no up/down-facing art in this cut, so
+// vertical-only movement keeps whichever left/right pose was last faced,
+// same convention a lot of 2D games with side-view-only sprites use) at a
+// target on-screen height close to the source illustration's own painted
+// characters (~50px tall at this scene's SCALE), not the sheet's native
+// 65px overworld size. SPRITE_W/H are rounded to whole pixels (and
+// SHEET_W/H derived FROM those rounded values, not computed independently)
+// so every frame's background-position lands on an exact pixel boundary
+// every frame - the visible "shaking while walking" bug was this sprite
+// sub-pixel-sampling itself each frame as player.x's float value scaled to
+// a fractional CSS pixel position.
 const SPRITE_FACING_ROW = { left: 2, right: 3 }
 const SPRITE_TARGET_H = 56
 const SPRITE_SCALE = SPRITE_TARGET_H / PLAYER_REAL_SPRITE.cellH
@@ -110,12 +133,22 @@ const SPRITE_SHEET_H = SPRITE_H * 4
 // rather than walking, so this scene holds a single still pose instead.
 const WALK_FRAME = 0
 
+function spriteBackgroundPosition(facing) {
+  return `-${WALK_FRAME * SPRITE_W}px -${SPRITE_FACING_ROW[facing] * SPRITE_H}px`
+}
+
 // `onEnter(tabId)` is called both on a direct room click (instant, for
 // mouse/touch users - no walking required) and on Enter/E while standing in
 // a room's zone (for the keyboard-walk path this component's own header
 // comment describes).
 export default function UnderworldMapScene({ onEnter }) {
-  const [player, setPlayer] = useState({ x: 900, lane: 'upper', facing: 'right' })
+  // Position lives in a ref, NOT React state - see the tick loop's own
+  // comment for why. `nearRoomId` is the only thing about the player that
+  // actually needs to trigger a re-render (the room highlight border + the
+  // "[Enter] Label" prompt), and it only changes on an ENTER/LEAVE
+  // transition, not every frame.
+  const posRef = useRef({ x: 900, y: LANE_Y.upper, facing: 'right' })
+  const [nearRoomId, setNearRoomId] = useState(null)
   // The reported "shakes on first walk, then stable" pattern is the exact
   // signature of a large-image decode hitch, not a positioning bug (already
   // fixed transform-based positioning wouldn't explain a ONE-TIME cold-start
@@ -130,12 +163,27 @@ export default function UnderworldMapScene({ onEnter }) {
   // work to finish BEFORE the player can move at all, so it can never
   // overlap with - and stutter - the walk animation.
   const [bgReady, setBgReady] = useState(false)
-  const playerRef = useRef(player)
   const keysRef = useRef(new Set())
   const rafRef = useRef(null)
   const lastAtRef = useRef(performance.now())
   const nearRoomIdRef = useRef(null)
   const prevEnterHeldRef = useRef(false)
+  // Imperative handles for the hot 60fps path - the wrapper's transform
+  // (position) and the inner sprite's background-position (facing) are
+  // written directly to the DOM every frame instead of through React state.
+  // A React state update on every rAF tick means a full component
+  // re-render 60 times a second - recomputing nearRoom, remapping all 7
+  // ROOMS buttons, rebuilding style objects - purely to move one already-
+  // GPU-composited div. That's real, avoidable main-thread cost stacked
+  // on top of whatever else the tab is doing, and it was a second,
+  // independent source of the exact "walking here looks laggy" complaint
+  // this scene has already had one performance pass for (see
+  // OverworldScene.js's heavySimSuspended). Only nearRoomId (above) still
+  // goes through setState, because the room highlight/prompt genuinely
+  // need a re-render - and that only fires on an ENTER/LEAVE edge, not
+  // every frame.
+  const wrapElRef = useRef(null)
+  const spriteElRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
@@ -154,10 +202,6 @@ export default function UnderworldMapScene({ onEnter }) {
       cancelled = true
     }
   }, [])
-
-  useEffect(() => {
-    playerRef.current = player
-  }, [player])
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -180,13 +224,27 @@ export default function UnderworldMapScene({ onEnter }) {
     }
   }, [])
 
+  // Paints the current posRef position/facing straight onto the DOM nodes -
+  // called every tick (position always) and once up front (so the sprite
+  // doesn't sit at a stale (0,0) for a frame before the loop's first tick).
+  const paint = useCallback(() => {
+    const p = posRef.current
+    if (wrapElRef.current) {
+      wrapElRef.current.style.transform = `translate3d(${snapToDevicePixel(p.x * SCALE - SPRITE_W / 2)}px, ${snapToDevicePixel(p.y * SCALE - SPRITE_H)}px, 0)`
+    }
+    if (spriteElRef.current) {
+      spriteElRef.current.style.backgroundPosition = spriteBackgroundPosition(p.facing)
+    }
+  }, [])
+
   useEffect(() => {
     if (!bgReady) return
+    paint()
     lastAtRef.current = performance.now()
     const tick = (now) => {
       const dt = Math.min(0.05, (now - lastAtRef.current) / 1000)
       lastAtRef.current = now
-      const p = playerRef.current
+      const p = posRef.current
 
       const left = keysRef.current.has('ArrowLeft') || keysRef.current.has('KeyA')
       const right = keysRef.current.has('ArrowRight') || keysRef.current.has('KeyD')
@@ -194,20 +252,44 @@ export default function UnderworldMapScene({ onEnter }) {
       const down = keysRef.current.has('ArrowDown') || keysRef.current.has('KeyS')
 
       const inputX = (right ? 1 : 0) - (left ? 1 : 0)
-      if (inputX !== 0) {
-        p.x = clamp(PLAYER_MIN_X, PLAYER_MAX_X, p.x + inputX * WALK_SPEED * dt)
-        p.facing = inputX > 0 ? 'right' : 'left'
+      const inputY = (down ? 1 : 0) - (up ? 1 : 0)
+      if (inputX !== 0 || inputY !== 0) {
+        // Real 2D movement, not a single horizontal lane - normalized so a
+        // diagonal hold isn't sqrt(2) faster than a straight one.
+        const mag = Math.hypot(inputX, inputY) || 1
+        const nx = clamp(PLAYER_MIN_X, PLAYER_MAX_X, p.x + (inputX / mag) * WALK_SPEED * dt)
+        let ny = p.y + (inputY / mag) * WALK_SPEED * dt
+
+        // Vertical range depends on whether the CANDIDATE x sits inside the
+        // shaft between the two levels: inside it, y is free to roam the
+        // whole gap between the levels (walking up/down the connecting
+        // opening in the art - see CONNECTOR/BANDS above); outside it,
+        // y is clamped to the CURRENT level's own floor band, so leaving
+        // the shaft mid-transit doesn't leave the player standing in front
+        // of a wall/ceiling that the illustration never drew as floor.
+        // Current level is derived from y BEFORE this frame's move so a
+        // player already at the shaft's edge doesn't get judged by where
+        // they're about to end up.
+        if (nx >= CONNECTOR.x0 && nx <= CONNECTOR.x1) {
+          ny = clamp(BANDS.upper.y0, BANDS.lower.y1, ny)
+        } else {
+          const band = BANDS[bandOf(p.y)]
+          ny = clamp(band.y0, band.y1, ny)
+        }
+
+        p.x = nx
+        p.y = ny
+        if (inputX !== 0) p.facing = inputX > 0 ? 'right' : 'left'
       }
 
-      const inConnector = p.x >= CONNECTOR.x0 && p.x <= CONNECTOR.x1
-      if (inConnector) {
-        if (up && p.lane === 'lower') p.lane = 'upper'
-        else if (down && p.lane === 'upper') p.lane = 'lower'
+      const currentBand = bandOf(p.y)
+      const nearRoom = ROOMS.find((r) => r.lane === currentBand && p.x >= r.x0 && p.x <= r.x1)
+      const nearRoomIdNow = nearRoom ? nearRoom.id : null
+      if (nearRoomIdNow !== nearRoomIdRef.current) {
+        if (nearRoomIdNow) playClickSound()
+        nearRoomIdRef.current = nearRoomIdNow
+        setNearRoomId(nearRoomIdNow) // the only per-transition (not per-frame) React update
       }
-
-      const nearRoom = ROOMS.find((r) => r.lane === p.lane && p.x >= r.x0 && p.x <= r.x1)
-      if (nearRoom && nearRoom.id !== nearRoomIdRef.current) playClickSound()
-      nearRoomIdRef.current = nearRoom ? nearRoom.id : null
 
       const enterHeld = keysRef.current.has('Enter') || keysRef.current.has('KeyE')
       if (enterHeld && !prevEnterHeldRef.current && nearRoom) {
@@ -216,16 +298,16 @@ export default function UnderworldMapScene({ onEnter }) {
       }
       prevEnterHeldRef.current = enterHeld
 
-      setPlayer({ ...p })
+      paint()
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [onEnter, bgReady])
+  }, [onEnter, bgReady, paint])
 
-  const nearRoom = ROOMS.find((r) => r.lane === player.lane && player.x >= r.x0 && player.x <= r.x1)
+  const nearRoom = ROOMS.find((r) => r.id === nearRoomId) || null
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -248,7 +330,7 @@ export default function UnderworldMapScene({ onEnter }) {
         )}
 
         {bgReady && ROOMS.map((r) => {
-          const isNear = nearRoom?.id === r.id
+          const isNear = nearRoomId === r.id
           return (
             <button
               key={r.id}
@@ -286,26 +368,17 @@ export default function UnderworldMapScene({ onEnter }) {
             stays folded into the rounded translate value itself. Hidden
             until bgReady - no point showing the player standing at the
             default spawn position before the movement loop it's tied to
-            has even started.
-            snapToDevicePixel (not a plain Math.round) - a whole CSS pixel
-            still isn't a whole DEVICE pixel on Windows' common 125%/150%
-            display-scaling presets, and this pixelated sprite shimmers on
-            that sub-device-pixel remainder even when its CSS position is
-            already integer. See that function's own comment above. */}
-        {bgReady && <div
-          className="pointer-events-none absolute left-0 top-0"
-          style={{
-            transform: `translate3d(${snapToDevicePixel(player.x * SCALE - SPRITE_W / 2)}px, ${snapToDevicePixel(LANE_Y[player.lane] * SCALE - SPRITE_H)}px, 0)`,
-            willChange: 'transform',
-          }}
-        >
+            has even started. transform/backgroundPosition are written
+            imperatively via wrapElRef/spriteElRef in paint() above, not as
+            React style props - see that ref's own comment for why. */}
+        {bgReady && <div ref={wrapElRef} className="pointer-events-none absolute left-0 top-0" style={{ willChange: 'transform' }}>
           <div
+            ref={spriteElRef}
             style={{
               width: SPRITE_W,
               height: SPRITE_H,
               backgroundImage: `url(${PLAYER_REAL_SPRITE.path})`,
               backgroundSize: `${SPRITE_SHEET_W}px ${SPRITE_SHEET_H}px`,
-              backgroundPosition: `-${WALK_FRAME * SPRITE_W}px -${SPRITE_FACING_ROW[player.facing] * SPRITE_H}px`,
               imageRendering: 'pixelated',
             }}
           />
@@ -320,11 +393,14 @@ export default function UnderworldMapScene({ onEnter }) {
           />
         </div>}
 
-        {/* Anchored to the ROOM's fixed center x (not player.x) and well
-            above the sprite's head - it used to track the player's exact x
-            every frame, which both jittered along with the walk-shake fix
-            above and drifted around as you shuffled inside a wide room like
-            Call Center Ops instead of reading as "you're in this room." */}
+        {/* Anchored to the ROOM's fixed center x (not the player's) and well
+            above where the sprite's head sits - it used to track the
+            player's exact x every frame, which both jittered along with
+            the walk-shake fix above and drifted around as you shuffled
+            inside a wide room like Call Center Ops instead of reading as
+            "you're in this room." Only re-renders on nearRoomId's own
+            ENTER/LEAVE transitions now (see the tick loop), same as the
+            highlight borders above. */}
         {bgReady && nearRoom && (
           <div
             className="pointer-events-none absolute -translate-x-1/2 whitespace-nowrap rounded border border-yellow-400 bg-black/80 px-2 py-1 text-xs font-bold text-yellow-300"
@@ -338,7 +414,8 @@ export default function UnderworldMapScene({ onEnter }) {
         )}
       </div>
       <p className="text-center text-[10px] text-gray-500">
-        Arrow keys / WASD to walk, Up/Down near the doors to change level, Enter or click a room to go in.
+        Arrow keys / WASD to walk - the doors between the two floors are the open gap under the main sign. Enter or
+        click a room to go in.
       </p>
     </div>
   )
