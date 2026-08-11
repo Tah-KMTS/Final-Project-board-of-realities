@@ -728,7 +728,22 @@ const LISA_HALL_BG_KEY = 'lisaHallBg'
 const LISA_WORK_BG_KEY = 'lisaWorkBg'
 const LISA_BEDROOM_BG_KEY = 'lisaBedroomBg'
 
+const LISA_HOUSE_BG_KEYS = new Set([LISA_HALL_BG_KEY, LISA_WORK_BG_KEY, LISA_BEDROOM_BG_KEY])
+
 function preloadLisaHouseInterior(scene) {
+  // A failed fetch of one of these (dev-server hiccup, flaky connection -
+  // Bedroom.png alone is 7MB) doesn't throw or block preload: Phaser's
+  // loader just fires 'complete' anyway with that key never registered, and
+  // the room silently renders Phaser's built-in green/black "missing
+  // texture" placeholder stretched to fill the whole room instead of the
+  // background - which reads as "the room is broken" with zero signal as to
+  // why. This turns that into a console error naming the exact file, so a
+  // recurrence is a 10-second diagnosis instead of a mystery screenshot.
+  scene.load.on('loaderror', (file) => {
+    if (LISA_HOUSE_BG_KEYS.has(file.key)) {
+      console.error(`Lisa house background failed to load: ${file.key} (${file.src}) - that room will show a blank placeholder instead of its background.`)
+    }
+  })
   if (!scene.textures.exists(LISA_HALL_BG_KEY)) {
     scene.load.image(LISA_HALL_BG_KEY, '/assets/packs/interior/hall.png')
   }
