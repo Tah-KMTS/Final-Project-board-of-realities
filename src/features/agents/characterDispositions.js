@@ -202,11 +202,15 @@ function deriveSociabilityAndAffinity(tier, character, fidelity, syndicateSignal
 // (e.g. two industrialist buildings both becoming 'industrialZone') are
 // deduped down to a single slot rather than repeated.
 const WORK_BUILDING_OVERRIDES = {
-  // An entertainer-turned-mogul splits her day between deal-making at the
-  // business center and being seen in public - same shared hubs every other
-  // titan uses, no bespoke building of her own (see home_lisa's "Starlight
-  // Media HQ" flavor name in characterBuildingsCatalog.js instead).
-  lisa: ['businessCenter', 'entertainmentComplex'],
+  // Pinned to just the Entertainment Complex (was split 50/50 with
+  // businessCenter) so she's reliably findable there instead of the player
+  // having to check two buildings - same shared hub every other titan uses,
+  // no bespoke building of her own (see home_lisa's "Starlight Media HQ"
+  // flavor name in characterBuildingsCatalog.js instead). She's still not
+  // ALWAYS there - homeProbability in worldPresenceEngine.js still sends her
+  // home some of the time (more at night) - this only fixes which single
+  // building she resolves to on the blocks she's out.
+  lisa: ['entertainmentComplex'],
   jobs: ['businessCenter', 'stockExchange'],
   musk: ['businessCenter', 'stockExchange'],
   huang: ['stockExchange', 'businessCenter', 'governmentBuilding'],

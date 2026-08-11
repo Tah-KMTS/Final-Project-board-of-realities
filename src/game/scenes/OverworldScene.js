@@ -778,6 +778,382 @@ function fillBlockedRect(set, c0, r0, c1, r1) {
   }
 }
 
+// ---------------- Home interior rooms ----------------
+// Second pass, replacing the first: the 87 character homes/hideouts
+// (characterHomeBuildings.js) now get a wholly bespoke room per wealth tier
+// (buildHomeInteriorZone below) instead of overlaying furniture onto
+// buildGenericInteriorZone's generic tile-drawn room - that whole path
+// (drawInteriorRoom, INTERIOR_TEMPLATES.residence/hideout's "Study"/"Back
+// Room" flat desk box, interiorTemplateFor's kind-based fallback) is left
+// fully in place but is now dead code for homes/hideouts specifically: see
+// triggerInteraction's zone.id/building.kind check, which routes them to
+// 'homeInterior' before they ever reach buildGenericInteriorZone. Kept
+// (not deleted) since bank/realEstateAgency still use buildGenericInteriorZone
+// for real (their own explicit 'officeA' BUILDING_INTERIOR_TEMPLATE entry),
+// and in case this whole approach is wanted again later.
+// Each of the 4 styles below is hand-laid-out against one of the reference
+// screenshots in public/assets/packs/Pixel_16_interiors_v2_free/reference/
+// (image-...5591.png bedroom for cottage, ...9513.webp for tavern,
+// ...3857.webp for palace, ...7746.webp for hideout) - matched as closely as
+// this file's fixed 12x9 rectangular room shape allows (the references
+// themselves are irregular multi-alcove L-shaped rooms a plain rectangle
+// can't reproduce edge-for-edge), picking the same furniture types in
+// roughly the same relative positions rather than a loose approximation.
+const HOME_FURNITURE_DIR = '/assets/packs/Pixel_16_interiors_v2_free/processed'
+const HOME_FURNITURE_FILES = {
+  bed: 'bed.png',
+  shelfWithBooks: 'shelf_with_books.png',
+  bigTableAndChair: 'big_table_and_chair.png',
+  tableAndChair: 'table_and_chair.png',
+  tableWithBooks: 'table_with_books.png',
+  carpet: 'carpet.png',
+  rugPurple: 'rug_purple.png',
+  orb: 'orb.png',
+  wall: 'wall.png',
+  floorHideout: 'floor_hideout.png',
+  floorPalace: 'floor_palace.png',
+  floorCottage: 'floor_cottage.png',
+  floorTavern: 'floor_tavern.png',
+  wallEdgeCottage: 'walledge_cottage.png',
+  wallEdgeTavern: 'walledge_tavern.png',
+  wallEdgePalace: 'walledge_palace.png',
+  wallEdgeHideout: 'walledge_hideout.png',
+  wallStripCottage: 'wallstrip_cottage.png',
+  wallStripTavern: 'wallstrip_tavern.png',
+  wallStripPalace: 'wallstrip_palace.png',
+  wallStripHideout: 'wallstrip_hideout.png',
+  window: 'window.png',
+  wardrobe: 'wardrobe.png',
+  pantryShelf: 'pantry_shelf.png',
+  barrel: 'barrel.png',
+  // Added on the "still a mess, use the reference pictures as an exact
+  // blueprint" pass - production/slice_contact_sheet.py connected-
+  // component-sliced these out of the pack's 73.png (palace/living-room
+  // props) and 85.png (the wizard-study set reference5 itself is built
+  // from) contact sheets.
+  redArmchair: 'red_armchair.png',
+  roundSideTable: 'round_side_table.png',
+  redLoveseat: 'red_loveseat.png',
+  woodDoor: 'wood_door.png',
+  palaceBanquetTable: 'palace_banquet_table.png',
+  paintingForest: 'painting_forest.png',
+  paintingSunset: 'painting_sunset.png',
+  vaseBlueFlowers: 'vase_blue_flowers.png',
+  vaseRedFlowers: 'vase_red_flowers.png',
+  redRugStrip: 'red_rug_strip.png',
+  bookshelfA: 'bookshelf_a.png',
+  bookshelfB: 'bookshelf_b.png',
+  bookshelfC: 'bookshelf_c.png',
+  pedestalGem: 'pedestal_gem.png',
+  pedestalChalice: 'pedestal_chalice.png',
+  pedestalTome: 'pedestal_tome.png',
+  pedestalMask: 'pedestal_mask.png',
+  readingDeskA: 'hooded_reader_a.png',
+  readingDeskB: 'hooded_reader_b.png',
+}
+
+// Floor decals/wall-mounted decoration - never registered as a walk
+// obstacle in placeHomeProp (unlike freestanding furniture), since nothing
+// physically occupies that floor space.
+const HOME_PROP_NON_BLOCKING = new Set([
+  'carpet', 'window', 'wall', 'paintingForest', 'paintingSunset', 'redRugStrip',
+])
+
+function homeFurnitureTextureKey(id) {
+  return `homeFurn_${id}`
+}
+
+function preloadHomeFurniture(scene) {
+  for (const [id, file] of Object.entries(HOME_FURNITURE_FILES)) {
+    const key = homeFurnitureTextureKey(id)
+    if (!scene.textures.exists(key)) scene.load.image(key, `${HOME_FURNITURE_DIR}/${file}`)
+  }
+}
+
+// ---- Per-style room definition, measured off the reference screenshots ----
+// production/analyze_reference_rooms.py segments each reference out of its
+// backdrop and downsamples it to a tile grid; `mask` below is that script's
+// output verbatim ('#' room, '.' outside). That's why these rooms are all
+// different sizes and none of them is the plain 12x9 rectangle every other
+// interior in this file uses - the references are irregular multi-alcove
+// floor plans at ~1.20 aspect, and forcing them into a 1.43 rectangle is what
+// made earlier attempts read as "a mess" no matter how the furniture moved.
+//
+// Prop coordinates are likewise measured, not eyeballed: each reference was
+// overlaid with a 100px grid, every piece of furniture's centre-x/bottom-y/
+// width read off it in reference pixels, then converted with that room's own
+// px/tile scale (printed by the same script). `col`/`row` are what
+// placeHomeProp wants - the tile the prop's bottom-CENTRE sits on, hence the
+// -0.5 / -1 already folded into these numbers - and `tileWidth` is its real
+// width relative to the room, so a bookshelf that covers 16.6% of the
+// reference's width covers 16.6% of ours.
+//
+// floorTex: cropped straight out of the same reference by
+// production/extract_reference_floors.py (see its header - the first pass
+// reused the pack's own contact-sheet floor crops, which each carried a strip
+// of baseboard that tiled into repeating horizontal bands).
+const HOME_ROOM_STYLES = {
+  // reference/image-...5591.png - a tall portrait bedroom: bed + nightstand
+  // down the left wall under a wall-mounted TV, writing desk + stool along
+  // the right, reading nook (rug, armchair) filling the lower half.
+  cottage: {
+    zoneId: 'homeCottage',
+    cols: 12,
+    rows: 15,
+    mask: null, // plain rectangle - the reference's own room is unnotched
+    floorTex: 'floorCottage',
+    wallColor: 0x4a2c1e,
+    // The bedroom reference gives its whole upper ~40% over to a cream
+    // striped wallpaper wall, and hangs the TV/framed pictures on it - the
+    // measured prop rows above already assume that band exists (paintings sit
+    // at rows 1.9-2.8), so without it they float over bare floor.
+    wallBandRows: 7,
+    wallStrip: 'wallStripCottage',
+    wallEdge: 'wallEdgeCottage',
+    deskRect: { c0: 6, r0: 5, c1: 10, r1: 7 },
+    props: [
+      { id: 'paintingForest', col: 6.68, row: 1.92, tileWidth: 1.35 },
+      { id: 'window', col: 8.83, row: 2.64, tileWidth: 0.99 },
+      { id: 'shelfWithBooks', col: 3.72, row: 3.4, tileWidth: 3.17 },
+      { id: 'bed', col: 1.47, row: 7.4, tileWidth: 2.74 },
+      { id: 'wardrobe', col: 3.9, row: 7.4, tileWidth: 1.75 },
+      { id: 'tableWithBooks', col: 8.47, row: 7.4, tileWidth: 4.57 },
+      { id: 'rugPurple', col: 3.59, row: 11.4, tileWidth: 3.9 },
+      { id: 'redArmchair', col: 3.68, row: 11.61, tileWidth: 2.33 },
+      { id: 'redLoveseat', col: 0.6, row: 9.6, tileWidth: 1.6 },
+      { id: 'barrel', col: 10.08, row: 11.61, tileWidth: 1.7 },
+      { id: 'roundSideTable', col: 9.6, row: 8.4, tileWidth: 1.1 },
+    ],
+  },
+  // reference/image-...9513.webp - stone farmhouse: round dining table on its
+  // rug dead centre, bed + bookshelf along the top wall, pantry shelf in the
+  // top-right larder, barrel and arched door bottom-left.
+  tavern: {
+    zoneId: 'homeTavern',
+    cols: 18,
+    rows: 13,
+    mask: [
+      '.....#############',
+      '....##############',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+    ],
+    floorTex: 'floorTavern',
+    // sampled off the reference's own stone wall
+    wallColor: 0x606772,
+    wallBandRows: 3,
+    wallStrip: 'wallStripTavern',
+    wallEdge: 'wallEdgeTavern',
+    deskRect: { c0: 6, r0: 7, c1: 10, r1: 9 },
+    props: [
+      { id: 'bed', col: 5.14, row: 3.53, tileWidth: 1.6 },
+      { id: 'shelfWithBooks', col: 10.7, row: 3.1, tileWidth: 1.42 },
+      { id: 'pantryShelf', col: 15.03, row: 2.39, tileWidth: 3.13 },
+      { id: 'rugPurple', col: 8.0, row: 10.66, tileWidth: 6.13 },
+      { id: 'tableAndChair', col: 7.95, row: 9.37, tileWidth: 4.2 },
+      { id: 'woodDoor', col: 1.79, row: 8.66, tileWidth: 1.57 },
+      { id: 'barrel', col: 3.36, row: 10.66, tileWidth: 0.85 },
+      { id: 'redRugStrip', col: 14.61, row: 10.8, tileWidth: 5.41 },
+    ],
+  },
+  // reference/image-...3857.webp - banquet hall: column frieze across the top
+  // wall, long laid table centred under it, framed landscapes above, flower
+  // vases flanking, long red runner across the lower hall.
+  palace: {
+    zoneId: 'homePalace',
+    cols: 18,
+    rows: 11,
+    mask: [
+      '....##########....',
+      '....##########....',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '##################',
+      '..##############..',
+      '..##############..',
+    ],
+    floorTex: 'floorPalace',
+    // the reference's terracotta wall panels between its columns
+    wallColor: 0xa8524a,
+    wallBandRows: 2,
+    wallStrip: 'wallStripPalace',
+    wallEdge: 'wallEdgePalace',
+    deskRect: { c0: 6, r0: 2, c1: 11, r1: 4 },
+    props: [
+      { id: 'wall', col: 8.53, row: 1.55, tileWidth: 9.0 },
+      { id: 'paintingForest', col: 6.96, row: 0.8, tileWidth: 1.13 },
+      { id: 'paintingSunset', col: 9.84, row: 0.8, tileWidth: 1.13 },
+      { id: 'redRugStrip', col: 8.49, row: 9.05, tileWidth: 8.44 },
+      { id: 'palaceBanquetTable', col: 8.61, row: 3.93, tileWidth: 5.56 },
+      { id: 'vaseBlueFlowers', col: 5.1, row: 3.6, tileWidth: 0.9 },
+      { id: 'vaseRedFlowers', col: 12.1, row: 3.6, tileWidth: 0.9 },
+    ],
+  },
+  // reference/image-...7746.webp - the wizard study reused as a syndicate
+  // boss's back room (see this section's header note on that): 3 bookshelves
+  // across the top wall, 4 relic pedestals in a 2x2 around the central
+  // floating orb, a reading desk in each of the 4 side alcoves.
+  hideout: {
+    zoneId: 'homeHideout',
+    cols: 16,
+    rows: 13,
+    mask: [
+      '...##########...',
+      '################',
+      '################',
+      '################',
+      '################',
+      '################',
+      '################',
+      '################',
+      '################',
+      '################',
+      '################',
+      '################',
+      '...##########...',
+    ],
+    floorTex: 'floorHideout',
+    // the reference rings its floor with a dark navy wall carrying a thin
+    // ice-blue trim line; the navy is what reads at this scale
+    wallColor: 0x2f3b55,
+    wallBandRows: 1,
+    wallStrip: 'wallStripHideout',
+    wallEdge: 'wallEdgeHideout',
+    deskRect: { c0: 6, r0: 5, c1: 9, r1: 7 },
+    props: [
+      { id: 'bookshelfA', col: 4.46, row: 3.29, tileWidth: 2.56 },
+      { id: 'bookshelfB', col: 7.5, row: 3.29, tileWidth: 2.56 },
+      { id: 'bookshelfC', col: 10.54, row: 3.29, tileWidth: 2.56 },
+      { id: 'readingDeskA', col: 1.99, row: 6.68, tileWidth: 3.02 },
+      { id: 'readingDeskB', col: 1.99, row: 9.85, tileWidth: 3.02 },
+      { id: 'readingDeskB', col: 13.07, row: 6.68, tileWidth: 3.02 },
+      { id: 'readingDeskA', col: 13.07, row: 9.85, tileWidth: 3.02 },
+      { id: 'pedestalGem', col: 4.94, row: 6.4, tileWidth: 1.73 },
+      { id: 'pedestalChalice', col: 10.12, row: 6.4, tileWidth: 1.73 },
+      { id: 'pedestalTome', col: 4.94, row: 8.84, tileWidth: 1.73 },
+      { id: 'pedestalMask', col: 10.12, row: 8.84, tileWidth: 1.73 },
+      { id: 'orb', col: 7.46, row: 7.26, tileWidth: 2.16 },
+      { id: 'carpet', col: 7.46, row: 10.9, tileWidth: 4.2 },
+    ],
+  },
+}
+
+const HOME_STYLE_BY_ZONE = Object.fromEntries(
+  Object.entries(HOME_ROOM_STYLES).map(([style, def]) => [def.zoneId, style])
+)
+
+// True where the room mask says this tile exists at all ('.' = outside the
+// room's irregular outline, drawn as void).
+function homeMaskAt(def, col, row) {
+  if (col < 0 || row < 0 || col >= def.cols || row >= def.rows) return false
+  if (!def.mask) return true
+  return def.mask[row][col] === '#'
+}
+
+// A tile is WALL if it's part of the room but touches the outside - that's
+// what turns each mask into a 1-tile wall band hugging its own irregular
+// outline, without hand-authoring the border for every notch.
+// `wallBandRows` additionally makes the top N rows wall rather than just the
+// single edge row: these references don't draw a thin border, they draw a
+// receding back WALL you see the face of (most extreme in the bedroom, where
+// it's ~40% of the room and carries the wall-mounted props), and the measured
+// prop rows assume it's there.
+function homeTileIsWall(def, col, row) {
+  if (!homeMaskAt(def, col, row)) return false
+  if (row < (def.wallBandRows ?? 1)) return true
+  // Multi-room support: `partitions` are interior wall runs that split one
+  // masked outline into several rooms. Every reference here is really a
+  // multi-room floor plan (the stone farmhouse alone has four rooms plus a
+  // stair hall), so the renderer is built for it - but no style declares any
+  // yet, deliberately: the pack doesn't have the doorway/stair/divider art
+  // those extra rooms would need, so they'd be bare boxes.
+  if (def.partitions && def.partitions.some((p) => rectHasTile(p, col, row))) return true
+  return (
+    !homeMaskAt(def, col - 1, row) ||
+    !homeMaskAt(def, col + 1, row) ||
+    !homeMaskAt(def, col, row - 1) ||
+    !homeMaskAt(def, col, row + 1)
+  )
+}
+
+function rectHasTile(r, col, row) {
+  return col >= r.c0 && col <= r.c1 && row >= r.r0 && row <= r.r1
+}
+
+// Which floor texture a given tile uses. `rooms` (optional) lets each
+// sub-room of a multi-room plan carry its own material - the farmhouse
+// reference, for instance, has red boards in the bedroom, tan slab in the
+// hall and stone in the larder. Falls back to the style's single floorTex.
+function homeFloorTexAt(def, col, row) {
+  if (def.rooms) {
+    const hit = def.rooms.find((r) => rectHasTile(r, col, row))
+    if (hit && hit.floorTex) return hit.floorTex
+  }
+  return def.floorTex
+}
+
+function homeTileIsFloor(def, col, row) {
+  return homeMaskAt(def, col, row) && !homeTileIsWall(def, col, row)
+}
+
+// Bottom-centre-most walkable tile - where the exit door goes, and where the
+// player is dropped when they walk in.
+function homeDoorTile(def) {
+  const mid = Math.floor(def.cols / 2)
+  for (let row = def.rows - 1; row >= 0; row--) {
+    for (let d = 0; d <= def.cols; d++) {
+      for (const col of [mid - d, mid + d]) {
+        if (homeTileIsFloor(def, col, row)) return { col, row }
+      }
+    }
+  }
+  return { col: mid, row: def.rows - 2 }
+}
+
+// Registers the tiles a freestanding piece of furniture actually sits on as
+// solid, into scene.interiorBlockedTiles (reset fresh per zone load by
+// loadZone itself - see its own comment - so this never leaks into an
+// unrelated room). Floor decals/wall decoration (HOME_PROP_NON_BLOCKING) are
+// skipped - nothing physically occupies that floor space. 2 rows deep (the
+// anchor row and the one above) rather than 1: most pieces here render
+// taller than a single tile even though they only ever need a 1-2 tile-wide
+// footprint, and a 1-row block still let the player stand on/clip through
+// the visually-taller top half of e.g. the bed or a bookshelf (reported:
+// "character can walk through").
+function blockHomePropFootprint(scene, id, col, row, tileWidth) {
+  if (HOME_PROP_NON_BLOCKING.has(id) || !scene.interiorBlockedTiles) return
+  const c0 = Math.round(col - tileWidth / 2)
+  const c1 = Math.max(c0, Math.round(col + tileWidth / 2 - 1))
+  fillBlockedRect(scene.interiorBlockedTiles, c0, Math.max(0, row - 1), c1, row)
+}
+
+function placeHomeProp(scene, zoneObjects, id, col, row, tileWidth) {
+  const key = homeFurnitureTextureKey(id)
+  if (!scene.textures.exists(key)) return
+  const src = scene.textures.get(key).getSourceImage()
+  const scale = (tileWidth * TILE_SIZE) / src.width
+  const img = scene.add
+    .image((col + 0.5) * TILE_SIZE, (row + 1) * TILE_SIZE, key)
+    .setOrigin(0.5, 1)
+    .setScale(scale)
+  img.setDepth((row + 1) * TILE_SIZE)
+  zoneObjects.push(img)
+  blockHomePropFootprint(scene, id, col, row, tileWidth)
+}
+
 // ---------------- Building interiors ----------------
 // A single 12x9 room shape (INTERIOR_COLS/ROWS, matching DominoWorldScene's
 // own room convention) is reused for every building's interior; only the
@@ -893,6 +1269,13 @@ const ZONES = {
   lisaHall: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   lisaWork: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   lisaBedroom: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  // The 87 character homes/hideouts - one zone per wealth tier rather than
+  // one shared id, because each tier's room is a different SIZE and shape
+  // (measured off its own reference - see HOME_ROOM_STYLES). Same
+  // per-zone-dimensions pattern chapelInterior/teaHouseInterior already use.
+  ...Object.fromEntries(
+    Object.values(HOME_ROOM_STYLES).map((d) => [d.zoneId, { cols: d.cols, rows: d.rows }])
+  ),
 }
 
 // ---------------- shared small helpers ----------------
@@ -1305,6 +1688,32 @@ const ARC_MAX_ANGLE = (75 * Math.PI) / 180 // half-spread either side of due sou
 // overlapping text onto different rows instead of directly on top of each
 // other, which reads far better even when the text still overlaps some.
 const ARC_RING_LABEL_DY = [26, 20, 32, 16, 38]
+
+// Per-character standoff, added on top of whatever arc-ring slot
+// assignDoorSlots gave them - separate from that shared crowd system (which
+// only spaces roamers out from EACH OTHER) so this doesn't touch anyone
+// else's positioning. Lisa is pinned to just entertainmentComplex now (see
+// WORK_BUILDING_OVERRIDES.lisa in characterDispositions.js), so as the only
+// or near-only roamer there she'd normally land on ring 0 - literally the
+// bare door pixel (see arcSlotOffset) - which reads as blocking the
+// entrance rather than "hanging around nearby". This nudges her off to the
+// side and further out instead.
+//
+// The y value matters a lot more than it looks: buildingDoorPixel's base
+// (no-slot) y is EXACTLY the south edge of that building's own interaction
+// rect (buildOverworldZones pads every side by TILE_SIZE/2, which lands
+// precisely on the same pixel as the door - see isBuildingSolidTile's south-
+// padding comment). updateNearbyZone checks the building zone before ever
+// calling findNearbyNamedRoamer (30px radius, see that method), so any
+// player position close enough to talk to Lisa has to be entirely OUTSIDE
+// that zone too, or "enter Entertainment Complex" always wins the tie and
+// she becomes untalkable - which is exactly what a 14px nudge did (still
+// well inside the 30px talk radius of the zone boundary). 56px clears the
+// zone edge by a full 30px-radius-plus-margin, so her ENTIRE talk radius
+// sits outside the building's zone rect, not just her center point.
+const NAMED_ROAMER_DOOR_STANDOFF = {
+  lisa: { x: 24, y: 56 },
+}
 
 function arcSlotOffset(index) {
   let remaining = index
@@ -1755,6 +2164,7 @@ export default class OverworldScene extends Phaser.Scene {
     preloadCuteTrees(this)
     preloadTopDownVehicles(this)
     preloadLisaHouseInterior(this)
+    preloadHomeFurniture(this)
   }
 
   create() {
@@ -1830,6 +2240,15 @@ export default class OverworldScene extends Phaser.Scene {
   loadZone(zoneId, teleportPlayer = true) {
     this.clearZoneObjects()
     this.currentZoneId = zoneId
+    // Reset before ANY build*Zone below runs, not just buildGenericInterior
+    // Zone's own home/hideout branch - isBlockedTile's shared bucket (bank/
+    // stockExchange/casino/jail*/underworldInterior/buildingInterior) all
+    // read this same field, but only home/hideout buildings (via
+    // blockHomePropFootprint) and chapel/teaHouse/Lisa's rooms ever WRITE to
+    // it. Without a reset here, walking out of a furnished home and into,
+    // say, the stock exchange would carry that home's furniture collision
+    // over into a room that never asked for any.
+    this.interiorBlockedTiles = new Set()
 
     if (zoneId === 'overworld') this.buildOverworldZone()
     else if (zoneId === 'stockExchangeInterior') this.buildStockExchangeInteriorZone()
@@ -1843,6 +2262,7 @@ export default class OverworldScene extends Phaser.Scene {
     else if (zoneId === 'lisaHall') this.buildLisaHallZone()
     else if (zoneId === 'lisaWork') this.buildLisaWorkZone()
     else if (zoneId === 'lisaBedroom') this.buildLisaBedroomZone()
+    else if (HOME_STYLE_BY_ZONE[zoneId]) this.buildHomeInteriorZone(zoneId, this.currentInteriorBuildingId)
     else this.buildGenericInteriorZone(this.currentInteriorBuildingId)
 
     const zone = ZONES[zoneId]
@@ -1891,7 +2311,12 @@ export default class OverworldScene extends Phaser.Scene {
               ? CHAPEL_EXTERIOR_ROOM.spawn
               : zoneId === 'teaHouseInterior'
                 ? TEA_HOUSE_ROOM.spawn
-                : INTERIOR_SPAWN)
+                : HOME_STYLE_BY_ZONE[zoneId]
+                  // Each home tier's room is its own size, so the shared
+                  // INTERIOR_SPAWN tile can be a wall (or outside the mask)
+                  // entirely - drop the player on that room's own door tile.
+                  ? homeDoorTile(HOME_ROOM_STYLES[HOME_STYLE_BY_ZONE[zoneId]])
+                  : INTERIOR_SPAWN)
       this.pendingInteriorSpawn = null
       this.tileMover.teleport(spawn.col, spawn.row)
     }
@@ -2046,6 +2471,15 @@ export default class OverworldScene extends Phaser.Scene {
     ]
   }
 
+  // Homes/hideouts no longer reach this function at all - triggerInteraction
+  // routes them to 'homeInterior'/buildHomeInteriorZone before they ever get
+  // here (see that check's own comment). What's left is exactly what this
+  // function looked like before that overlay-furniture experiment: only
+  // bank/realEstateAgency (their own explicit 'officeA' entry in
+  // BUILDING_INTERIOR_TEMPLATE) still actually call this - the flat
+  // drawInteriorRoom floor/desk box below is genuinely still live for them,
+  // not dead code, even though it's now unreachable for every home/hideout
+  // that used to share it.
   buildGenericInteriorZone(buildingId) {
     const building = FINANCE_BUILDINGS.find((b) => b.id === buildingId)
     const template = interiorTemplateFor(building)
@@ -2068,6 +2502,185 @@ export default class OverworldScene extends Phaser.Scene {
         ),
       },
       interiorExitZone(),
+    ]
+  }
+
+  // The 87 character homes/hideouts' bespoke per-wealth-tier room (see
+  // HOME_ROOM_STYLES' own header for which reference screenshot each style is
+  // measured from). Draws the room's own irregular outline - void outside the
+  // mask, a 1-tile wall band hugging it, real reference-cropped floor inside -
+  // then every measured piece of furniture, and finally the exit door + a
+  // desk zone placed where that reference's own desk/table/altar sits. Does
+  // NOT use drawInteriorRoom (see buildGenericInteriorZone's header for why
+  // that path is now unreachable for these buildings).
+  // One horizontal run of floor tiles sharing a material, as a single
+  // tileSprite offset into world space so the pattern stays continuous
+  // across runs instead of restarting at every segment.
+  paintHomeFloorRun(colStart, colEnd, row, texId) {
+    const key = homeFurnitureTextureKey(texId)
+    if (!texId || !this.textures.exists(key)) return
+    const t = this.add
+      .tileSprite(colStart * TILE_SIZE, row * TILE_SIZE, (colEnd - colStart) * TILE_SIZE, TILE_SIZE, key)
+      .setOrigin(0, 0)
+    t.tilePositionX = colStart * TILE_SIZE
+    t.tilePositionY = row * TILE_SIZE
+    t.setDepth(-1)
+    this.zoneObjects.push(t)
+  }
+
+  buildHomeInteriorZone(zoneId, buildingId) {
+    const style = HOME_STYLE_BY_ZONE[zoneId]
+    const def = HOME_ROOM_STYLES[style]
+    const building = FINANCE_BUILDINGS.find((b) => b.id === buildingId)
+
+    const bandRows = def.wallBandRows ?? 1
+    const stripKey = def.wallStrip ? homeFurnitureTextureKey(def.wallStrip) : null
+    const hasStrip = Boolean(stripKey) && this.textures.exists(stripKey)
+    const edgeKey = def.wallEdge ? homeFurnitureTextureKey(def.wallEdge) : null
+    const hasEdge = Boolean(edgeKey) && this.textures.exists(edgeKey)
+
+    const g = this.add.graphics()
+    this.zoneObjects.push(g)
+    for (let row = 0; row < def.rows; row++) {
+      for (let col = 0; col < def.cols; col++) {
+        const x = col * TILE_SIZE
+        const y = row * TILE_SIZE
+        if (!homeMaskAt(def, col, row)) continue
+        if (homeTileIsWall(def, col, row)) {
+          // Flat colour underneath the strip too, so the side/bottom frame
+          // and any seam never shows the void through.
+          g.fillStyle(def.wallColor, 1)
+          g.fillRect(x, y, TILE_SIZE, TILE_SIZE)
+        } else if (!this.textures.exists(homeFurnitureTextureKey(homeFloorTexAt(def, col, row)))) {
+          g.fillStyle(0x2a2a2a, 1)
+          g.fillRect(x, y, TILE_SIZE, TILE_SIZE)
+        }
+      }
+    }
+
+    // Back wall: one tileSprite per contiguous run of columns whose WHOLE
+    // band is inside the mask, drawn full-band-height and repeating on X
+    // only. That's what preserves the reference's vertical wall profile -
+    // cornice/cap, face, skirting - which tiling a square swatch in both
+    // axes destroys. Columns only partly in the band keep the flat colour
+    // already painted above.
+    // Side/bottom walls first (the one-tile-thick edges), so the top band's
+    // profile strip below draws over them at the corners rather than under.
+    if (hasEdge) {
+      for (let row = 0; row < def.rows; row++) {
+        for (let col = 0; col < def.cols; col++) {
+          if (row < bandRows || !homeTileIsWall(def, col, row)) continue
+          const e = this.add
+            .image(col * TILE_SIZE, row * TILE_SIZE, edgeKey)
+            .setOrigin(0, 0)
+            .setDisplaySize(TILE_SIZE, TILE_SIZE)
+          e.setDepth(-2)
+          this.zoneObjects.push(e)
+        }
+      }
+    }
+    if (hasStrip) {
+      const fullBandCol = (c) => {
+        for (let r = 0; r < bandRows; r++) if (!homeMaskAt(def, c, r)) return false
+        return true
+      }
+      let runStart = null
+      for (let col = 0; col <= def.cols; col++) {
+        const hit = col < def.cols && fullBandCol(col)
+        if (hit && runStart === null) runStart = col
+        if (!hit && runStart !== null) {
+          const t = this.add
+            .tileSprite(runStart * TILE_SIZE, 0, (col - runStart) * TILE_SIZE, bandRows * TILE_SIZE, stripKey)
+            .setOrigin(0, 0)
+          t.tilePositionX = runStart * TILE_SIZE
+          t.setDepth(-2)
+          this.zoneObjects.push(t)
+          runStart = null
+        }
+      }
+    }
+    // Floor: one tileSprite per contiguous run of floor tiles SHARING a
+    // texture, so the material stays continuous across the room instead of
+    // restarting per tile, while respecting both the mask's notches and any
+    // per-room floor override (see homeFloorTexAt).
+    {
+      for (let row = 0; row < def.rows; row++) {
+        let runStart = null
+        let runTex = null
+        for (let col = 0; col <= def.cols; col++) {
+          const isFloor = col < def.cols && homeTileIsFloor(def, col, row)
+          const tex = isFloor ? homeFloorTexAt(def, col, row) : null
+          if (isFloor && runStart !== null && tex !== runTex) {
+            this.paintHomeFloorRun(runStart, col, row, runTex)
+            runStart = col
+            runTex = tex
+          } else if (isFloor && runStart === null) {
+            runStart = col
+            runTex = tex
+          }
+          if (!isFloor && runStart !== null) {
+            this.paintHomeFloorRun(runStart, col, row, runTex)
+            runStart = null
+            runTex = null
+          }
+        }
+      }
+    }
+
+    // Wall/void tiles are solid. Furniture adds to this same set via
+    // placeHomeProp -> blockHomePropFootprint.
+    for (let row = 0; row < def.rows; row++) {
+      for (let col = 0; col < def.cols; col++) {
+        if (!homeTileIsFloor(def, col, row)) this.interiorBlockedTiles.add(`${col},${row}`)
+      }
+    }
+
+
+    this.regionLabel.setText(building.label)
+
+    for (const prop of def.props) {
+      placeHomeProp(this, this.zoneObjects, prop.id, prop.col, prop.row, prop.tileWidth)
+    }
+
+    const door = homeDoorTile(def)
+    // The door tile itself must stay walkable even if a rug/prop overlapped
+    // it - it's the only way out.
+    this.interiorBlockedTiles.delete(`${door.col},${door.row}`)
+
+    // ...and it needs to LOOK like a door. The exit was previously an
+    // invisible zone on a blank stretch of wall, so there was nothing telling
+    // the player where to leave (reported: "the door is missing"). Drawn on
+    // the wall tile BELOW the walkable door tile so it reads as set into the
+    // bottom wall, and deliberately not via placeHomeProp - that wall tile is
+    // already solid and must not be re-blocked over the doorway.
+    const doorKey = homeFurnitureTextureKey('woodDoor')
+    if (this.textures.exists(doorKey)) {
+      const src = this.textures.get(doorKey).getSourceImage()
+      const doorW = TILE_SIZE * 1.1
+      const d = this.add
+        .image((door.col + 0.5) * TILE_SIZE, (door.row + 2) * TILE_SIZE, doorKey)
+        .setOrigin(0.5, 1)
+        .setScale(doorW / src.width)
+      d.setDepth((door.row + 2) * TILE_SIZE)
+      this.zoneObjects.push(d)
+    }
+
+    this.zones = [
+      {
+        type: 'exit',
+        id: 'toOverworld',
+        label: 'Exit to Capital Syndicate',
+        rect: new Phaser.Geom.Rectangle(
+          (door.col - 1) * TILE_SIZE,
+          (door.row - 1) * TILE_SIZE,
+          TILE_SIZE * 3,
+          TILE_SIZE * 3
+        ),
+      },
+      lisaRoomZone('interiorDesk', building.id, def.deskRect, {
+        npcId: building.npcId,
+        label: 'talk to them',
+      }),
     ]
   }
 
@@ -2843,7 +3456,11 @@ export default class OverworldScene extends Phaser.Scene {
       // data.
       this.currentZoneId === 'lisaHall' ||
       this.currentZoneId === 'lisaWork' ||
-      this.currentZoneId === 'lisaBedroom'
+      this.currentZoneId === 'lisaBedroom' ||
+      // The 87 character homes/hideouts' bespoke rooms (buildHomeInteriorZone) -
+      // same border + interiorBlockedTiles shape, populated from the room's
+      // own irregular mask plus blockHomePropFootprint per piece of furniture.
+      HOME_STYLE_BY_ZONE[this.currentZoneId]
     ) {
       const zone = ZONES[this.currentZoneId]
       if (col < 0 || col >= zone.cols || row < 0 || row >= zone.rows) return true
@@ -2862,6 +3479,11 @@ export default class OverworldScene extends Phaser.Scene {
       if (isBorder) return true
       const d = INTERIOR_DESK
       if (col >= d.c0 && col <= d.c1 && row >= d.r0 && row <= d.r1) return true
+      // Populated for home/hideout buildings only (blockHomePropFootprint,
+      // via buildGenericInteriorZone's fresh-per-load reset) - every other
+      // building in this bucket (bank/realEstateAgency/jail/etc.) never
+      // touches this field, so it stays an empty Set and this is a no-op.
+      if (this.interiorBlockedTiles?.has(`${col},${row}`)) return true
       return false
     }
     if (col < 0 || col >= MAP_COLS || row < 0 || row >= MAP_ROWS) return true
@@ -3063,12 +3685,15 @@ export default class OverworldScene extends Phaser.Scene {
     const nextSlots = assignDoorSlots(ids.map((id, i) => ({ characterId: id, buildingId: nextPresence[i].buildingId })))
     const cache = new Map()
     for (let i = 0; i < ids.length; i++) {
+      const standoff = NAMED_ROAMER_DOOR_STANDOFF[ids[i]]
+      const currentSlot = currentSlots.get(ids[i])
+      const nextSlot = nextSlots.get(ids[i])
       cache.set(ids[i], {
         currentBuildingId: currentPresence[i].buildingId,
         nextBuildingId: nextPresence[i].buildingId,
         action: currentPresence[i].action,
-        currentSlot: currentSlots.get(ids[i]),
-        nextSlot: nextSlots.get(ids[i]),
+        currentSlot: standoff && currentSlot ? { ...currentSlot, x: currentSlot.x + standoff.x, y: currentSlot.y + standoff.y } : currentSlot,
+        nextSlot: standoff && nextSlot ? { ...nextSlot, x: nextSlot.x + standoff.x, y: nextSlot.y + standoff.y } : nextSlot,
       })
     }
     this.presenceCache = cache
@@ -4881,6 +5506,19 @@ export default class OverworldScene extends Phaser.Scene {
       // floor) rather than 'buildingInterior'.
       if (zone.id === 'home_lisa') {
         this.loadZone('lisaHall')
+        return
+      }
+      // Every other character home/hideout (the 87 characterHomeBuildings.js
+      // entries) gets the bespoke per-wealth-tier room (buildHomeInteriorZone)
+      // instead of the generic single-room fallback below - see that
+      // method's own header for why buildGenericInteriorZone/drawInteriorRoom's
+      // "Study"/"Back Room" desk box is now dead code for these specifically.
+      // inceHome deliberately has no `kind` field (she isn't in the roster
+      // wealth-tier system at all - see its own def comment), so this check
+      // is false for her and she correctly keeps the generic room untouched.
+      if (building.kind === 'home' || building.kind === 'hideout') {
+        this.currentInteriorBuildingId = zone.id
+        this.loadZone(HOME_ROOM_STYLES[homeInteriorStyleFor(building)].zoneId)
         return
       }
       this.currentInteriorBuildingId = zone.id
