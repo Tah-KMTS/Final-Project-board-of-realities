@@ -808,7 +808,13 @@ function drawLisaRoomBackground(scene, key) {
   if (scene.lisaBgRetrying.has(key)) return
   scene.lisaBgRetrying.add(key)
 
-  console.warn(`Retrying Lisa house background ${key}...`)
+  // Cache-busted: the files themselves serve fine (verified 200 + full byte
+  // count), so a failure here is browser-side - and a poisoned/partial cache
+  // entry would defeat a retry that requests the identical URL, since the
+  // browser would just hand back the same bad entry without touching the
+  // network. A unique query string forces a real fetch.
+  const retrySrc = `${LISA_HOUSE_BG_SRC[key]}?reload=${Date.now()}`
+  console.warn(`Lisa house background ${key} missing - drawing fallback floor and refetching ${retrySrc}`)
   // Listen for THIS key's own events, not the loader's generic 'complete':
   // the loader is shared, so 'complete' routinely fires for some other batch
   // that finished first, which would clear the in-flight flag and report a
@@ -831,7 +837,7 @@ function drawLisaRoomBackground(scene, key) {
   }
   scene.load.once(`filecomplete-image-${key}`, onLoaded)
   scene.load.on('loaderror', onError)
-  scene.load.image(key, LISA_HOUSE_BG_SRC[key])
+  scene.load.image(key, retrySrc)
   scene.load.start()
 }
 
