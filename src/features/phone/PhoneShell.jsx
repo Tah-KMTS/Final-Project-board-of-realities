@@ -41,29 +41,43 @@ const ICON_COLOR_CLASSES = {
   pink: 'text-pink-400 border-pink-400/70 bg-pink-500/10',
 }
 
-// Original mascot decoration for the phone's home screen - purely cosmetic,
-// no gameplay function. Deliberately drawn from scratch in this game's own
-// violet accent color rather than referencing any real toy/character design
-// (floppy rounded ears instead of pointy ones, a soft closed smile instead
-// of a wide jagged grin, blush cheeks) - not a likeness of anything
-// trademarked.
-function PhoneMascot() {
+// A physical keyring charm clipped to a hole near the phone case's top-left
+// corner, hanging down the OUTSIDE of the bezel (like a real phone-case
+// charm) rather than floating above the screen - the same common-tier
+// claw-machine prize sprite ClawMachine.jsx/collectibles.js already use
+// (see PRIZE_SPRITES.common there), reused here purely as cosmetic phone
+// decoration, not tied to whether the player has actually won one. Lives on
+// the outer (animated) wrapper rather than the inner screen div so it isn't
+// clipped by the screen's own `overflow-hidden` and still rides along with
+// the phone's spring-in/out entrance animation. Replaces the old hand-drawn
+// "Mochi" SVG mascot that used to sit on the home screen.
+//
+// Positioned with raw pixel offsets (not the Tailwind spacing scale) since
+// the loop needs to sit right at the frame's top-left corner - measured
+// against the actual rendered bezel in-browser (see production/ for the
+// devtools pass) rather than guessed, after an earlier version left the
+// whole charm floating with a visible gap above the phone.
+const KEYRING_CHARM_SPRITE = '/assets/packs/claw-machine/prize_common.png'
+const KEYRING_CHARM_H = 64
+
+function PhoneKeyring() {
   return (
-    <svg width="52" height="46" viewBox="0 0 52 46" aria-hidden="true">
-      {/* Ears - floppy rounded flaps, not pointed */}
-      <ellipse cx="10" cy="14" rx="7" ry="10" fill="#7c3aed" stroke="#c4b5fd" strokeWidth="1.5" transform="rotate(-25 10 14)" />
-      <ellipse cx="42" cy="14" rx="7" ry="10" fill="#7c3aed" stroke="#c4b5fd" strokeWidth="1.5" transform="rotate(25 42 14)" />
-      {/* Body - one round blob */}
-      <ellipse cx="26" cy="26" rx="19" ry="17" fill="#8b5cf6" stroke="#c4b5fd" strokeWidth="1.5" />
-      {/* Blush cheeks */}
-      <ellipse cx="14" cy="30" rx="3.5" ry="2.2" fill="#f472b6" opacity="0.55" />
-      <ellipse cx="38" cy="30" rx="3.5" ry="2.2" fill="#f472b6" opacity="0.55" />
-      {/* Eyes - simple round dots */}
-      <circle cx="18" cy="24" r="2.4" fill="#1c1d3a" />
-      <circle cx="34" cy="24" r="2.4" fill="#1c1d3a" />
-      {/* Soft closed smile, not a wide toothy grin */}
-      <path d="M18 32 Q26 37 34 32" stroke="#1c1d3a" strokeWidth="2" fill="none" strokeLinecap="round" />
-    </svg>
+    <motion.div
+      className="pointer-events-none absolute z-10 select-none"
+      style={{ top: 4, left: -6, transformOrigin: 'top center' }}
+      animate={{ rotate: [-7, 7, -7] }}
+      transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
+    >
+      {/* Clip loop + strap, then the charm itself */}
+      <div className="mx-auto h-3.5 w-3.5 rounded-full border-2 border-gray-300/70" />
+      <div className="mx-auto h-4 w-[2px] bg-gray-300/60" />
+      <img
+        src={KEYRING_CHARM_SPRITE}
+        alt=""
+        draggable={false}
+        style={{ height: KEYRING_CHARM_H, width: 'auto', imageRendering: 'pixelated' }}
+      />
+    </motion.div>
   )
 }
 
@@ -126,10 +140,15 @@ export default function PhoneShell({ onClose, apps = {}, initialApp = 'home' }) 
         // own content already scrolls internally (`overflow-y-auto` on its
         // own body, see SocialApp.jsx/BankingApp.jsx/etc.), so shrinking
         // the frame doesn't lose access to anything, it just scrolls sooner.
-        className="glass-panel neon-ring absolute bottom-6 right-6 flex h-[min(720px,calc(100vh-3rem))] w-[min(360px,calc(100vw-3rem))] flex-col overflow-hidden rounded-[2.5rem] border-2 border-violet-400/60 bg-[#0a0b18] p-3 font-mono text-white"
+        // Sized/positioned here (not overflow-hidden itself) so PhoneKeyring
+        // below can hang outside the bezel's top edge without being clipped
+        // by the screen's own overflow-hidden further in.
+        className="absolute bottom-6 right-6 h-[min(720px,calc(100vh-3rem))] w-[min(360px,calc(100vw-3rem))]"
       >
-        {/* Screen area - reuses the game's existing panel gradient */}
-        <div className="relative flex h-full w-full flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#1c1d3a] px-4 pb-4 pt-3">
+        <PhoneKeyring />
+        <div className="glass-panel neon-ring relative flex h-full w-full flex-col overflow-hidden rounded-[2.5rem] border-2 border-violet-400/60 bg-[#0a0b18] p-3 font-mono text-white">
+          {/* Screen area - reuses the game's existing panel gradient */}
+          <div className="relative flex h-full w-full flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#1c1d3a] px-4 pb-4 pt-3">
           {/* Status tray - Cash + Wanted/Heat from the original build, plus
               Net Worth (computed the same way FinanceStatusBar.jsx used to
               before the header strip-down) now that this is the only place
@@ -208,14 +227,6 @@ export default function PhoneShell({ onClose, apps = {}, initialApp = 'home' }) 
                     </button>
                   ))}
                 </div>
-                {/* Original mascot decoration, pinned to the bottom of the
-                    home screen - see PhoneMascot() above for why it's
-                    drawn from scratch rather than referencing any real
-                    toy/character design. */}
-                <div className="mt-auto flex flex-col items-center gap-0.5 pb-1 pt-3">
-                  <PhoneMascot />
-                  <span className="text-xs font-bold uppercase tracking-widest text-violet-400/70">Mochi</span>
-                </div>
               </motion.div>
             ) : (
               <motion.div
@@ -250,6 +261,7 @@ export default function PhoneShell({ onClose, apps = {}, initialApp = 'home' }) 
               </motion.div>
             )}
           </AnimatePresence>
+          </div>
         </div>
       </motion.div>
     </div>

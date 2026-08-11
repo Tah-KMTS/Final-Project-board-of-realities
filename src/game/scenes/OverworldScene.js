@@ -219,7 +219,7 @@ const FINANCE_BUILDING_DEFS = [
   // lore spec's "you don't check into a jail voluntarily" framing. zone:
   // 'law' puts it in the same column as `underworld`, which the maze's
   // back-door tunnel dead-ends into.
-  { id: 'courtAndPrison', label: 'Capital City Central Booking', facadeStyle: 'modernBrick', color: 0x4a4a4a, width: 4, height: 3, zone: 'law' },
+  { id: 'courtAndPrison', label: 'Court & Jail', facadeStyle: 'modernBrick', color: 0x4a4a4a, width: 4, height: 3, zone: 'law' },
 
   // Ince's house - she's a procedurally-generated finance-district ambient
   // NPC (npcGenerator.js's finance_ambient_2), not a roster member, so she
@@ -1979,6 +1979,32 @@ const ARC_MAX_ANGLE = (75 * Math.PI) / 180 // half-spread either side of due sou
 // other, which reads far better even when the text still overlaps some.
 const ARC_RING_LABEL_DY = [26, 20, 32, 16, 38]
 
+// Per-character standoff, added on top of whatever arc-ring slot
+// assignDoorSlots gave them - separate from that shared crowd system (which
+// only spaces roamers out from EACH OTHER) so this doesn't touch anyone
+// else's positioning. Lisa is pinned to just entertainmentComplex now (see
+// WORK_BUILDING_OVERRIDES.lisa in characterDispositions.js), so as the only
+// or near-only roamer there she'd normally land on ring 0 - literally the
+// bare door pixel (see arcSlotOffset) - which reads as blocking the
+// entrance rather than "hanging around nearby". This nudges her off to the
+// side and further out instead.
+//
+// The y value matters a lot more than it looks: buildingDoorPixel's base
+// (no-slot) y is EXACTLY the south edge of that building's own interaction
+// rect (buildOverworldZones pads every side by TILE_SIZE/2, which lands
+// precisely on the same pixel as the door - see isBuildingSolidTile's south-
+// padding comment). updateNearbyZone checks the building zone before ever
+// calling findNearbyNamedRoamer (30px radius, see that method), so any
+// player position close enough to talk to Lisa has to be entirely OUTSIDE
+// that zone too, or "enter Entertainment Complex" always wins the tie and
+// she becomes untalkable - which is exactly what a 14px nudge did (still
+// well inside the 30px talk radius of the zone boundary). 56px clears the
+// zone edge by a full 30px-radius-plus-margin, so her ENTIRE talk radius
+// sits outside the building's zone rect, not just her center point.
+const NAMED_ROAMER_DOOR_STANDOFF = {
+  lisa: { x: 24, y: 56 },
+}
+
 function arcSlotOffset(index) {
   let remaining = index
   for (let ringIndex = 0; ringIndex < ARC_RINGS.length; ringIndex++) {
@@ -3399,7 +3425,7 @@ export default class OverworldScene extends Phaser.Scene {
     }
 
     drawInteriorRoom(this, this.zoneObjects, INTERIOR_TEMPLATES.holdingCell)
-    this.regionLabel.setText('Capital City Central Booking')
+    this.regionLabel.setText('Court & Jail')
 
     this.zones = [
       // Guard desk - id 'courtAndPrison' reuses the exact same
@@ -4229,12 +4255,15 @@ export default class OverworldScene extends Phaser.Scene {
     const nextSlots = assignDoorSlots(ids.map((id, i) => ({ characterId: id, buildingId: nextPresence[i].buildingId })))
     const cache = new Map()
     for (let i = 0; i < ids.length; i++) {
+      const standoff = NAMED_ROAMER_DOOR_STANDOFF[ids[i]]
+      const currentSlot = currentSlots.get(ids[i])
+      const nextSlot = nextSlots.get(ids[i])
       cache.set(ids[i], {
         currentBuildingId: currentPresence[i].buildingId,
         nextBuildingId: nextPresence[i].buildingId,
         action: currentPresence[i].action,
-        currentSlot: currentSlots.get(ids[i]),
-        nextSlot: nextSlots.get(ids[i]),
+        currentSlot: standoff && currentSlot ? { ...currentSlot, x: currentSlot.x + standoff.x, y: currentSlot.y + standoff.y } : currentSlot,
+        nextSlot: standoff && nextSlot ? { ...nextSlot, x: nextSlot.x + standoff.x, y: nextSlot.y + standoff.y } : nextSlot,
       })
     }
     this.presenceCache = cache
