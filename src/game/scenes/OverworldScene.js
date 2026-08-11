@@ -855,8 +855,15 @@ const HOME_FURNITURE_FILES = {
 // Floor decals/wall-mounted decoration - never registered as a walk
 // obstacle in placeHomeProp (unlike freestanding furniture), since nothing
 // physically occupies that floor space.
+// Floor decals and wall decoration - nothing physically occupies that space.
+// 'rugPurple' belongs here with the other two rugs and was simply missed:
+// while blockHomePropFootprint was silently writing unmatchable fractional
+// keys nothing here had any effect, so the omission stayed invisible. With
+// collision actually working, the tavern's rug sits squarely over its only
+// doorway and walls the player into a single tile.
 const HOME_PROP_NON_BLOCKING = new Set([
-  'carpet', 'window', 'wall', 'paintingForest', 'paintingSunset', 'redRugStrip',
+  'carpet', 'rugPurple', 'redRugStrip', 'window', 'wall',
+  'paintingForest', 'paintingSunset',
 ])
 
 function homeFurnitureTextureKey(id) {
@@ -1055,6 +1062,28 @@ const HOME_STYLE_BY_ZONE = Object.fromEntries(
   Object.entries(HOME_ROOM_STYLES).map(([style, def]) => [def.zoneId, style])
 )
 
+// Thresholds sit in the two real gaps in the roster's net-worth spread, not
+// at round numbers picked for their own sake: the 40 officials top out at
+// $8M, the mid-tier handful runs $10M-$500M, and the titans start at $2.2B.
+// Splitting at $10M and $1B therefore lands 40 homes in the cottage, 6 in
+// the farmhouse and 22 in the palace, with no character sitting near an edge.
+const HOME_TAVERN_MIN_NET_WORTH = 10_000_000
+const HOME_PALACE_MIN_NET_WORTH = 1_000_000_000
+
+// Which of the four bespoke rooms a given home/hideout opens into.
+//
+// Criminals get the hideout regardless of how rich they are - the room is
+// chosen by what the character IS, and a mob boss's safe house shouldn't
+// read as a banquet hall. Everyone else is placed by wealth.
+function homeInteriorStyleFor(building) {
+  if (building.kind === 'hideout') return 'hideout'
+  const character = building.npcId ? getAnyCharacter(building.npcId) : null
+  const netWorth = (character && character.netWorth) || 0
+  if (netWorth >= HOME_PALACE_MIN_NET_WORTH) return 'palace'
+  if (netWorth >= HOME_TAVERN_MIN_NET_WORTH) return 'tavern'
+  return 'cottage'
+}
+
 // True where the room mask says this tile exists at all ('.' = outside the
 // room's irregular outline, drawn as void).
 function homeMaskAt(def, col, row) {
@@ -1137,7 +1166,14 @@ function blockHomePropFootprint(scene, id, col, row, tileWidth) {
   if (HOME_PROP_NON_BLOCKING.has(id) || !scene.interiorBlockedTiles) return
   const c0 = Math.round(col - tileWidth / 2)
   const c1 = Math.max(c0, Math.round(col + tileWidth / 2 - 1))
-  fillBlockedRect(scene.interiorBlockedTiles, c0, Math.max(0, row - 1), c1, row)
+  // These props are authored at MEASURED, fractional rows (11.61, 7.4, ...)
+  // so they sit where the reference puts them rather than snapping to the
+  // grid. The blocked set is keyed by whole tiles, so passing the raw row
+  // wrote keys like "3,10.61" that no integer tile lookup can ever match -
+  // every piece of home furniture had no collision at all, and the player
+  // walked straight through beds and tables.
+  const r = Math.round(row)
+  fillBlockedRect(scene.interiorBlockedTiles, c0, Math.max(0, r - 1), c1, r)
 }
 
 function placeHomeProp(scene, zoneObjects, id, col, row, tileWidth) {
