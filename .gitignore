@@ -112,3 +112,15 @@ public/assets/packs/Pixel_16_interiors_v2_free/_sliced_tiles/
 public/assets/packs/Pixel_16_interiors_v2_free/RPGMAKERMV/
 public/assets/packs/Pixel_16_interiors_v2_free/mv/
 public/assets/packs/Pixel_16_interiors_v2_free/reference/
+
+# packs/prison/ - same deal once more. 46 full-res hero renders (one prop or
+# material per 1920x1080 file, on white) plus the pack's reference.webp, used
+# to build the two jail rooms (OverworldScene.js's PRISON_ROOMS /
+# buildPrisonZone). Only the salvaged pieces under processed/ are committed;
+# rebuild them with `python production/extract_prison_assets.py`, which
+# documents where every crop comes from. reference.webp is excluded with the
+# raws - it's the pack's own marketing screenshot, and nothing in src/ loads
+# it (the room is measured from it, not rendered with it), but note that
+# extract_prison_assets.py DOES need it, so keep it locally.
+public/assets/packs/prison/*.png
+public/assets/packs/prison/reference.webp
