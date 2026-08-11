@@ -728,35 +728,111 @@ const LISA_HALL_BG_KEY = 'lisaHallBg'
 const LISA_WORK_BG_KEY = 'lisaWorkBg'
 const LISA_BEDROOM_BG_KEY = 'lisaBedroomBg'
 
-const LISA_HOUSE_BG_KEYS = new Set([LISA_HALL_BG_KEY, LISA_WORK_BG_KEY, LISA_BEDROOM_BG_KEY])
+// Bedroom.png is a much higher-res source (2342x1792, vs. hall/work's
+// already-480x360-ish renders) - setDisplaySize in drawLisaRoomBackground
+// stretches it down to the same room canvas exactly like the other two, no
+// extra processing needed either way.
+const LISA_HOUSE_BG_SRC = {
+  [LISA_HALL_BG_KEY]: '/assets/packs/interior/hall.png',
+  [LISA_WORK_BG_KEY]: '/assets/packs/interior/work.png',
+  [LISA_BEDROOM_BG_KEY]: '/assets/packs/interior/Bedroom.png',
+}
+// Which room to redraw once a late-arriving background finally lands (see
+// drawLisaRoomBackground's retry).
+const LISA_ZONE_BY_BG_KEY = {
+  [LISA_HALL_BG_KEY]: 'lisaHall',
+  [LISA_WORK_BG_KEY]: 'lisaWork',
+  [LISA_BEDROOM_BG_KEY]: 'lisaBedroom',
+}
+// Flat floor tone shown while a background is missing/reloading. Deliberately
+// a plain dark room color rather than anything eye-catching: it should read as
+// "this room hasn't finished drawing", not as a new piece of art.
+const LISA_BG_FALLBACK_COLOR = 0x2b2622
 
 function preloadLisaHouseInterior(scene) {
   // A failed fetch of one of these (dev-server hiccup, flaky connection -
   // Bedroom.png alone is 7MB) doesn't throw or block preload: Phaser's
-  // loader just fires 'complete' anyway with that key never registered, and
-  // the room silently renders Phaser's built-in green/black "missing
-  // texture" placeholder stretched to fill the whole room instead of the
-  // background - which reads as "the room is broken" with zero signal as to
-  // why. This turns that into a console error naming the exact file, so a
-  // recurrence is a 10-second diagnosis instead of a mystery screenshot.
+  // loader just fires 'complete' anyway with that key never registered. The
+  // room is then built from a texture that doesn't exist, which is what
+  // produced the green-rectangle-with-a-diagonal screenshots - that's
+  // Phaser's built-in __MISSING placeholder, stretched over the whole room.
+  // Logging it here names the exact file; drawLisaRoomBackground below is
+  // what actually keeps the room usable when it happens.
   scene.load.on('loaderror', (file) => {
-    if (LISA_HOUSE_BG_KEYS.has(file.key)) {
-      console.error(`Lisa house background failed to load: ${file.key} (${file.src}) - that room will show a blank placeholder instead of its background.`)
+    if (LISA_HOUSE_BG_SRC[file.key]) {
+      console.error(`Lisa house background failed to load: ${file.key} (${file.src}) - falling back to a plain floor; it will be retried when that room is entered.`)
     }
   })
-  if (!scene.textures.exists(LISA_HALL_BG_KEY)) {
-    scene.load.image(LISA_HALL_BG_KEY, '/assets/packs/interior/hall.png')
+  Object.entries(LISA_HOUSE_BG_SRC).forEach(([key, src]) => {
+    if (!scene.textures.exists(key)) scene.load.image(key, src)
+  })
+}
+
+// Full-bleed room background for the 3 hand-authored Lisa rooms.
+//
+// Never calls add.image() on a key that isn't loaded: Phaser silently
+// substitutes its __MISSING texture there, and since every caller then
+// setDisplaySize()s it to the full room, a single dropped fetch at preload
+// turned the entire room into a green box with a diagonal line through it -
+// with no way back short of reloading the page, because preload only ever
+// runs once per session.
+//
+// So: draw the real art when it's there, and when it isn't, draw a plain
+// floor and re-request the file. The retry is deliberately here (at room-
+// entry) rather than in preload's loaderror - a hiccup at boot is usually
+// over by the time the player actually walks into the room, and this way the
+// fetch only happens for the room being looked at. When it lands, the room is
+// rebuilt in place (teleportPlayer=false, so the player doesn't get bounced
+// back to the spawn tile mid-walk) - but only if they're still standing in
+// it, since a slow retry can easily outlive their visit.
+function drawLisaRoomBackground(scene, key) {
+  const w = INTERIOR_COLS * TILE_SIZE
+  const h = INTERIOR_ROWS * TILE_SIZE
+
+  if (scene.textures.exists(key)) {
+    const bg = scene.add.image(0, 0, key).setOrigin(0, 0)
+    bg.setDisplaySize(w, h)
+    bg.setDepth(0)
+    scene.zoneObjects.push(bg)
+    return
   }
-  if (!scene.textures.exists(LISA_WORK_BG_KEY)) {
-    scene.load.image(LISA_WORK_BG_KEY, '/assets/packs/interior/work.png')
+
+  const fallback = scene.add.rectangle(0, 0, w, h, LISA_BG_FALLBACK_COLOR).setOrigin(0, 0)
+  fallback.setDepth(0)
+  scene.zoneObjects.push(fallback)
+
+  // One in-flight retry per key at a time - loadZone can run several times
+  // in a row (walking a door back and forth), and without this each pass
+  // would queue another copy of the same 7MB file.
+  if (!scene.lisaBgRetrying) scene.lisaBgRetrying = new Set()
+  if (scene.lisaBgRetrying.has(key)) return
+  scene.lisaBgRetrying.add(key)
+
+  console.warn(`Retrying Lisa house background ${key}...`)
+  // Listen for THIS key's own events, not the loader's generic 'complete':
+  // the loader is shared, so 'complete' routinely fires for some other batch
+  // that finished first, which would clear the in-flight flag and report a
+  // failure while this file is still downloading.
+  const onLoaded = () => {
+    scene.load.off('loaderror', onError)
+    scene.lisaBgRetrying.delete(key)
+    // Only redraw if they're still in that room - a slow retry easily
+    // outlives the visit, and loadZone on the wrong room would yank the
+    // player somewhere they aren't. teleportPlayer=false keeps them on the
+    // tile they're standing on rather than bouncing them to the spawn.
+    if (scene.currentZoneId === LISA_ZONE_BY_BG_KEY[key]) scene.loadZone(scene.currentZoneId, false)
   }
-  // Bedroom.png is a much higher-res source (2342x1792, vs. hall/work's
-  // already-480x360-ish renders) - setDisplaySize in buildLisaBedroomZone
-  // stretches it down to the same room canvas exactly like the other two,
-  // no extra processing needed either way.
-  if (!scene.textures.exists(LISA_BEDROOM_BG_KEY)) {
-    scene.load.image(LISA_BEDROOM_BG_KEY, '/assets/packs/interior/Bedroom.png')
+  const onError = (file) => {
+    if (file.key !== key) return
+    scene.load.off(`filecomplete-image-${key}`, onLoaded)
+    scene.load.off('loaderror', onError)
+    scene.lisaBgRetrying.delete(key)
+    console.error(`Lisa house background ${key} failed again - room stays on the fallback floor.`)
   }
+  scene.load.once(`filecomplete-image-${key}`, onLoaded)
+  scene.load.on('loaderror', onError)
+  scene.load.image(key, LISA_HOUSE_BG_SRC[key])
+  scene.load.start()
 }
 
 // Tile-rect -> Phaser.Geom.Rectangle, padded by half a tile on every side -
@@ -3051,10 +3127,7 @@ export default class OverworldScene extends Phaser.Scene {
   // walkable or a doorway reads as blocked once this is actually played),
   // and list this.zones for whichever doors/desk live in that room.
   buildLisaHallZone() {
-    const bg = this.add.image(0, 0, LISA_HALL_BG_KEY).setOrigin(0, 0)
-    bg.setDisplaySize(INTERIOR_COLS * TILE_SIZE, INTERIOR_ROWS * TILE_SIZE)
-    bg.setDepth(0)
-    this.zoneObjects.push(bg)
+    drawLisaRoomBackground(this, LISA_HALL_BG_KEY)
 
     const building = FINANCE_BUILDINGS.find((b) => b.id === 'home_lisa')
     this.regionLabel.setText(building?.label || "Lisa's House")
@@ -3098,10 +3171,7 @@ export default class OverworldScene extends Phaser.Scene {
   // the far end of the room (opposite the door) is the way through to her
   // bedroom.
   buildLisaWorkZone() {
-    const bg = this.add.image(0, 0, LISA_WORK_BG_KEY).setOrigin(0, 0)
-    bg.setDisplaySize(INTERIOR_COLS * TILE_SIZE, INTERIOR_ROWS * TILE_SIZE)
-    bg.setDepth(0)
-    this.zoneObjects.push(bg)
+    drawLisaRoomBackground(this, LISA_WORK_BG_KEY)
 
     const building = FINANCE_BUILDINGS.find((b) => b.id === 'home_lisa')
     this.regionLabel.setText(`${building?.label || "Lisa's House"} - Study`)
@@ -3153,10 +3223,7 @@ export default class OverworldScene extends Phaser.Scene {
   // No NPC trigger of its own (talking to her stays in the study); the only
   // interactive is the "LALISA'S ROOM - PRIVATE" door back out.
   buildLisaBedroomZone() {
-    const bg = this.add.image(0, 0, LISA_BEDROOM_BG_KEY).setOrigin(0, 0)
-    bg.setDisplaySize(INTERIOR_COLS * TILE_SIZE, INTERIOR_ROWS * TILE_SIZE)
-    bg.setDepth(0)
-    this.zoneObjects.push(bg)
+    drawLisaRoomBackground(this, LISA_BEDROOM_BG_KEY)
 
     const building = FINANCE_BUILDINGS.find((b) => b.id === 'home_lisa')
     this.regionLabel.setText(`${building?.label || "Lisa's House"} - Bedroom`)
