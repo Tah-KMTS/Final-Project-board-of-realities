@@ -20,6 +20,11 @@ import { sendNpcMessage } from '../../utils/npcChatClient'
 // majority of the non-romanceable roster already works. Mug/Attack are her
 // pre-existing ambient-NPC mechanics (WorldScreen.jsx), kept as secondary
 // actions here exactly as before - only the interaction SCREEN changed.
+// These 4 files are the approved art - don't swap them for different
+// photos/renders without checking with the project owner first (it's
+// happened once already and was reverted). The `ince-portraits-golden` git
+// tag pins the approved bytes; `node production/restoreIncePortraits.mjs`
+// instantly restores them from it if they're ever changed.
 const PORTRAITS = '/assets/packs/Ince/portraits'
 // No Ince-specific scene art - explicitly reusing Lisa's background pack.
 const SCENES = '/assets/packs/Lisa/scenes'
