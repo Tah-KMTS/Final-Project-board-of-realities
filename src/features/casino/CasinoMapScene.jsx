@@ -16,17 +16,20 @@ import { PLAYER_REAL_SPRITE } from '../../game/packs/playerRealSprite'
 // Walking up and pressing Enter/E opens the SAME full tab bar as before,
 // it's just reached by walking instead of an instant building click.
 //
-// The source image is square (2048x2048) and top-heavy with signage (CASINO/
-// ARCADE neon, a monster-mouth tunnel) that isn't part of a walkable floor -
-// this crops to just the playable band (the chip stacks/blackjack table/777
-// machine/arcade cabinets row) via the same background-position crop
-// technique CasinoModal.jsx's own CasinoBanner and UnderworldModal.jsx's
-// RoomBanner use, rather than showing the whole tall image letterboxed.
-// Measured by hand against a coordinate-grid overlay of the source art (see
-// production/ for how), not guessed.
+// The source image is square (2048x2048) - the whole thing is shown now (at
+// the user's explicit request for "the full one, not the cropped image"),
+// not just the mid band this used to crop down to. CROP is kept as a named
+// rect (rather than deleted) purely because every other constant below
+// (WALK/HOTSPOT/the background-position math) is already expressed relative
+// to it - with it covering the full 0..2048 square those all still work
+// unchanged, they just now cover the entire picture: the top signage/arcade
+// archway band, the full floor (which actually keeps going another ~600px
+// past the old crop's bottom edge - a second blackjack table and more
+// slot machines/NPCs down by a red-carpet entrance that the crop used to
+// hide entirely), all the way down.
 export const IMAGE_URL = '/assets/packs/casino-interior/casino_interior.png'
 const NATIVE_SIZE = 2048
-const CROP = { x0: 0, y0: 580, x1: 2048, y1: 1420 }
+const CROP = { x0: 0, y0: 0, x1: 2048, y1: 2048 }
 
 const DISPLAY_W = 1040
 const SCALE = DISPLAY_W / (CROP.x1 - CROP.x0)
@@ -35,11 +38,13 @@ const DISPLAY_H = Math.round((CROP.y1 - CROP.y0) * SCALE)
 // Real 2D walkable rectangle (native image coords, full-picture space -
 // same space CROP/the hotspot rect below are measured in), not a single
 // line - the floor's swirl-pattern carpet is open from just below the
-// arcade archway/monster-mouth signage down to the crop's own bottom edge.
-// No per-object collision against the chip stacks/blackjack table/arcade
-// cabinets (same limitation the single-line version already had for
-// anything not the 777 machine) - this only keeps the player on the
-// crop's own visible floor, not walking up into the signage band.
+// arcade archway/monster-mouth signage (y0=700 keeps the player off the
+// wall-mounted CASINO/ARCADE neon and out of the dark tunnel mouth above
+// it) down to the image's own bottom edge, now that CROP covers the whole
+// picture instead of stopping partway down the floor. No per-object
+// collision against the chip stacks/blackjack tables/arcade cabinets (same
+// limitation the single-line version already had for anything not the 777
+// machine) - this only keeps the player on the visible floor.
 const WALK = { x0: CROP.x0 + 40, x1: CROP.x1 - 40, y0: 700, y1: CROP.y1 - 40 }
 const WALK_SPEED = 720 // native px/sec, matches UnderworldMapScene.jsx, along either axis
 
