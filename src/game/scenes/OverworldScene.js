@@ -1154,6 +1154,294 @@ function placeHomeProp(scene, zoneObjects, id, col, row, tileWidth) {
   blockHomePropFootprint(scene, id, col, row, tileWidth)
 }
 
+// ---------------- Prison interiors ----------------
+// The two jail rooms are built from public/assets/packs/prison/, laid out
+// from that pack's own reference.webp rather than the shared 12x9
+// drawInteriorRoom box they used to share with every other building.
+//
+// The reference is a 30x20 grid. That's measured off its content bbox and
+// confirmed by its guard sprites landing exactly one tile wide and 1.5 tall,
+// which is this game's own character-to-TILE_SIZE ratio - so the picture can
+// be reproduced at true scale instead of being squeezed into the old room
+// shape. jailCell IS that picture; jailMaze is a corridor assembled from the
+// same materials, since the reference has no corridor of its own.
+//
+// See production/extract_prison_assets.py for how the art was cut, and
+// production/compare_prison_rooms.py for the side-by-side check against the
+// reference (it parses PRISON_ROOMS out of this file, so it can't drift).
+const PRISON_DIR = '/assets/packs/prison/processed'
+
+const PRISON_FILES = {
+  wallOuter: 'wall_outer.png',
+  wallCell: 'wall_cell.png',
+  wallDivider: 'wall_divider.png',
+  wallGate: 'wall_gate.png',
+  wallCap: 'wall_cap.png',
+  wallCapExt: 'wall_cap_ext.png',
+  wallCapExtS: 'wall_cap_ext_s.png',
+  wallBase: 'wall_base.png',
+  wallBaseCell: 'wall_base_cell.png',
+  barsFront: 'bars_front.png',
+  barsGrid: 'bars_grid.png',
+  floorStraw: 'floor_straw.png',
+  floorCell: 'floor_cell.png',
+  floorHall: 'floor_hall.png',
+  floorCarpet: 'floor_carpet.png',
+  floorStone: 'floor_stone.png',
+  bunkBed: 'bunk_bed.png',
+  bed: 'bed.png',
+  wardenDesk: 'warden_desk.png',
+  banner: 'banner.png',
+  bookshelf: 'bookshelf.png',
+  stool: 'stool.png',
+  benchLong: 'bench_long.png',
+  tableWithStools: 'table_with_stools.png',
+  barrel: 'barrel.png',
+  pot: 'pot.png',
+  crates: 'crates.png',
+  chest: 'chest.png',
+  ladder: 'ladder.png',
+  torch: 'torch.png',
+  sconce: 'sconce.png',
+  post: 'post.png',
+  sack: 'sack.png',
+  brazier: 'brazier.png',
+  woodDoor: 'wood_door.png',
+}
+
+// One character per tile. The grid carries geometry, material AND collision
+// at once, which is what keeps a room this irregular readable as source:
+//   '#' outer wall             'P' partition between cells
+//   'D' dark cell back wall    'B' barred cell front
+//   's' straw (cell floor)     'd' shadowed stone (cell floor)
+//   'f' flagstone (guard hall) 'c' carpet (warden office)
+//   '.' outside the room
+//
+// Three wall tones, not one, because the reference has three and collapsing
+// them loses the room's structure: cell backs and the outer wall are the same
+// dark stone (~[72,83,106]) but the partitions between cells are markedly
+// lighter (~[92,111,134]). Drawing partitions in the outer-wall material made
+// the entire cell block read as one undivided slab.
+//
+// 's' and 'd' are both cell floors, split for the same reason: in the
+// reference only the left cell is strawed, the others are bare stone, and
+// strawing all of them washed the top half of the room out in tan.
+const PRISON_TILE_TEX = {
+  '#': 'wallOuter',
+  P: 'wallDivider',
+  D: 'wallCell',
+  B: 'barsFront',
+  s: 'floorStraw',
+  d: 'floorCell',
+  f: 'floorHall',
+  c: 'floorCarpet',
+  p: 'floorStone',
+  G: 'wallGate',
+}
+const PRISON_WALKABLE = new Set(['s', 'd', 'f', 'c', 'p'])
+// solid stone (gets a cap + footing drawn on its exposed edges); 'B' is
+// excluded - a barred front is its own full-height profile, not a stone block
+const PRISON_WALL_CHARS = new Set(['#', 'P', 'D'])
+// cell floors, which are lit differently from the hall and take their own
+// shadow-toned wall baseboard
+const PRISON_CELL_FLOORS = new Set(['s', 'd'])
+
+// Wall-mounted or flat decor the player should never collide with.
+const PRISON_PROP_NON_BLOCKING = new Set(['torch', 'sconce', 'banner', 'woodDoor', 'barsFront'])
+
+const PRISON_ROOMS = {
+  // Central Booking. Read straight off the reference: three inmate cells and
+  // the player's own along the top, the warden's office right, the guard hall
+  // across the bottom, and a sealed shackle cell in the left wing.
+  //
+  // Only ONE cell is open - the player's (cell B, cols 13-16), whose barred
+  // front has a gap at col 14. Every other cell is sealed behind its bars,
+  // exactly as the reference shows them, so the room reads as "you are the
+  // one who's locked up" while still letting the player walk out to negotiate.
+  jailCell: {
+    zoneId: 'jailCell',
+    label: 'Capital City Central Booking',
+    cols: 30,
+    rows: 20,
+    // Cell fronts are 4 rows deep, matching the reference - a 1-2 row band
+    // reads as a fence rather than a cell, and made the guard hall swallow
+    // half the room. Cell A sits two rows lower than B/C, which is the step
+    // the reference has along the bottom of the cell block.
+    mask: [
+      '...###########################',
+      '...PDDDDDDDDPDDDDPDDDDDPDDDDD#',
+      '...PDDDDDDDDPDDDDPDDDDDPDDDDD#',
+      '###PDDDDDDDDPDDDDPDDDDDPDDDDD#',
+      '#DDPDDDDDDDDPddddPdddddPDDDDD#',
+      '#DDPddddddddPddddPdddddPDDDDD#',
+      '#DDPddddssssPddddPdddddPfccff#',
+      '#ffPddddssssP#d##P#####Pfccff#',
+      '#ffPddddssssPBdBBPBBBBBPfccff#',
+      '#ffP########PBdBBPBBBBBPfccff#',
+      '###PBBBBBBBBPBdBBPBBBBBPfccff#',
+      '#BBPBBBBBBBBPBdBBPBBBBBPfccff#',
+      '#BBPBBBBBBBBPffffffffff#f#####',
+      '#BBPBBBBBBBBPffffffffff#f#####',
+      '#ffffffffffffffffffffff#f#####',
+      '#ffffffffffffffffffffff#f#####',
+      '#ffffffffffffffffffffff#f#####',
+      '#ffffffffffffffffffffffffffff#',
+      '#ffffffffffffffffffffffffffff#',
+      '#######GGGG###################',
+    ],
+    // inside the player's cell, above its open gate at col 14
+    spawn: { col: 14, row: 6 },
+    // the warden's desk, where bail/bribe is negotiated
+    deskRect: { c0: 24, r0: 8, c1: 28, r1: 9 },
+    // standing tiles in front of the wooden door down to the corridor
+    exitRect: { c0: 25, r0: 17, c1: 26, r1: 17 },
+    props: [
+      // Sizes and positions below are MEASURED off the reference (each
+      // object's bounding box in reference pixels, converted to this
+      // convention), not estimated. An earlier eyeballed pass had almost
+      // everything too small - the bunk bed 3 tiles instead of 4.3, the
+      // warden's desk 3.2 instead of 4.6, the bookshelf 1.8 instead of 3.
+      // --- cell A (other inmates), cols 4-11
+      // A dark iron sconce, not a lit torch: the reference's cell fixtures
+      // are unlit brackets, and 115.png's flame lit up every cell.
+      { id: 'sconce', col: 5.08, row: 2.7, tileWidth: 0.6 },
+      { id: 'bunkBed', col: 9.1, row: 7, tileWidth: 4.3 },
+      { id: 'benchLong', col: 5.9, row: 8, tileWidth: 3.6 },
+      { id: 'barrel', col: 10.7, row: 8, tileWidth: 1.2 },
+      // --- cell B: the player's own, cols 13-16
+      { id: 'sconce', col: 14.42, row: 2.7, tileWidth: 0.6 },
+      // Width is derived from the reference's bed HEIGHT via this asset's own
+      // aspect, not from its measured width: a colour-keyed width measurement
+      // caught only the wooden frame and missed the pale mattress, which
+      // oversized the bed until it swallowed the wall torch above it.
+      // Pushed right of centre so its footprint clears col 14 - the gap in
+      // this cell's bars, and the player's only way out.
+      { id: 'bed', col: 15.6, row: 6, tileWidth: 1.9 },
+      // a dark pot, not a wooden stool - the reference has a squat dark
+      // round vessel beside each cell's bed
+      { id: 'pot', col: 13, row: 6, tileWidth: 0.8 },
+      // --- cell C, cols 18-22
+      { id: 'sconce', col: 19.88, row: 2.7, tileWidth: 0.6 },
+      { id: 'bed', col: 20.6, row: 6, tileWidth: 1.9 },
+      { id: 'pot', col: 19, row: 6, tileWidth: 0.8 },
+      // --- warden's office, cols 24-28, carpet runner rows 6-11
+      // 2.2 wide, not 1.5: the reference's banner hangs 5.9 tiles from its
+      // finial to its base, and at 1.5 this rendered barely half that.
+      { id: 'banner', col: 23.8, row: 6.3, tileWidth: 2.2 },
+      { id: 'bookshelf', col: 26.8, row: 4.8, tileWidth: 2.4 },
+      { id: 'wardenDesk', col: 25.6, row: 9, tileWidth: 4.6 },
+      // --- left wing: two stacked sealed cells. The upper one holds a
+      // shackled prisoner in the reference (wrist irons on its back wall);
+      // the lower one is barred and empty. Two earlier misreads here: its
+      // bars were taken for a staircase and given a ladder, and the wall
+      // behind the prisoner was given a post that read as furniture. Both
+      // gone - what is behind that prisoner is simply wall.
+      // --- guard hall. Deliberately sparse in the middle: the reference's
+      // hall is a bare muster floor with one table on it, and the crowd that
+      // fills it is guards, not clutter. A pass that scattered barrels,
+      // crates and braziers across the open floor to "add density" made it
+      // read as a storage room, so dressing is kept to the edges.
+      { id: 'tableWithStools', col: 16, row: 17, tileWidth: 5 },
+      { id: 'stool', col: 20, row: 17, tileWidth: 0.8 },
+      { id: 'brazier', col: 5, row: 16, tileWidth: 1.2 },
+      { id: 'crates', col: 2, row: 15, tileWidth: 1.5 },
+      { id: 'chest', col: 21, row: 14, tileWidth: 1.3 },
+      { id: 'pot', col: 1, row: 17, tileWidth: 0.8 },
+      { id: 'sack', col: 3, row: 18, tileWidth: 1.1 },
+      // the door down to the service corridor, set into the wall block the
+      // reference puts it in (below the warden's office)
+      { id: 'woodDoor', col: 25.5, row: 15, tileWidth: 2.4 },
+    ],
+  },
+
+  // The escape route. Not in the reference - assembled from the same
+  // materials so it reads as the same building: pale stone underfoot, the
+  // cell block's own dark wall above, and a barred gate at each of the four
+  // checkpoints. The gates are deliberately NON-blocking: attemptMazeSegment
+  // in useGameStore.js is the authoritative sequence gate, and the room must
+  // not add a second, physical one on top of it.
+  jailMaze: {
+    zoneId: 'jailMaze',
+    label: 'Service Corridor',
+    cols: 24,
+    rows: 9,
+    // Dark cell stone underfoot, not the pale slab: this is a service tunnel
+    // under the same building, and the pale material read as a bright, clean
+    // corridor pasted into a dark prison.
+    mask: [
+      '########################',
+      '########################',
+      '#dddddddddddddddddddddd#',
+      '#dddddddddddddddddddddd#',
+      '#dddddddddddddddddddddd#',
+      '#dddddddddddddddddddddd#',
+      '#dddddddddddddddddddddd#',
+      '########################',
+      '########################',
+    ],
+    spawn: { col: 2, row: 4 },
+    // the four checkpoint columns, left to right
+    checkpointCols: [5, 10, 15, 19],
+    // standing tiles by the door back to the holding cell
+    exitRect: { c0: 1, r0: 2, c1: 2, r1: 3 },
+    props: [
+      // sized to fit inside the 2-row wall band rather than overflowing it
+      { id: 'woodDoor', col: 1, row: 1, tileWidth: 1.3 },
+      { id: 'torch', col: 3, row: 1, tileWidth: 0.7 },
+      { id: 'torch', col: 8, row: 1, tileWidth: 0.7 },
+      { id: 'torch', col: 13, row: 1, tileWidth: 0.7 },
+      { id: 'torch', col: 18, row: 1, tileWidth: 0.7 },
+      { id: 'torch', col: 22, row: 1, tileWidth: 0.7 },
+      { id: 'barsFront', col: 5, row: 6, tileWidth: 1.4 },
+      { id: 'barsFront', col: 10, row: 6, tileWidth: 1.4 },
+      { id: 'barsFront', col: 15, row: 6, tileWidth: 1.4 },
+      { id: 'barsFront', col: 19, row: 6, tileWidth: 1.4 },
+      { id: 'crates', col: 7, row: 6, tileWidth: 1.3 },
+      { id: 'barrel', col: 12, row: 6, tileWidth: 0.9 },
+      { id: 'sack', col: 17, row: 6, tileWidth: 1 },
+      { id: 'ladder', col: 22, row: 6, tileWidth: 0.6 },
+    ],
+  },
+}
+
+function prisonTextureKey(id) {
+  return `prison_${id}`
+}
+
+function preloadPrisonAssets(scene) {
+  for (const [id, file] of Object.entries(PRISON_FILES)) {
+    const key = prisonTextureKey(id)
+    if (!scene.textures.exists(key)) scene.load.image(key, `${PRISON_DIR}/${file}`)
+  }
+}
+
+function prisonTileAt(def, col, row) {
+  if (col < 0 || row < 0 || row >= def.rows || col >= def.cols) return '.'
+  return def.mask[row][col]
+}
+
+function placePrisonProp(scene, zoneObjects, id, col, row, tileWidth) {
+  const key = prisonTextureKey(id)
+  if (!scene.textures.exists(key)) return
+  const src = scene.textures.get(key).getSourceImage()
+  const scale = (tileWidth * TILE_SIZE) / src.width
+  const img = scene.add
+    .image((col + 0.5) * TILE_SIZE, (row + 1) * TILE_SIZE, key)
+    .setOrigin(0.5, 1)
+    .setScale(scale)
+  img.setDepth((row + 1) * TILE_SIZE)
+  zoneObjects.push(img)
+  if (PRISON_PROP_NON_BLOCKING.has(id) || !scene.interiorBlockedTiles) return
+  const c0 = Math.round(col - tileWidth / 2)
+  const c1 = Math.max(c0, Math.round(col + tileWidth / 2 - 1))
+  // col/row may be fractional so a prop can sit where the reference puts it
+  // rather than snapping to the grid; the blocked-tile set is keyed by whole
+  // tiles, so an unrounded row here would write keys nothing ever matches and
+  // the prop would silently have no collision at all.
+  const r = Math.round(row)
+  fillBlockedRect(scene.interiorBlockedTiles, c0, Math.max(0, r - 1), c1, r)
+}
+
 // ---------------- Building interiors ----------------
 // A single 12x9 room shape (INTERIOR_COLS/ROWS, matching DominoWorldScene's
 // own room convention) is reused for every building's interior; only the
@@ -1250,8 +1538,10 @@ const ZONES = {
   // Jail mini-map - all 3 reuse the same shared INTERIOR_COLS x INTERIOR_ROWS
   // room shape every other interior uses (see buildJailCellZone/
   // buildJailMazeZone/buildJailUnderworldZone below), not a bespoke size.
-  jailCell: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
-  jailMaze: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  // Both jail rooms carry their own size now (PRISON_ROOMS) rather than the
+  // shared 12x9 - the holding cell is the reference picture at true scale.
+  jailCell: { cols: PRISON_ROOMS.jailCell.cols, rows: PRISON_ROOMS.jailCell.rows },
+  jailMaze: { cols: PRISON_ROOMS.jailMaze.cols, rows: PRISON_ROOMS.jailMaze.rows },
   jailUnderworld: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   // Underworld's walkable interior - same shared room shape too. Deliberately
   // NOT named 'underworld': that string is already a live zone.id value
@@ -2139,6 +2429,7 @@ export default class OverworldScene extends Phaser.Scene {
     preloadTopDownVehicles(this)
     preloadLisaHouseInterior(this)
     preloadHomeFurniture(this)
+    preloadPrisonAssets(this)
   }
 
   create() {
@@ -2229,8 +2520,7 @@ export default class OverworldScene extends Phaser.Scene {
     else if (zoneId === 'chapelInterior') this.buildChapelInteriorZone()
     else if (zoneId === 'chapelExterior') this.buildChapelExteriorZone()
     else if (zoneId === 'teaHouseInterior') this.buildTeaHouseInteriorZone()
-    else if (zoneId === 'jailCell') this.buildJailCellZone()
-    else if (zoneId === 'jailMaze') this.buildJailMazeZone()
+    else if (PRISON_ROOMS[zoneId]) this.buildPrisonZone(zoneId)
     else if (zoneId === 'jailUnderworld') this.buildJailUnderworldZone()
     else if (zoneId === 'underworldInterior') this.buildUnderworldInteriorZone()
     else if (zoneId === 'lisaHall') this.buildLisaHallZone()
@@ -2290,7 +2580,13 @@ export default class OverworldScene extends Phaser.Scene {
                   // INTERIOR_SPAWN tile can be a wall (or outside the mask)
                   // entirely - drop the player on that room's own door tile.
                   ? homeDoorTile(HOME_ROOM_STYLES[HOME_STYLE_BY_ZONE[zoneId]])
-                  : INTERIOR_SPAWN)
+                  : PRISON_ROOMS[zoneId]
+                    // Same reason, plus one of its own: arriving in the
+                    // holding cell has to land the player INSIDE their cell
+                    // (the one cell whose bars have a gap), not on the shared
+                    // spawn tile, which in that room is another inmate's cell.
+                    ? PRISON_ROOMS[zoneId].spawn
+                    : INTERIOR_SPAWN)
       this.pendingInteriorSpawn = null
       this.tileMover.teleport(spawn.col, spawn.row)
     }
@@ -2814,6 +3110,277 @@ export default class OverworldScene extends Phaser.Scene {
     ]
   }
 
+  // Paints one horizontal run of same-material tiles as a single tileSprite
+  // with its pattern origin pinned to world coordinates, so a material stays
+  // continuous across the run instead of restarting (and seaming) per tile.
+  paintPrisonRun(colStart, colEnd, row, texId, depth) {
+    const key = prisonTextureKey(texId)
+    if (!this.textures.exists(key)) return
+    const width = (colEnd - colStart + 1) * TILE_SIZE
+    const strip = this.add
+      .tileSprite(colStart * TILE_SIZE, row * TILE_SIZE, width, TILE_SIZE, key)
+      .setOrigin(0, 0)
+    strip.tilePositionX = colStart * TILE_SIZE
+    strip.tilePositionY = row * TILE_SIZE
+    strip.setDepth(depth)
+    this.zoneObjects.push(strip)
+  }
+
+  // One wall edge band (cap or footing): a fixed-height strip repeating
+  // across X only, drawn at an arbitrary y rather than snapped to the grid.
+  paintPrisonBand(colStart, colEnd, y, texId) {
+    const key = prisonTextureKey(texId)
+    if (!this.textures.exists(key)) return
+    const src = this.textures.get(key).getSourceImage()
+    const strip = this.add
+      .tileSprite(colStart * TILE_SIZE, y, (colEnd - colStart + 1) * TILE_SIZE, src.height, key)
+      .setOrigin(0, 0)
+    strip.tilePositionX = colStart * TILE_SIZE
+    strip.setDepth(-1)
+    this.zoneObjects.push(strip)
+  }
+
+  // One barred cell front: straw laid as real floor, then the bars over it as
+  // a transparent grid repeating across X.
+  //
+  // Drawn in two layers rather than as one baked texture because the cell
+  // interior behind the bars is continuous - one unbroken hay floor. A single
+  // texture containing both bars AND hay repeats its contents every tile or
+  // two, which turned one cell's two chairs into four and chopped the hay
+  // into blocks.
+  paintPrisonBars(colStart, colEnd, row, bandRows) {
+    const width = (colEnd - colStart + 1) * TILE_SIZE
+    const height = bandRows * TILE_SIZE
+    for (const [texId, tileY] of [['floorStraw', true], ['barsGrid', false]]) {
+      const key = prisonTextureKey(texId)
+      if (!this.textures.exists(key)) continue
+      const layer = this.add
+        .tileSprite(colStart * TILE_SIZE, row * TILE_SIZE, width, height, key)
+        .setOrigin(0, 0)
+      layer.tilePositionX = colStart * TILE_SIZE
+      // the straw is a floor material and keeps world alignment on both axes;
+      // the grid is a full-band profile and must not repeat vertically
+      if (tileY) layer.tilePositionY = row * TILE_SIZE
+      layer.setDepth(-1)
+      this.zoneObjects.push(layer)
+    }
+  }
+
+  // Builds either prison room from its PRISON_ROOMS mask. Replaces the flat
+  // drawInteriorRoom box both jail rooms used to share - see the dead-code
+  // note on buildJailCellZone below for why those are kept rather than
+  // deleted. The interactables this creates are deliberately the SAME set,
+  // with the same ids/types/targets, as the old builders produced: only where
+  // they sit in the room changed, because the room did.
+  buildPrisonZone(zoneId) {
+    const def = PRISON_ROOMS[zoneId]
+
+    // Arrest drops the player in here without going through
+    // triggerInteraction, so the walk-back-out spawn is resolved here (same
+    // reason buildJailCellZone did it).
+    if (zoneId === 'jailCell') {
+      const building = FINANCE_BUILDINGS.find((b) => b.id === 'courtAndPrison')
+      if (building) {
+        this.overworldReturnSpawn = {
+          col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
+          row: building.tiles.r1 + 1,
+        }
+      }
+    }
+
+    // Floors and walls: batched into runs of the same material per row.
+    // 'B' is skipped here and handled below - it's the one material that
+    // can't be painted a tile at a time.
+    for (let row = 0; row < def.rows; row += 1) {
+      let runStart = null
+      let runCh = null
+      for (let col = 0; col <= def.cols; col += 1) {
+        const ch = col < def.cols ? prisonTileAt(def, col, row) : null
+        if (ch !== runCh) {
+          if (runStart !== null && runCh && runCh !== '.' && runCh !== 'B') {
+            this.paintPrisonRun(runStart, col - 1, row, PRISON_TILE_TEX[runCh], -1)
+          }
+          runStart = col
+          runCh = ch
+        }
+      }
+    }
+
+    // Wall edges. A wall here is a 3D block - bright cap on its top surface,
+    // brick face, then a shadow line and pale footing where it meets the
+    // floor. The face is already painted above; these two passes add the cap
+    // to every wall tile with a non-wall above it and the footing to every
+    // wall tile with a non-wall below it. Without them the walls are a flat
+    // repeating pattern with no top and no bottom, which is what made them
+    // look nothing like the reference.
+    // Which band an edge gets depends on what it faces. A top edge against
+    // the outer void is the building's silhouette and carries a brown
+    // parapet above its coping; a top edge against another room gets coping
+    // alone. A bottom edge against the void is that same parapet mirrored;
+    // a bottom edge against floor gets the baseboard instead.
+    const isWall = (c, r) => PRISON_WALL_CHARS.has(prisonTileAt(def, c, r))
+    const isVoid = (c, r) => prisonTileAt(def, c, r) === '.'
+    const bandFor = (c, r, edge) => {
+      if (isWall(c, r + (edge === 'top' ? -1 : 1))) return null
+      if (edge === 'top') return isVoid(c, r - 1) ? 'wallCapExt' : 'wallCap'
+      if (isVoid(c, r + 1)) return 'wallCapExtS'
+      // the baseboard is warm tan (cropped against hall flagstone); the cells'
+      // floor is dark blue-grey, so they take a shadow-toned variant
+      return PRISON_CELL_FLOORS.has(prisonTileAt(def, c, r + 1))
+        ? 'wallBaseCell'
+        : 'wallBase'
+    }
+    for (const edge of ['top', 'bottom']) {
+      for (let row = 0; row < def.rows; row += 1) {
+        let col = 0
+        while (col < def.cols) {
+          const tex = isWall(col, row) ? bandFor(col, row, edge) : null
+          if (!tex) {
+            col += 1
+            continue
+          }
+          let end = col
+          while (
+            end + 1 < def.cols
+            && isWall(end + 1, row)
+            && bandFor(end + 1, row, edge) === tex
+          ) end += 1
+          const key = prisonTextureKey(tex)
+          const h = this.textures.exists(key)
+            ? this.textures.get(key).getSourceImage().height
+            : 0
+          const y = edge === 'top' ? row * TILE_SIZE : (row + 1) * TILE_SIZE - h
+          this.paintPrisonBand(col, end, y, tex)
+          col = end + 1
+        }
+      }
+    }
+
+    // Cell fronts. Each contiguous block of 'B' is drawn as ONE strip at the
+    // band's full height, tiling on X only: bars are a vertical profile (top
+    // rail, uprights, bottom rail) and repeating that on Y turns a cell front
+    // into a ladder of rails. bars_front is cut to exactly one band tall, so
+    // matching the strip to the band keeps the phase locked.
+    for (let row = 0; row < def.rows; row += 1) {
+      let col = 0
+      while (col < def.cols) {
+        const isBandTop = (c) =>
+          prisonTileAt(def, c, row) === 'B' && prisonTileAt(def, c, row - 1) !== 'B'
+        if (!isBandTop(col)) {
+          col += 1
+          continue
+        }
+        let end = col
+        while (end + 1 < def.cols && isBandTop(end + 1)) end += 1
+        let bandRows = 1
+        while (prisonTileAt(def, col, row + bandRows) === 'B') bandRows += 1
+        this.paintPrisonBars(col, end, row, bandRows)
+        col = end + 1
+      }
+    }
+
+    // Collision: anything that isn't a walkable material is solid.
+    for (let row = 0; row < def.rows; row += 1) {
+      for (let col = 0; col < def.cols; col += 1) {
+        if (!PRISON_WALKABLE.has(prisonTileAt(def, col, row))) {
+          this.interiorBlockedTiles.add(`${col},${row}`)
+        }
+      }
+    }
+
+    this.regionLabel.setText(def.label)
+
+    for (const p of def.props) {
+      placePrisonProp(this, this.zoneObjects, p.id, p.col, p.row, p.tileWidth)
+    }
+
+    this.zones = zoneId === 'jailCell' ? this.prisonCellZones(def) : this.prisonMazeZones(def)
+  }
+
+  // Holding cell interactables. Same two the old buildJailCellZone made: the
+  // guard desk (which resolves bail/bribe) and the corridor entrance. There
+  // is still deliberately no plain "exit to overworld" - leaving jail only
+  // resolves through the desk or a maze clear, never a free walk-out.
+  prisonCellZones(def) {
+    const d = def.deskRect
+    const e = def.exitRect
+    return [
+      {
+        type: 'interiorDesk',
+        id: 'courtAndPrison',
+        label: 'Warden’s Desk',
+        rect: new Phaser.Geom.Rectangle(
+          d.c0 * TILE_SIZE - TILE_SIZE / 2,
+          d.r0 * TILE_SIZE - TILE_SIZE / 2,
+          (d.c1 - d.c0 + 1) * TILE_SIZE + TILE_SIZE,
+          (d.r1 - d.r0 + 1) * TILE_SIZE + TILE_SIZE
+        ),
+      },
+      {
+        type: 'exit',
+        id: 'jailMazeEntry',
+        target: 'jailMaze',
+        label: 'Service Corridor',
+        rect: new Phaser.Geom.Rectangle(
+          e.c0 * TILE_SIZE,
+          e.r0 * TILE_SIZE,
+          (e.c1 - e.c0 + 1) * TILE_SIZE,
+          (e.r1 - e.r0 + 1) * TILE_SIZE
+        ),
+      },
+    ]
+  }
+
+  // Corridor interactables: the retreat door FIRST, then the 4 checkpoints.
+  //
+  // Order matters and is load-bearing. triggerInteraction resolves a standing
+  // spot with this.zones.find(...), first match wins, and the door's rect
+  // overlaps the nearest checkpoint's. With the door last, the sliver where
+  // they overlap resolved to the checkpoint, so pressing E in the doorway
+  // could relaunch that checkpoint's minigame instead of retreating - it read
+  // as "stuck, can't get back to the guard desk". Door first makes the door
+  // win that overlap without shrinking either hitbox.
+  prisonMazeZones(def) {
+    const e = def.exitRect
+    const zones = [
+      {
+        type: 'exit',
+        id: 'jailMazeRetreat',
+        target: 'jailCell',
+        label: 'Back to Holding Cell',
+        rect: new Phaser.Geom.Rectangle(
+          e.c0 * TILE_SIZE,
+          e.r0 * TILE_SIZE,
+          (e.c1 - e.c0 + 1) * TILE_SIZE,
+          (e.r1 - e.r0 + 1) * TILE_SIZE
+        ),
+      },
+    ]
+    def.checkpointCols.forEach((col, segmentIndex) => {
+      zones.push({
+        type: 'jailMazeCheckpoint',
+        id: `jailMazeCheckpoint${segmentIndex}`,
+        segmentIndex,
+        label: `Checkpoint ${segmentIndex + 1}/4`,
+        rect: new Phaser.Geom.Rectangle(
+          col * TILE_SIZE - TILE_SIZE / 2,
+          4 * TILE_SIZE - TILE_SIZE / 2,
+          TILE_SIZE * 2,
+          TILE_SIZE * 2
+        ),
+      })
+    })
+    return zones
+  }
+
+  // DEAD CODE, kept deliberately (not deleted) so the flat-box version of
+  // both jail rooms can be restored if the art-driven rooms above ever need
+  // to be rolled back. Nothing reaches buildJailCellZone/buildJailMazeZone
+  // any more: loadZone routes both 'jailCell' and 'jailMaze' to
+  // buildPrisonZone. Their mechanics live on unchanged in prisonCellZones/
+  // prisonMazeZones above - same zone types, ids and targets, re-placed into
+  // the new room shape.
+  //
   // Jail mini-map (bespoke, not buildGenericInteriorZone, since this room
   // needs two distinct interactables rather than one desk + one plain exit -
   // see useGameStore.js's attemptJailBribe/attemptMazeSegment for the
@@ -3434,7 +4001,12 @@ export default class OverworldScene extends Phaser.Scene {
       // The 87 character homes/hideouts' bespoke rooms (buildHomeInteriorZone) -
       // same border + interiorBlockedTiles shape, populated from the room's
       // own irregular mask plus blockHomePropFootprint per piece of furniture.
-      HOME_STYLE_BY_ZONE[this.currentZoneId]
+      HOME_STYLE_BY_ZONE[this.currentZoneId] ||
+      // Both prison rooms (buildPrisonZone) - same shape again, populated
+      // from each room's own PRISON_ROOMS mask plus its props' footprints.
+      // They used to sit in the fixed 12x9 border+desk bucket below, which
+      // can't express a room with sealed cells and an L-shaped hall.
+      PRISON_ROOMS[this.currentZoneId]
     ) {
       const zone = ZONES[this.currentZoneId]
       if (col < 0 || col >= zone.cols || row < 0 || row >= zone.rows) return true
@@ -3443,8 +4015,6 @@ export default class OverworldScene extends Phaser.Scene {
     if (
       this.currentZoneId === 'stockExchangeInterior' ||
       this.currentZoneId === 'buildingInterior' ||
-      this.currentZoneId === 'jailCell' ||
-      this.currentZoneId === 'jailMaze' ||
       this.currentZoneId === 'jailUnderworld' ||
       this.currentZoneId === 'underworldInterior'
     ) {
