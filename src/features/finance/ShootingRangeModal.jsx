@@ -459,8 +459,14 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
         const steady = clamp(0, 1, (now - lastMoveAtRef.current) / STEADY_MS)
         setSteadiness(steady)
         const swayRadius = MAX_SWAY_PX * (1 - steady)
-        const swayX = Math.sin(now * 0.006 + swaySeedRef.current) * swayRadius
-        const swayY = Math.cos(now * 0.0047 + swaySeedRef.current * 1.3) * swayRadius
+        // Slowed to roughly half the old angular speed (0.006/0.0047 ->
+        // 0.003/0.0024) - at the old speed the crosshair completed a full
+        // wobble in ~1s, which read as a fast, erratic shake rather than a
+        // held-breath drift. Same amplitude (MAX_SWAY_PX), same two-axis
+        // sin/cos shape (still traces a slowly rotating ellipse, not a
+        // simple circle), just a calmer, more predictable path to track.
+        const swayX = Math.sin(now * 0.003 + swaySeedRef.current) * swayRadius
+        const swayY = Math.cos(now * 0.0024 + swaySeedRef.current * 1.3) * swayRadius
         crosshairRef.current = {
           x: clamp(0, RANGE_W, rawAimRef.current.x + swayX),
           y: clamp(0, RANGE_H, rawAimRef.current.y + swayY),
