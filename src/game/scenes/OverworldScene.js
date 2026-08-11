@@ -2088,6 +2088,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.bridge = null
     this.nearbyZone = null
     this.interactionLocked = false
+    // Set only while UnderworldMapScene.jsx/CasinoMapScene.jsx's walkable
+    // DOM hub is open (see enterHubWithWalkIn/resumeFromModal below) - NOT
+    // the same as interactionLocked, which every modal in the game sets.
+    // See update()'s own comment on why this needs to exist at all.
+    this.heavySimSuspended = false
     this.zoneObjects = []
     this.currentZoneId = 'overworld'
     this.currentInteriorBuildingId = null
@@ -5184,6 +5189,7 @@ export default class OverworldScene extends Phaser.Scene {
 
   resumeFromModal() {
     this.interactionLocked = false
+    this.heavySimSuspended = false
     // Only set by enterHubWithWalkIn below - every other pauseForModal()
     // call site never faded the camera out, so this only ever fires the fade
     // BACK in for the one flow that faded out in the first place.
@@ -5231,6 +5237,25 @@ export default class OverworldScene extends Phaser.Scene {
           actor.sprite.setPosition(actor.sprite.x, startY)
           this._fadedForModal = true
           this.pauseForModal()
+          // These two hubs open onto a real, player-controlled walkable
+          // scene of their own (UnderworldMapScene.jsx/CasinoMapScene.jsx) -
+          // a DOM rAF loop moving a sprite in real time, on TOP of this
+          // still-running Phaser canvas. update()'s own named-roamer/
+          // ambient-NPC/habitat-animal simulation is deliberately left
+          // running through an ordinary modal (see that method's comment -
+          // the backdrop is translucent, so the world stays visibly, if
+          // dimly, alive behind it) but that background work - up to 88
+          // roamers doing A* pathing every frame - was competing directly
+          // with the DOM loop for main-thread time, and it's why walking
+          // inside either hub read as laggy/barely-moving: real elapsed
+          // time between the DOM loop's rAF frames balloons, but its dt is
+          // clamped (see WALK_SPEED usage in either scene file), so the
+          // player's average speed craters instead of just looking choppy.
+          // Suspending it for exactly this one case - not interactionLocked
+          // generally, which would also mute the "world stays alive" effect
+          // behind every other modal in the game - fixes the walk without
+          // touching that design elsewhere. Cleared in resumeFromModal().
+          this.heavySimSuspended = true
           this.bridge.emit('interact', { type: 'building', id })
         })
       },
@@ -5609,9 +5634,15 @@ export default class OverworldScene extends Phaser.Scene {
     this._prevDriveX = this.playerActor.x
     this._prevDriveY = this.playerActor.y
 
-    this.updateAllAmbientNpcs(delta)
-    this.updateHabitatAnimals(delta)
-    if (this.currentZoneId === 'overworld') this.updateNamedRoamers(delta)
+    // Skipped only while heavySimSuspended (Underworld/Casino's walkable DOM
+    // hub - see enterHubWithWalkIn's own comment on why). Every other modal
+    // in the game leaves these running on purpose, so gate on that flag
+    // specifically, not interactionLocked - which is true for every modal.
+    if (!this.heavySimSuspended) {
+      this.updateAllAmbientNpcs(delta)
+      this.updateHabitatAnimals(delta)
+      if (this.currentZoneId === 'overworld') this.updateNamedRoamers(delta)
+    }
     if (this.currentZoneId === 'overworld') this.updatePoliceChasers(delta)
     if (this.currentZoneId === 'overworld') this.updateNearbyWitnesses(delta)
 
