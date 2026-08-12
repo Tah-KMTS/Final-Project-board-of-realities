@@ -52,6 +52,7 @@ import FinanceStatusBar from './Header/FinanceStatusBar'
 import { generateBodyguardMonster, generateStreetTargetMonster } from '../features/finance/financeNpcs'
 import FinanceSkirmishModal from '../features/finance/FinanceSkirmishModal'
 import { getAnyCharacter } from '../features/agents/characterLookup'
+import { getMugProfile } from '../utils/npcGenerator'
 import YugiEncounterModal from '../features/yugioh/YugiEncounterModal'
 import KaibaCorpModal from '../features/yugioh/KaibaCorpModal'
 import CardShopModal from '../features/yugioh/CardShopModal'
@@ -1001,13 +1002,15 @@ export default function WorldScreen() {
       {activeModal?.type === 'building' && activeModal.id === 'inceHome' && (
         <IncModal
           onClose={closeModal}
+          mugProfile={getMugProfile('finance_ambient_2')}
           onMug={() => {
+            const profile = getMugProfile('finance_ambient_2')
             useGameStore.getState().executeCrime({
               type: 'mug',
-              baseSuccessChance: 0.8,
-              payout: 50,
-              notorietyIncreaseOnFail: 5,
-              wantedIncreaseOnFail: 1,
+              baseSuccessChance: profile.baseSuccessChance,
+              payout: profile.payout,
+              notorietyIncreaseOnFail: profile.notorietyIncreaseOnFail,
+              wantedIncreaseOnFail: profile.wantedIncreaseOnFail,
               energyCost: 15,
               assetSeizureOnFail: 0,
               jailChanceOnFail: 0,
@@ -1095,13 +1098,18 @@ export default function WorldScreen() {
           they're presented for Ince) - defined once here rather than
           duplicated across both modals. */}
       {activeModal?.type === 'ambientNpc' && (() => {
+        // Success chance vs. payout is per-mark, not a flat coin-flip -
+        // deterministically derived from the npc's own id (getMugProfile),
+        // so the same NPC is always exactly this hard/lucrative to mug
+        // every run, and tougher marks are riskier but pay out more.
+        const mugProfile = getMugProfile(activeModal.npcId)
         const handleMug = () => {
           const res = useGameStore.getState().executeCrime({
             type: 'mug',
-            baseSuccessChance: 0.8,
-            payout: 50,
-            notorietyIncreaseOnFail: 5,
-            wantedIncreaseOnFail: 1,
+            baseSuccessChance: mugProfile.baseSuccessChance,
+            payout: mugProfile.payout,
+            notorietyIncreaseOnFail: mugProfile.notorietyIncreaseOnFail,
+            wantedIncreaseOnFail: mugProfile.wantedIncreaseOnFail,
             energyCost: 15,
             assetSeizureOnFail: 0,
             jailChanceOnFail: 0,
@@ -1127,12 +1135,21 @@ export default function WorldScreen() {
         // ambient slots with a bespoke modal (IncModal.jsx). The other 5
         // fall through to the plain AmbientNpcModal below, unchanged.
         if (activeModal.npcId === 'finance_ambient_2') {
-          return <IncModal onClose={closeModal} onMug={handleMug} onAttack={handleAttack} feedback={activeModal.feedback} />
+          return (
+            <IncModal
+              onClose={closeModal}
+              mugProfile={mugProfile}
+              onMug={handleMug}
+              onAttack={handleAttack}
+              feedback={activeModal.feedback}
+            />
+          )
         }
         return (
           <AmbientNpcModal
             npcName={activeModal.npcName}
             onClose={closeModal}
+            mugProfile={mugProfile}
             onMug={handleMug}
             onAttack={handleAttack}
             feedback={activeModal.feedback}

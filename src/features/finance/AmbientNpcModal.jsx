@@ -1,4 +1,7 @@
-export default function AmbientNpcModal({ npcName, onClose, onMug, onAttack, feedback }) {
+// mugProfile is per-npc (see npcGenerator.js's getMugProfile) - a tougher
+// mark is a lower success chance but a bigger payout if it lands, so the
+// button always shows what THIS specific NPC is actually worth/risky.
+export default function AmbientNpcModal({ npcName, onClose, onMug, onAttack, feedback, mugProfile }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="w-[380px] border-4 border-gray-400 bg-[#1c1d3a] p-6 font-mono text-white">
@@ -13,7 +16,9 @@ export default function AmbientNpcModal({ npcName, onClose, onMug, onAttack, fee
 
         <div className="flex flex-col gap-2">
           <button onClick={onMug} className="border-2 border-orange-400 py-1 text-sm hover:bg-orange-400 hover:text-black">
-            Mug Them (+$50, Wanted +1)
+            Mug Them ({mugProfile ? `${mugProfile.label} - ` : ''}
+            +${mugProfile?.payout ?? 50}, {Math.round((mugProfile?.baseSuccessChance ?? 0.8) * 100)}% odds, Wanted +
+            {mugProfile?.wantedIncreaseOnFail ?? 1} on fail)
           </button>
           <button onClick={onAttack} className="border-2 border-red-600 bg-red-700 py-1 text-sm font-bold hover:bg-red-600">
             Attack Them

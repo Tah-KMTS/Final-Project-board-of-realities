@@ -71,7 +71,11 @@ const PRESET_CHOICES = [
   { key: 'hustle', label: 'I need something done quietly - you in, no questions asked?' },
 ]
 
-export default function IncModal({ onClose, onMug, onAttack, feedback }) {
+// mugProfile is per-npc (see npcGenerator.js's getMugProfile) - a tougher
+// mark is a lower success chance but a bigger payout if it lands, same as
+// the plain AmbientNpcModal (WorldScreen.jsx computes it once and passes it
+// to both).
+export default function IncModal({ onClose, onMug, onAttack, feedback, mugProfile }) {
   const world2 = useGameStore((s) => s.world2)
   const setRomanceState = useGameStore((s) => s.setRomanceState)
   const romanceState = world2.romanceState || { relationships: {}, chatLog: {} }
@@ -313,7 +317,9 @@ export default function IncModal({ onClose, onMug, onAttack, feedback }) {
                   onClick={onMug}
                   className="flex-1 border border-orange-500/70 bg-orange-950/40 py-1.5 text-xs font-bold text-orange-300 hover:bg-orange-900/60"
                 >
-                  Mug Them (+$50, Wanted +1)
+                  Mug Them ({mugProfile ? `${mugProfile.label} - ` : ''}
+                  +${mugProfile?.payout ?? 50}, {Math.round((mugProfile?.baseSuccessChance ?? 0.8) * 100)}% odds,
+                  Wanted +{mugProfile?.wantedIncreaseOnFail ?? 1} on fail)
                 </button>
                 <button
                   onClick={onAttack}

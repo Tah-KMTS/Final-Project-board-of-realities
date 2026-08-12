@@ -24,6 +24,30 @@ function hashSeed(str) {
   return h
 }
 
+// Mug difficulty tiers - success chance trades off against payout, so a
+// wary/tough mark is riskier to hit but worth more when it lands (see
+// WorldScreen.jsx's handleMug, the only place these get read). Picked once,
+// deterministically, from the same id-derived seed as the npc's cosmetic
+// traits below - a given ambient NPC is always exactly this hard/lucrative
+// to mug, every run, not re-rolled per attempt.
+const MUG_TIERS = [
+  { label: 'Easy Mark', baseSuccessChance: 0.9, payout: 90, notorietyIncreaseOnFail: 3, wantedIncreaseOnFail: 1 },
+  { label: 'Average Mark', baseSuccessChance: 0.8, payout: 180, notorietyIncreaseOnFail: 5, wantedIncreaseOnFail: 1 },
+  { label: 'Wary Mark', baseSuccessChance: 0.65, payout: 330, notorietyIncreaseOnFail: 7, wantedIncreaseOnFail: 2 },
+  { label: 'Tough Mark', baseSuccessChance: 0.5, payout: 540, notorietyIncreaseOnFail: 10, wantedIncreaseOnFail: 2 },
+]
+
+// Callable with just an id (no need to regenerate the whole npc) - both of
+// WorldScreen.jsx's mug call sites (Ince's bespoke house branch, which only
+// ever has her id on hand, and the generic ambientNpc branch) go through
+// this rather than reading generateAmbientNpc(id).mugDifficulty.
+export function getMugProfile(id) {
+  const seed = hashSeed(id)
+  // >>> 12 keeps this independent of the bits palette/personality/trait
+  // below already consume (seed, seed>>>3/6/9, seed>>2, seed>>4).
+  return seededPick(MUG_TIERS, seed >>> 12)
+}
+
 export function generateAmbientNpc(id) {
   const seed = hashSeed(id)
   const palette = {
@@ -38,6 +62,7 @@ export function generateAmbientNpc(id) {
     personality: seededPick(PERSONALITY_TAGS, seed >> 2),
     trait: seededPick(VISUAL_TRAITS, seed >> 4),
     palette,
+    mugDifficulty: getMugProfile(id),
   }
 }
 
