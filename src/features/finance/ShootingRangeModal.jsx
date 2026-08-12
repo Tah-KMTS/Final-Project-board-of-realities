@@ -16,10 +16,10 @@ import { useGameStore } from '../../store/useGameStore'
 // shoot/no-shoot discrimination, not a legal penalty) and the run still
 // ends when the clock runs out; there's just no jail/notoriety riding on it.
 //
-// MECHANIC: mouse-aimed shooting gallery, timed. The crosshair follows the
-// mouse but SWAYS around it - sway shrinks toward 0 only while the mouse
-// holds still (STEADY_MS), so a precise shot means aim, hold, fire, not
-// just click a label. Bullseye/Crew are "shoot" (bank Score - a dead-center
+// MECHANIC: mouse-aimed shooting gallery, timed. The crosshair tracks the
+// mouse exactly (no sway/drift - a shot lands wherever the cursor is, full
+// stop), so the skill test is entirely target selection/timing, not fighting
+// aim wobble. Bullseye/Crew are "shoot" (bank Score - a dead-center
 // Bullseye pays more than an outer-ring hit); Civilian is "no-shoot" (a shot
 // landing in its circle, deliberate OR sway-induced, docks Score instead).
 // TIME_LIMIT_MS is the only clock - it just runs out and shows the final
@@ -115,8 +115,6 @@ const PLAYER_SPRITE_H = 150
 const TIME_LIMIT_MS = 30000
 const TARGET_LIFETIME_MS = 2600
 const SPAWN_GAP_MS = 480
-const MAX_SWAY_PX = 46
-const STEADY_MS = 420
 const SCORE_PER_CENTER = 10
 const SCORE_PER_EDGE = 5
 const SCORE_PER_CREW = 8
@@ -134,16 +132,9 @@ const BEST_SCORE_STORAGE_KEY = 'capitalSyndicate.gunRangeBestScore'
 const RANGE_ENERGY_COST = 15
 const SCORE_TO_CASH = 2
 
-// Crosshair color: red while the aim is still drifting, green once it's
-// settled - this is what replaced the old sway ring as the "how steady am
-// I" read, so it has to actually communicate that.
-function laserColor(steadiness) {
-  const t = clamp(0, 1, steadiness)
-  const r = Math.round(255 + (92 - 255) * t)
-  const g = Math.round(90 + (255 - 90) * t)
-  const b = Math.round(69 + (122 - 69) * t)
-  return `rgb(${r}, ${g}, ${b})`
-}
+// Fixed crosshair color - aim is always dead-on now (no sway/settling to
+// read), so this is just the accent color rather than a live signal.
+const CROSSHAIR_COLOR = 'rgb(92, 255, 122)'
 
 // Corridor bounds. Targets are clamped/bounced inside these rather than the
 // raw 0..1 / -1..1 extremes so nothing spawns exactly on the vanishing point
@@ -274,7 +265,6 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
   const [timeLeftMs, setTimeLeftMs] = useState(TIME_LIMIT_MS)
   const [targets, setTargets] = useState([])
   const [crosshair, setCrosshair] = useState({ x: RANGE_W / 2, y: RANGE_H / 2 })
-  const [steadiness, setSteadiness] = useState(0) // 0 = just moved, 1 = fully settled
   const [resultData, setResultData] = useState(null)
   const [marks, setMarks] = useState([]) // fading shot decals: { id, x, y, good }
   const [firedAt, setFiredAt] = useState(0) // drives muzzle flash + screen kick
@@ -288,10 +278,8 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
   const targetsRef = useRef([])
   const nextSpawnAtRef = useRef(0)
   const rawAimRef = useRef({ x: RANGE_W / 2, y: RANGE_H / 2 })
-  const lastMoveAtRef = useRef(0)
   const lastFiredAtRef = useRef(0)
   const lastFrameAtRef = useRef(0)
-  const swaySeedRef = useRef(0)
   const crosshairRef = useRef({ x: RANGE_W / 2, y: RANGE_H / 2 })
   const comboRef = useRef(0)
   // Shot ledger for the end-of-run scorecard. Refs, not state, so resolve()
@@ -361,7 +349,6 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
       x: clamp(0, RANGE_W, ((e.clientX - rect.left) / rect.width) * RANGE_W),
       y: clamp(0, RANGE_H, ((e.clientY - rect.top) / rect.height) * RANGE_H),
     }
-    lastMoveAtRef.current = performance.now()
   }, [])
 
   const addMark = (x, y, good) => {
@@ -446,8 +433,9 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
     setTargets([...targetsRef.current])
   }, [screen])
 
-  // Single rAF loop owning the whole live screen: crosshair sway, per-target
-  // movement, expiry, and spawning.
+  // Single rAF loop owning the whole live screen: per-target movement,
+  // expiry, and spawning (crosshair tracking used to also sway here - now
+  // it's a direct copy of rawAimRef, see handleMouseMove).
   useEffect(() => {
     if (screen !== 'range') return
     lastFrameAtRef.current = performance.now()
@@ -456,21 +444,7 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
         const dtSec = Math.min(0.05, (now - lastFrameAtRef.current) / 1000)
         lastFrameAtRef.current = now
 
-        const steady = clamp(0, 1, (now - lastMoveAtRef.current) / STEADY_MS)
-        setSteadiness(steady)
-        const swayRadius = MAX_SWAY_PX * (1 - steady)
-        // Slowed to roughly half the old angular speed (0.006/0.0047 ->
-        // 0.003/0.0024) - at the old speed the crosshair completed a full
-        // wobble in ~1s, which read as a fast, erratic shake rather than a
-        // held-breath drift. Same amplitude (MAX_SWAY_PX), same two-axis
-        // sin/cos shape (still traces a slowly rotating ellipse, not a
-        // simple circle), just a calmer, more predictable path to track.
-        const swayX = Math.sin(now * 0.003 + swaySeedRef.current) * swayRadius
-        const swayY = Math.cos(now * 0.0024 + swaySeedRef.current * 1.3) * swayRadius
-        crosshairRef.current = {
-          x: clamp(0, RANGE_W, rawAimRef.current.x + swayX),
-          y: clamp(0, RANGE_H, rawAimRef.current.y + swayY),
-        }
+        crosshairRef.current = rawAimRef.current
         setCrosshair(crosshairRef.current)
 
         // The clock is the only thing that ends a session now - it just
@@ -548,16 +522,13 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
     nextSpawnAtRef.current = 0
     rawAimRef.current = { x: RANGE_W / 2, y: RANGE_H / 2 }
     crosshairRef.current = { x: RANGE_W / 2, y: RANGE_H / 2 }
-    lastMoveAtRef.current = performance.now()
     lastFiredAtRef.current = 0
-    swaySeedRef.current = Math.random() * Math.PI * 2
     setScore(0)
     setTimeLeftMs(TIME_LIMIT_MS)
     setTargets([])
     setCombo(0)
     setTally({ shots: 0, hits: 0, centers: 0 })
     setCrosshair(crosshairRef.current)
-    setSteadiness(0)
     setResultData(null)
     setMarks([])
     setFiredAt(0)
@@ -603,11 +574,11 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
             </p>
           </div>
           <p className="text-xs text-gray-400">
-            Move the mouse to aim - the crosshair sways until you hold still, turning green once it's settled. Click
-            (or Space) to fire. Several targets run the lane at once and they move; deeper ones are smaller and
-            harder to land. Bullseye/Crew are shoot targets and bank Score; the marked-out civilian target isn't - a
-            wild shot that drifts into it docks Score the same as a deliberate hit. 3 hits in a row pays a bonus, one
-            miss resets it. You've got {Math.round(TIME_LIMIT_MS / 1000)} seconds - see how high you can run it.
+            Move the mouse to aim - the crosshair tracks it exactly. Click (or Space) to fire. Several targets run
+            the lane at once and they move; deeper ones are smaller and harder to land. Bullseye/Crew are shoot
+            targets and bank Score; the marked-out civilian target isn't - a shot landing on it docks Score the same
+            as a deliberate hit. 3 hits in a row pays a bonus, one miss resets it. You've got{' '}
+            {Math.round(TIME_LIMIT_MS / 1000)} seconds - see how high you can run it.
           </p>
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-500">Energy: <span className={energy < RANGE_ENERGY_COST ? 'text-red-400' : 'text-gray-300'}>{energy}</span></span>
@@ -780,8 +751,8 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
                     top: -10,
                     width: 3,
                     height: 20,
-                    background: laserColor(steadiness),
-                    boxShadow: `0 0 ${3 + steadiness * 3}px ${laserColor(steadiness)}`,
+                    background: CROSSHAIR_COLOR,
+                    boxShadow: `0 0 6px ${CROSSHAIR_COLOR}`,
                   }}
                 />
                 <div
@@ -791,20 +762,11 @@ export default function ShootingRangeModal({ onClose, embedded = false }) {
                     top: -1.5,
                     width: 20,
                     height: 3,
-                    background: laserColor(steadiness),
-                    boxShadow: `0 0 ${3 + steadiness * 3}px ${laserColor(steadiness)}`,
+                    background: CROSSHAIR_COLOR,
+                    boxShadow: `0 0 6px ${CROSSHAIR_COLOR}`,
                   }}
                 />
               </div>
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-0.5 flex items-center justify-between text-[10px] uppercase tracking-widest text-yellow-300/80">
-              <span>Aim Steady</span>
-            </div>
-            <div className="h-1.5 w-full bg-[#0a0a16]">
-              <div className="h-full bg-yellow-400/80 transition-[width] duration-75" style={{ width: `${steadiness * 100}%` }} />
             </div>
           </div>
 
