@@ -16,7 +16,9 @@ const ROLL_MS = 26000
 // the names dissolve rather than sliding off the top edge.
 const FADE_FROM = 0.86
 
-const DEVELOPERS = [
+// Exported so WelcomeScreen.jsx's title-screen footer credit can list the
+// same names without a second, driftable copy of the roster.
+export const DEVELOPERS = [
   'Pornpavis Jongdepaisarn',
   'Ataya Chitmeesilp',
   'Thanakorm Kornmatisuk',
