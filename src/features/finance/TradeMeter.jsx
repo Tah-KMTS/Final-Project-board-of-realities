@@ -29,7 +29,14 @@ export default function TradeMeter({ stock, holding, shortHolding }) {
   const sellStock = useGameStore((s) => s.sellStock)
   const openShort = useGameStore((s) => s.openShort)
   const coverShort = useGameStore((s) => s.coverShort)
-  const [qty, setQty] = useState(1)
+  // Held as the raw typed string, not a clamped number - clamping on every
+  // keystroke (the old behavior) meant backspacing to clear the field for a
+  // new number hit Math.max(1, ...) on the resulting '', which snapped the
+  // input straight back to '1' before the next digit could land, making it
+  // impossible to type anything but a single-digit quantity. qtyNum below
+  // is the actual clamped value every trade call uses.
+  const [qty, setQty] = useState('1')
+  const qtyNum = Math.max(1, Math.floor(Number(qty)) || 1)
   const [direction, setDirection] = useState(null) // null | 'buy' | 'sell' | 'short' | 'cover'
   const [zone, setZone] = useState(null)
   const [markerPos, setMarkerPos] = useState(0.5)
@@ -66,22 +73,22 @@ export default function TradeMeter({ stock, holding, shortHolding }) {
     let ok = false
 
     if (direction === 'buy') {
-      ok = buyStock(stock.ticker, qty, multiplier)
+      ok = buyStock(stock.ticker, qtyNum, multiplier)
       setResultText(
         !ok ? 'Not enough cash for that trade.' : hit ? `Filled at a ${Math.round((1 - multiplier) * 100)}% discount!` : 'Filled at market price.'
       )
     } else if (direction === 'sell') {
-      ok = sellStock(stock.ticker, qty, multiplier)
+      ok = sellStock(stock.ticker, qtyNum, multiplier)
       setResultText(
         !ok ? "You don't have enough shares." : hit ? `Filled at a ${Math.round((multiplier - 1) * 100)}% bonus!` : 'Filled at market price.'
       )
     } else if (direction === 'short') {
-      ok = openShort(stock.ticker, qty, multiplier)
+      ok = openShort(stock.ticker, qtyNum, multiplier)
       setResultText(
         !ok ? 'Could not open short.' : hit ? `Shorted at a ${Math.round((multiplier - 1) * 100)}% bonus!` : 'Shorted at market price.'
       )
     } else if (direction === 'cover') {
-      ok = coverShort(stock.ticker, qty, multiplier)
+      ok = coverShort(stock.ticker, qtyNum, multiplier)
       setResultText(
         !ok ? "Not enough cash to cover - you're stuck holding the position." : hit ? `Covered at a ${Math.round((1 - multiplier) * 100)}% discount!` : 'Covered at market price.'
       )
@@ -116,7 +123,8 @@ export default function TradeMeter({ stock, holding, shortHolding }) {
           type="number"
           min="1"
           value={qty}
-          onChange={(e) => setQty(Math.max(1, Math.floor(Number(e.target.value)) || 1))}
+          onChange={(e) => setQty(e.target.value)}
+          onBlur={() => setQty(String(qtyNum))}
           className="w-14 border border-gray-600 bg-black px-1 py-0.5 text-white"
         />
       </div>
