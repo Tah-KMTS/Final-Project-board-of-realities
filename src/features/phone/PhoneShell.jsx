@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, ArrowLeft, Wallet, Siren, Rss, Heart, Sparkles, TrendingUp, Map } from 'lucide-react'
+import { X, ArrowLeft, Wallet, Siren, Rss, Heart, Sparkles, TrendingUp, Map, Eye } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore'
 import { NET_WORTH_WIN_TARGET, NET_WORTH_MILESTONES } from '../../features/finance/marketData'
 
@@ -101,10 +101,14 @@ export default function PhoneShell({ onClose, apps = {}, initialApp = 'home' }) 
 
   const cash = useGameStore((s) => s.cash)
   const wantedLevel = useGameStore((s) => s.wantedLevel)
+  const notoriety = useGameStore((s) => s.notoriety)
   const computeNetWorth = useGameStore((s) => s.computeNetWorth)
   const world2 = useGameStore((s) => s.world2)
   const heatPct = Math.round((wantedLevel / 5) * 100)
   const heatDanger = heatPct >= 60
+  // notoriety is already stored 0-100 (see useGameStore.js), no rescale
+  // needed the way wantedLevel (0-5) needs heatPct's *100/5 above.
+  const notorietyDanger = notoriety >= 60
 
   // Same net-worth-target computation FinanceStatusBar.jsx used to do before
   // the header strip-down - the denominator progresses through the
@@ -192,9 +196,20 @@ export default function PhoneShell({ onClose, apps = {}, initialApp = 'home' }) 
                   <span className="text-gray-500"> / {netWorthTargetLabel}</span>
                 </span>
               </div>
-              <div className="flex shrink-0 items-center gap-1" title="Police Heat / SEC Suspicion">
+            </div>
+            {/* Heat/Notoriety pair on their own row (moved off the row above
+                to make room) - both crime-heat meters read via a hover
+                tooltip (the `title` attribute), same "point to see the
+                description" pattern as Net Worth above, since neither has
+                room for a written-out label in a 360px-wide frame. */}
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1" title="Police Heat / SEC Suspicion: raised by getting CAUGHT (a failed crime with a witness/patrol nearby). Drives police encounters and jail chance right now.">
                 <Siren size={14} className={heatDanger ? 'animate-pulse text-red-500' : 'text-orange-300'} />
-                <span className={heatDanger ? 'font-bold text-red-400' : 'text-orange-300'}>{heatPct}%</span>
+                <span className={heatDanger ? 'font-bold text-red-400' : 'text-orange-300'}>Heat {heatPct}%</span>
+              </div>
+              <div className="flex items-center gap-1" title="Notoriety (0-100): your long-term reputation as a criminal, raised by every failed crime whether or not you got caught. Higher notoriety lowers the success odds of every future crime attempt - but it cools off on its own, about -5/day, if you lay low.">
+                <Eye size={14} className={notorietyDanger ? 'animate-pulse text-red-500' : 'text-yellow-300'} />
+                <span className={notorietyDanger ? 'font-bold text-red-400' : 'text-yellow-300'}>Notoriety {notoriety}/100</span>
               </div>
             </div>
           </div>
