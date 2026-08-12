@@ -66,7 +66,16 @@ const TABS = [
   { id: 'arcade', label: 'Pixel Palace Arcade' },
 ]
 
-export default function CasinoModal({ onClose }) {
+// onOpenPhone/onEndDay are optional - FinanceStatusBar's own Phone/End Day
+// buttons sit in the normal page flow, so a `fixed inset-0` modal like this
+// one covers them entirely for as long as it's open (same as every other
+// modal in the game). A casino session runs long enough that "back out
+// entirely just to end the day or check the phone" was a real reported
+// annoyance, so this modal gets its own copies wired straight to the same
+// handlers WorldScreen.jsx gives FinanceStatusBar - see its own render site
+// for how onEndDay also closes this modal first (so the daily report isn't
+// left rendering underneath it).
+export default function CasinoModal({ onClose, onOpenPhone, onEndDay }) {
   const cash = useGameStore((s) => s.cash)
   const [tab, setTab] = useState('blackjack')
   // false = the walk-in floor (CasinoMapScene) - the "pink building" front
@@ -93,6 +102,27 @@ export default function CasinoModal({ onClose }) {
           entered ? 'w-[720px]' : 'w-[1120px] max-w-[95vw]'
         }`}
       >
+        {(onOpenPhone || onEndDay) && (
+          <div className="absolute right-4 top-4 flex gap-2">
+            {onOpenPhone && (
+              <button
+                onClick={onOpenPhone}
+                className="border-2 border-violet-500/70 bg-violet-500/10 px-2 py-1 text-xs font-bold text-violet-300 hover:bg-violet-500/30"
+              >
+                Phone
+              </button>
+            )}
+            {onEndDay && (
+              <button
+                onClick={onEndDay}
+                className="border-2 border-fuchsia-400/70 bg-fuchsia-500/10 px-2 py-1 text-xs font-bold text-fuchsia-200 hover:bg-fuchsia-500/30"
+              >
+                End Day
+              </button>
+            )}
+          </div>
+        )}
+
         <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Commercial District</p>
         <h2 className="mb-2 text-xl font-bold text-pink-300">Neon Dragon Casino</h2>
         <p className="mb-3 text-xs text-gray-400">

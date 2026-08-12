@@ -206,7 +206,13 @@ function BossJobsMenu({ onSelect }) {
 // here. Black Market and Crime Alley's tabs are DistrictBuildingModal-only
 // now - a NamedNpcModal composition under each (Ochoa, newly added this
 // pass; Luciano, pre-existing) was removed at the user's request.
-export default function UnderworldModal({ onClose, initialTab = 'map' }) {
+// onOpenPhone/onEndDay - see CasinoModal.jsx's identical header comment for
+// why these exist: FinanceStatusBar's own Phone/End Day buttons are covered
+// by any `fixed inset-0` modal, and a long Underworld session (walking the
+// map hub between rackets) is exactly the kind of session where backing all
+// the way out just to check the phone or end the day was a real reported
+// annoyance.
+export default function UnderworldModal({ onClose, initialTab = 'map', onOpenPhone, onEndDay }) {
   const [tab, setTab] = useState(initialTab)
   // Which Boss job (if any) is currently open within the Boss Jobs tab -
   // null shows BossJobsMenu instead. Reset whenever the player leaves the
@@ -257,6 +263,27 @@ export default function UnderworldModal({ onClose, initialTab = 'map' }) {
               : 'w-[640px]'
         }`}
       >
+        {(onOpenPhone || onEndDay) && (
+          <div className="absolute right-4 top-4 flex gap-2">
+            {onOpenPhone && (
+              <button
+                onClick={onOpenPhone}
+                className="border-2 border-violet-500/70 bg-violet-500/10 px-2 py-1 text-xs font-bold text-violet-300 hover:bg-violet-500/30"
+              >
+                Phone
+              </button>
+            )}
+            {onEndDay && (
+              <button
+                onClick={onEndDay}
+                className="border-2 border-fuchsia-400/70 bg-fuchsia-500/10 px-2 py-1 text-xs font-bold text-fuchsia-200 hover:bg-fuchsia-500/30"
+              >
+                End Day
+              </button>
+            )}
+          </div>
+        )}
+
         <p className="mb-1 text-xs uppercase tracking-widest text-gray-500">Underground District</p>
         <h2 className="mb-2 text-xl font-bold text-red-400">The Underworld</h2>
         <p className="mb-3 text-xs text-gray-400">

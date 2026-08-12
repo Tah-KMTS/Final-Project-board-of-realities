@@ -85,6 +85,33 @@ const REGION_LABELS = {
   yugioh: 'King of Games',
 }
 
+// Per-building bgm track (src/audio/bgm.js's RECIPES) for the bgm effect
+// below - any `type: 'building'` modal id not listed here still gets music
+// (falls back to 'building_interior'), it just doesn't have a bespoke theme
+// of its own yet. Buildings sharing one financial-institution flavor (bank/
+// stockExchange/businessCenter/realEstateAgency) intentionally share the
+// 'bank' track rather than each getting a unique one. hq/supermarket/
+// burgerJoint (Hunter's Rift) and kameGameShop/kaibaCorpTower/cardShop (King
+// of Games) are pinned to their own region's existing track rather than
+// falling to 'building_interior', preserving the pre-existing behavior of
+// just carrying the region loop on through those buildings' interiors.
+const BUILDING_TRACK_MAP = {
+  casino: 'casino',
+  underworld: 'underworld',
+  bank: 'bank',
+  stockExchange: 'bank',
+  businessCenter: 'bank',
+  realEstateAgency: 'bank',
+  governmentBuilding: 'government',
+  temple: 'temple',
+  hq: 'hunters_rift',
+  supermarket: 'hunters_rift',
+  burgerJoint: 'hunters_rift',
+  kameGameShop: 'king_of_games',
+  kaibaCorpTower: 'king_of_games',
+  cardShop: 'king_of_games',
+}
+
 const DISTRICT_BUILDING_IDS = Object.keys(DISTRICT_BUILDINGS_CONFIG)
 
 // Building ids that open an InteractiveLocationModal when the player reaches
@@ -218,6 +245,15 @@ export default function WorldScreen() {
   // battle/street-skirmish. Explicit combat/place modals take priority over
   // the region's ambient loop; domino mode still has no track (none was
   // generated for it) so it stays silent, same as before this change.
+  //
+  // `type === 'building'` now branches further on BUILDING_TRACK_MAP so
+  // walking into a specific building swaps the music instead of just
+  // carrying on the outdoor capital_overworld loop - previously there was a
+  // `type === 'casino'` check here that could never actually match (the
+  // Casino modal's real activeModal shape is `{ type: 'building', id:
+  // 'casino' }`, same as every other building), so its RECIPES track never
+  // played; this both fixes that and extends the idea to every other
+  // building via the map (falling back to 'building_interior' for the rest).
   useEffect(() => {
     const type = activeModal?.type
     let trackId = null
@@ -225,10 +261,10 @@ export default function WorldScreen() {
       trackId = 'police_battle'
     } else if (type === 'financeCombat' || type === 'ambientCombat') {
       trackId = 'street_skirmish'
-    } else if (type === 'casino') {
-      trackId = 'casino'
     } else if (type === 'jail') {
       trackId = 'jail'
+    } else if (type === 'building') {
+      trackId = BUILDING_TRACK_MAP[activeModal.id] || 'building_interior'
     } else if (mode === 'overworld') {
       if (activeRegion === 'finance') trackId = 'capital_overworld'
       else if (activeRegion === 'hunter') trackId = 'hunters_rift'
@@ -934,7 +970,19 @@ export default function WorldScreen() {
           it's reached only through Casino's Arcade tab now. Neither routes
           through the generic DistrictBuildingModal. */}
       {activeModal?.type === 'building' && activeModal.id === 'casino' && (
-        <CasinoModal onClose={closeModal} />
+        <CasinoModal
+          onClose={closeModal}
+          onOpenPhone={() => setActiveModal({ type: 'phone' })}
+          // Closes this modal first, then ends the day - DailyReportModal
+          // renders independently of activeModal (see its own `dailyReport`
+          // state above), so leaving this modal mounted would paint it
+          // UNDER the casino's still-open fixed-inset-0 overlay instead of
+          // showing the report.
+          onEndDay={() => {
+            closeModal()
+            handleEndDay()
+          }}
+        />
       )}
       {activeModal?.type === 'building' && activeModal.id === 'temple' && (
         <TempleModal onClose={closeModal} />
@@ -1047,6 +1095,13 @@ export default function WorldScreen() {
           // the player got here, they're free to walk to another desk or
           // leave through the room's own door.
           onClose={closeModal}
+          onOpenPhone={() => setActiveModal({ type: 'phone' })}
+          // See CasinoModal's identical onEndDay above for why this closes
+          // the modal first.
+          onEndDay={() => {
+            closeModal()
+            handleEndDay()
+          }}
         />
       )}
       {activeModal?.type === 'building' && activeModal.id === 'businessCenter' && (
