@@ -170,6 +170,14 @@ const FINANCE_BUILDING_DEFS = [
   // (bank/casino) rather than one of the multi-tenant tabbed hubs, since it's
   // a single InteractiveLocationModal entry, not several tenants.
   { id: 'foodCourt', label: 'Food Court', facadeStyle: 'modernBrick', color: 0xa05a1f, width: 4, height: 3, zone: 'finance' },
+  // Game Center - an Osaka-style game-center storefront (drawn with a neon GAME
+  // CENTER / ゲームセンター sign overlay in drawBuildings). Placed directly after
+  // foodCourt in the finance zone so packDefs stacks it just below the Food
+  // Court. A real walk-in interior (buildArcadeInteriorZone): walking up + E
+  // loads arcadeInterior, where the sit-down driving cabinet (Turbo Racer) and
+  // the air-hockey table live (triggerInteraction's 'arcade' building case +
+  // 'arcadeCabinet' zone).
+  { id: 'arcade', label: 'Game Center', facadeStyle: 'modernBrick', color: 0x1f6a8a, width: 4, height: 3, zone: 'finance' },
   // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
   // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
   // UnderworldModal.jsx's 4 tabs). Widest/tallest of the 4 multi-tenant hubs
@@ -1597,6 +1605,19 @@ const INTERIOR_SPAWN = { col: 6, row: 5 }
 const INTERIOR_DESK = { c0: 5, r0: 2, c1: 6, r1: 3 }
 const INTERIOR_EXIT = { c0: 5, r0: 7, c1: 7, r1: 8 }
 
+// Game Center's walk-in room is deliberately bigger than the shared 12x9
+// interior (INTERIOR_COLS/ROWS) - a 20x13 floor with room for a hero driving
+// cabinet on a lit stage, two rows of themed upright cabinets, a claw machine,
+// skee-ball, an air-hockey table, a walk-on DDR pad, and a prize counter, all
+// drawn from Phaser primitives (buildArcadeInteriorZone). spawn = just inside
+// the bottom-center doors; exit = those same door tiles.
+const ARCADE_ROOM = {
+  cols: 20,
+  rows: 13,
+  spawn: { col: 10, row: 10 },
+  exit: { c0: 9, r0: 11, c1: 10, r1: 12 },
+}
+
 const INTERIOR_TEMPLATES = {
   cryptoHQ: { floorA: 0x1a1030, floorB: 0x241640, deskColor: 0x8a5a1f, deskLabel: 'Trading Terminal' },
   tycoonOffice: { floorA: 0x2a2420, floorB: 0x241f1c, deskColor: 0x555555, deskLabel: 'Executive Desk' },
@@ -1661,6 +1682,7 @@ function interiorTemplateFor(building) {
 const ZONES = {
   overworld: { cols: MAP_COLS, rows: MAP_ROWS },
   stockExchangeInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
+  arcadeInterior: { cols: ARCADE_ROOM.cols, rows: ARCADE_ROOM.rows },
   buildingInterior: { cols: INTERIOR_COLS, rows: INTERIOR_ROWS },
   // Bespoke real-tileset rooms (see src/game/interiors/tmxWallInterior.js) -
   // same "own room shape, own zone id" pattern as stockExchangeInterior
@@ -1818,6 +1840,61 @@ function scatterTrees(scene, layout, buildings, count, zoneObjects) {
 // applied to every building indiscriminately (district civic buildings,
 // hideouts, and the other home facade families all keep their door as a
 // static painted-on frame, same as before this change).
+// Osaka game-center marquee for the Game Center facade - drawn on top of the
+// shared storefront so the building reads as a game center at a glance: a big
+// neon "GAME CENTER" over its Japanese name "ゲームセンター", plus a slim vertical
+// blade sign like the ones stacked over Dotonbori's arcades. 100% Phaser
+// Graphics/Text (no image assets), same as every other facade in this file.
+function drawArcadeSign(scene, x, y, w, h, zoneObjects) {
+  const cx = x + w / 2
+  const depth = y + h + 2 // above the facade (y+h) and any door sprite (y+h+1)
+  const signW = w * 0.94
+  const signH = 34
+  const signY = y - 10 // sits on the roofline like a marquee
+
+  const g = scene.add.graphics().setDepth(depth)
+  g.fillStyle(0x00e5ff, 0.16) // outer neon bloom
+  g.fillRoundedRect(cx - signW / 2 - 5, signY - 5, signW + 10, signH + 10, 9)
+  g.fillStyle(0x140a24, 1) // dark marquee panel
+  g.fillRoundedRect(cx - signW / 2, signY, signW, signH, 6)
+  g.lineStyle(2, 0xff2fb9, 1) // hot-pink neon border
+  g.strokeRoundedRect(cx - signW / 2, signY, signW, signH, 6)
+  zoneObjects.push(g)
+
+  const arcadeText = scene.add
+    .text(cx, signY + 12, 'GAME CENTER', { fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#00e5ff' })
+    .setOrigin(0.5)
+    .setDepth(depth + 1)
+  arcadeText.setShadow(0, 0, '#00e5ff', 8, true, true)
+  zoneObjects.push(arcadeText)
+
+  const jpText = scene.add
+    .text(cx, signY + 25, 'ゲームセンター', { fontFamily: 'sans-serif', fontSize: '10px', color: '#ff6ad5' })
+    .setOrigin(0.5)
+    .setDepth(depth + 1)
+  jpText.setShadow(0, 0, '#ff2fb9', 6, true, true)
+  zoneObjects.push(jpText)
+
+  // Vertical blade sign down the right edge - ゲーム (Japanese for "game"), one
+  // katakana per line, below the marquee so the two don't overlap.
+  const bladeX = x + w - 9
+  const bladeTop = signY + signH + 4
+  const bladeH = y + h - bladeTop - 4
+  if (bladeH > 40) {
+    const bg = scene.add.graphics().setDepth(depth)
+    bg.fillStyle(0x140a24, 1)
+    bg.fillRoundedRect(bladeX - 8, bladeTop, 16, bladeH, 4)
+    bg.lineStyle(1.5, 0x00e5ff, 1)
+    bg.strokeRoundedRect(bladeX - 8, bladeTop, 16, bladeH, 4)
+    zoneObjects.push(bg)
+    const blade = scene.add
+      .text(bladeX, bladeTop + 3, 'ゲ\nー\nム', { fontFamily: 'sans-serif', fontSize: '9px', color: '#ffe066', align: 'center', lineSpacing: 1 })
+      .setOrigin(0.5, 0)
+      .setDepth(depth + 1)
+    zoneObjects.push(blade)
+  }
+}
+
 function drawBuildings(scene, buildings, zoneObjects) {
   for (const b of buildings) {
     const x = b.tiles.c0 * TILE_SIZE
@@ -1825,6 +1902,8 @@ function drawBuildings(scene, buildings, zoneObjects) {
     const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
     zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color, b))
+
+    if (b.id === 'arcade') drawArcadeSign(scene, x, y, w, h, zoneObjects)
 
     const doorSpec = buildingDoorAnimSpec(b, x, y, w, h)
     if (doorSpec && scene.textures.exists(SERENE_VILLAGE_DOOR_KEY)) {
@@ -2681,6 +2760,7 @@ export default class OverworldScene extends Phaser.Scene {
 
     if (zoneId === 'overworld') this.buildOverworldZone()
     else if (zoneId === 'stockExchangeInterior') this.buildStockExchangeInteriorZone()
+    else if (zoneId === 'arcadeInterior') this.buildArcadeInteriorZone()
     else if (zoneId === 'chapelInterior') this.buildChapelInteriorZone()
     else if (zoneId === 'chapelExterior') this.buildChapelExteriorZone()
     else if (zoneId === 'teaHouseInterior') this.buildTeaHouseInteriorZone()
@@ -2750,7 +2830,9 @@ export default class OverworldScene extends Phaser.Scene {
                     // (the one cell whose bars have a gap), not on the shared
                     // spawn tile, which in that room is another inmate's cell.
                     ? PRISON_ROOMS[zoneId].spawn
-                    : INTERIOR_SPAWN)
+                    : zoneId === 'arcadeInterior'
+                      ? ARCADE_ROOM.spawn
+                      : INTERIOR_SPAWN)
       this.pendingInteriorSpawn = null
       this.tileMover.teleport(spawn.col, spawn.row)
     }
@@ -4140,6 +4222,358 @@ export default class OverworldScene extends Phaser.Scene {
     return stepTo(roamer.path[0].x, roamer.path[0].y)
   }
 
+  buildArcadeInteriorZone() {
+    const T = TILE_SIZE
+    const COLS = ARCADE_ROOM.cols // 20
+    const ROWS = ARCADE_ROOM.rows // 13
+    const roomW = COLS * T
+    const roomH = ROWS * T
+
+    // === floor: dark neon checkerboard, a lit "race carpet" aisle running from
+    // the entrance up to the hero cabinet, and a scatter of glow pips ===
+    const floor = this.add.graphics().setDepth(0)
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const isBorder = row === 0 || col === 0 || row === ROWS - 1 || col === COLS - 1
+        floor.fillStyle(isBorder ? 0x140a24 : (row + col) % 2 === 0 ? 0x1a1030 : 0x140b22, 1)
+        floor.fillRect(col * T, row * T, T, T)
+      }
+    }
+    // race carpet down the central column (cols 9-10), a magenta runner from
+    // the doors (row 11) up to the cabinet stage (row 4)
+    floor.fillStyle(0x2a0f36, 1)
+    floor.fillRect(9 * T, 4 * T, 2 * T, 8 * T)
+    floor.lineStyle(2, 0xff2fb9, 0.7)
+    floor.strokeRect(9 * T + 2, 4 * T, 2 * T - 4, 8 * T)
+    for (let row = 4; row < 12; row++) {
+      // dashed centre line up the runner
+      floor.fillStyle(0xffe066, row % 2 === 0 ? 0.8 : 0.3)
+      floor.fillRect(10 * T - 2, row * T + 10, 4, 20)
+    }
+    // checkered "finish line" band just below the cabinet stage (row 4)
+    for (let i = 0; i < 4; i++) {
+      floor.fillStyle(i % 2 === 0 ? 0xf2f2f2 : 0x101018, 1)
+      floor.fillRect(9 * T + i * 20, 4 * T + 2, 20, 12)
+      floor.fillStyle(i % 2 === 0 ? 0x101018 : 0xf2f2f2, 1)
+      floor.fillRect(9 * T + i * 20, 4 * T + 14, 20, 12)
+    }
+    // glow pips scattered on the open floor
+    for (const [c, r, col] of [[3, 6, 0x00e5ff], [16, 6, 0xff2fb9], [5, 11, 0x39ff88], [14, 11, 0xffe066], [7, 8, 0xff2fb9], [12, 8, 0x00e5ff]]) {
+      floor.fillStyle(col, 0.16)
+      floor.fillCircle(c * T + T / 2, r * T + T / 2, 16)
+    }
+    // inner neon wall trim
+    floor.lineStyle(3, 0x00e5ff, 0.4)
+    floor.strokeRect(T + 3, T + 3, roomW - 2 * T - 6, roomH - 2 * T - 6)
+    this.zoneObjects.push(floor)
+
+    // doorway light-spill at the bottom-centre exit (cols 9-10, row 12)
+    const doorGlow = this.add.graphics().setDepth(1)
+    doorGlow.fillStyle(0x00e5ff, 0.12)
+    doorGlow.fillRect(9 * T, 11 * T, 2 * T, 2 * T)
+    this.zoneObjects.push(doorGlow)
+
+    this.regionLabel.setText('Game Center')
+
+    // === ceiling banner + a marquee over the hero stage ===
+    this.zoneObjects.push(
+      this.add.text(roomW / 2, 10, '★ GAME CENTER ★', {
+        fontFamily: 'monospace', fontSize: '16px', fontStyle: 'bold', color: '#00e5ff',
+      }).setOrigin(0.5, 0).setDepth(9999).setShadow(0, 0, '#00e5ff', 10, true, true)
+    )
+    this.zoneObjects.push(
+      this.add.text(roomW / 2, 30, 'ゲームセンター', {
+        fontFamily: 'sans-serif', fontSize: '10px', color: '#ff6ad5',
+      }).setOrigin(0.5, 0).setDepth(9999)
+    )
+
+    // === hero driving cabinet on a lit stage (cols 9-10, rows 2-3) ===
+    const stage = this.add.graphics().setDepth(2)
+    stage.fillStyle(0xff2fb9, 0.1)
+    stage.fillEllipse(10 * T, 3 * T + 10, 150, 70) // spotlight pool
+    stage.fillStyle(0x241335, 1)
+    stage.fillRoundedRect(9 * T - 6, 2 * T - 4, 2 * T + 12, 2 * T + 24, 8) // riser
+    stage.lineStyle(2, 0x00e5ff, 0.8)
+    stage.strokeRoundedRect(9 * T - 6, 2 * T - 4, 2 * T + 12, 2 * T + 24, 8)
+    this.zoneObjects.push(stage)
+    this.zoneObjects.push(
+      this.add.text(10 * T, 2 * T - 14, '★ NOW PLAYING ★', {
+        fontFamily: 'monospace', fontSize: '8px', fontStyle: 'bold', color: '#ffe066',
+      }).setOrigin(0.5).setDepth(9998)
+    )
+    this.drawDrivingCabinet(9 * T, 2 * T)
+
+    // === two rows of themed upright cabinets flanking the stage (top wall) ===
+    const cabs = [
+      [3, 0xff2fb9, 'invaders'], [5, 0x39ff88, 'blocks'], [7, 0xffe066, 'pong'],
+      [12, 0x00e5ff, 'racer'], [14, 0xff8a3d, 'invaders'], [16, 0x9a5cff, 'blocks'],
+    ]
+    for (const [c, accent, motif] of cabs) this.drawUprightCabinet(c * T + 6, T + 6, accent, motif)
+
+    // === attractions around the walls ===
+    this.drawClawMachine(1 * T + 6, 3 * T + 4) // top-left
+    this.drawSkeeBall(16 * T, 3 * T) // top-right lane
+    this.drawAirHockey(1 * T + 4, 7 * T + 2) // bottom-left table
+    this.drawPrizeCounter(15 * T, 8 * T + 8) // bottom-right redemption counter
+    this.drawDdrPad(4 * T, 9 * T) // walk-on dance pad (floor, not blocked)
+
+    // === wall signage ===
+    this.zoneObjects.push(
+      this.add.text(2 * T, 6 * T + 2, '🎪 CLAW', { fontFamily: 'monospace', fontSize: '8px', color: '#ff2fb9' }).setOrigin(0, 0.5).setDepth(9997)
+    )
+    this.zoneObjects.push(
+      this.add.text(17.5 * T, 6 * T + 2, 'SKEE →', { fontFamily: 'monospace', fontSize: '8px', color: '#ffe066' }).setOrigin(0.5).setDepth(9997)
+    )
+    this.zoneObjects.push(
+      this.add.text(16.6 * T, 8 * T, 'PRIZES', { fontFamily: 'monospace', fontSize: '8px', fontStyle: 'bold', color: '#39ff88' }).setOrigin(0.5).setDepth(9997)
+    )
+    this.zoneObjects.push(
+      this.add.text(5 * T, 8.6 * T, 'DANCE!', { fontFamily: 'monospace', fontSize: '8px', color: '#00e5ff' }).setOrigin(0.5).setDepth(9997)
+    )
+
+    // === collision: border (minus the door gap) + every solid fixture ===
+    const b = (this.interiorBlockedTiles = new Set())
+    fillBlockedRect(b, 0, 0, COLS - 1, 0) // top wall
+    fillBlockedRect(b, 0, 0, 0, ROWS - 1) // left wall
+    fillBlockedRect(b, COLS - 1, 0, COLS - 1, ROWS - 1) // right wall
+    fillBlockedRect(b, 0, ROWS - 1, 8, ROWS - 1) // bottom wall, left of doors
+    fillBlockedRect(b, 11, ROWS - 1, COLS - 1, ROWS - 1) // bottom wall, right of doors
+    fillBlockedRect(b, 9, 2, 10, 3) // hero driving cabinet
+    for (const [c] of cabs) fillBlockedRect(b, c, 1, c, 1) // upright cabinets
+    fillBlockedRect(b, 1, 3, 2, 4) // claw machine
+    fillBlockedRect(b, 16, 3, 18, 4) // skee-ball lane
+    fillBlockedRect(b, 1, 7, 3, 8) // air-hockey table
+    fillBlockedRect(b, 15, 8, 18, 9) // prize counter
+
+    this.zones = [
+      {
+        type: 'arcadeCabinet',
+        id: 'turboRacer',
+        label: 'the Turbo Racer cabinet',
+        // Front apron of the hero cabinet (cols 8-11, row 4). The player walks
+        // up the race carpet from the entrance and stops against the stage.
+        rect: new Phaser.Geom.Rectangle(8 * T, 3.6 * T, 4 * T, 1.2 * T),
+      },
+      {
+        // The air-hockey table (cols 1-3, rows 7-8) - launches the playable
+        // AirHockeyModal. Apron is the open floor just below the table (row 9),
+        // where the player stands to press E.
+        type: 'arcadeCabinet',
+        id: 'airHockey',
+        label: 'the Air Hockey table',
+        rect: new Phaser.Geom.Rectangle(1 * T, 8.5 * T, 3.5 * T, 1.3 * T),
+      },
+      {
+        type: 'exit',
+        id: 'toOverworld',
+        label: 'Exit to Capital Syndicate',
+        rect: new Phaser.Geom.Rectangle(
+          ARCADE_ROOM.exit.c0 * T,
+          ARCADE_ROOM.exit.r0 * T,
+          (ARCADE_ROOM.exit.c1 - ARCADE_ROOM.exit.c0 + 1) * T,
+          (ARCADE_ROOM.exit.r1 - ARCADE_ROOM.exit.r0 + 1) * T
+        ),
+      },
+    ]
+  }
+
+  // A small upright arcade cabinet drawn from Phaser primitives (marquee +
+  // screen + control panel), non-interactive flavor along the walls of
+  // buildArcadeInteriorZone. `x,y` is the top-left of its ~28x56 box; `motif`
+  // ('invaders'|'blocks'|'pong'|'racer') gives each screen a distinct doodle.
+  drawUprightCabinet(x, y, accent, motif = 'invaders') {
+    const g = this.add.graphics().setDepth(y + 58)
+    g.fillStyle(0x000000, 0.25)
+    g.fillEllipse(x + 14, y + 58, 30, 8)
+    g.fillStyle(0x20283a, 1) // body
+    g.fillRoundedRect(x, y + 6, 28, 52, 4)
+    g.fillStyle(0x171d2b, 1) // side bevel
+    g.fillRoundedRect(x + 22, y + 6, 6, 52, 4)
+    g.fillStyle(accent, 1) // marquee
+    g.fillRoundedRect(x + 1, y, 26, 9, 3)
+    // screen well
+    g.fillStyle(0x050a1a, 1)
+    g.fillRect(x + 4, y + 12, 20, 16)
+    const sx = x + 4, sy = y + 12 // screen origin
+    if (motif === 'invaders') {
+      g.fillStyle(accent, 1)
+      for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) g.fillRect(sx + 3 + c * 4, sy + 3 + r * 4, 2, 2)
+      g.fillStyle(0x39ff88, 1)
+      g.fillRect(sx + 8, sy + 12, 4, 2) // player ship
+    } else if (motif === 'blocks') {
+      const cols = [0xff2fb9, 0xffe066, 0x39ff88, 0x00e5ff]
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) { g.fillStyle(cols[(r + c) % 4], 1); g.fillRect(sx + 2 + c * 4, sy + 2 + r * 3, 3, 2) }
+    } else if (motif === 'pong') {
+      g.fillStyle(0xffffff, 1)
+      g.fillRect(sx + 2, sy + 5, 2, 6); g.fillRect(sx + 16, sy + 8, 2, 6) // paddles
+      g.fillRect(sx + 9, sy + 8, 2, 2) // ball
+    } else { // racer
+      g.fillStyle(0x122a4a, 1); g.fillRect(sx, sy, 20, 8)
+      g.fillStyle(0x9aa7bd, 1); g.fillPoints([{ x: sx + 8, y: sy + 8 }, { x: sx + 12, y: sy + 8 }, { x: sx + 18, y: sy + 16 }, { x: sx + 2, y: sy + 16 }], true)
+      g.fillStyle(0xffe066, 1); g.fillRect(sx + 9, sy + 11, 2, 3)
+    }
+    g.fillStyle(accent, 0.35) // screen scanline glow
+    g.fillRect(sx, sy + 7, 20, 1)
+    g.fillStyle(0x151b2b, 1) // control panel
+    g.fillRect(x + 3, y + 34, 22, 8)
+    g.fillStyle(accent, 1) // buttons + joystick
+    g.fillCircle(x + 9, y + 38, 2)
+    g.fillCircle(x + 16, y + 38, 2)
+    g.fillStyle(0xff2fb9, 1)
+    g.fillCircle(x + 21, y + 38, 1.5)
+    this.zoneObjects.push(g)
+  }
+
+  // A claw/crane machine: glass cabinet full of plushies with a claw on a rail.
+  drawClawMachine(x, y) {
+    const g = this.add.graphics().setDepth(y + 72)
+    g.fillStyle(0x000000, 0.28); g.fillEllipse(x + 30, y + 74, 62, 12)
+    g.fillStyle(0x2a1840, 1); g.fillRoundedRect(x, y, 60, 72, 6) // body
+    g.fillStyle(0xff2fb9, 1); g.fillRoundedRect(x + 2, y - 6, 56, 10, 4) // marquee
+    g.fillStyle(0x0a1030, 0.85); g.fillRect(x + 5, y + 8, 50, 40) // glass
+    g.lineStyle(1, 0x00e5ff, 0.7); g.strokeRect(x + 5, y + 8, 50, 40)
+    // plushies
+    const plush = [0xffe066, 0x39ff88, 0x00e5ff, 0xff8a3d, 0xff2fb9]
+    for (let i = 0; i < 6; i++) { g.fillStyle(plush[i % plush.length], 1); g.fillCircle(x + 12 + (i % 3) * 16, y + 40 - Math.floor(i / 3) * 12, 5) }
+    // claw rail + claw
+    g.fillStyle(0x8a94a8, 1); g.fillRect(x + 6, y + 10, 48, 3)
+    g.fillStyle(0xcfd6e4, 1); g.fillRect(x + 28, y + 13, 3, 10); g.fillTriangle(x + 24, y + 23, x + 34, y + 23, x + 29, y + 30)
+    g.fillStyle(0x151b2b, 1); g.fillRect(x + 5, y + 52, 50, 16) // control deck
+    g.fillStyle(0xff2fb9, 1); g.fillCircle(x + 30, y + 60, 3)
+    this.zoneObjects.push(g)
+  }
+
+  // A skee-ball lane: sloped alley with scoring rings at the top.
+  drawSkeeBall(x, y) {
+    const g = this.add.graphics().setDepth(y + 92)
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(x + 40, y + 92, 70, 12)
+    g.fillStyle(0x1c2740, 1); g.fillRoundedRect(x, y, 78, 92, 6) // cabinet
+    g.fillStyle(0x2a3a5a, 1); g.fillRoundedRect(x + 8, y + 6, 62, 34, 6) // ring board
+    for (const [r, col] of [[13, 0xffe066], [9, 0x39ff88], [6, 0x00e5ff]]) { g.lineStyle(2, col, 0.9); g.strokeCircle(x + 39, y + 24, r) }
+    g.fillStyle(0x101826, 1); g.fillRect(x + 10, y + 44, 58, 44) // lane
+    g.fillStyle(0x6a3a1a, 1); g.fillRect(x + 26, y + 46, 26, 40) // wooden alley
+    g.fillStyle(0xffe066, 1); g.fillCircle(x + 39, y + 78, 4) // ball
+    this.zoneObjects.push(g)
+  }
+
+  // An air-hockey table with a puck and two mallets.
+  drawAirHockey(x, y) {
+    const g = this.add.graphics().setDepth(y + 40)
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(x + 55, y + 44, 110, 14)
+    g.fillStyle(0x14243f, 1); g.fillRoundedRect(x, y, 110, 44, 8) // table
+    g.fillStyle(0x0e1b33, 1); g.fillRoundedRect(x + 5, y + 4, 100, 36, 6) // playfield
+    g.lineStyle(2, 0x00e5ff, 0.8)
+    g.beginPath(); g.moveTo(x + 55, y + 4); g.lineTo(x + 55, y + 40); g.strokePath() // centre line
+    g.strokeCircle(x + 55, y + 22, 9) // centre circle
+    g.fillStyle(0xff2fb9, 1); g.fillCircle(x + 20, y + 22, 5); g.fillCircle(x + 90, y + 22, 5) // mallets
+    g.fillStyle(0xffe066, 1); g.fillCircle(x + 62, y + 26, 3) // puck
+    this.zoneObjects.push(g)
+  }
+
+  // A redemption / prize counter: a low counter with a shelf of prizes behind.
+  drawPrizeCounter(x, y) {
+    const g = this.add.graphics().setDepth(y + 40)
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(x + 45, y + 42, 96, 12)
+    g.fillStyle(0x241335, 1); g.fillRoundedRect(x, y - 26, 90, 26, 4) // back shelf
+    const prizes = [0xff2fb9, 0xffe066, 0x39ff88, 0x00e5ff, 0xff8a3d]
+    for (let i = 0; i < 5; i++) { g.fillStyle(prizes[i], 1); g.fillCircle(x + 12 + i * 17, y - 12, 6) } // plushies/prizes
+    g.fillStyle(0x3a2450, 1); g.fillRoundedRect(x, y, 90, 40, 5) // counter
+    g.fillStyle(0x00e5ff, 0.7); g.fillRect(x + 4, y + 4, 82, 3) // neon lip
+    g.fillStyle(0x151b2b, 1); g.fillRect(x + 60, y + 12, 24, 16) // register
+    g.fillStyle(0x39ff88, 1); g.fillRect(x + 63, y + 15, 18, 5) // register screen
+    this.zoneObjects.push(g)
+  }
+
+  // A DDR-style dance pad on the floor: a 2x2 grid of arrow panels. Walkable
+  // (not added to interiorBlockedTiles) so the player can stand on it.
+  drawDdrPad(x, y) {
+    const g = this.add.graphics().setDepth(3)
+    g.fillStyle(0x0c0718, 1); g.fillRoundedRect(x, y, 3 * TILE_SIZE, 3 * TILE_SIZE, 8) // mat
+    const panels = [
+      [1, 0, 0x00e5ff, 'up'], [0, 1, 0xffe066, 'left'], [2, 1, 0x39ff88, 'right'], [1, 2, 0xff2fb9, 'down'],
+    ]
+    for (const [pc, pr, col, dir] of panels) {
+      const px = x + pc * TILE_SIZE + 6, py = y + pr * TILE_SIZE + 6, s = TILE_SIZE - 12
+      g.fillStyle(col, 0.18); g.fillRoundedRect(px, py, s, s, 4)
+      g.lineStyle(2, col, 0.9); g.strokeRoundedRect(px, py, s, s, 4)
+      g.fillStyle(col, 1)
+      const cx = px + s / 2, cy = py + s / 2
+      if (dir === 'up') g.fillTriangle(cx, cy - 7, cx - 6, cy + 4, cx + 6, cy + 4)
+      else if (dir === 'down') g.fillTriangle(cx, cy + 7, cx - 6, cy - 4, cx + 6, cy - 4)
+      else if (dir === 'left') g.fillTriangle(cx - 7, cy, cx + 4, cy - 6, cx + 4, cy + 6)
+      else g.fillTriangle(cx + 7, cy, cx - 4, cy - 6, cx - 4, cy + 6)
+    }
+    this.zoneObjects.push(g)
+  }
+
+  // The sit-down driving cabinet from the reference photo, drawn entirely from
+  // Phaser primitives: a screen cabinet (marquee + CRT showing a racing road)
+  // and a molded seat pod with a steering wheel out front. `x0,y0` is the
+  // top-left of its 2x2-tile (80x80) footprint (cols 5-6, rows 2-3).
+  drawDrivingCabinet(x0, y0) {
+    const cx = x0 + TILE_SIZE // horizontal center of the 2-tile-wide footprint
+    const g = this.add.graphics().setDepth(y0 + 2 * TILE_SIZE)
+
+    // ground shadow
+    g.fillStyle(0x000000, 0.3)
+    g.fillEllipse(cx, y0 + 78, 78, 16)
+
+    // --- screen cabinet (upper box) ---
+    g.fillStyle(0x2c3a4d, 1) // blue-grey housing, matching the photo
+    g.fillRoundedRect(cx - 30, y0 + 8, 60, 54, 6)
+    g.fillStyle(0x223142, 1) // side shading
+    g.fillRoundedRect(cx + 14, y0 + 8, 16, 54, 6)
+    // marquee header
+    g.fillStyle(0x00e5ff, 1)
+    g.fillRoundedRect(cx - 32, y0, 64, 12, 4)
+    // CRT bezel + screen
+    g.fillStyle(0x0a0f1c, 1)
+    g.fillRoundedRect(cx - 26, y0 + 15, 44, 34, 4)
+    g.fillStyle(0x122a4a, 1) // sky
+    g.fillRect(cx - 22, y0 + 18, 36, 27)
+    // racing road: bright trapezoid receding to a horizon
+    g.fillStyle(0x2a3550, 1) // ground
+    g.fillRect(cx - 22, y0 + 31, 36, 14)
+    g.fillStyle(0x9aa7bd, 1) // road - plain {x,y} points (this Phaser build's
+    // tree-shaken bundle doesn't expose Phaser.Geom.Point as a constructor;
+    // fillPoints accepts any {x,y}-shaped objects)
+    g.fillPoints(
+      [
+        { x: cx - 4, y: y0 + 31 },
+        { x: cx + 2, y: y0 + 31 },
+        { x: cx + 14, y: y0 + 45 },
+        { x: cx - 16, y: y0 + 45 },
+      ],
+      true
+    )
+    g.fillStyle(0xffe066, 1) // center lane dashes
+    g.fillRect(cx - 2, y0 + 33, 2, 3)
+    g.fillRect(cx - 2, y0 + 38, 3, 4)
+
+    // --- seat pod (lower, in front) ---
+    g.fillStyle(0x2a3644, 1) // seat base
+    g.fillRoundedRect(cx - 24, y0 + 60, 48, 18, 6)
+    g.fillStyle(0x34445a, 1) // seat back / bucket
+    g.fillRoundedRect(cx - 16, y0 + 52, 32, 20, 8)
+    g.fillStyle(0x1c2632, 1) // seat inset
+    g.fillRoundedRect(cx - 11, y0 + 55, 22, 15, 6)
+    // steering wheel out front
+    g.lineStyle(3, 0x11161d, 1)
+    g.strokeCircle(cx, y0 + 70, 9)
+    g.fillStyle(0x11161d, 1)
+    g.fillCircle(cx, y0 + 70, 3)
+
+    this.zoneObjects.push(g)
+
+    // marquee text
+    const marquee = this.add
+      .text(cx, y0 + 6, 'TURBO', { fontFamily: 'monospace', fontSize: '9px', fontStyle: 'bold', color: '#08131f' })
+      .setOrigin(0.5)
+      .setDepth(y0 + 2 * TILE_SIZE + 1)
+    this.zoneObjects.push(marquee)
+  }
+
+
   isBlockedTile(col, row) {
     if (
       this.currentZoneId === 'chapelInterior' ||
@@ -4153,6 +4587,10 @@ export default class OverworldScene extends Phaser.Scene {
       this.currentZoneId === 'lisaHall' ||
       this.currentZoneId === 'lisaWork' ||
       this.currentZoneId === 'lisaBedroom' ||
+      // Game Center's walk-in room (buildArcadeInteriorZone) - same border +
+      // hand-populated interiorBlockedTiles shape (walls + the driving cabinet
+      // and other machine footprints) as the chapel/Lisa rooms above.
+      this.currentZoneId === 'arcadeInterior' ||
       // The 87 character homes/hideouts' bespoke rooms (buildHomeInteriorZone) -
       // same border + interiorBlockedTiles shape, populated from the room's
       // own irregular mask plus blockHomePropFootprint per piece of furniture.
@@ -6210,6 +6648,14 @@ export default class OverworldScene extends Phaser.Scene {
         this.loadZone('stockExchangeInterior')
         return
       }
+      if (zone.id === 'arcade') {
+        this.overworldReturnSpawn = {
+          col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
+          row: building.tiles.r1 + 1,
+        }
+        this.loadZone('arcadeInterior')
+        return
+      }
       this.overworldReturnSpawn = {
         col: Math.round((building.tiles.c0 + building.tiles.c1) / 2),
         row: building.tiles.r1 + 1,
@@ -6247,6 +6693,10 @@ export default class OverworldScene extends Phaser.Scene {
     this.pauseForModal()
     if (zone.type === 'interiorDesk') {
       this.bridge.emit('interact', { type: 'building', id: zone.id, npcId: zone.npcId })
+    } else if (zone.type === 'arcadeCabinet') {
+      // A Game Center machine (the Turbo Racer driving cabinet / air-hockey
+      // table) - launches its game modal (WorldScreen's arcadeGame branch).
+      this.bridge.emit('interact', { type: 'arcadeGame', id: zone.id })
     } else if (zone.type === 'namedRoamer') {
       // 'namedRoamer' matches no building-specific modal case, so
       // WorldScreen's generic building-with-npcId branch renders

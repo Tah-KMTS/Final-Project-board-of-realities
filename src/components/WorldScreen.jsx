@@ -20,6 +20,8 @@ import NamedNpcModal from '../features/finance/NamedNpcModal'
 import AmbientNpcModal from '../features/finance/AmbientNpcModal'
 import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
 import CasinoModal from '../features/casino/CasinoModal'
+import TurboRacerModal from '../features/arcade/TurboRacerModal'
+import AirHockeyModal from '../features/arcade/AirHockeyModal'
 import UnderworldModal from '../features/finance/UnderworldModal'
 import BusinessCenterModal from '../features/finance/BusinessCenterModal'
 import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal'
@@ -969,6 +971,12 @@ export default function WorldScreen() {
           - Arcade no longer has its own top-level 'arcade' building id/case,
           it's reached only through Casino's Arcade tab now. Neither routes
           through the generic DistrictBuildingModal. */}
+      {activeModal?.type === 'arcadeGame' && activeModal.id === 'turboRacer' && (
+        <TurboRacerModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'arcadeGame' && activeModal.id === 'airHockey' && (
+        <AirHockeyModal onClose={closeModal} />
+      )}
       {activeModal?.type === 'building' && activeModal.id === 'casino' && (
         <CasinoModal
           onClose={closeModal}
