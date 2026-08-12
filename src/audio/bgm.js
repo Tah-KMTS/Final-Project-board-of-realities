@@ -56,6 +56,31 @@ const RECIPES = {
     rootMidi: 43, scale: 'minor', tempoBpm: 84, bars: 4, wave: 'sine', volume: 0.11,
     mood: 'Low-energy sparse minor loop - subdued and humbled, not tragic.',
   },
+  // Added so individual finance-district buildings get their own identity
+  // instead of every interior just carrying on capital_overworld's outdoor
+  // loop (see WorldScreen.jsx's BUILDING_TRACK_MAP) - not authored by the
+  // Sound Agent like the 7 above, but built with the exact same
+  // buildPattern()/RECIPES shape so they mix in seamlessly.
+  underworld: {
+    rootMidi: 40, scale: 'minor', tempoBpm: 92, bars: 4, wave: 'sawtooth', volume: 0.15,
+    mood: 'Low, gritty back-room pulse - furtive and criminal, not horror.',
+  },
+  bank: {
+    rootMidi: 55, scale: 'major', tempoBpm: 100, bars: 4, wave: 'triangle', volume: 0.15,
+    mood: 'Calm, confident corporate-lounge loop - money at rest, not hustling.',
+  },
+  government: {
+    rootMidi: 45, scale: 'major', tempoBpm: 88, bars: 4, wave: 'square', volume: 0.13,
+    mood: 'Stately, formal hall-of-power loop - measured, not triumphant.',
+  },
+  temple: {
+    rootMidi: 50, scale: 'pentatonic', tempoBpm: 70, bars: 4, wave: 'sine', volume: 0.12,
+    mood: 'Slow, serene meditative loop - spacious and unhurried.',
+  },
+  building_interior: {
+    rootMidi: 52, scale: 'pentatonic', tempoBpm: 95, bars: 4, wave: 'triangle', volume: 0.14,
+    mood: 'Neutral cozy-indoor loop for any building without its own theme - a step down in energy from the outdoor overworld loop.',
+  },
 }
 
 function midiToHz(midi) {
