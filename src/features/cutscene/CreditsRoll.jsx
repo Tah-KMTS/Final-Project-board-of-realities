@@ -21,7 +21,7 @@ const FADE_FROM = 0.86
 export const DEVELOPERS = [
   'Pornpavis Jongdepaisarn',
   'Ataya Chitmeesilp',
-  'Thanakorm Kornmatisuk',
+  'Thanakorn Kornmatitsuk',
   'Lapat Jitsangvorawong',
   'Poom Rangsisingpipat',
   'Tan Briton Rungwattanasophon',
