@@ -47,16 +47,23 @@ export default function WelcomeSkyline() {
       // resize, just like panelKit's own skyline stays stable across
       // repaints (see its own comment on `hash`).
       drawSkylineLayer(ctx, RES_W, resH * 0.62, 11, '#181a34', '#3a3d6b', 0.12)
-      // Near, brighter row with more lit windows - reads as the actual
+      // Mid row, brighter with more lit windows - reads as the actual
       // financial district the game takes place in.
       drawSkylineLayer(ctx, RES_W, resH * 0.78, 47, '#12132a', '#f8d97a', 0.22)
+      // Close foreground row, taller and denser, anchored past the bottom
+      // edge (yBase > resH) so it reads as buildings the "camera" is
+      // standing among rather than a skyline seen from a distance - this is
+      // what fills the lower half instead of leaving it flat black (a
+      // previous version faded straight to solid black there, which just
+      // reproduced the "big empty void" look this backdrop was meant to fix).
+      drawSkylineLayer(ctx, RES_W, resH * 1.08, 83, '#0d0e20', '#f8d97a', 0.16)
 
-      // Fade the skyline into the solid black lower half of the screen
-      // (see WelcomeScreen.jsx - the button stack sits on flat black, not
-      // over building silhouettes) so the art and the UI don't compete.
-      const fade = ctx.createLinearGradient(0, resH * 0.55, 0, resH)
+      // Light vignette only, not a hard fade - darkens toward the bottom for
+      // button-text contrast without blacking the art out entirely, so the
+      // close row above stays visible (if dim) all the way to the edge.
+      const fade = ctx.createLinearGradient(0, resH * 0.5, 0, resH)
       fade.addColorStop(0, 'rgba(10,11,24,0)')
-      fade.addColorStop(1, 'rgba(10,11,24,1)')
+      fade.addColorStop(1, 'rgba(10,11,24,0.72)')
       ctx.fillStyle = fade
       ctx.fillRect(0, 0, RES_W, resH)
     }

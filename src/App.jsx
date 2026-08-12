@@ -49,20 +49,27 @@ function App() {
   const isLeverageDemo = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('leverageDemo')
 
   return (
-    // min-h-screen + overflow-y-auto (not h-screen + overflow-hidden) - the
-    // old fixed-height clip silently cut off the bottom of WorldScreen's
-    // stack (status header + FinanceStatusBar + 600px game canvas + hint
-    // text) on any viewport shorter than ~900px, which is most laptop
-    // screens once browser chrome is subtracted. That forced players to
-    // zoom the whole browser out just to see the clipped content, which
-    // then made all the text too small to read - and the in-game
-    // "Fullscreen" button (plain requestFullscreen()) only removes browser
-    // chrome, it doesn't change this math, so it didn't help. Letting the
-    // page scroll instead of clipping means nothing is ever invisible at
-    // 100% zoom; horizontal overflow is still guarded (w-screen behavior
-    // preserved via overflow-x-hidden) since every inner layout is designed
-    // to fit width, not height.
-    <div className="min-h-screen w-screen overflow-y-auto overflow-x-hidden">
+    // h-screen (a real 100vh, not min-h-screen's min-height:100vh) +
+    // overflow-y-auto - still never clips: WorldScreen's stack (status
+    // header + FinanceStatusBar + 600px game canvas + hint text) on a short
+    // viewport now scrolls within THIS div's own box instead of growing the
+    // whole page past 100vh, which is the same "nothing is ever invisible"
+    // outcome the old min-h-screen approach was chosen for, just via a
+    // nested scroll region instead of the page/window scrolling.
+    //
+    // That min-height (not height) choice had a real side effect though:
+    // per the CSS spec, a block box's height only counts as "definite" for
+    // percentage-height children when it comes from an explicit `height`,
+    // not from `min-height` alone - so WelcomeScreen/WorldScreen's own
+    // `h-full` root divs couldn't resolve against it and silently collapsed
+    // to their own CONTENT height instead of the viewport. On any window
+    // taller than that content, the leftover space below just showed flat
+    // body background with none of a screen's own background art on it
+    // (reported as "black screen on the bottom half of the start page" once
+    // WelcomeSkyline made the missing art visible by contrast). `h-screen`
+    // is a real viewport-unit height, always definite regardless of any
+    // ancestor/content chain, so this fixes that for every screen at once.
+    <div className="h-screen w-screen overflow-y-auto overflow-x-hidden">
       {isLeverageDemo ? <LeverageMeterDemo /> : <Screen />}
     </div>
   )
