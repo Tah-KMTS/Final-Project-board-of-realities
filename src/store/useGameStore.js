@@ -120,9 +120,10 @@ function createDefaultState() {
     // plays the ending again rather than silently swallowing it.
     endingTriggered: false,
     // Which GameOverScreen (App.jsx) message to show - 'permadeath' (Hunter's
-    // Rift HP hitting 0, see takeDamage) or 'daysUp' (Days Left hitting 0
-    // before ENDING_CASH_TARGET, see endDay). Only meaningful once
-    // screen === 'gameOver'.
+    // Rift HP hitting 0, see takeDamage), 'daysUp' (Days Left hitting 0
+    // before ENDING_CASH_TARGET, see endDay), or 'rouletteGameOver' (daring
+    // Russian Roulette's final chamber and losing, see
+    // triggerRouletteGameOver). Only meaningful once screen === 'gameOver'.
     gameOverReason: 'permadeath',
     // Gates the one-time "how to play / goal of the game" intro shown on
     // WorldScreen's first mount after a brand new game - false only on a
@@ -536,6 +537,19 @@ export const useGameStore = create((set, get) => ({
       },
     })
     return false
+  },
+
+  // Russian Roulette's final-chamber dare (RussianRoulette.jsx) - the one
+  // loss condition in the whole finance world that ends the run outright
+  // rather than a felt-but-recoverable setback like the hospital bill just
+  // above. The player opted into an explicit "start a new game or load
+  // game" consequence for daring the last chamber, so this deliberately
+  // does NOT wipe the save the way takeDamage's Hunter's Rift permadeath
+  // does - an earlier save (or a session not yet saved) should still be
+  // loadable from the title screen afterward, same as the 'daysUp' loss
+  // below in endDay().
+  triggerRouletteGameOver: () => {
+    set({ screen: 'gameOver', gameOverReason: 'rouletteGameOver' })
   },
 
   // --- World 1: Hunter's Rift ---------------------------------------------

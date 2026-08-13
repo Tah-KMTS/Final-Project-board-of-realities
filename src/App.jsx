@@ -7,9 +7,11 @@ import LeverageMeterDemo from './features/finance/LeverageMeterDemo'
 
 function GameOverScreen() {
   const setScreen = useGameStore((s) => s.setScreen)
-  // 'permadeath' (Hunter's Rift HP hitting 0, save wiped - see takeDamage)
-  // vs 'daysUp' (Days Left hit 0 before the $10M target, see endDay) show
-  // different reasons here - only the former actually wipes the save.
+  // 'permadeath' (Hunter's Rift HP hitting 0, save wiped - see takeDamage),
+  // 'daysUp' (Days Left hit 0 before the $10M target, see endDay), or
+  // 'rouletteGameOver' (dared Russian Roulette's final chamber and lost,
+  // see triggerRouletteGameOver) - only permadeath actually wipes the save,
+  // so it's the only one whose message says so.
   const gameOverReason = useGameStore((s) => s.gameOverReason)
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-6 bg-black font-mono text-white">
@@ -17,7 +19,9 @@ function GameOverScreen() {
       <p className="text-gray-400">
         {gameOverReason === 'daysUp'
           ? "Time's up. 30 days came and went, and you never cleared the $10,000,000 balance."
-          : 'Your save file has been wiped. Permadeath is permanent.'}
+          : gameOverReason === 'rouletteGameOver'
+            ? 'You dared the last chamber. The house always wins that one - your save is still there, but this run ends here.'
+            : 'Your save file has been wiped. Permadeath is permanent.'}
       </p>
       <button
         onClick={() => setScreen('welcome')}
