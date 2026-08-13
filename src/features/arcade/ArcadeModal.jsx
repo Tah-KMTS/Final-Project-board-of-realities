@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import ClawMachine from './ClawMachine'
 import FerrumWingsModal from './FerrumWingsModal'
+import RunAndGunModal from './RunAndGunModal'
 
 // Entry fee for one sortie - deducted up front here (same "cost charged the
 // instant you commit to playing" convention every other minigame in this
@@ -11,6 +12,11 @@ import FerrumWingsModal from './FerrumWingsModal'
 // FerrumWingsModal.jsx's own header comment) is credited separately, once
 // the game reports a result back out.
 const FERRUM_WINGS_ENTRY_FEE = 50
+// Third Rail is ~3 segments (two sectors plus a boss) against Ferrum Wings'
+// 4, and is priced just under it for that reason rather than matching it by
+// default. Same up-front-charge convention; the cabinet credits its own
+// score-scaled payout when a run ends (see RunAndGunModal.jsx).
+const THIRD_RAIL_ENTRY_FEE = 40
 
 // Pixel Palace Arcade keeps its walk-in interior on the shared `amenity`
 // Phaser room template (see BUILDING_INTERIOR_TEMPLATE in OverworldScene.js)
@@ -28,11 +34,20 @@ export default function ArcadeModal({ onClose, embedded = false }) {
   // below, outside the `embedded` split, regardless of whether THIS modal
   // is itself embedded inside CasinoModal's Arcade tab.
   const [showFerrumWings, setShowFerrumWings] = useState(false)
+  // Third Rail is likewise a full-page cabinet with its own title/gameover
+  // screens, so it gets the same treatment as Ferrum Wings above.
+  const [showThirdRail, setShowThirdRail] = useState(false)
 
   const launchFerrumWings = () => {
     if (cash < FERRUM_WINGS_ENTRY_FEE) return
     addCash(-FERRUM_WINGS_ENTRY_FEE)
     setShowFerrumWings(true)
+  }
+
+  const launchThirdRail = () => {
+    if (cash < THIRD_RAIL_ENTRY_FEE) return
+    addCash(-THIRD_RAIL_ENTRY_FEE)
+    setShowThirdRail(true)
   }
 
   const body = (
@@ -59,6 +74,21 @@ export default function ArcadeModal({ onClose, embedded = false }) {
           </button>
         </div>
 
+        <div className="mb-4 border-2 border-orange-500/60 bg-[#1a1108] p-3">
+          <h3 className="mb-1 text-sm font-bold text-orange-300">Third Rail</h3>
+          <p className="mb-2 text-xs text-gray-400">
+            A two-sector run-and-gun cabinet - fight down the Central Line, out through the surface ruins, and
+            finish whatever is waiting at the end of it. Kills and a clean run both pay.
+          </p>
+          <button
+            onClick={launchThirdRail}
+            disabled={cash < THIRD_RAIL_ENTRY_FEE}
+            className="w-full border-2 border-orange-400 py-1.5 text-sm font-bold text-orange-300 hover:bg-orange-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            Insert Token (${THIRD_RAIL_ENTRY_FEE})
+          </button>
+        </div>
+
         <div className="mb-4">
           <h3 className="mb-2 text-sm font-bold text-cyan-300">Labubu-Style Claw Machine</h3>
           <ClawMachine />
@@ -75,6 +105,7 @@ export default function ArcadeModal({ onClose, embedded = false }) {
   return (
     <>
       {showFerrumWings && <FerrumWingsModal onClose={() => setShowFerrumWings(false)} />}
+      {showThirdRail && <RunAndGunModal onClose={() => setShowThirdRail(false)} />}
       {embedded ? (
         body
       ) : (

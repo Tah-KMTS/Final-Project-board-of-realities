@@ -124,3 +124,14 @@ public/assets/packs/Pixel_16_interiors_v2_free/reference/
 # extract_prison_assets.py DOES need it, so keep it locally.
 public/assets/packs/prison/*.png
 public/assets/packs/prison/reference.webp
+
+# packs/vacaroxa--generic-run-n-gun-pack--v.1.0/ - the source art for the
+# Third Rail arcade cabinet (src/features/arcade/). Unlike the packs above,
+# the raws here ARE committed: the sprite sheets (player, 3 enemies,
+# explosion) and the parallax backdrops are loaded directly at runtime by
+# runAndGunLevels.js, since they already ship as uniform grids needing no
+# salvage pass. Only the macOS archive litter is excluded - resource-fork
+# stubs and Finder metadata with no content, which every extraction of a
+# zip made on a Mac drags along.
+public/assets/packs/vacaroxa--generic-run-n-gun-pack--v.1.0/__MACOSX/
+**/.DS_Store
