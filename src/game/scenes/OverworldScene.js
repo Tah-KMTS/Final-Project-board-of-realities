@@ -170,13 +170,20 @@ const FINANCE_BUILDING_DEFS = [
   // (bank/casino) rather than one of the multi-tenant tabbed hubs, since it's
   // a single InteractiveLocationModal entry, not several tenants.
   { id: 'foodCourt', label: 'Food Court', facadeStyle: 'modernBrick', color: 0xa05a1f, width: 4, height: 3, zone: 'finance' },
-  // Game Center - an Osaka-style game-center storefront (drawn with a neon GAME
-  // CENTER / ゲームセンター sign overlay in drawBuildings). Placed directly after
-  // foodCourt in the finance zone so packDefs stacks it just below the Food
-  // Court. A real walk-in interior (buildArcadeInteriorZone): walking up + E
-  // loads arcadeInterior, where the sit-down driving cabinet (Turbo Racer) and
-  // the air-hockey table live (triggerInteraction's 'arcade' building case +
-  // 'arcadeCabinet' zone).
+  // Game Center - a real bespoke facade image (public/assets/buildings/
+  // arcade.png, a neon "GAME CENTER"/ゲーセン storefront with its own baked-in
+  // marquee) via BUILDING_IMAGE_FILES in tileGen.js, same mechanism as
+  // casino/bank/foodCourt - NOT the procedural facadeStyle nine-slice below
+  // (that tag is dead for this building specifically, kept only so nothing
+  // else reading FINANCE_BUILDING_DEFS needs an optional-field check - see
+  // packFacadeFor's own comment). Placed directly after foodCourt in the
+  // finance zone so packDefs stacks it just below the Food Court. A real
+  // walk-in interior (buildArcadeInteriorZone): walking up + E loads
+  // arcadeInterior, where the sit-down driving cabinet (Turbo Racer), the
+  // air-hockey table, the Ferrum Wings sortie cabinet, and the claw machine
+  // all live as walk-up stations (triggerInteraction's 'arcade' building
+  // case + 'arcadeCabinet' zone). The latter two used to be Casino's Pixel
+  // Palace Arcade tab (ArcadeModal.jsx, now removed).
   { id: 'arcade', label: 'Game Center', facadeStyle: 'modernBrick', color: 0x1f6a8a, width: 4, height: 3, zone: 'finance' },
   // Consolidation (Phase 2): Black Market + Call Center Ops + Crime Alley
   // (Luciano) + Speakeasy Hotel (Capone) folded into one underworld hub (see
@@ -1840,61 +1847,6 @@ function scatterTrees(scene, layout, buildings, count, zoneObjects) {
 // applied to every building indiscriminately (district civic buildings,
 // hideouts, and the other home facade families all keep their door as a
 // static painted-on frame, same as before this change).
-// Osaka game-center marquee for the Game Center facade - drawn on top of the
-// shared storefront so the building reads as a game center at a glance: a big
-// neon "GAME CENTER" over its Japanese name "ゲームセンター", plus a slim vertical
-// blade sign like the ones stacked over Dotonbori's arcades. 100% Phaser
-// Graphics/Text (no image assets), same as every other facade in this file.
-function drawArcadeSign(scene, x, y, w, h, zoneObjects) {
-  const cx = x + w / 2
-  const depth = y + h + 2 // above the facade (y+h) and any door sprite (y+h+1)
-  const signW = w * 0.94
-  const signH = 34
-  const signY = y - 10 // sits on the roofline like a marquee
-
-  const g = scene.add.graphics().setDepth(depth)
-  g.fillStyle(0x00e5ff, 0.16) // outer neon bloom
-  g.fillRoundedRect(cx - signW / 2 - 5, signY - 5, signW + 10, signH + 10, 9)
-  g.fillStyle(0x140a24, 1) // dark marquee panel
-  g.fillRoundedRect(cx - signW / 2, signY, signW, signH, 6)
-  g.lineStyle(2, 0xff2fb9, 1) // hot-pink neon border
-  g.strokeRoundedRect(cx - signW / 2, signY, signW, signH, 6)
-  zoneObjects.push(g)
-
-  const arcadeText = scene.add
-    .text(cx, signY + 12, 'GAME CENTER', { fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#00e5ff' })
-    .setOrigin(0.5)
-    .setDepth(depth + 1)
-  arcadeText.setShadow(0, 0, '#00e5ff', 8, true, true)
-  zoneObjects.push(arcadeText)
-
-  const jpText = scene.add
-    .text(cx, signY + 25, 'ゲームセンター', { fontFamily: 'sans-serif', fontSize: '10px', color: '#ff6ad5' })
-    .setOrigin(0.5)
-    .setDepth(depth + 1)
-  jpText.setShadow(0, 0, '#ff2fb9', 6, true, true)
-  zoneObjects.push(jpText)
-
-  // Vertical blade sign down the right edge - ゲーム (Japanese for "game"), one
-  // katakana per line, below the marquee so the two don't overlap.
-  const bladeX = x + w - 9
-  const bladeTop = signY + signH + 4
-  const bladeH = y + h - bladeTop - 4
-  if (bladeH > 40) {
-    const bg = scene.add.graphics().setDepth(depth)
-    bg.fillStyle(0x140a24, 1)
-    bg.fillRoundedRect(bladeX - 8, bladeTop, 16, bladeH, 4)
-    bg.lineStyle(1.5, 0x00e5ff, 1)
-    bg.strokeRoundedRect(bladeX - 8, bladeTop, 16, bladeH, 4)
-    zoneObjects.push(bg)
-    const blade = scene.add
-      .text(bladeX, bladeTop + 3, 'ゲ\nー\nム', { fontFamily: 'sans-serif', fontSize: '9px', color: '#ffe066', align: 'center', lineSpacing: 1 })
-      .setOrigin(0.5, 0)
-      .setDepth(depth + 1)
-    zoneObjects.push(blade)
-  }
-}
-
 function drawBuildings(scene, buildings, zoneObjects) {
   for (const b of buildings) {
     const x = b.tiles.c0 * TILE_SIZE
@@ -1902,8 +1854,6 @@ function drawBuildings(scene, buildings, zoneObjects) {
     const w = (b.tiles.c1 - b.tiles.c0 + 1) * TILE_SIZE
     const h = (b.tiles.r1 - b.tiles.r0 + 1) * TILE_SIZE
     zoneObjects.push(...placeBuildingFacade(scene, x, y, w, h, b.color, b))
-
-    if (b.id === 'arcade') drawArcadeSign(scene, x, y, w, h, zoneObjects)
 
     const doorSpec = buildingDoorAnimSpec(b, x, y, w, h)
     if (doorSpec && scene.textures.exists(SERENE_VILLAGE_DOOR_KEY)) {
@@ -4309,6 +4259,15 @@ export default class OverworldScene extends Phaser.Scene {
       [12, 0x00e5ff, 'racer'], [14, 0xff8a3d, 'invaders'], [16, 0x9a5cff, 'blocks'],
     ]
     for (const [c, accent, motif] of cabs) this.drawUprightCabinet(c * T + 6, T + 6, accent, motif)
+    // The first 'invaders' cabinet (col 3) doubles as the Ferrum Wings
+    // sortie cabinet - moved here from Casino's Pixel Palace Arcade tab
+    // (ArcadeModal.jsx, now removed) so it's a walk-up machine like every
+    // other attraction in this room instead of a menu tab.
+    this.zoneObjects.push(
+      this.add.text(3 * T + 20, T - 4, 'SORTIE', {
+        fontFamily: 'monospace', fontSize: '7px', fontStyle: 'bold', color: '#ff2fb9',
+      }).setOrigin(0.5, 1).setDepth(9997)
+    )
 
     // === attractions around the walls ===
     this.drawClawMachine(1 * T + 6, 3 * T + 4) // top-left
@@ -4362,6 +4321,29 @@ export default class OverworldScene extends Phaser.Scene {
         id: 'airHockey',
         label: 'the Air Hockey table',
         rect: new Phaser.Geom.Rectangle(1 * T, 8.5 * T, 3.5 * T, 1.3 * T),
+      },
+      {
+        // The Ferrum Wings sortie cabinet (col 3, row 1 - the labeled
+        // 'invaders' upright cabinet drawn above). Moved here from Casino's
+        // Pixel Palace Arcade tab (ArcadeModal.jsx, now removed) - launches
+        // SortieCabinetModal, which charges the entry fee up front before
+        // handing off to FerrumWingsModal, same as ArcadeModal.jsx used to.
+        type: 'arcadeCabinet',
+        id: 'ferrumWings',
+        label: 'the Ferrum Wings cabinet',
+        rect: new Phaser.Geom.Rectangle(2.7 * T, 1.9 * T, 1.6 * T, 0.9 * T),
+      },
+      {
+        // The claw machine (cols 1-2, rows 3-4, top-left - the "🎪 CLAW"
+        // signed attraction drawn above). Also moved here from Casino's
+        // Pixel Palace Arcade tab - launches ClawMachineModal, a thin shell
+        // around the same ClawMachine.jsx component that tab used to embed.
+        // Apron is the open floor just below (row 5), where the player
+        // stands to press E.
+        type: 'arcadeCabinet',
+        id: 'clawMachine',
+        label: 'the claw machine',
+        rect: new Phaser.Geom.Rectangle(1 * T, 4.5 * T, 2 * T, 1 * T),
       },
       {
         type: 'exit',

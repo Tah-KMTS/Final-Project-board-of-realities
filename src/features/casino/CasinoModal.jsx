@@ -5,7 +5,6 @@ import Poker from './Poker'
 import Slots from './Slots'
 import RussianRoulette from './RussianRoulette'
 import ChallengeNpc from './ChallengeNpc'
-import ArcadeModal from '../arcade/ArcadeModal'
 import CasinoMapScene from './CasinoMapScene'
 
 // The floor's real reference illustration (public/assets/packs/casino-interior/
@@ -60,10 +59,6 @@ const TABS = [
   { id: 'challenge', label: 'Challenge an NPC' },
   { id: 'host_blackjack', label: 'Host Blackjack (House Edge)' },
   { id: 'host_poker', label: 'Host Poker (House Edge)' },
-  // Building consolidation (Phase 2): Pixel Palace Arcade merged into the
-  // Casino building - its content is unchanged, just reached as a tab here
-  // instead of its own building/modal (see ArcadeModal.jsx's `embedded` prop).
-  { id: 'arcade', label: 'Pixel Palace Arcade' },
 ]
 
 // onOpenPhone/onEndDay are optional - FinanceStatusBar's own Phone/End Day
@@ -96,10 +91,8 @@ export default function CasinoModal({ onClose, onOpenPhone, onEndDay }) {
         className={`glass-panel max-h-[92vh] overflow-y-auto overflow-x-hidden border-4 border-pink-400 bg-[#1c1d3a] p-6 font-mono text-white ${
           // The walk-in floor needs real width for CasinoMapScene's 1040px
           // stage (same reasoning as UnderworldModal.jsx's own per-tab width
-          // ternary) - the tab bar keeps the original 640px once inside
-          // (bumped to 720px so the arcade tab's 480px-wide claw cabinet has
-          // breathing room instead of hugging the padding edge).
-          entered ? 'w-[720px]' : 'w-[1120px] max-w-[95vw]'
+          // ternary) - the tab bar keeps the original 640px once inside.
+          entered ? 'w-[640px]' : 'w-[1120px] max-w-[95vw]'
         }`}
       >
         {(onOpenPhone || onEndDay) && (
@@ -159,18 +152,7 @@ export default function CasinoModal({ onClose, onOpenPhone, onEndDay }) {
               ))}
             </div>
 
-            <div
-              className={`mb-4 overflow-y-auto ${
-                // The arcade tab's claw machine (ClawMachine.jsx) shows a full
-                // 480px-tall cabinet photo plus its own title/controls/message
-                // row above and below it - taller than every other tab here
-                // (cards/slots/roulette), so the shared 460px cap was clipping
-                // it and forcing a scroll to see the bottom of the cabinet.
-                // The outer modal's own max-h-[92vh] scroll still catches any
-                // overflow on short viewports, same as elsewhere in this file.
-                tab === 'arcade' ? 'max-h-[720px]' : 'max-h-[460px]'
-              }`}
-            >
+            <div className="mb-4 max-h-[460px] overflow-y-auto">
               {tab === 'blackjack' && <Blackjack variant="house" />}
               {tab === 'poker' && <Poker variant="house" />}
               {tab === 'slots' && <Slots />}
@@ -178,7 +160,6 @@ export default function CasinoModal({ onClose, onOpenPhone, onEndDay }) {
               {tab === 'challenge' && <ChallengeNpc />}
               {tab === 'host_blackjack' && <Blackjack variant="playerHouse" dealerName="The Challenger" />}
               {tab === 'host_poker' && <Poker variant="playerHouse" />}
-              {tab === 'arcade' && <ArcadeModal embedded />}
             </div>
           </>
         )}
