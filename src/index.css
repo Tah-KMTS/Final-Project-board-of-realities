@@ -235,19 +235,10 @@ button:disabled {
   animation: cylinder-tick 0.25s ease-out;
 }
 
-/* RussianRoulette.jsx's revolver art recoiling on every trigger pull
-   (survive or bust alike) - a quick kick-back-and-settle, distinct from the
-   cylinder's own spin/tick above since a straight revolver kicking sideways
-   reads as recoil, not rotation. */
-@keyframes revolver-kick {
-  0% { transform: translateX(0) rotate(0deg); }
-  30% { transform: translateX(-6px) rotate(-3deg); }
-  60% { transform: translateX(2px) rotate(1deg); }
-  100% { transform: translateX(0) rotate(0deg); }
-}
-.animate-revolver-kick {
-  animation: revolver-kick 0.35s ease-out;
-}
+/* (revolver-kick lived here: a CSS recoil faked on RussianRoulette.jsx's
+   static revolver.png. The revolver is a real frame-by-frame sprite clip from
+   the guns pack now - see production/process_revolver.py - so the gun animates
+   its own recoil and the fake was removed rather than layered on top.) */
 
 /* Visual-novel portrait swap (LisaModal). Keyed on the mood name, so every
    expression change re-triggers it - a quick settle rather than a hard cut,

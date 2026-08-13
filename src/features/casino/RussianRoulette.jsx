@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
 import { playClickSound, playAlarmSound, playPurchaseSound, playQuestCompleteSound, playGunshotSound, playVictorySound } from '../../audio/sfx'
 
@@ -9,10 +9,40 @@ import { playClickSound, playAlarmSound, playPurchaseSound, playQuestCompleteSou
 // public/assets/packs/russian-roulette/. Plain <img> tags, not Phaser - this
 // is a React minigame like every other one in this file's directory.
 const DEALER_PORTRAIT_URL = '/assets/packs/russian-roulette/dealer_portrait.png'
-const REVOLVER_URL = '/assets/packs/russian-roulette/revolver.png'
 const CYLINDER_IDLE_URL = '/assets/packs/russian-roulette/cylinder_idle.png'
 const CYLINDER_LOADED_URL = '/assets/packs/russian-roulette/cylinder_loaded.png'
 const CYLINDER_FINAL_CHAMBER_URL = '/assets/packs/russian-roulette/cylinder_final_chamber.png'
+
+// The revolver itself is a real frame-by-frame animation, cut from the `guns`
+// pack's Colt 45 sheets by production/process_revolver.py (see that script for
+// why all three strips share one bounding box). The pairing is the mechanic:
+// `click` and `fire` are the SAME hammer cycle and are pixel-identical up to
+// REVEAL_FRAME, so watching the gun tells the player nothing until the flash
+// either lands or doesn't - which is the whole "pull it and find out" beat.
+// process_revolver.py asserts that identity against the actual pixels, so this
+// cannot quietly rot if the pack is ever updated.
+const FRAME_W = 55
+const FRAME_H = 26
+const REVOLVER_SCALE = 4
+const REVEAL_FRAME = 5 // muzzle flash lands here in `fire`; `click` stays empty
+
+const CLIPS = {
+  load: { url: '/assets/packs/russian-roulette/revolver_load.png', frames: 29 },
+  click: { url: '/assets/packs/russian-roulette/revolver_click.png', frames: 10 },
+  fire: { url: '/assets/packs/russian-roulette/revolver_fire.png', frames: 10 },
+}
+
+// Per-frame hold times for the 10-frame hammer cycle. Frames 0-4 are the
+// hammer drawing back with nothing visible happening yet, so they run slow to
+// stretch the dread; the flash lands on REVEAL_FRAME and the aftermath (smoke,
+// spinning casing) runs fast so the result text isn't left hanging. ~555ms of
+// wind-up, ~340ms of follow-through.
+const SHOOT_FRAME_MS = [130, 120, 110, 100, 95, 90, 60, 60, 60, 70]
+const LOAD_FRAME_MS = 36 // flat - the load is a flourish, not a suspense beat
+
+function frameMs(clip, frame) {
+  return clip === 'load' ? LOAD_FRAME_MS : SHOOT_FRAME_MS[frame]
+}
 
 const MIN_BET = 25
 const ENERGY_COST = 5
@@ -107,26 +137,70 @@ export default function RussianRoulette() {
   const [round, setRound] = useState(0) // rounds survived so far this sit-down
   const [outcome, setOutcome] = useState(null) // 'bust' | 'cashout' | 'jackpot'
   const [message, setMessage] = useState('')
-  // Bumped on every trigger pull (survive or bust alike) purely to give the
-  // revolver <img> below a fresh `key` so its animate-revolver-kick
-  // remounts/replays each time - not otherwise read anywhere.
-  const [pullSeq, setPullSeq] = useState(0)
 
+  // The currently-playing revolver clip, or null when the gun is at rest:
+  // { clip: 'load' | 'click' | 'fire', frame: number }. Every control is
+  // locked while this is non-null - the outcome is already decided by then
+  // (see pullTrigger), and letting the player click through the animation
+  // would skip the only part that tells them whether they lived.
+  const [anim, setAnim] = useState(null)
+  const timerRef = useRef(null)
+  // Callbacks for the in-flight clip. Refs, not state, so advancing a frame
+  // doesn't have to re-run the driver effect with a new identity each time.
+  const onRevealRef = useRef(null)
+  const onDoneRef = useRef(null)
+
+  const playClip = useCallback((clip, { onReveal, onDone } = {}) => {
+    clearTimeout(timerRef.current)
+    onRevealRef.current = onReveal ?? null
+    onDoneRef.current = onDone ?? null
+    setAnim({ clip, frame: 0 })
+  }, [])
+
+  // Frame driver. One timeout per frame rather than a single interval, so
+  // SHOOT_FRAME_MS can hold the slow wind-up frames longer than the fast
+  // follow-through ones.
+  useEffect(() => {
+    if (!anim) return undefined
+    const { frames } = CLIPS[anim.clip]
+    timerRef.current = setTimeout(() => {
+      const next = anim.frame + 1
+      if (next >= frames) {
+        setAnim(null)
+        onDoneRef.current?.()
+        return
+      }
+      // Fires as the flash frame goes up, so the bang is heard exactly when
+      // it's seen; the result text waits for onDone so it lands after the
+      // smoke rather than on top of it.
+      if (next === REVEAL_FRAME) onRevealRef.current?.()
+      setAnim({ clip: anim.clip, frame: next })
+    }, frameMs(anim.clip, anim.frame))
+    return () => clearTimeout(timerRef.current)
+  }, [anim])
+
+  const busy = anim !== null
   const currentMultiplier = round > 0 ? ROUND_MULTIPLIERS[round - 1] : null
 
   const sitDown = () => {
-    if (cash < bet || bet < MIN_BET || energy < ENERGY_COST) return
+    if (cash < bet || bet < MIN_BET || energy < ENERGY_COST || busy) return
     if (!spendEnergy(ENERGY_COST)) return
     addCash(-bet)
     setRound(0)
     setOutcome(null)
-    setMessage('The dealer spins the cylinder and sets the revolver down in front of you. Your move.')
+    setMessage('The dealer thumbs a single round into the cylinder, snaps it shut, and sets the revolver down in front of you. Your move.')
     setPhase('playing')
+    playClip('load')
   }
 
+  // Every branch below settles the outcome IMMEDIATELY (the rolls and the
+  // payout maths are untouched from when this was instant) and then hands the
+  // consequences to playClip's onDone, so the result is already sealed before
+  // the hammer starts moving - the animation reports it, it never decides it.
+  // What the animation buys is that the player can't read the result off the
+  // screen until the flash frame either lands or doesn't.
   const pullTrigger = () => {
-    if (phase !== 'playing') return
-    setPullSeq((n) => n + 1)
+    if (phase !== 'playing' || busy) return
     const attemptNumber = round + 1 // 1-indexed pull about to happen
 
     // The dare: round 5 survived, one chamber left, certain death by the
@@ -140,21 +214,26 @@ export default function RussianRoulette() {
         // pot - the one loss condition in the whole finance world that
         // drops straight to GameOverScreen (App.jsx) instead of a
         // recoverable-in-session setback. See triggerRouletteGameOver's own
-        // comment for why this still doesn't wipe the save. Local
-        // phase/outcome/message state below is skipped - this component is
-        // about to unmount along with the rest of WorldScreen the instant
-        // `screen` changes, so setting it would be dead work.
-        playGunshotSound()
-        triggerRouletteGameOver()
+        // comment for why this still doesn't wipe the save. No local
+        // phase/outcome/message is set - this component unmounts along with
+        // the rest of WorldScreen the instant `screen` changes, so setting it
+        // would be dead work. The game-over waits for onDone so the flash and
+        // the smoke actually play before the screen cuts away.
+        playClip('fire', { onReveal: playGunshotSound, onDone: triggerRouletteGameOver })
         return
       }
       const payout = Math.round(bet * ROUND_MULTIPLIERS[MAX_ROUNDS - 1]) + FINAL_CHAMBER_JACKPOT
-      addCash(payout)
-      playVictorySound()
-      addReputation(10)
-      setPhase('result')
-      setOutcome('jackpot')
-      setMessage(`${FINAL_CHAMBER_JACKPOT_MESSAGE} $${payout.toLocaleString()} wired to your account.`)
+      playClip('click', {
+        onReveal: playClickSound,
+        onDone: () => {
+          addCash(payout)
+          playVictorySound()
+          addReputation(10)
+          setPhase('result')
+          setOutcome('jackpot')
+          setMessage(`${FINAL_CHAMBER_JACKPOT_MESSAGE} $${payout.toLocaleString()} wired to your account.`)
+        },
+      })
       return
     }
 
@@ -171,21 +250,30 @@ export default function RussianRoulette() {
     const bang = Math.random() < bangChance
 
     if (bang) {
-      playAlarmSound()
-      setPhase('result')
-      setOutcome('bust')
-      setMessage(pickRandom(BUST_MESSAGES))
+      playClip('fire', {
+        onReveal: playGunshotSound,
+        onDone: () => {
+          playAlarmSound() // the house sting, after the shot itself
+          setPhase('result')
+          setOutcome('bust')
+          setMessage(pickRandom(BUST_MESSAGES))
+        },
+      })
       return
     }
 
-    playClickSound()
     const newRound = round + 1
-    setRound(newRound)
-    setMessage(SURVIVE_MESSAGES[newRound - 1])
+    playClip('click', {
+      onReveal: playClickSound,
+      onDone: () => {
+        setRound(newRound)
+        setMessage(SURVIVE_MESSAGES[newRound - 1])
+      },
+    })
   }
 
   const cashOut = () => {
-    if (phase !== 'playing' || round < 1) return
+    if (phase !== 'playing' || round < 1 || busy) return
     const multiplier = ROUND_MULTIPLIERS[round - 1]
     const payout = Math.round(bet * multiplier)
     addCash(payout)
@@ -244,13 +332,29 @@ export default function RussianRoulette() {
         </p>
       </div>
 
+      {/* The revolver, as a sprite-sheet frame window: one <div> whose
+          background is scrolled by whole frames (same backgroundPosition
+          technique CasinoMapScene.jsx uses for its walk cycles). At rest it
+          parks on frame 0 of `click`, which is the plain gun. */}
       <div className="mb-3 flex justify-center">
-        <img
-          key={pullSeq}
-          src={REVOLVER_URL}
-          alt=""
-          className={`h-14 w-auto opacity-90 ${pullSeq > 0 ? 'animate-revolver-kick' : ''}`}
-          style={{ imageRendering: 'pixelated' }}
+        <div
+          role="img"
+          aria-label={
+            anim?.clip === 'fire' && anim.frame >= REVEAL_FRAME
+              ? 'The revolver fires'
+              : anim?.clip === 'load'
+                ? 'The dealer loads the cylinder'
+                : 'A revolver resting on the table'
+          }
+          style={{
+            width: FRAME_W * REVOLVER_SCALE,
+            height: FRAME_H * REVOLVER_SCALE,
+            backgroundImage: `url(${CLIPS[anim?.clip ?? 'click'].url})`,
+            backgroundPosition: `${-(anim?.frame ?? 0) * FRAME_W * REVOLVER_SCALE}px 0`,
+            backgroundSize: `${FRAME_W * CLIPS[anim?.clip ?? 'click'].frames * REVOLVER_SCALE}px ${FRAME_H * REVOLVER_SCALE}px`,
+            backgroundRepeat: 'no-repeat',
+            imageRendering: 'pixelated',
+          }}
         />
       </div>
 
@@ -267,7 +371,7 @@ export default function RussianRoulette() {
           />
           <button
             onClick={sitDown}
-            disabled={cash < bet || bet < MIN_BET || energy < ENERGY_COST}
+            disabled={cash < bet || bet < MIN_BET || energy < ENERGY_COST || busy}
             className="border-2 border-pink-400 px-3 py-1 font-bold text-pink-300 hover:bg-pink-400 hover:text-black disabled:opacity-30"
           >
             Sit Down (min ${MIN_BET})
@@ -321,17 +425,24 @@ export default function RussianRoulette() {
         <div className="flex gap-2">
           <button
             onClick={pullTrigger}
+            disabled={busy}
             className={
               atFinalChamber
-                ? 'animate-pulse border-2 border-amber-300 px-3 py-1 font-bold text-amber-300 hover:bg-amber-300 hover:text-black'
-                : 'border-2 border-red-400 px-3 py-1 font-bold text-red-300 hover:bg-red-400 hover:text-black'
+                ? 'animate-pulse border-2 border-amber-300 px-3 py-1 font-bold text-amber-300 hover:bg-amber-300 hover:text-black disabled:animate-none disabled:opacity-30'
+                : 'border-2 border-red-400 px-3 py-1 font-bold text-red-300 hover:bg-red-400 hover:text-black disabled:opacity-30'
             }
           >
-            {atFinalChamber ? 'Dare the Last Chamber' : 'Pull the Trigger'}
+            {/* Deliberately the same label for both shoot clips - a label that
+                changed with the outcome would give it away before the flash. */}
+            {busy && anim.clip !== 'load'
+              ? 'The hammer falls...'
+              : atFinalChamber
+                ? 'Dare the Last Chamber'
+                : 'Pull the Trigger'}
           </button>
           <button
             onClick={cashOut}
-            disabled={round < 1}
+            disabled={round < 1 || busy}
             className="border-2 border-green-400 px-3 py-1 font-bold text-green-300 hover:bg-green-400 hover:text-black disabled:opacity-30"
           >
             Walk Away (Cash Out)
