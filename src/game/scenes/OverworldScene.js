@@ -1625,6 +1625,14 @@ const ARCADE_ROOM = {
   exit: { c0: 9, r0: 11, c1: 10, r1: 12 },
 }
 
+// Real art for the Game Center's two PLAYABLE cabinets (drawClawMachine/
+// drawUprightCabinet's 'thirdRail' motif) - loaded once in preload() (see
+// its own `if (!this.textures.exists(...))` guards), reusing the exact same
+// source images each cabinet's real minigame already shows once you press E
+// on it, instead of a procedural doodle that never matched.
+const CLAW_MACHINE_PHOTO_KEY = 'gameCenterClawMachinePhoto'
+const THIRD_RAIL_PREVIEW_KEY = 'gameCenterThirdRailPreview'
+
 const INTERIOR_TEMPLATES = {
   cryptoHQ: { floorA: 0x1a1030, floorB: 0x241640, deskColor: 0x8a5a1f, deskLabel: 'Trading Terminal' },
   tycoonOffice: { floorA: 0x2a2420, floorB: 0x241f1c, deskColor: 0x555555, deskLabel: 'Executive Desk' },
@@ -2609,6 +2617,19 @@ export default class OverworldScene extends Phaser.Scene {
   }
 
   preload() {
+    // Game Center room decoration (buildArcadeInteriorZone) that shows the
+    // REAL art from the minigame each cabinet actually launches, instead of
+    // a generic procedural doodle - see CLAW_MACHINE_PHOTO_KEY/
+    // THIRD_RAIL_PREVIEW_KEY's own comments just above drawClawMachine.
+    if (!this.textures.exists(CLAW_MACHINE_PHOTO_KEY)) {
+      this.load.image(CLAW_MACHINE_PHOTO_KEY, '/assets/packs/claw-machine/labubu_claw_case.png')
+    }
+    if (!this.textures.exists(THIRD_RAIL_PREVIEW_KEY)) {
+      this.load.image(
+        THIRD_RAIL_PREVIEW_KEY,
+        '/assets/packs/vacaroxa--generic-run-n-gun-pack--v.1.0/Assets_area_1/mockup.png'
+      )
+    }
     preloadTerrainAssets(this)
     preloadPlayerSheet(this)
     preloadNpcRealSprites(this)
@@ -4256,7 +4277,7 @@ export default class OverworldScene extends Phaser.Scene {
     // === two rows of themed upright cabinets flanking the stage (top wall) ===
     const cabs = [
       [3, 0xff2fb9, 'invaders'], [5, 0x39ff88, 'blocks'], [7, 0xffe066, 'pong'],
-      [12, 0x00e5ff, 'racer'], [14, 0xff8a3d, 'invaders'], [16, 0x9a5cff, 'blocks'],
+      [12, 0x00e5ff, 'racer'], [14, 0xff8a3d, 'thirdRail'], [16, 0x9a5cff, 'blocks'],
     ]
     for (const [c, accent, motif] of cabs) this.drawUprightCabinet(c * T + 6, T + 6, accent, motif)
     // The first 'invaders' cabinet (col 3) doubles as the Ferrum Wings
@@ -4386,7 +4407,11 @@ export default class OverworldScene extends Phaser.Scene {
   // A small upright arcade cabinet drawn from Phaser primitives (marquee +
   // screen + control panel), non-interactive flavor along the walls of
   // buildArcadeInteriorZone. `x,y` is the top-left of its ~28x56 box; `motif`
-  // ('invaders'|'blocks'|'pong'|'racer') gives each screen a distinct doodle.
+  // ('invaders'|'blocks'|'pong'|'racer'|'thirdRail') gives each screen a
+  // distinct doodle - 'thirdRail' is the one exception, showing a real crop
+  // of THIRD_RAIL_PREVIEW_KEY instead of a procedural doodle (see that
+  // constant's own comment) since that cabinet is a real, playable machine,
+  // not flavor.
   drawUprightCabinet(x, y, accent, motif = 'invaders') {
     const g = this.add.graphics().setDepth(y + 58)
     g.fillStyle(0x000000, 0.25)
@@ -4413,11 +4438,14 @@ export default class OverworldScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 1)
       g.fillRect(sx + 2, sy + 5, 2, 6); g.fillRect(sx + 16, sy + 8, 2, 6) // paddles
       g.fillRect(sx + 9, sy + 8, 2, 2) // ball
-    } else { // racer
+    } else if (motif === 'racer') {
       g.fillStyle(0x122a4a, 1); g.fillRect(sx, sy, 20, 8)
       g.fillStyle(0x9aa7bd, 1); g.fillPoints([{ x: sx + 8, y: sy + 8 }, { x: sx + 12, y: sy + 8 }, { x: sx + 18, y: sy + 16 }, { x: sx + 2, y: sy + 16 }], true)
       g.fillStyle(0xffe066, 1); g.fillRect(sx + 9, sy + 11, 2, 3)
     }
+    // 'thirdRail': no procedural doodle drawn here - a real cropped preview
+    // image is layered on top of this same screen-well rect below instead
+    // (after this graphics object, so it draws over the dark screen fill).
     g.fillStyle(accent, 0.35) // screen scanline glow
     g.fillRect(sx, sy + 7, 20, 1)
     g.fillStyle(0x151b2b, 1) // control panel
@@ -4428,25 +4456,40 @@ export default class OverworldScene extends Phaser.Scene {
     g.fillStyle(0xff2fb9, 1)
     g.fillCircle(x + 21, y + 38, 1.5)
     this.zoneObjects.push(g)
+
+    if (motif === 'thirdRail' && this.textures.exists(THIRD_RAIL_PREVIEW_KEY)) {
+      // A real crop of the run-and-gun level mockup (top-left corner - the
+      // lit stairwell/crates/signage, the most colorful, readable-at-this-
+      // size corner of the source image), squeezed to fill the same 20x16
+      // screen well every other cabinet's procedural doodle draws into.
+      const preview = this.add
+        .image(sx, sy, THIRD_RAIL_PREVIEW_KEY)
+        .setOrigin(0, 0)
+        .setCrop(0, 0, 500, 400)
+        .setDisplaySize(20, 16)
+        .setDepth(y + 59)
+      this.zoneObjects.push(preview)
+    }
   }
 
-  // A claw/crane machine: glass cabinet full of plushies with a claw on a rail.
+  // A claw/crane machine - the REAL cabinet photo ClawMachine.jsx's own
+  // minigame UI uses (labubu_claw_case.png, see CLAW_MACHINE_PHOTO_KEY),
+  // scaled down to this decoration's existing ~60x72 footprint, instead of
+  // a procedural glass-case-and-plushies doodle that never matched what the
+  // minigame actually looks like once you press E on it.
   drawClawMachine(x, y) {
-    const g = this.add.graphics().setDepth(y + 72)
-    g.fillStyle(0x000000, 0.28); g.fillEllipse(x + 30, y + 74, 62, 12)
-    g.fillStyle(0x2a1840, 1); g.fillRoundedRect(x, y, 60, 72, 6) // body
-    g.fillStyle(0xff2fb9, 1); g.fillRoundedRect(x + 2, y - 6, 56, 10, 4) // marquee
-    g.fillStyle(0x0a1030, 0.85); g.fillRect(x + 5, y + 8, 50, 40) // glass
-    g.lineStyle(1, 0x00e5ff, 0.7); g.strokeRect(x + 5, y + 8, 50, 40)
-    // plushies
-    const plush = [0xffe066, 0x39ff88, 0x00e5ff, 0xff8a3d, 0xff2fb9]
-    for (let i = 0; i < 6; i++) { g.fillStyle(plush[i % plush.length], 1); g.fillCircle(x + 12 + (i % 3) * 16, y + 40 - Math.floor(i / 3) * 12, 5) }
-    // claw rail + claw
-    g.fillStyle(0x8a94a8, 1); g.fillRect(x + 6, y + 10, 48, 3)
-    g.fillStyle(0xcfd6e4, 1); g.fillRect(x + 28, y + 13, 3, 10); g.fillTriangle(x + 24, y + 23, x + 34, y + 23, x + 29, y + 30)
-    g.fillStyle(0x151b2b, 1); g.fillRect(x + 5, y + 52, 50, 16) // control deck
-    g.fillStyle(0xff2fb9, 1); g.fillCircle(x + 30, y + 60, 3)
+    const g = this.add.graphics().setDepth(y + 71)
+    g.fillStyle(0x000000, 0.28); g.fillEllipse(x + 30, y + 74, 62, 12) // ground shadow
     this.zoneObjects.push(g)
+
+    if (this.textures.exists(CLAW_MACHINE_PHOTO_KEY)) {
+      const cabinet = this.add
+        .image(x, y, CLAW_MACHINE_PHOTO_KEY)
+        .setOrigin(0, 0)
+        .setDisplaySize(60, 72)
+        .setDepth(y + 72)
+      this.zoneObjects.push(cabinet)
+    }
   }
 
   // A skee-ball lane: sloped alley with scoring rings at the top.

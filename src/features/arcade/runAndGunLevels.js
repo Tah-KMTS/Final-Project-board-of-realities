@@ -265,12 +265,15 @@ export const LEVELS = [
     name: 'Sector B - Surface Ruins',
     fill: 'out_fill',
     cap: 'out_cap',
-    // 3 cloud layers at increasing speed = real depth on the skyline. These
-    // are the pack's own parallax set, used as delivered.
+    // Same two-layer subway backdrop as Sector A (see that level's own `bg`
+    // comment) rather than the pack's own 3-layer cloud skyline - the user's
+    // explicit request, at the cost of the outdoor "surface" backdrop no
+    // longer matching this sector's "Surface Ruins" name/out_fill-out_cap
+    // ground tiles. clouds1/2/3 stay in IMAGES above even though nothing
+    // references them now, in case that mismatch means this gets reverted.
     bg: [
-      { key: 'clouds1', factor: 0.15, y: 0 },
-      { key: 'clouds2', factor: 0.3, y: 0 },
-      { key: 'clouds3', factor: 0.5, y: 0 },
+      { key: 'subway_bg', factor: 0.25, y: 0 },
+      { key: 'subway_wall', factor: 0.5, y: -40 },
     ],
     widthTiles: 200,
     heightTiles: 17,
