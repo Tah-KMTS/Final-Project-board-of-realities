@@ -147,6 +147,7 @@ export const HABITAT_ASSET_KEYS = {
 export const BUILDING_IMAGE_FILES = {
   underworld: 'underworld.png',
   casino: 'casino.png',
+  arcade: 'arcade.png',
   bank: 'bank.png',
   courtAndPrison: 'courtAndPrison.png',
   foodCourt: 'foodCourt.png',

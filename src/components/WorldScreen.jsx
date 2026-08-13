@@ -22,6 +22,8 @@ import DistrictBuildingModal from '../features/finance/DistrictBuildingModal'
 import CasinoModal from '../features/casino/CasinoModal'
 import TurboRacerModal from '../features/arcade/TurboRacerModal'
 import AirHockeyModal from '../features/arcade/AirHockeyModal'
+import ClawMachineModal from '../features/arcade/ClawMachineModal'
+import SortieCabinetModal from '../features/arcade/SortieCabinetModal'
 import UnderworldModal from '../features/finance/UnderworldModal'
 import BusinessCenterModal from '../features/finance/BusinessCenterModal'
 import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal'
@@ -966,16 +968,22 @@ export default function WorldScreen() {
         <RealEstateModal onClose={closeModal} />
       )}
       {/* Casino got its own bespoke Phaser interior + a tabbed modal (real
-          blackjack/poker/slots/NPC-challenge minigames), and now also hosts
-          Pixel Palace Arcade as an embedded tab (see CasinoModal.jsx's TABS)
-          - Arcade no longer has its own top-level 'arcade' building id/case,
-          it's reached only through Casino's Arcade tab now. Neither routes
-          through the generic DistrictBuildingModal. */}
+          blackjack/poker/slots/NPC-challenge minigames). It no longer hosts
+          the Arcade tab - Pixel Palace Arcade's two extra attractions
+          (Ferrum Wings sortie + claw machine) moved out to the Game Center
+          building's own walk-in room, alongside Turbo Racer/Air Hockey,
+          below. Neither routes through the generic DistrictBuildingModal. */}
       {activeModal?.type === 'arcadeGame' && activeModal.id === 'turboRacer' && (
         <TurboRacerModal onClose={closeModal} />
       )}
       {activeModal?.type === 'arcadeGame' && activeModal.id === 'airHockey' && (
         <AirHockeyModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'arcadeGame' && activeModal.id === 'ferrumWings' && (
+        <SortieCabinetModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'arcadeGame' && activeModal.id === 'clawMachine' && (
+        <ClawMachineModal onClose={closeModal} />
       )}
       {activeModal?.type === 'building' && activeModal.id === 'casino' && (
         <CasinoModal

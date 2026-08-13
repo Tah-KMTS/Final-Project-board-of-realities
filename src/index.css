@@ -213,6 +213,42 @@ button:disabled {
   animation: float-up-fade 0.7s ease-out forwards;
 }
 
+/* RussianRoulette.jsx's cylinder art: a big decelerating multi-turn spin for
+   "the dealer spins the cylinder" (sit-down) and the impossible-empty-chamber
+   jackpot reveal, versus a small quick tick for every ordinary round cleared
+   - same circular icon, two different reads (dramatic reset vs. "one click
+   closer"). Both are one-shot (no `infinite`) - RussianRoulette.jsx retriggers
+   them by remounting the <img> on a key that changes every phase/round/
+   outcome transition, same pattern LisaModal's animate-portrait-swap uses. */
+@keyframes cylinder-spin-in {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(1440deg); }
+}
+.animate-cylinder-spin-in {
+  animation: cylinder-spin-in 1s cubic-bezier(0.15, 0.85, 0.35, 1);
+}
+@keyframes cylinder-tick {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(120deg); }
+}
+.animate-cylinder-tick {
+  animation: cylinder-tick 0.25s ease-out;
+}
+
+/* RussianRoulette.jsx's revolver art recoiling on every trigger pull
+   (survive or bust alike) - a quick kick-back-and-settle, distinct from the
+   cylinder's own spin/tick above since a straight revolver kicking sideways
+   reads as recoil, not rotation. */
+@keyframes revolver-kick {
+  0% { transform: translateX(0) rotate(0deg); }
+  30% { transform: translateX(-6px) rotate(-3deg); }
+  60% { transform: translateX(2px) rotate(1deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+.animate-revolver-kick {
+  animation: revolver-kick 0.35s ease-out;
+}
+
 /* Visual-novel portrait swap (LisaModal). Keyed on the mood name, so every
    expression change re-triggers it - a quick settle rather than a hard cut,
    which is what makes the reaction read as her reacting rather than the

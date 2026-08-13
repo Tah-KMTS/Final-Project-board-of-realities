@@ -24,3 +24,13 @@ export function calculateAtonementCost(wantedLevel, notoriety, cash) {
 export function calculateEnergyBlessingCost(cash) {
   return Math.max(150, Math.round(cash * 0.1))
 }
+
+// Healing Blessing's HP counterpart to the Energy Blessing above - same
+// wealth-scaled shape (a felt percentage of current cash, never pocket
+// change once rich, never out of reach when poor), since the Chapel treats
+// HP and Energy as siblings: two resources it fully restores for a price
+// that stays meaningful at every net worth, versus the Food Court/Underworld
+// Hotel's flat-price small top-ups (interactiveLocations.js).
+export function calculateHealingBlessingCost(cash) {
+  return Math.max(150, Math.round(cash * 0.1))
+}

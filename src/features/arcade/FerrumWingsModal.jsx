@@ -20,27 +20,29 @@ import { playVictorySound, playDefeatSound } from '../../audio/sfx'
 // unlike GameCanvas.jsx's text-field-vs-Phaser-keyboard problem.
 //
 // createPortal to document.body (not a plain `fixed inset-0` div in place)
-// - this modal can be launched from ArcadeModal.jsx while IT is embedded
-// inside CasinoModal's Arcade tab, i.e. nested inside CasinoModal's own
-// `.glass-panel` wrapper. `.glass-panel` sets backdrop-filter (index.css),
-// and per spec backdrop-filter (like transform/filter/perspective)
-// establishes a new containing block for `position: fixed` descendants -
-// so without the portal, "fixed inset-0" here would render pinned to that
-// scrollable panel's own box instead of the real viewport, showing up as a
-// squashed, scrolled-with-the-panel mess instead of a true full-screen
-// takeover. Confirmed live: without the portal the title screen rendered
-// clipped inside Casino's tab panel with the claw machine still visible
-// behind it; with it, this covers the whole page correctly.
+// - launched from SortieCabinetModal.jsx (the Game Center's Ferrum Wings
+// cabinet, itself an ordinary `glass-panel` overlay), so this escapes that
+// ancestor's `.glass-panel` wrapper. `.glass-panel` sets backdrop-filter
+// (index.css), and per spec backdrop-filter (like transform/filter/
+// perspective) establishes a new containing block for `position: fixed`
+// descendants - so without the portal, "fixed inset-0" here would render
+// pinned to that ancestor's own box instead of the real viewport, showing
+// up as a squashed, scrolled-with-the-panel mess instead of a true
+// full-screen takeover. Confirmed live back when this was reached through
+// Casino's now-removed Arcade tab (nested inside CasinoModal's own
+// glass-panel): without the portal the title screen rendered clipped
+// inside that tab panel; with it, this covers the whole page correctly -
+// same fix still applies to any glass-panel ancestor, present or future.
 //
 // Money-making: the game itself has no idea this app has an economy - it's
 // a `postMessage({source:'capital-syndicate-ferrum-wings', type:'result',
 // outcome, score, sector})` call added to its own showScreen('gameover'/
 // 'victory') branches (see public/minigames/capital-syndicate/js/game.js's
 // own reportResult method) since those are the only two ways a run ends.
-// ArcadeModal.jsx already charges the entry fee up front (same "pay to
-// start" convention every other minigame here uses); this listens for that
-// one postMessage and credits a payout scaled by the run's own score, once
-// per sortie. Only the FIRST result per mount counts - the game's own
+// SortieCabinetModal.jsx already charges the entry fee up front (same "pay
+// to start" convention every other minigame here uses); this listens for
+// that one postMessage and credits a payout scaled by the run's own score,
+// once per sortie. Only the FIRST result per mount counts - the game's own
 // "Relaunch"/"Play Again" buttons let a player retry inside the SAME
 // iframe for free (it has no concept of this app's entry fee), so paying
 // out again on those would be an unlimited free-money loop; ignoring

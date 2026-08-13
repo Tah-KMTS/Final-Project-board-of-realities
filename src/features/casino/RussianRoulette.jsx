@@ -1,17 +1,32 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/useGameStore'
-import { playClickSound, playAlarmSound, playPurchaseSound, playQuestCompleteSound } from '../../audio/sfx'
+import { playClickSound, playAlarmSound, playPurchaseSound, playQuestCompleteSound, playGunshotSound, playVictorySound } from '../../audio/sfx'
+
+// Sprite crops out of a user-supplied reference sheet (production/ has no
+// record of this one - it was a one-off asset drop, not a generated pack),
+// sliced by exact connected-component bounding boxes (same "measured, not
+// eyeballed" approach as ClawMachine.jsx's labubusprite.png extraction) into
+// public/assets/packs/russian-roulette/. Plain <img> tags, not Phaser - this
+// is a React minigame like every other one in this file's directory.
+const DEALER_PORTRAIT_URL = '/assets/packs/russian-roulette/dealer_portrait.png'
+const REVOLVER_URL = '/assets/packs/russian-roulette/revolver.png'
+const CYLINDER_IDLE_URL = '/assets/packs/russian-roulette/cylinder_idle.png'
+const CYLINDER_LOADED_URL = '/assets/packs/russian-roulette/cylinder_loaded.png'
+const CYLINDER_FINAL_CHAMBER_URL = '/assets/packs/russian-roulette/cylinder_final_chamber.png'
 
 const MIN_BET = 25
 const ENERGY_COST = 5
 const CHAMBERS = 6 // one prop revolver, six chambers, one dummy round loaded at random
 // Pulling a 6th trigger would be a guaranteed hit (1 bullet left in the last
-// remaining chamber) - that's not a decision, it's a formality, so the game
-// force-stops the "pull trigger" option at round 5 and the player must cash
-// out. This is a stylized cash-stakes tension game, NOT a literal death
-// mechanic - no HP loss, no depiction of harm. A "bang" just means you lose
-// the pot and the scene cuts away, exactly like busting in Blackjack or a
-// dead spin on Slots.
+// remaining chamber) - that's not a decision, it's a formality, not a real
+// bet, so the fair push-your-luck system below (ROUND_MULTIPLIERS) stops one
+// short of it: a normal cash-out-eligible "round" tops out at 5. The 6th
+// chamber is still reachable, but only via the separate, deliberately
+// not-fair FINAL_CHAMBER_* easter egg further down - see its own comment.
+// This is a stylized cash-stakes tension game, NOT a literal death mechanic -
+// no HP loss, no depiction of harm. A "bang" just means you lose the pot and
+// the scene cuts away, exactly like busting in Blackjack or a dead spin on
+// Slots.
 const MAX_ROUNDS = CHAMBERS - 1
 const BIG_WIN_REPUTATION_THRESHOLD = MAX_ROUNDS // only the full 5-for-5 run grants reputation
 
@@ -43,6 +58,22 @@ const ROUND_MULTIPLIERS = Array.from({ length: MAX_ROUNDS }, (_, idx) => {
 })
 // => [1.08, 1.35, 1.8, 2.7, 5.4]
 
+// The true 6th/last chamber - deliberately OUTSIDE the fair-odds system
+// above. After 5 clean pulls the last remaining chamber holds the round
+// with mathematical certainty (P=1, see MAX_ROUNDS's own comment on why the
+// normal push-your-luck flow refuses to let the player pull it as a real
+// bet). Reaching it is still optional - Walk Away at round 5 keeps the
+// guaranteed 5.4x - but a player who dares it anyway isn't making a bet
+// with real odds, they're making a wish. So this is a flat, hardcoded,
+// intentionally-NOT-fair exception (unlike every number above it, which was
+// derived and verified): a tiny hand-picked "the prop gun jammed" chance,
+// existing purely as a rare easter egg, not a rebalancing of the real game.
+const FINAL_CHAMBER_ROUND = CHAMBERS // 6
+const FINAL_CHAMBER_SURVIVAL_CHANCE = 0.02
+const FINAL_CHAMBER_JACKPOT = 1_000_000
+const FINAL_CHAMBER_JACKPOT_MESSAGE =
+  "Click. ...CLICK. Dead man's chamber - EMPTY. The dealer stares at the revolver like it just betrayed him personally. Nobody in this room has ever seen that happen before."
+
 const SURVIVE_MESSAGES = [
   'Click. Empty chamber. The pot ticks up - the table leans in closer.',
   'Click. Still nothing. There\'s sweat on your collar now, but the pot is bigger.',
@@ -69,12 +100,17 @@ export default function RussianRoulette() {
   const spendEnergy = useGameStore((s) => s.spendEnergy)
   const energy = useGameStore((s) => s.player.energy)
   const getEffectiveLuck = useGameStore((s) => s.getEffectiveLuck)
+  const triggerRouletteGameOver = useGameStore((s) => s.triggerRouletteGameOver)
 
   const [phase, setPhase] = useState('bet') // 'bet' | 'playing' | 'result'
   const [bet, setBet] = useState(MIN_BET)
   const [round, setRound] = useState(0) // rounds survived so far this sit-down
-  const [outcome, setOutcome] = useState(null) // 'bust' | 'cashout'
+  const [outcome, setOutcome] = useState(null) // 'bust' | 'cashout' | 'jackpot'
   const [message, setMessage] = useState('')
+  // Bumped on every trigger pull (survive or bust alike) purely to give the
+  // revolver <img> below a fresh `key` so its animate-revolver-kick
+  // remounts/replays each time - not otherwise read anywhere.
+  const [pullSeq, setPullSeq] = useState(0)
 
   const currentMultiplier = round > 0 ? ROUND_MULTIPLIERS[round - 1] : null
 
@@ -89,8 +125,39 @@ export default function RussianRoulette() {
   }
 
   const pullTrigger = () => {
-    if (phase !== 'playing' || round >= MAX_ROUNDS) return
+    if (phase !== 'playing') return
+    setPullSeq((n) => n + 1)
     const attemptNumber = round + 1 // 1-indexed pull about to happen
+
+    // The dare: round 5 survived, one chamber left, certain death by the
+    // real math - see FINAL_CHAMBER_SURVIVAL_CHANCE's own comment for why
+    // this branch intentionally ignores the fair ROUND_MULTIPLIERS table
+    // entirely instead of extending it with a 6th entry.
+    if (attemptNumber === FINAL_CHAMBER_ROUND) {
+      const luckySurvive = Math.random() < FINAL_CHAMBER_SURVIVAL_CHANCE
+      if (!luckySurvive) {
+        // A real "start a new game or load game" ending, not just a lost
+        // pot - the one loss condition in the whole finance world that
+        // drops straight to GameOverScreen (App.jsx) instead of a
+        // recoverable-in-session setback. See triggerRouletteGameOver's own
+        // comment for why this still doesn't wipe the save. Local
+        // phase/outcome/message state below is skipped - this component is
+        // about to unmount along with the rest of WorldScreen the instant
+        // `screen` changes, so setting it would be dead work.
+        playGunshotSound()
+        triggerRouletteGameOver()
+        return
+      }
+      const payout = Math.round(bet * ROUND_MULTIPLIERS[MAX_ROUNDS - 1]) + FINAL_CHAMBER_JACKPOT
+      addCash(payout)
+      playVictorySound()
+      addReputation(10)
+      setPhase('result')
+      setOutcome('jackpot')
+      setMessage(`${FINAL_CHAMBER_JACKPOT_MESSAGE} $${payout.toLocaleString()} wired to your account.`)
+      return
+    }
+
     const chambersRemaining = CHAMBERS - (attemptNumber - 1)
     // Luck discount applies to round 1 ONLY. A flat per-round discount
     // compounds multiplicatively across every round and flips the house
@@ -140,16 +207,56 @@ export default function RussianRoulette() {
     setMessage('')
   }
 
+  const atFinalChamber = phase === 'playing' && round === MAX_ROUNDS
+  // The red-ringed final-chamber art doubles as the jackpot reveal image
+  // (the "impossible empty chamber" IS that exact chamber) - everywhere
+  // else falls back to the plain loaded-cylinder art.
+  const showFinalChamberArt = atFinalChamber || outcome === 'jackpot'
+  // One-shot spin/tick/shake on the cylinder art, keyed so React remounts
+  // the <img> (retriggering the CSS animation) on every relevant
+  // transition - same pattern LisaModal's animate-portrait-swap uses.
+  // Big decelerating spin for "the dealer spins the cylinder" (round 0) and
+  // the jackpot's own impossible reveal; a quick tick for every ordinary
+  // round cleared; a shake for any bust.
+  const cylinderAnimClass =
+    outcome === 'bust'
+      ? 'animate-shake'
+      : outcome === 'jackpot' || (phase === 'playing' && round === 0)
+        ? 'animate-cylinder-spin-in'
+        : phase === 'playing'
+          ? 'animate-cylinder-tick'
+          : ''
+  const cylinderAnimKey = `${phase}-${round}-${outcome ?? 'none'}`
+
   return (
     <div className="border-2 border-pink-400 bg-[#12071c] p-4 text-sm">
-      <p className="mb-3 text-xs text-gray-400">
-        The house's velvet-lined back room: a prop revolver, a six-chamber cylinder, one dummy round loaded at
-        random. Pull the trigger and the pot climbs. Cash out whenever you like. Get unlucky and the scene cuts
-        away - you lose the pot, nothing more.
-      </p>
+      <div className="mb-3 flex items-center gap-3">
+        <img
+          src={DEALER_PORTRAIT_URL}
+          alt=""
+          className="h-16 w-auto shrink-0 border border-pink-500/40"
+          style={{ imageRendering: 'pixelated' }}
+        />
+        <p className="text-xs text-gray-400">
+          The house's velvet-lined back room: a prop revolver, a six-chamber cylinder, one dummy round loaded at
+          random. Pull the trigger and the pot climbs. Cash out whenever you like. Get unlucky and the scene cuts
+          away - you lose the pot, nothing more.
+        </p>
+      </div>
+
+      <div className="mb-3 flex justify-center">
+        <img
+          key={pullSeq}
+          src={REVOLVER_URL}
+          alt=""
+          className={`h-14 w-auto opacity-90 ${pullSeq > 0 ? 'animate-revolver-kick' : ''}`}
+          style={{ imageRendering: 'pixelated' }}
+        />
+      </div>
 
       {phase === 'bet' && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <img src={CYLINDER_IDLE_URL} alt="" className="h-14 w-auto" style={{ imageRendering: 'pixelated' }} />
           <label className="text-xs text-gray-400">Bet ($)</label>
           <input
             type="number"
@@ -170,6 +277,15 @@ export default function RussianRoulette() {
 
       {phase !== 'bet' && (
         <div className="mb-3 border-2 border-gray-600 bg-black p-3">
+          <div className="mb-2 flex justify-center">
+            <img
+              key={cylinderAnimKey}
+              src={showFinalChamberArt ? CYLINDER_FINAL_CHAMBER_URL : CYLINDER_LOADED_URL}
+              alt=""
+              className={`h-16 w-auto ${cylinderAnimClass} ${atFinalChamber ? 'animate-pulse' : ''}`}
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </div>
           <div className="mb-2 flex items-center justify-center gap-2">
             {Array.from({ length: CHAMBERS }).map((_, i) => (
               <div
@@ -190,6 +306,14 @@ export default function RussianRoulette() {
             Round {round}/{MAX_ROUNDS}
             {currentMultiplier ? ` - current pot multiplier ${currentMultiplier}x ($${Math.round(bet * currentMultiplier).toLocaleString()})` : ''}
           </p>
+          {atFinalChamber && (
+            <p className="mt-2 text-center text-xs font-bold text-amber-300">
+              Five clean pulls. One chamber left - and by the house's own math, it's loaded for certain. Walk away
+              with your ${Math.round(bet * ROUND_MULTIPLIERS[MAX_ROUNDS - 1]).toLocaleString()} now, or dare the
+              last chamber anyway - losing that one doesn't just cost the pot, it ends the run. Your save stays put,
+              but you're back at the title screen.
+            </p>
+          )}
         </div>
       )}
 
@@ -197,10 +321,13 @@ export default function RussianRoulette() {
         <div className="flex gap-2">
           <button
             onClick={pullTrigger}
-            disabled={round >= MAX_ROUNDS}
-            className="border-2 border-red-400 px-3 py-1 font-bold text-red-300 hover:bg-red-400 hover:text-black disabled:opacity-30"
+            className={
+              atFinalChamber
+                ? 'animate-pulse border-2 border-amber-300 px-3 py-1 font-bold text-amber-300 hover:bg-amber-300 hover:text-black'
+                : 'border-2 border-red-400 px-3 py-1 font-bold text-red-300 hover:bg-red-400 hover:text-black'
+            }
           >
-            Pull the Trigger
+            {atFinalChamber ? 'Dare the Last Chamber' : 'Pull the Trigger'}
           </button>
           <button
             onClick={cashOut}
@@ -212,14 +339,17 @@ export default function RussianRoulette() {
         </div>
       )}
 
-      {message && (
-        <p
-          className={`mt-3 font-bold ${
-            outcome === 'bust' ? 'text-red-400' : outcome === 'cashout' ? 'text-green-400' : 'text-yellow-300'
-          }`}
-        >
-          {message}
-        </p>
+      {outcome === 'jackpot' ? (
+        <div className="mt-3 border-4 border-amber-300 bg-amber-300/10 p-3 text-center">
+          <p className="text-lg font-extrabold text-amber-300">THE CHAMBER WAS EMPTY</p>
+          <p className="mt-1 text-xs text-amber-200">{message}</p>
+        </div>
+      ) : (
+        message && (
+          <p className={`mt-3 font-bold ${outcome === 'bust' ? 'text-red-400' : outcome === 'cashout' ? 'text-green-400' : 'text-yellow-300'}`}>
+            {message}
+          </p>
+        )
       )}
 
       {phase === 'result' && (

@@ -23,7 +23,7 @@ import { FINANCE_NPCS } from '../features/finance/financeNpcs'
 import { rollHeadline } from '../features/finance/newsHeadlines'
 import { initializeAgentsState, simulateDailyAgentInteractions, ARCHETYPE_PROFILES } from '../features/finance/agentEngine'
 import { generateEventNarration } from '../features/finance/aiNarrator'
-import { calculateAtonementCost, calculateEnergyBlessingCost } from '../features/temple/templeEngine'
+import { calculateAtonementCost, calculateEnergyBlessingCost, calculateHealingBlessingCost } from '../features/temple/templeEngine'
 import {
   applyStandingEvent,
   applyStandingDecayTick,
@@ -120,9 +120,10 @@ function createDefaultState() {
     // plays the ending again rather than silently swallowing it.
     endingTriggered: false,
     // Which GameOverScreen (App.jsx) message to show - 'permadeath' (Hunter's
-    // Rift HP hitting 0, see takeDamage) or 'daysUp' (Days Left hitting 0
-    // before ENDING_CASH_TARGET, see endDay). Only meaningful once
-    // screen === 'gameOver'.
+    // Rift HP hitting 0, see takeDamage), 'daysUp' (Days Left hitting 0
+    // before ENDING_CASH_TARGET, see endDay), or 'rouletteGameOver' (daring
+    // Russian Roulette's final chamber and losing, see
+    // triggerRouletteGameOver). Only meaningful once screen === 'gameOver'.
     gameOverReason: 'permadeath',
     // Gates the one-time "how to play / goal of the game" intro shown on
     // WorldScreen's first mount after a brand new game - false only on a
@@ -536,6 +537,19 @@ export const useGameStore = create((set, get) => ({
       },
     })
     return false
+  },
+
+  // Russian Roulette's final-chamber dare (RussianRoulette.jsx) - the one
+  // loss condition in the whole finance world that ends the run outright
+  // rather than a felt-but-recoverable setback like the hospital bill just
+  // above. The player opted into an explicit "start a new game or load
+  // game" consequence for daring the last chamber, so this deliberately
+  // does NOT wipe the save the way takeDamage's Hunter's Rift permadeath
+  // does - an earlier save (or a session not yet saved) should still be
+  // loadable from the title screen afterward, same as the 'daysUp' loss
+  // below in endDay().
+  triggerRouletteGameOver: () => {
+    set({ screen: 'gameOver', gameOverReason: 'rouletteGameOver' })
   },
 
   // --- World 1: Hunter's Rift ---------------------------------------------
@@ -1587,6 +1601,23 @@ export const useGameStore = create((set, get) => ({
     if (state.cash < cost) return false
     set({ cash: state.cash - cost })
     get().restoreEnergy(state.player.maxEnergy)
+    return true
+  },
+
+  // HP's counterpart to buyEnergyBlessing above - the Chapel's "real" HP
+  // lever alongside the Food Court/Underworld Hotel's flat-price snack-tier
+  // top-ups (interactiveLocations.js), priced to stay meaningful at every
+  // wealth level instead of fading into pocket change (see
+  // calculateHealingBlessingCost). Same self-limiting-on-repeat-purchase
+  // reasoning as buyEnergyBlessing: no cap needed since the cost is a
+  // percentage of CURRENT cash.
+  buyHealingBlessing: () => {
+    const state = get()
+    if (state.player.hp >= state.player.maxHp) return false
+    const cost = calculateHealingBlessingCost(state.cash)
+    if (state.cash < cost) return false
+    set({ cash: state.cash - cost })
+    get().healPlayer(state.player.maxHp)
     return true
   },
 
