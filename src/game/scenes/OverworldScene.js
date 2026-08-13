@@ -4346,6 +4346,15 @@ export default class OverworldScene extends Phaser.Scene {
         rect: new Phaser.Geom.Rectangle(1 * T, 4.5 * T, 2 * T, 1 * T),
       },
       {
+        // Third Rail - a 2-level run-and-gun cabinet. Placed below the Turbo
+        // Racer stage in the center of the arcade. Apron is the floor below
+        // (row 6), where the player stands to press E. Launches RunAndGunModal.
+        type: 'arcadeCabinet',
+        id: 'thirdRail',
+        label: 'the Third Rail cabinet',
+        rect: new Phaser.Geom.Rectangle(8 * T, 5.5 * T, 4 * T, 1 * T),
+      },
+      {
         type: 'exit',
         id: 'toOverworld',
         label: 'Exit to Capital Syndicate',

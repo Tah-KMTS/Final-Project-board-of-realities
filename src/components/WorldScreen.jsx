@@ -24,6 +24,7 @@ import TurboRacerModal from '../features/arcade/TurboRacerModal'
 import AirHockeyModal from '../features/arcade/AirHockeyModal'
 import ClawMachineModal from '../features/arcade/ClawMachineModal'
 import SortieCabinetModal from '../features/arcade/SortieCabinetModal'
+import RunAndGunModal from '../features/arcade/RunAndGunModal'
 import UnderworldModal from '../features/finance/UnderworldModal'
 import BusinessCenterModal from '../features/finance/BusinessCenterModal'
 import GovernmentBuildingModal from '../features/finance/GovernmentBuildingModal'
@@ -984,6 +985,9 @@ export default function WorldScreen() {
       )}
       {activeModal?.type === 'arcadeGame' && activeModal.id === 'clawMachine' && (
         <ClawMachineModal onClose={closeModal} />
+      )}
+      {activeModal?.type === 'arcadeGame' && activeModal.id === 'thirdRail' && (
+        <RunAndGunModal onClose={closeModal} />
       )}
       {activeModal?.type === 'building' && activeModal.id === 'casino' && (
         <CasinoModal
