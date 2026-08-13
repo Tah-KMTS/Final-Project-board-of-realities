@@ -1632,6 +1632,11 @@ const ARCADE_ROOM = {
 // on it, instead of a procedural doodle that never matched.
 const CLAW_MACHINE_PHOTO_KEY = 'gameCenterClawMachinePhoto'
 const THIRD_RAIL_PREVIEW_KEY = 'gameCenterThirdRailPreview'
+// Same idea for Redline Rally: the racing pack's own kit icon is a top-down
+// road with two cars on it, which is almost exactly what the minigame looks
+// like in motion - so the cabinet screen shows the real thing rather than a
+// procedural doodle.
+const REDLINE_PREVIEW_KEY = 'gameCenterRedlinePreview'
 
 const INTERIOR_TEMPLATES = {
   cryptoHQ: { floorA: 0x1a1030, floorB: 0x241640, deskColor: 0x8a5a1f, deskLabel: 'Trading Terminal' },
@@ -2629,6 +2634,9 @@ export default class OverworldScene extends Phaser.Scene {
         THIRD_RAIL_PREVIEW_KEY,
         '/assets/packs/vacaroxa--generic-run-n-gun-pack--v.1.0/Assets_area_1/mockup.png'
       )
+    }
+    if (!this.textures.exists(REDLINE_PREVIEW_KEY)) {
+      this.load.image(REDLINE_PREVIEW_KEY, '/assets/packs/racing/processed/cabinet_preview.png')
     }
     preloadTerrainAssets(this)
     preloadPlayerSheet(this)
@@ -4277,7 +4285,7 @@ export default class OverworldScene extends Phaser.Scene {
     // === two rows of themed upright cabinets flanking the stage (top wall) ===
     const cabs = [
       [3, 0xff2fb9, 'invaders'], [5, 0x39ff88, 'blocks'], [7, 0xffe066, 'pong'],
-      [12, 0x00e5ff, 'racer'], [14, 0xff8a3d, 'thirdRail'], [16, 0x9a5cff, 'blocks'],
+      [12, 0x00e5ff, 'racer'], [14, 0xff8a3d, 'thirdRail'], [16, 0x9a5cff, 'redline'],
     ]
     for (const [c, accent, motif] of cabs) this.drawUprightCabinet(c * T + 6, T + 6, accent, motif)
     // The first 'invaders' cabinet (col 3) doubles as the Ferrum Wings
@@ -4299,6 +4307,14 @@ export default class OverworldScene extends Phaser.Scene {
     this.zoneObjects.push(
       this.add.text(14 * T + 20, T - 4, 'THIRD RAIL', {
         fontFamily: 'monospace', fontSize: '7px', fontStyle: 'bold', color: '#ff8a3d',
+      }).setOrigin(0.5, 1).setDepth(9997)
+    )
+    // The last upright (col 16) is Redline Rally, the lap-circuit racer
+    // (RedlineRallyModal.jsx) - third of the three real machines in this row,
+    // same reuse-a-decorative-cabinet arrangement as Sortie and Third Rail.
+    this.zoneObjects.push(
+      this.add.text(16 * T + 20, T - 4, 'REDLINE', {
+        fontFamily: 'monospace', fontSize: '7px', fontStyle: 'bold', color: '#9a5cff',
       }).setOrigin(0.5, 1).setDepth(9997)
     )
 
@@ -4391,6 +4407,16 @@ export default class OverworldScene extends Phaser.Scene {
         rect: new Phaser.Geom.Rectangle(13.7 * T, 1.9 * T, 1.6 * T, 0.9 * T),
       },
       {
+        // Redline Rally - the lap-circuit racer (RedlineRallyModal.jsx).
+        // Col 16, the last upright, marquee-labelled 'REDLINE'. Same 0.3-col
+        // apron offset as the Sortie and Third Rail cabinets either side of
+        // it, so all three playable machines are approached identically.
+        type: 'arcadeCabinet',
+        id: 'redlineRally',
+        label: 'the Redline Rally cabinet',
+        rect: new Phaser.Geom.Rectangle(15.7 * T, 1.9 * T, 1.6 * T, 0.9 * T),
+      },
+      {
         type: 'exit',
         id: 'toOverworld',
         label: 'Exit to Capital Syndicate',
@@ -4407,11 +4433,12 @@ export default class OverworldScene extends Phaser.Scene {
   // A small upright arcade cabinet drawn from Phaser primitives (marquee +
   // screen + control panel), non-interactive flavor along the walls of
   // buildArcadeInteriorZone. `x,y` is the top-left of its ~28x56 box; `motif`
-  // ('invaders'|'blocks'|'pong'|'racer'|'thirdRail') gives each screen a
-  // distinct doodle - 'thirdRail' is the one exception, showing a real crop
-  // of THIRD_RAIL_PREVIEW_KEY instead of a procedural doodle (see that
-  // constant's own comment) since that cabinet is a real, playable machine,
-  // not flavor.
+  // ('invaders'|'blocks'|'pong'|'racer'|'thirdRail'|'redline') gives each
+  // screen a distinct doodle - except 'thirdRail' and 'redline', which are
+  // real playable machines rather than flavor and so show real art from the
+  // game they actually launch (THIRD_RAIL_PREVIEW_KEY / REDLINE_PREVIEW_KEY,
+  // see those constants' own comments) instead of a procedural doodle that
+  // never matched what pressing E on them shows.
   drawUprightCabinet(x, y, accent, motif = 'invaders') {
     const g = this.add.graphics().setDepth(y + 58)
     g.fillStyle(0x000000, 0.25)
@@ -4456,6 +4483,19 @@ export default class OverworldScene extends Phaser.Scene {
     g.fillStyle(0xff2fb9, 1)
     g.fillCircle(x + 21, y + 38, 1.5)
     this.zoneObjects.push(g)
+
+    if (motif === 'redline' && this.textures.exists(REDLINE_PREVIEW_KEY)) {
+      // The racing kit's own icon - a top-down road with two cars on it,
+      // which is what this cabinet's minigame actually looks like. Squeezed
+      // into the same 20x16 screen well as every other cabinet's doodle.
+      this.zoneObjects.push(
+        this.add
+          .image(sx, sy, REDLINE_PREVIEW_KEY)
+          .setOrigin(0, 0)
+          .setDisplaySize(20, 16)
+          .setDepth(y + 59)
+      )
+    }
 
     if (motif === 'thirdRail' && this.textures.exists(THIRD_RAIL_PREVIEW_KEY)) {
       // A real crop of the run-and-gun level mockup (top-left corner - the

@@ -135,3 +135,15 @@ public/assets/packs/prison/reference.webp
 # zip made on a Mac drags along.
 public/assets/packs/vacaroxa--generic-run-n-gun-pack--v.1.0/__MACOSX/
 **/.DS_Store
+
+# packs/racing/ - source art for the Redline Rally cabinet
+# (src/features/arcade/redlineRally*). 670MB of PSD/AI/EPS masters and
+# 1024px vector exports against a 512x384 viewport, so the raws stay out and
+# only the downscaled sprites under processed/ are committed. Rebuild them
+# with `python production/process_racing.py`, which documents every crop,
+# every downscale target, and why the seamless fills need the 3x3 tiling
+# trick. Everything the game loads at runtime - including the Game Center
+# cabinet's own little preview screen - is emitted into processed/ precisely
+# so this whole directory can be ignored.
+public/assets/packs/racing/*
+!public/assets/packs/racing/processed/
