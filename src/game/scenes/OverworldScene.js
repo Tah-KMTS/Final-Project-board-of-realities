@@ -4268,6 +4268,18 @@ export default class OverworldScene extends Phaser.Scene {
         fontFamily: 'monospace', fontSize: '7px', fontStyle: 'bold', color: '#ff2fb9',
       }).setOrigin(0.5, 1).setDepth(9997)
     )
+    // The second 'invaders' cabinet (col 14) doubles as the Third Rail
+    // run-and-gun cabinet (RunAndGunModal.jsx) - the zone entry below used
+    // to sit unmarked in the middle of the race carpet floor (cols 8-11,
+    // row 5.5) with no art of its own, so walking the whole room never
+    // turned up anything to press E on (reported: "I don't see that").
+    // Reusing an existing decorative upright cabinet, same fix as Sortie
+    // above, puts it somewhere a player can actually see and walk up to.
+    this.zoneObjects.push(
+      this.add.text(14 * T + 20, T - 4, 'THIRD RAIL', {
+        fontFamily: 'monospace', fontSize: '7px', fontStyle: 'bold', color: '#ff8a3d',
+      }).setOrigin(0.5, 1).setDepth(9997)
+    )
 
     // === attractions around the walls ===
     this.drawClawMachine(1 * T + 6, 3 * T + 4) // top-left
@@ -4346,13 +4358,16 @@ export default class OverworldScene extends Phaser.Scene {
         rect: new Phaser.Geom.Rectangle(1 * T, 4.5 * T, 2 * T, 1 * T),
       },
       {
-        // Third Rail - a 2-level run-and-gun cabinet. Placed below the Turbo
-        // Racer stage in the center of the arcade. Apron is the floor below
-        // (row 6), where the player stands to press E. Launches RunAndGunModal.
+        // Third Rail - a 2-level run-and-gun cabinet (RunAndGunModal.jsx).
+        // Col 14, row 1 - the labeled second 'invaders' upright cabinet
+        // drawn above, same "reuse a decorative cabinet" pattern as
+        // ferrumWings/Sortie right above this entry. Used to sit as a bare
+        // apron rect in the middle of the race carpet with no cabinet drawn
+        // there at all - moved here so it's actually visible/walkable-to.
         type: 'arcadeCabinet',
         id: 'thirdRail',
         label: 'the Third Rail cabinet',
-        rect: new Phaser.Geom.Rectangle(8 * T, 5.5 * T, 4 * T, 1 * T),
+        rect: new Phaser.Geom.Rectangle(13.7 * T, 1.9 * T, 1.6 * T, 0.9 * T),
       },
       {
         type: 'exit',

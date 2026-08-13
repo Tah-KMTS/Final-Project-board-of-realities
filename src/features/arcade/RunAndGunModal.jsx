@@ -445,8 +445,8 @@ export default function RunAndGunModal({ onClose }) {
             {status === 'title' && (
               <>
                 <h2 className="mb-1 text-2xl font-bold text-orange-400">THIRD RAIL</h2>
-                <p className="mb-4 text-xs text-gray-400">Two sectors. One rifle. Clear the surface.</p>
-                <div className="mb-4 text-[11px] leading-relaxed text-gray-300">
+                <p className="mb-4 text-sm text-gray-400">Two sectors. One rifle. Clear the surface.</p>
+                <div className="mb-4 text-sm leading-relaxed text-gray-300">
                   <p>MOVE <span className="text-cyan-300">A/D</span> or <span className="text-cyan-300">arrows</span> &nbsp;|&nbsp; JUMP <span className="text-cyan-300">Space</span> &nbsp;|&nbsp; FIRE <span className="text-cyan-300">J</span></p>
                   <p className="mt-1">Hold <span className="text-cyan-300">Up</span> to aim high, <span className="text-cyan-300">Down</span> to crouch, <span className="text-cyan-300">Down</span> in the air to shoot beneath you.</p>
                 </div>
