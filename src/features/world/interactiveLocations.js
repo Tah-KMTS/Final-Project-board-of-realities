@@ -43,6 +43,14 @@ export const INTERACTIVE_LOCATIONS = [
       { id: 'mcmuffin', name: '$3.17 Bacon McMuffin', cost: 40, energyRestore: 25, bonusText: '+25 Energy' },
       { id: 'cherry_coke', name: 'Cold Cherry Coke', cost: 25, energyRestore: 15, bonusText: '+15 Energy' },
       { id: 'buffett_combo', name: "The Oracle's Combo", cost: 120, energyRestore: 50, bonusText: '+50 Energy' },
+      // The Food Court's HP option - same "cheap flat-price top-up" tier as
+      // the Underworld Hotel's backroom_medic below (not the Chapel's
+      // wealth-scaled Healing Blessing, which is the "real" HP lever meant
+      // to stay meaningful once rich - see buyHealingBlessing's own
+      // comment). Priced/dosed to roughly match backroom_medic's $3-per-HP
+      // rate ($120/40hp) rather than the Hospital's real medical-grade
+      // pricing (essentialBuildingsCatalog.js's trauma_kit is $1200/50hp).
+      { id: 'first_aid_kit', name: 'Diner First-Aid Kit', cost: 60, healHp: 20, bonusText: '+20 HP' },
     ],
   },
   {

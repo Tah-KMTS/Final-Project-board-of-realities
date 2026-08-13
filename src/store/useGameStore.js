@@ -23,7 +23,7 @@ import { FINANCE_NPCS } from '../features/finance/financeNpcs'
 import { rollHeadline } from '../features/finance/newsHeadlines'
 import { initializeAgentsState, simulateDailyAgentInteractions, ARCHETYPE_PROFILES } from '../features/finance/agentEngine'
 import { generateEventNarration } from '../features/finance/aiNarrator'
-import { calculateAtonementCost, calculateEnergyBlessingCost } from '../features/temple/templeEngine'
+import { calculateAtonementCost, calculateEnergyBlessingCost, calculateHealingBlessingCost } from '../features/temple/templeEngine'
 import {
   applyStandingEvent,
   applyStandingDecayTick,
@@ -1601,6 +1601,23 @@ export const useGameStore = create((set, get) => ({
     if (state.cash < cost) return false
     set({ cash: state.cash - cost })
     get().restoreEnergy(state.player.maxEnergy)
+    return true
+  },
+
+  // HP's counterpart to buyEnergyBlessing above - the Chapel's "real" HP
+  // lever alongside the Food Court/Underworld Hotel's flat-price snack-tier
+  // top-ups (interactiveLocations.js), priced to stay meaningful at every
+  // wealth level instead of fading into pocket change (see
+  // calculateHealingBlessingCost). Same self-limiting-on-repeat-purchase
+  // reasoning as buyEnergyBlessing: no cap needed since the cost is a
+  // percentage of CURRENT cash.
+  buyHealingBlessing: () => {
+    const state = get()
+    if (state.player.hp >= state.player.maxHp) return false
+    const cost = calculateHealingBlessingCost(state.cash)
+    if (state.cash < cost) return false
+    set({ cash: state.cash - cost })
+    get().healPlayer(state.player.maxHp)
     return true
   },
 
