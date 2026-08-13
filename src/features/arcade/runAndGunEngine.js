@@ -384,6 +384,12 @@ function updateEnemy(g, en) {
     else en.vx = 0
     en.vy = Math.min(en.vy + B.GRAVITY, B.MAX_FALL)
     moveBody(en, g.level.solids, g.level.worldW)
+    // Troopers walk toward the player with no ledge detection, so one can
+    // chase you off the lip of a pit. Without this it then falls forever -
+    // still counted as a live enemy, still updated every frame, y climbing
+    // without bound (observed: 13,953 and rising). Drop it from the level
+    // instead, and award nothing, since the player didn't kill it.
+    if (en.y > g.level.worldH + 40) { en.gone = true; return }
     if (dist < B.AR_RANGE && en.cool <= 0) {
       const up = dy < -30
       addBullet(g, {
@@ -419,6 +425,14 @@ function updateEnemy(g, en) {
       } else if (en.cool <= 0) {
         en.telegraph = B.SNIPER_TELEGRAPH
       }
+    } else if (en.telegraph > 0) {
+      // Player broke line of sight mid-wind-up. Reset rather than freeze the
+      // countdown: a paused telegraph resumes the instant they step back
+      // into range and fires with almost no visible tell, which breaks the
+      // "this shot is always dodgeable if you're watching" contract that is
+      // the entire point of this enemy.
+      en.telegraph = 0
+      en.cool = B.SNIPER_FIRE_EVERY / 2
     }
     return
   }
@@ -552,7 +566,7 @@ export function step(g, input) {
     }
   }
 
-  g.level.enemies = g.level.enemies.filter((en) => en.dying === 0 || en.dying < 40)
+  g.level.enemies = g.level.enemies.filter((en) => !en.gone && en.dying < 40)
 
   g.cam = clamp(p.x + p.w / 2 - VIEW_W / 2, 0, Math.max(0, g.level.worldW - VIEW_W))
 

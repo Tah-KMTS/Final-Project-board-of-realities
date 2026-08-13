@@ -171,10 +171,14 @@ function drawEnemies(ctx, assets, g) {
     }
 
     // Body is narrower than the frame, so centre the art on it.
+    // Every sprite in this pack is drawn facing RIGHT (verified by locating
+    // the muzzle flash relative to the body centroid on each sheet), so the
+    // flip is for facing LEFT - same convention as drawPlayer below. Getting
+    // this backwards renders every enemy shooting over its own shoulder.
     const dw = sheet.fw * en.scale
     const dx = en.x + en.w / 2 - dw / 2 - g.cam
     const dy = en.y + en.h - en.foot * en.scale
-    drawSheetFrame(ctx, sheet, frame, dx, dy, en.face > 0, en.scale)
+    drawSheetFrame(ctx, sheet, frame, dx, dy, en.face < 0, en.scale)
   }
 }
 
@@ -370,6 +374,14 @@ export default function RunAndGunModal({ onClose }) {
             gameRef.current = createGame(next, {
               hp: g.player.hp, lives: g.lives, score: g.score, tookDamage: false,
             }, SFX)
+          } else {
+            // Clearing the LAST level is a win. Today the last level ends in
+            // a boss (which sets 'won' itself) so this is unreachable, but
+            // without it, reordering the levels or dropping the boss would
+            // strand the player on the level-clear screen with no way out
+            // but the Leave button - and no payout.
+            g.phase = 'won'
+            g.phaseTimer = 0
           }
         }
       }

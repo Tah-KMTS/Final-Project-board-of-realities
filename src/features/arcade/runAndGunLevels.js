@@ -192,6 +192,14 @@ const s = (c, r, w, h) => ({ c, r, w, h })
 const p = (key, c, r) => ({ key, c, r })
 const e = (type, c, r) => ({ type, c, r })
 
+// Props are anchored by their BOTTOM edge on row r, i.e. at (r + 1) * TILE.
+// Anything in this set hangs on a wall and is SUPPOSED to float clear of the
+// floor; everything else is a physical object that must sit on a solid, and
+// checkRunNGunLevels.mjs enforces exactly that. Without the distinction it is
+// very easy to leave a vending machine hovering two feet in the air, which is
+// how the first pass of these levels shipped.
+export const WALL_PROPS = new Set(['station_sign', 'poster', 'screen', 'pipe'])
+
 export const LEVELS = [
   {
     id: 'subway',
@@ -226,10 +234,10 @@ export const LEVELS = [
     ],
     props: [
       p('station_sign', 6, 11), p('poster', 14, 11), p('barrel', 22, 13),
-      p('vending', 30, 11), p('pipe', 37, 12), p('door', 50, 11),
+      p('vending', 30, 13), p('pipe', 37, 12), p('door', 50, 13),
       p('screen', 63, 11), p('barrel', 80, 13), p('poster', 84, 11),
-      p('station_sign', 98, 11), p('barrel', 110, 13), p('door', 120, 11),
-      p('vending', 135, 11), p('pipe', 147, 12), p('screen', 158, 11),
+      p('station_sign', 98, 11), p('barrel', 110, 13), p('door', 120, 13),
+      p('vending', 135, 13), p('pipe', 147, 12), p('screen', 158, 11),
       p('poster', 175, 11), p('barrel', 185, 13), p('station_sign', 200, 11),
     ],
     enemies: [
@@ -292,13 +300,15 @@ export const LEVELS = [
       s(145, 14, 55, 3),
     ],
     props: [
-      p('bush', 4, 12), p('street_lamp', 12, 10), p('crate', 20, 12),
-      p('cone', 28, 13), p('road_sign', 33, 11), p('bush', 40, 12),
-      p('crate', 48, 12), p('street_lamp', 56, 10), p('cone', 66, 13),
-      p('bush', 74, 12), p('road_sign', 80, 11), p('crate', 88, 12),
-      p('street_lamp', 98, 10), p('cone', 106, 13), p('bush', 116, 12),
-      p('crate', 124, 12), p('road_sign', 132, 11), p('street_lamp', 142, 10),
-      p('bush', 152, 12), p('cone', 160, 13),
+      p('bush', 4, 13), p('street_lamp', 12, 13), p('crate', 20, 13),
+      p('cone', 28, 13), p('road_sign', 33, 13), p('bush', 40, 13),
+      p('crate', 48, 13), p('street_lamp', 56, 13), p('cone', 66, 13),
+      p('bush', 74, 13), p('road_sign', 80, 13), p('crate', 88, 13),
+      p('street_lamp', 98, 13), p('cone', 106, 13), p('bush', 116, 13),
+      // col 147, not 142: 142-144 is a pit, and a street lamp planted in
+      // mid-air over it is one of the first things the eye catches.
+      p('crate', 124, 13), p('road_sign', 132, 13), p('street_lamp', 147, 13),
+      p('bush', 152, 13), p('cone', 160, 13),
     ],
     enemies: [
       e('ar', 18, 13),

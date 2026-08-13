@@ -200,5 +200,37 @@ console.log('\noff-camera enemies are dormant')
   check(far.length === 0, 'no hostile fire originates far off-camera')
 }
 
+// --- 9. an enemy that walks off a ledge is removed ------------------------
+// Regression: troopers have no ledge detection, so one can chase the player
+// off the lip of a pit. It used to keep falling forever - still a live enemy,
+// still updated every frame, y climbing without bound (seen at 13,953).
+console.log('\ntrooper chased off a ledge')
+{
+  const g = createGame(0)
+  const ar = g.level.enemies.find((e) => e.type === 'ar')
+  ar.x = 640 // the lip of the first pit (ground ends at x=672)
+  g.player.x = 725 // just across it, inside aggro range
+  for (let i = 0; i < 1200; i += 1) { g.player.iframes = 9999; step(g, noInput) }
+  check(!g.level.enemies.includes(ar), 'the fallen trooper is dropped from the level')
+  const deepest = Math.max(0, ...g.level.enemies.map((e) => e.y))
+  check(deepest < g.level.worldH + 60, `no enemy is left falling below the world (deepest y=${deepest.toFixed(0)})`)
+}
+
+// --- 10. the sniper telegraph cannot be banked ----------------------------
+// Regression: leaving range mid-wind-up used to FREEZE the countdown, so
+// stepping back into range fired almost instantly with no visible tell.
+console.log('\nsniper wind-up interrupted')
+{
+  const g = createGame(0)
+  const sniper = g.level.enemies.find((e) => e.type === 'sniper')
+  g.player.x = sniper.x + 120 // in range - start the wind-up
+  for (let i = 0; i < 30; i += 1) { g.player.iframes = 9999; step(g, noInput) }
+  const wound = sniper.telegraph
+  g.player.x = sniper.x + 2000 // way out of range
+  for (let i = 0; i < 30; i += 1) { g.player.iframes = 9999; step(g, noInput) }
+  check(wound > 0, `the sniper began a wind-up while in range (telegraph=${wound})`)
+  check(sniper.telegraph === 0, 'leaving range clears the stored wind-up instead of banking it')
+}
+
 console.log(failures === 0 ? `\nOK - all simulation checks passed` : `\n${failures} check(s) FAILED`)
 process.exit(failures === 0 ? 0 : 1)

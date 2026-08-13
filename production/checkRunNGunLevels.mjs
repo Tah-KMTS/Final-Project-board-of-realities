@@ -9,7 +9,7 @@
 // drift from what the game actually loads.
 //
 // Run: node production/checkRunNGunLevels.mjs
-import { LEVELS, BALANCE as B, TILE, VIEW_W } from '../src/features/arcade/runAndGunLevels.js'
+import { LEVELS, BALANCE as B, TILE, VIEW_W, WALL_PROPS } from '../src/features/arcade/runAndGunLevels.js'
 
 let failures = 0
 let warnings = 0
@@ -67,6 +67,22 @@ for (const lv of LEVELS) {
     const rise = (below.top - s.top) * TILE
     if (rise > JUMP_HEIGHT) {
       fail(`platform at col ${s.c} row ${s.r} is ${rise}px above the surface below it, jump peak is ${JUMP_HEIGHT.toFixed(0)}px`)
+    }
+  }
+
+  // 3b. Physical props must rest on a solid. They're anchored by their bottom
+  // edge at (r + 1) * TILE, so that has to line up with the top of a solid
+  // spanning their column - otherwise crates and street lamps hover in the
+  // air, or stand over a pit. Wall-mounted props are exempt by definition.
+  for (const pr of lv.props) {
+    if (WALL_PROPS.has(pr.key)) continue
+    const bottom = (pr.r + 1) * TILE
+    const rest = solids.find((s) => pr.c >= s.x0 && pr.c <= s.x1 && s.top * TILE === bottom)
+    if (!rest) {
+      const over = solids.find((s) => pr.c >= s.x0 && pr.c <= s.x1)
+      fail(over
+        ? `prop ${pr.key} at col ${pr.c} row ${pr.r} floats ${over.top * TILE - bottom}px above the surface below it`
+        : `prop ${pr.key} at col ${pr.c} row ${pr.r} stands over a pit - nothing beneath it`)
     }
   }
 
