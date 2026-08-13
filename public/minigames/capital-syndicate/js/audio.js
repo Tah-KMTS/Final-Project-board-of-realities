@@ -535,6 +535,17 @@ export class AudioBus {
 
   setMusic(mode = "title") {
     this.musicMode = TRACKS[mode] ? mode : "title";
+
+    if (this.musicMode === "victory") {
+      if (this.ctx) {
+        this.resume();
+        this.stopSynthMusic();
+        this.pauseFileTrack();
+      }
+      this.playVictoryFanfare();
+      return;
+    }
+
     if (!this.ctx || !this.musicGain) return;
     this.resume();
 
@@ -552,6 +563,30 @@ export class AudioBus {
       this.pumpMusic();
     }
     this.startPad();
+  }
+
+  /** One-shot victory sting (bundled Drive audio). */
+  playVictoryFanfare() {
+    if (!this.enabled || this.muted) return;
+    try {
+      this.unlock();
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (this._victoryEl) {
+        this._victoryEl.pause();
+        this._victoryEl.currentTime = 0;
+      } else {
+        this._victoryEl = new Audio("assets/audio/victory.mp3");
+        this._victoryEl.preload = "auto";
+      }
+      this._victoryEl.volume = Math.max(0, Math.min(1, this.volume * 0.95));
+      const p = this._victoryEl.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch {
+      /* ignore */
+    }
   }
 
   stopMusic() {

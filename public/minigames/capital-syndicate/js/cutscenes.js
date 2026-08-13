@@ -6,9 +6,9 @@
 import { W, H } from "./entities.js";
 
 /** Bump to force CDN / browser cache refresh of opening assets. */
-const OPENING_ASSET_VER = "opening-vo-6";
+const OPENING_ASSET_VER = "opening-vo-7";
 /** Pin CDN assets to a known-good commit once VO lands on main. */
-const OPENING_CDN_REF = "a29476e2c9f5abc3d55d565b1932e21b0cf4712b";
+const OPENING_CDN_REF = "2debb6aa3e1f8d4d4f52ed62b158eb2bbc8f73c7";
 
 const OPENING_BEATS = [
   {
@@ -42,8 +42,8 @@ const OPENING_BEATS = [
     voice: "04-board-fighter.mp3",
     speaker: "ZLISTO",
     caption: "Leave it to me! I got this!",
-    hold: 3.87,
-    voiceDuration: 3.12,
+    hold: 4.7,
+    voiceDuration: 3.768,
   },
   {
     file: "05-launch.jpg",
@@ -346,8 +346,8 @@ export class ImageSequenceCutscene {
   drawCover(ctx, img) {
     if (!img) return;
     const { w, h } = this;
-    // Static contain fit — show the full still, no zoom/crop/Ken Burns.
-    const scale = Math.min(w / img.width, h / img.height);
+    // Static cover fit — fill the screen (crop edges), no Ken Burns zoom.
+    const scale = Math.max(w / img.width, h / img.height);
     const dw = img.width * scale;
     const dh = img.height * scale;
     const dx = (w - dw) / 2;
@@ -669,7 +669,7 @@ export class VideoCutscene {
     if (this.video.readyState >= 2) {
       const vw = this.video.videoWidth || w;
       const vh = this.video.videoHeight || h;
-      const scale = Math.min(w / vw, h / vh);
+      const scale = Math.max(w / vw, h / vh);
       const dw = vw * scale;
       const dh = vh * scale;
       const dx = (w - dw) / 2;

@@ -31,13 +31,13 @@
   },
   {
     "id": "04-board-fighter",
-    "voice": "en-US-RogerNeural",
-    "rate": "+12%",
-    "pitch": "+3Hz",
+    "voice": "en-US-ChristopherNeural",
+    "rate": "-4%",
+    "pitch": "-6Hz",
     "speaker": "ZLISTO",
     "text": "Leave it to me! I got this!",
     "file": "04-board-fighter.mp3",
-    "duration": 3.12
+    "duration": 3.768
   },
   {
     "id": "05-launch",

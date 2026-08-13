@@ -12,6 +12,9 @@ import {
   spawnBoss,
   spawnPowerup,
   spawnPickupAmmo,
+  pickUpgradeChoices,
+  applyUpgrade,
+  UPGRADE_POOL,
 } from "./entities.js";
 import { getSprites, drawSprite } from "./sprites.js";
 import { loadPickupAtlas } from "./pickups.js";
@@ -43,6 +46,8 @@ const STATES = {
   PLAYING: "playing",
   PAUSED: "paused",
   LEVEL_CLEAR: "levelclear",
+  UPGRADE: "upgrade",
+  VICTORY_BANNER: "victorybanner",
   GAME_OVER: "gameover",
   VICTORY: "victory",
 };
@@ -96,6 +101,9 @@ export class Game {
       gameover: document.getElementById("gameover-screen"),
       victory: document.getElementById("victory-screen"),
       levelclear: document.getElementById("levelclear-screen"),
+      upgrade: document.getElementById("upgrade-screen"),
+      upgradeChoices: document.getElementById("upgrade-choices"),
+      upgradeLevel: document.getElementById("upgrade-ship-level"),
       score: document.getElementById("hud-score"),
       level: document.getElementById("hud-level"),
       lives: document.getElementById("hud-lives"),
@@ -111,6 +119,7 @@ export class Game {
       victoryScore: document.getElementById("victory-score"),
       levelClearTitle: document.getElementById("level-clear-title"),
       levelClearSub: document.getElementById("level-clear-sub"),
+      shipLevel: document.getElementById("hud-ship-level"),
     };
 
     document.getElementById("btn-start").addEventListener("click", () => this.startGame());
@@ -119,6 +128,13 @@ export class Game {
     document.getElementById("btn-resume").addEventListener("click", () => this.resume());
     const skipBtn = document.getElementById("btn-skip-cutscene");
     if (skipBtn) skipBtn.addEventListener("click", () => this.skipCutscene());
+    if (this.ui.upgradeChoices) {
+      this.ui.upgradeChoices.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-upgrade]");
+        if (!btn) return;
+        this.chooseUpgrade(btn.dataset.upgrade);
+      });
+    }
     document.getElementById("btn-how").addEventListener("click", () => {
       this.ui.title.classList.add("hidden");
       this.ui.briefing.classList.remove("hidden");
@@ -275,14 +291,23 @@ export class Game {
     this.combo = 0;
     this.laserCharge = 0;
     this.superLaser = null;
+    this.bossLaser = null;
     this.killShakeScale = 1;
+    this.selfDestructUsed = false;
+    this.selfDestructArmed = 0;
   }
 
   currentMusicMode() {
     if (this.state === STATES.VICTORY) return "victory";
     if (this.state === STATES.CUTSCENE) return "cutscene";
-    if (this.state === STATES.PLAYING || this.state === STATES.LEVEL_CLEAR || this.state === STATES.PAUSED) {
-      if (this.levelPhase === "boss" || this.levelPhase === "victory") return "boss";
+    if (
+      this.state === STATES.PLAYING ||
+      this.state === STATES.LEVEL_CLEAR ||
+      this.state === STATES.VICTORY_BANNER ||
+      this.state === STATES.UPGRADE ||
+      this.state === STATES.PAUSED
+    ) {
+      if (this.levelPhase === "boss" || this.levelPhase === "victoryBanner") return "boss";
       return "combat";
     }
     return "title";
@@ -343,7 +368,7 @@ export class Game {
   }
 
   showScreen(mode) {
-    const { hud, title, briefing, cutscene, pause, gameover, victory, levelclear } = this.ui;
+    const { hud, title, briefing, cutscene, pause, gameover, victory, levelclear, upgrade } = this.ui;
     title.classList.add("hidden");
     briefing.classList.add("hidden");
     if (cutscene) cutscene.classList.add("hidden");
@@ -351,6 +376,7 @@ export class Game {
     gameover.classList.add("hidden");
     victory.classList.add("hidden");
     levelclear.classList.add("hidden");
+    if (upgrade) upgrade.classList.add("hidden");
     hud.classList.add("hidden");
 
     if (mode === "playing") hud.classList.remove("hidden");
@@ -364,37 +390,18 @@ export class Game {
       this.ui.finalScore.textContent = String(this.score);
       this.ui.finalLevel.textContent = String(this.level);
       gameover.classList.remove("hidden");
-      this.reportResult("gameover");
     }
-    if (mode === "victory") {
-      victory.classList.remove("hidden");
-      this.reportResult("victory");
-    }
+    if (mode === "victory") victory.classList.remove("hidden");
     if (mode === "levelclear") {
       hud.classList.remove("hidden");
       levelclear.classList.remove("hidden");
     }
-  }
-
-  // Board of Realities integration: this game is embedded via a plain
-  // iframe (see FerrumWingsModal.jsx in the parent app), not ported into
-  // the parent's own code, so postMessage is the only channel back out.
-  // Fired exactly once per run, from showScreen's own gameover/victory
-  // branches above (the two - and only two - ways a run ends), so the
-  // parent always hears about a finished run exactly once, never on pause/
-  // resume/menu navigation. `source` lets the parent's listener ignore any
-  // unrelated postMessage traffic (extensions, other frames) instead of
-  // trusting anything that happens to arrive.
-  reportResult(outcome) {
-    try {
-      window.parent?.postMessage(
-        { source: "capital-syndicate-ferrum-wings", type: "result", outcome, score: this.score, sector: this.level },
-        window.location.origin
-      );
-    } catch {
-      // Standalone play (README's own "python3 -m http.server" path, or a
-      // file:// open) has no parent app listening - postMessage failing
-      // silently there is correct, not an error to surface in-game.
+    if (mode === "upgrade" && upgrade) {
+      hud.classList.remove("hidden");
+      upgrade.classList.remove("hidden");
+    }
+    if (mode === "victorybanner") {
+      hud.classList.remove("hidden");
     }
   }
 
@@ -424,6 +431,10 @@ export class Game {
 
   armSelfDestruct() {
     if (this.state !== STATES.PLAYING || !this.player.alive) return;
+    if (this.selfDestructUsed) {
+      this.flashMessage("SELF-DESTRUCT SPENT THIS SECTOR", 1.1);
+      return;
+    }
     const now = performance.now();
     if (now - this.selfDestructArmed < 700) {
       this.selfDestruct();
@@ -435,44 +446,49 @@ export class Game {
   }
 
   selfDestruct() {
+    if (this.selfDestructUsed) return;
+    this.selfDestructUsed = true;
     const p = this.player;
     const ejected = spawnPickupAmmo(p.x, p.y - 20, {
-      ion: p.ammo.ion,
-      plasma: p.ammo.plasma,
-      rocket: p.ammo.rocket,
+      ion: Math.floor(p.ammo.ion * 0.5),
+      plasma: Math.floor(p.ammo.plasma * 0.5),
+      rocket: Math.floor(p.ammo.rocket * 0.5),
       gun: 0,
     });
     this.powerups.push(ejected);
-    this.burst(p.x, p.y, "#4de8ff", 48, 340);
+    this.burst(p.x, p.y, "#4de8ff", 36, 280);
     this.audio.explosion(true);
-    this.shake = 18;
-    addTrauma(this.juice, 0.55);
-    hitStop(this.juice, 0.1);
-    impactFlash(this.juice, "rgba(255,79,216,0.22)", 0.22, 0.55);
+    this.shake = 10;
+    addTrauma(this.juice, 0.35);
+    hitStop(this.juice, 0.08);
+    impactFlash(this.juice, "rgba(255,79,216,0.16)", 0.16, 0.4);
     spawnExplosion(this.particles, p.x, p.y, { big: true });
 
-    let bossRef = null;
     let bossDestroyed = false;
+    // Clear nearby hostiles only (not the whole sky).
     for (const e of this.enemies) {
       if (e.type === "boss") {
-        bossRef = e;
+        e.hp -= 80; // was 260 — self-destruct is a panic tool, not a boss melt
+        e.flash = 0.2;
+        if (e.hp <= 0) {
+          this.killEnemy(e, true);
+          bossDestroyed = true;
+        }
         continue;
       }
-      this.killEnemy(e, true);
+      if (Math.hypot(e.x - p.x, e.y - p.y) < 280) this.killEnemy(e, true);
     }
-    this.enemies = this.enemies.filter((e) => e.type === "boss" && e.hp > 0);
-    this.enemyBullets = [];
-    if (bossRef) {
-      bossRef.hp -= 260;
-      bossRef.flash = 0.25;
-      if (bossRef.hp <= 0) {
-        this.killEnemy(bossRef, true);
-        bossDestroyed = true;
-      }
-    }
+    this.enemies = this.enemies.filter((e) => e.hp > 0);
+    this.enemyBullets = this.enemyBullets.filter(
+      (b) => Math.hypot(b.x - p.x, b.y - p.y) > 220
+    );
 
     this.loseLife(true);
-    if (bossDestroyed && this.state !== STATES.GAME_OVER) this.defeatBoss();
+    if (bossDestroyed && this.state !== STATES.GAME_OVER) {
+      const bossesLeft = this.enemies.some((e) => e.type === "boss" && e.hp > 0);
+      if (!bossesLeft) this.defeatBoss();
+      else this.boss = this.enemies.find((e) => e.type === "boss" && e.hp > 0) || null;
+    }
   }
 
   buildLevel() {
@@ -481,11 +497,14 @@ export class Game {
     this.enemyBullets = [];
     this.powerups = [];
     this.boss = null;
+    this.bossLaser = null;
     this.waveIndex = 0;
     this.waveTimer = 1.2;
     this.spawnQueue = [];
     this.levelPhase = "waves";
     this.levelKills = 0;
+    this.selfDestructUsed = false;
+    this.selfDestructArmed = 0;
 
     const waves = [];
     const isFinal = this.level >= MAX_LEVEL;
@@ -528,7 +547,7 @@ export class Game {
     }
 
     // Freeze-frame: keep rendering juice/flash, pause simulation
-    if (this.juice.hitstop > 0 && (this.state === STATES.PLAYING || this.state === STATES.LEVEL_CLEAR)) {
+    if (this.juice.hitstop > 0 && (this.state === STATES.PLAYING || this.state === STATES.LEVEL_CLEAR || this.state === STATES.VICTORY_BANNER)) {
       decayJuice(this.juice, dt);
       if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 30);
       this.draw();
@@ -536,7 +555,11 @@ export class Game {
       return;
     }
 
-    if (this.state === STATES.PLAYING || this.state === STATES.LEVEL_CLEAR) {
+    if (
+      this.state === STATES.PLAYING ||
+      this.state === STATES.LEVEL_CLEAR ||
+      this.state === STATES.VICTORY_BANNER
+    ) {
       this.accum += dt;
       while (this.accum >= this.step) {
         this.update(this.step);
@@ -591,12 +614,13 @@ export class Game {
 
     if (this.levelPhase === "waves") this.updateWaves(dt);
     else if (this.levelPhase === "boss") this.updateBossPhase(dt);
-    else if (this.levelPhase === "clear" || this.levelPhase === "victory") {
+    else if (this.levelPhase === "clear") {
       this.clearTimer -= dt;
-      if (this.clearTimer <= 0) {
-        if (this.levelPhase === "victory") this.showVictory();
-        else this.nextLevel();
-      }
+      if (this.clearTimer <= 0) this.openUpgradeSelect();
+    } else if (this.levelPhase === "victoryBanner") {
+      this.clearTimer -= dt;
+      this.victoryBannerT = (this.victoryBannerT || 0) + dt;
+      if (this.clearTimer <= 0) this.showVictory();
     }
 
     this.updatePlayer(dt);
@@ -625,10 +649,19 @@ export class Game {
       this.enemies.length === 0
     ) {
       this.levelPhase = "boss";
-      this.boss = spawnBoss(this.level);
-      this.enemies.push(this.boss);
+      const pairCount = this.level === 3 ? 2 : 1;
+      const bosses = [];
+      for (let i = 0; i < pairCount; i++) {
+        bosses.push(spawnBoss(this.level, { pairIndex: i, pairCount }));
+      }
+      this.boss = bosses[0];
+      this.enemies.push(...bosses);
       const label =
-        this.level >= MAX_LEVEL ? "FINAL BOSS — BLOCKADE COMMANDER" : `BOSS — SECTOR ${this.level}`;
+        this.level >= MAX_LEVEL
+          ? "FINAL BOSS — BLOCKADE COMMANDER"
+          : pairCount > 1
+            ? `TWIN BOSSES — SECTOR ${this.level}`
+            : `BOSS — SECTOR ${this.level}`;
       this.flashMessage(label, 1.8);
       this.audio.alert();
       this.audio.setMusic("boss");
@@ -646,11 +679,12 @@ export class Game {
     }
     this.level += 1;
     this.ui.levelclear.classList.add("hidden");
+    if (this.ui.upgrade) this.ui.upgrade.classList.add("hidden");
     this.player.invuln = 1.5;
     this.player.shield = Math.min(100, this.player.shield + 25);
     this.player.ammo.ion += 12;
     this.player.ammo.plasma += 8;
-    this.player.ammo.rocket += 4;
+    this.player.ammo.rocket += 2;
     this.buildLevel();
     this.state = STATES.PLAYING;
     this.showScreen("playing");
@@ -732,63 +766,111 @@ export class Game {
       p.weapon = "gun";
     }
     const def = WEAPONS[weapon];
+    const up = p.upgrades || {};
     if (weapon !== "gun") {
       p.ammo[weapon] -= def.cost;
       if (p.ammo[weapon] < 0) p.ammo[weapon] = 0;
     }
-    p.fireCd = def.rate;
+    let rate = def.rate;
+    let damage = def.damage;
+    if (weapon === "gun" && up.minigun) {
+      rate *= 0.8; // +20% attack speed
+      damage *= 1.1;
+    }
+    p.fireCd = rate;
 
     setSquash(p, 0.82, 1.22);
     spawnMuzzle(this.particles, p.x, p.y - 26);
     this.muzzleFlashes.push({ x: p.x, y: p.y - 26, t: 0.12, weapon });
 
     if (weapon === "rocket") {
-      const speed = def.speed;
-      const cone = [-0.28, 0, 0.28];
-      for (const ang of cone) {
-        const vx = Math.sin(ang) * speed;
-        const vy = -Math.cos(ang) * speed;
+      const count = up.rocketCount || 1;
+      for (let i = 0; i < count; i++) {
+        const ox = count > 1 ? (i === 0 ? -16 : 16) : 0;
         this.bullets.push({
-          x: p.x + Math.sin(ang) * 12,
+          x: p.x + ox,
           y: p.y - 28,
-          w: 14,
-          h: 28,
-          vy,
-          vx,
+          w: 16,
+          h: 30,
+          vy: -def.speed,
+          vx: count > 1 ? ox * 0.6 : 0,
           damage: def.damage,
           pierce: false,
           splash: def.splash,
           splashDamage: def.splashDamage,
           homing: def.homing,
           color: def.color,
-          life: 2.2,
+          life: 2.6,
           weapon,
         });
       }
       this.audio.shoot("rocket");
-      addTrauma(this.juice, 0.08);
+      addTrauma(this.juice, 0.06);
       return;
     }
 
-    const spread = weapon === "plasma" ? 2 : weapon === "gun" ? 1 : 0;
-    for (let i = -spread; i <= spread; i++) {
-      if (spread && i === 0 && weapon === "plasma") continue;
+    if (weapon === "plasma") {
+      const n = up.plasmaShots || 2;
+      for (let i = 0; i < n; i++) {
+        const t = n === 1 ? 0 : i / (n - 1) - 0.5;
+        this.bullets.push({
+          x: p.x + t * 26,
+          y: p.y - 24,
+          w: 12,
+          h: 22,
+          vy: -def.speed,
+          vx: t * 90,
+          damage: def.damage,
+          pierce: false,
+          splash: 0,
+          color: def.color,
+          life: 1.4,
+          weapon,
+        });
+      }
+      this.audio.shoot("plasma");
+      return;
+    }
+
+    if (weapon === "ion") {
+      const widthMul = up.ionWidthMul || 1;
       this.bullets.push({
-        x: p.x + i * 10,
+        x: p.x,
         y: p.y - 24,
-        w: weapon === "plasma" ? 12 : weapon === "ion" ? 8 : 6,
-        h: weapon === "plasma" ? 22 : weapon === "ion" ? 28 : 16,
+        w: 8 * widthMul,
+        h: 28,
         vy: -def.speed,
-        vx: i * 40,
+        vx: 0,
         damage: def.damage,
-        pierce: def.pierce,
+        pierce: true,
         splash: 0,
         color: def.color,
         life: 1.4,
         weapon,
       });
+      this.audio.shoot("ion");
+      return;
     }
-    this.audio.shoot(weapon);
+
+    // Gun / minigun
+    const spread = 1;
+    for (let i = -spread; i <= spread; i++) {
+      this.bullets.push({
+        x: p.x + i * 10,
+        y: p.y - 24,
+        w: 6,
+        h: 16,
+        vy: -def.speed,
+        vx: i * 40,
+        damage,
+        pierce: false,
+        splash: 0,
+        color: up.minigun ? "#ffe08a" : def.color,
+        life: 1.4,
+        weapon,
+      });
+    }
+    this.audio.shoot("gun");
   }
 
   updateBullets(dt) {
@@ -798,19 +880,22 @@ export class Game {
         let bestD = Infinity;
         for (const e of this.enemies) {
           if (e.hp <= 0) continue;
+          // Prefer threats ahead, but allow a wider forward seek cone.
           const d = Math.hypot(e.x - b.x, e.y - b.y);
-          if (d < bestD && e.y < b.y + 40) {
+          if (d < bestD && e.y < b.y + 120 && d < 520) {
             bestD = d;
             best = e;
           }
         }
         if (best) {
           const ang = Math.atan2(best.y - b.y, best.x - b.x);
-          const speed = Math.hypot(b.vx || 0, b.vy);
+          const speed = Math.max(WEAPONS.rocket.speed, Math.hypot(b.vx || 0, b.vy));
           const tx = Math.cos(ang) * speed;
           const ty = Math.sin(ang) * speed;
-          b.vx = (b.vx || 0) + (tx - (b.vx || 0)) * Math.min(1, b.homing * dt * 0.01);
-          b.vy = b.vy + (ty - b.vy) * Math.min(1, b.homing * dt * 0.01);
+          // Stronger turn-in than the old 3-shot cone missiles.
+          const turn = Math.min(1, b.homing * dt * 0.018);
+          b.vx = (b.vx || 0) + (tx - (b.vx || 0)) * turn;
+          b.vy = b.vy + (ty - b.vy) * turn;
         }
       }
       b.x += (b.vx || 0) * dt;
@@ -878,9 +963,11 @@ export class Game {
 
       if (e.type === "boss" && e.final && e.entered) {
         this.updateFinalBoss(e, dt);
+      } else if (e.type === "boss" && !e.final && e.entered) {
+        this.updateSectorBoss(e, dt);
       }
 
-      if (e.fireRate > 0 && e.y > 20 && e.y < H - 80 && e.charging <= 0) {
+      if (e.fireRate > 0 && e.y > 20 && e.y < H - 80 && e.charging <= 0 && !e.laserState) {
         e.fireCd -= dt;
         if (e.fireCd <= 0) {
           this.enemyShoot(e);
@@ -906,23 +993,34 @@ export class Game {
     e.specialCd -= dt;
     e.spawnCd -= dt;
     e.chargeCd -= dt;
+    e.laserCd -= dt;
 
-    if (e.specialCd <= 0) {
-      this.finalBossRing(e, e.bossPhase >= 3 ? 10 : 7);
-      e.specialCd = e.bossPhase === 1 ? 4.2 : e.bossPhase === 2 ? 3.4 : 2.6;
-    }
-
-    if (e.spawnCd <= 0 && e.bossPhase >= 2) {
-      const n = e.bossPhase === 3 ? 2 : 1;
-      for (let i = 0; i < n; i++) {
-        const type = Math.random() > 0.5 ? "dart" : "scout";
+    // Escorts keep spawning even during laser charge/fire
+    if (e.spawnCd <= 0) {
+      for (let i = 0; i < 3; i++) {
+        const type = Math.random() > 0.4 ? "dart" : "scout";
         this.pendingSpawns.push(
-          spawnEnemy(type, e.x + (i - (n - 1) / 2) * 40, e.y + 30, this.level)
+          spawnEnemy(type, e.x + (i - 1) * 48, e.y + 28, this.level)
         );
       }
       this.flashMessage("COMMANDER DEPLOYS ESCORTS", 1);
-      e.spawnCd = e.bossPhase === 3 ? 6.5 : 8;
+      e.spawnCd = 4;
       this.audio.alert();
+    }
+
+    if (e.laserState) {
+      this.updateBossLaser(e, dt);
+      return;
+    }
+
+    if (e.specialCd <= 0 && e.charging <= 0) {
+      this.finalBossSpecial(e);
+      e.specialCd = e.bossPhase === 1 ? 3.8 : e.bossPhase === 2 ? 3.0 : 2.3;
+    }
+
+    if (e.laserCd <= 0 && e.charging <= 0) {
+      this.startBossLaser(e);
+      return;
     }
 
     if (e.chargeCd <= 0 && e.bossPhase >= 2 && e.charging <= 0) {
@@ -932,6 +1030,189 @@ export class Game {
       e.chargeVy = Math.sin(ang) * 420;
       e.chargeCd = e.bossPhase === 3 ? 3.2 : 4.8;
       this.flashMessage("INCOMING CHARGE", 0.8);
+    }
+  }
+
+  startBossLaser(e) {
+    e.laserState = "telegraph";
+    e.laserT = 10; // 10s charge / telegraph
+    e.laserAimX = this.player.x;
+    e.laserHalfW = e.bossPhase === 3 ? 30 : e.bossPhase === 2 ? 26 : 22;
+    e.laserHitCd = 0;
+    e.laserFireEmitted = false;
+    this.bossLaser = {
+      owner: e,
+      state: "telegraph",
+      t: 10,
+      aimX: e.laserAimX,
+      halfW: e.laserHalfW,
+    };
+    this.flashMessage("LASER CHARGING", 1.2);
+    this.audio.alert();
+    addTrauma(this.juice, 0.08);
+  }
+
+  updateBossLaser(e, dt) {
+    e.laserT -= dt;
+    if (this.bossLaser && this.bossLaser.owner === e) {
+      this.bossLaser.t = e.laserT;
+      this.bossLaser.state = e.laserState;
+    }
+
+    // Track more during charge; lock harder once firing
+    const track = e.laserState === "telegraph" ? 1.35 : 0.2;
+    e.laserAimX += (this.player.x - e.laserAimX) * Math.min(1, track * dt);
+    e.laserAimX = clamp(e.laserAimX, 40, W - 40);
+    if (this.bossLaser && this.bossLaser.owner === e) {
+      this.bossLaser.aimX = e.laserAimX;
+      this.bossLaser.halfW = e.laserHalfW;
+    }
+
+    if (e.laserState === "telegraph") {
+      if (Math.random() < 0.45) {
+        spawnBurst(this.particles, e.laserAimX + (Math.random() - 0.5) * e.laserHalfW, e.y + e.h * 0.4, {
+          count: 1,
+          speed: 50,
+          colors: ["#ff6a30", "#ffe08a", "#ffffff"],
+          life: 0.25,
+          size: 2.2,
+          glow: true,
+          gravity: 40,
+          angle: Math.PI / 2,
+          spread: 0.35,
+        });
+      }
+      if (e.laserT <= 0) {
+        e.laserState = "fire";
+        e.laserT = 2; // beam lasts 2 seconds
+        e.laserHitCd = 0;
+        e.laserFireEmitted = true;
+        if (this.bossLaser && this.bossLaser.owner === e) {
+          this.bossLaser.state = "fire";
+          this.bossLaser.t = 2;
+        }
+        this.flashMessage("BEAM FIRE", 0.9);
+        addTrauma(this.juice, 0.35);
+        impactFlash(this.juice, "rgba(255,120,40,0.28)", 0.18, 0.55);
+        this.shake = Math.max(this.shake, 12);
+        this.audio.alert();
+        this.audio.explosion(false);
+        // Immediate opening blast so fire is unmistakable
+        this.emitBossLaserBolts(e, true);
+      }
+      return;
+    }
+
+    if (e.laserState === "fire") {
+      e.laserHitCd -= dt;
+      this.applyBossLaserDamage(e);
+      // Continuous damaging bolts down the beam corridor
+      this.emitBossLaserBolts(e, false);
+      if (Math.random() < 0.9) {
+        spawnBurst(this.particles, e.laserAimX + (Math.random() - 0.5) * e.laserHalfW * 1.4, e.y + 40 + Math.random() * (H - e.y - 60), {
+          count: 2,
+          speed: 50,
+          colors: ["#ff4a20", "#ffb040", "#fff2c0", "#ffffff"],
+          life: 0.22,
+          size: 3.2,
+          glow: true,
+          gravity: 0,
+          spread: Math.PI * 2,
+        });
+      }
+      if (e.laserT <= 0) {
+        e.laserState = null;
+        e.laserCd = 8;
+        e.specialCd = Math.max(e.specialCd, 0.8);
+        if (this.bossLaser && this.bossLaser.owner === e) this.bossLaser = null;
+      }
+    }
+  }
+
+  applyBossLaserDamage(e) {
+    const p = this.player;
+    if (!p?.alive || p.y <= e.y) return;
+    const half = (e.laserHalfW || 22) + p.w * 0.45;
+    if (Math.abs(p.x - e.laserAimX) > half) return;
+    if (e.laserHitCd > 0) return;
+    this.damagePlayer(e.bossPhase >= 3 ? 18 : 14);
+    e.laserHitCd = 0.1;
+    spawnSparks(this.particles, p.x, p.y, 8);
+    addTrauma(this.juice, 0.1);
+  }
+
+  emitBossLaserBolts(e, burst) {
+    const count = burst ? 14 : 3;
+    const half = e.laserHalfW || 22;
+    for (let i = 0; i < count; i++) {
+      const ox = (Math.random() - 0.5) * half * 1.6;
+      this.enemyBullets.push({
+        x: e.laserAimX + ox,
+        y: e.y + e.h * 0.45 + (burst ? i * 18 : Math.random() * 30),
+        w: burst ? 10 : 8,
+        h: burst ? 28 : 22,
+        vx: ox * 0.15,
+        vy: 780 + Math.random() * 120,
+        damage: 16,
+        color: i % 2 ? "#ffe08a" : "#ff4a20",
+        life: 1.2,
+        heavy: true,
+        fromFinal: true,
+        laserBolt: true,
+      });
+    }
+  }
+
+  updateSectorBoss(e, dt) {
+    const ratio = e.hp / e.maxHp;
+    e.bossPhase = ratio > 0.66 ? 1 : ratio > 0.33 ? 2 : 3;
+    e.specialCd -= dt;
+    e.chargeCd -= dt;
+
+    if (e.specialCd <= 0 && e.charging <= 0) {
+      this.sectorBossSpecial(e);
+      e.specialCd = e.bossPhase === 1 ? 3.2 : e.bossPhase === 2 ? 2.6 : 2.0;
+    }
+
+    if (e.chargeCd <= 0 && e.bossPhase >= 2 && e.charging <= 0 && (e.sectorLevel || 1) >= 2) {
+      const ang = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+      e.charging = 0.7;
+      e.chargeVx = Math.cos(ang) * (340 + e.bossPhase * 40);
+      e.chargeVy = Math.sin(ang) * (340 + e.bossPhase * 40);
+      e.chargeCd = e.bossPhase === 3 ? 4.2 : 5.5;
+      this.flashMessage("SECTOR CHARGE", 0.7);
+    }
+  }
+
+  sectorBossSpecial(e) {
+    const phase = e.bossPhase || 1;
+    e.attackIndex = (e.attackIndex || 0) + 1;
+    const kinds = phase >= 3 ? ["ring", "sweep", "sides", "fan"] : phase >= 2 ? ["ring", "sweep", "fan"] : ["fan", "ring"];
+    const kind = kinds[e.attackIndex % kinds.length];
+    if (kind === "ring") this.finalBossRing(e, 6 + phase);
+    else if (kind === "sweep") this.finalBossSweep(e);
+    else if (kind === "sides") this.finalBossSides(e);
+    else this.finalBossFan(e);
+  }
+
+  finalBossSpecial(e) {
+    const phase = e.bossPhase || 1;
+    e.attackIndex = (e.attackIndex || 0) + 1;
+    const pools = {
+      1: ["ring", "fan", "sweep"],
+      2: ["ring", "spiral", "sweep", "sides", "fan"],
+      3: ["ring", "spiral", "sweep", "sides", "burst", "fan"],
+    };
+    const pool = pools[phase] || pools[1];
+    const kind = pool[e.attackIndex % pool.length];
+    if (kind === "ring") this.finalBossRing(e, phase >= 3 ? 10 : 7);
+    else if (kind === "spiral") this.finalBossSpiral(e);
+    else if (kind === "sweep") this.finalBossSweep(e);
+    else if (kind === "sides") this.finalBossSides(e);
+    else if (kind === "fan") this.finalBossFan(e);
+    else if (kind === "burst") {
+      this.finalBossRing(e, 8);
+      this.finalBossSpiral(e);
     }
   }
 
@@ -945,10 +1226,98 @@ export class Game {
         h: 8,
         vx: Math.cos(a) * (220 + e.bossPhase * 30),
         vy: Math.sin(a) * (220 + e.bossPhase * 30),
-        damage: 16,
+        damage: 11,
         color: "#ffb020",
         life: 3.5,
         heavy: true,
+        fromFinal: true,
+      });
+    }
+  }
+
+  finalBossSpiral(e) {
+    const arms = e.bossPhase >= 3 ? 3 : 2;
+    const n = e.bossPhase >= 3 ? 10 : 8;
+    for (let arm = 0; arm < arms; arm++) {
+      for (let i = 0; i < n; i++) {
+        const a = e.phase * 1.7 + (Math.PI * 2 * arm) / arms + i * 0.28;
+        const speed = 160 + i * 18 + e.bossPhase * 20;
+        this.enemyBullets.push({
+          x: e.x,
+          y: e.y,
+          w: 7,
+          h: 7,
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          damage: 9,
+          color: i % 2 ? "#f2f5ff" : "#ff8a40",
+          life: 3.2,
+          heavy: i % 2 === 0,
+          fromFinal: true,
+        });
+      }
+    }
+  }
+
+  finalBossSweep(e) {
+    const aim = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+    const shots = 5 + e.bossPhase;
+    const spread = 0.55 + e.bossPhase * 0.08;
+    for (let i = 0; i < shots; i++) {
+      const t = shots === 1 ? 0.5 : i / (shots - 1);
+      const a = aim - spread / 2 + t * spread;
+      this.enemyBullets.push({
+        x: e.x,
+        y: e.y + e.h / 2,
+        w: 8,
+        h: 10,
+        vx: Math.cos(a) * (300 + e.bossPhase * 35),
+        vy: Math.sin(a) * (300 + e.bossPhase * 35),
+        damage: 10,
+        color: "#ffe08a",
+        life: 3.0,
+        heavy: true,
+        fromFinal: true,
+      });
+    }
+  }
+
+  finalBossSides(e) {
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 4; i++) {
+        this.enemyBullets.push({
+          x: e.x + side * (e.w * 0.45),
+          y: e.y + 10 + i * 8,
+          w: 7,
+          h: 11,
+          vx: side * (40 + i * 18),
+          vy: e.bulletSpeed * (0.75 + i * 0.08),
+          damage: 10,
+          color: side < 0 ? "#1a1e26" : "#f2f5ff",
+          life: 2.8,
+          heavy: side < 0,
+          fromFinal: true,
+        });
+      }
+    }
+  }
+
+  finalBossFan(e) {
+    const aim = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+    const shots = 3 + e.bossPhase;
+    for (let i = 0; i < shots; i++) {
+      const a = aim + (i - (shots - 1) / 2) * 0.16;
+      this.enemyBullets.push({
+        x: e.x,
+        y: e.y + e.h / 2,
+        w: 8,
+        h: 8,
+        vx: Math.cos(a) * e.bulletSpeed,
+        vy: Math.sin(a) * e.bulletSpeed,
+        damage: 11,
+        color: i % 2 ? "#f2f5ff" : "#1a1e26",
+        life: 3.1,
+        heavy: i % 2 === 0,
         fromFinal: true,
       });
     }
@@ -967,7 +1336,7 @@ export class Game {
       }
       e.phase += dt;
 
-      if (e.final && e.charging > 0) {
+      if (e.charging > 0) {
         e.charging -= dt;
         e.x += e.chargeVx * dt;
         e.y += e.chargeVy * dt;
@@ -989,8 +1358,10 @@ export class Game {
         targetX = W / 2 + Math.sin(e.phase * speed) * (W * amp);
         targetY = holdY + Math.sin(e.phase * 2.1) * (e.bossPhase === 3 ? 40 : 28);
       } else {
-        targetX = W / 2 + Math.sin(e.phase * 0.9) * (W * 0.28);
-        targetY = holdY + Math.sin(e.phase * 1.7) * 18;
+        const slot = e.slotX || 0;
+        const amp = slot ? 0.18 : 0.28;
+        targetX = W / 2 + slot + Math.sin(e.phase * 0.9 + (e.pairPhase || 0)) * (W * amp);
+        targetY = holdY + Math.sin(e.phase * 1.7 + (e.pairPhase || 0)) * 18;
       }
       const follow = Math.min(1, 3.2 * dt);
       e.x += (targetX - e.x) * follow;
@@ -1031,62 +1402,104 @@ export class Game {
     });
     if (e.final) {
       const phase = e.bossPhase || 1;
-      // Leaner patterns — final fight was too dense
-      const shots = 2 + phase; // 3–5
-      const spread = 0.1 + phase * 0.02;
-      for (let i = 0; i < shots; i++) {
-        const a = aim + (i - (shots - 1) / 2) * spread;
-        const dark = i % 2 === 0;
-        this.enemyBullets.push({
-          x: e.x,
-          y: e.y + e.h / 2,
-          w: 8,
-          h: 8,
-          vx: Math.cos(a) * e.bulletSpeed,
-          vy: Math.sin(a) * e.bulletSpeed,
-          damage: 18,
-          color: dark ? "#1a1e26" : "#f2f5ff",
-          life: 3.2,
-          heavy: dark,
-          fromFinal: true,
-        });
-      }
-      if (phase >= 2 && Math.random() < 0.55) {
-        for (let i = 0; i < 4; i++) {
-          const a = e.phase * 2.5 + (Math.PI * 2 * i) / 4;
+      e.shotStyle = ((e.shotStyle || 0) + 1) % 3;
+      if (e.shotStyle === 0) {
+        // Aimed fan
+        const shots = 2 + phase;
+        const spread = 0.1 + phase * 0.02;
+        for (let i = 0; i < shots; i++) {
+          const a = aim + (i - (shots - 1) / 2) * spread;
+          const dark = i % 2 === 0;
+          this.enemyBullets.push({
+            x: e.x,
+            y: e.y + e.h / 2,
+            w: 8,
+            h: 8,
+            vx: Math.cos(a) * e.bulletSpeed,
+            vy: Math.sin(a) * e.bulletSpeed,
+            damage: 12,
+            color: dark ? "#1a1e26" : "#f2f5ff",
+            life: 3.2,
+            heavy: dark,
+            fromFinal: true,
+          });
+        }
+      } else if (e.shotStyle === 1) {
+        // Cross / rotating spokes
+        const spokes = 3 + phase;
+        for (let i = 0; i < spokes; i++) {
+          const a = e.phase * 2.2 + (Math.PI * 2 * i) / spokes;
           this.enemyBullets.push({
             x: e.x,
             y: e.y,
             w: 7,
             h: 7,
-            vx: Math.cos(a) * 220,
-            vy: Math.sin(a) * 220,
-            damage: 14,
+            vx: Math.cos(a) * (210 + phase * 25),
+            vy: Math.sin(a) * (210 + phase * 25),
+            damage: 9,
             color: i % 2 ? "#f2f5ff" : "#1a1e26",
             life: 2.6,
             heavy: i % 2 === 0,
             fromFinal: true,
           });
         }
-      }
-      if (phase >= 3 && Math.random() < 0.35) {
+      } else {
+        // Vertical pillar volley toward player lane
         for (let i = -1; i <= 1; i++) {
           this.enemyBullets.push({
-            x: e.x + i * 28,
+            x: e.x + i * 30,
             y: e.y + e.h / 2,
             w: 7,
             h: 12,
-            vx: i * 14,
+            vx: i * 16 + (this.player.x - e.x) * 0.04,
             vy: e.bulletSpeed * 0.95,
-            damage: 16,
+            damage: 11,
             color: bulletColor,
             life: 2.8,
             heavy: black,
             fromFinal: true,
           });
         }
+        if (phase >= 3) {
+          const a = aim;
+          this.enemyBullets.push({
+            x: e.x,
+            y: e.y + e.h / 2,
+            w: 9,
+            h: 9,
+            vx: Math.cos(a) * (e.bulletSpeed + 40),
+            vy: Math.sin(a) * (e.bulletSpeed + 40),
+            damage: 12,
+            color: "#ffb020",
+            life: 3.0,
+            heavy: true,
+            fromFinal: true,
+          });
+        }
       }
       return;
+    }
+
+    // Sector 2+ bosses alternate spread volley with a focused gun stream
+    if (e.type === "boss" && e.altGun) {
+      e.shotStyle = ((e.shotStyle || 0) + 1) % 2;
+      if (e.shotStyle === 1) {
+        for (let i = 0; i < 5; i++) {
+          this.enemyBullets.push({
+            x: e.x + (i - 2) * 3,
+            y: e.y + e.h / 2 + i * 6,
+            w: 6,
+            h: 10,
+            vx: Math.cos(aim) * (e.bulletSpeed + 40) + (i - 2) * 8,
+            vy: Math.sin(aim) * (e.bulletSpeed + 40),
+            damage: 14,
+            color: "#9ec8ff",
+            life: 2.8,
+            heavy: false,
+          });
+        }
+        return;
+      }
     }
 
     const shots = e.type === "boss" ? 5 : e.type === "heavy" ? 3 : 1;
@@ -1152,9 +1565,9 @@ export class Game {
         spawnSparks(this.particles, b.x, b.y, b.weapon === "rocket" ? 16 : 7);
         if (b.weapon === "rocket") {
           spawnSmoke(this.particles, b.x, b.y, 10);
-          addTrauma(this.juice, 0.38);
-          hitStop(this.juice, 0.08);
-          impactFlash(this.juice, "rgba(255,79,216,0.2)", 0.2, 0.45);
+          addTrauma(this.juice, 0.23); // ~40% less than previous 0.38
+          hitStop(this.juice, 0.06);
+          impactFlash(this.juice, "rgba(255,79,216,0.14)", 0.14, 0.4);
           spawnExplosion(this.particles, b.x, b.y, { big: false });
         } else {
           addTrauma(this.juice, 0.04);
@@ -1221,10 +1634,10 @@ export class Game {
         if (e.hp <= 0) this.killEnemy(e);
       }
     }
-    this.shake = Math.max(this.shake, 10);
+    this.shake = Math.max(this.shake, 6); // ~40% less than previous rocket splash shake (10)
     spawnExplosion(this.particles, b.x, b.y, { big: false });
-    addTrauma(this.juice, 0.2);
-    impactFlash(this.juice, "rgba(255,122,61,0.16)", 0.16, 0.4);
+    addTrauma(this.juice, 0.12); // was 0.2 — ~40% less
+    impactFlash(this.juice, "rgba(255,122,61,0.12)", 0.12, 0.35);
     this.audio.explosion(false);
   }
 
@@ -1258,30 +1671,45 @@ export class Game {
       this.score += e.score;
       this.levelKills += 1;
       this.combo += 1;
-      if (Math.random() < 0.14 + Math.min(0.1, this.combo * 0.01)) {
+      if (Math.random() < 0.07 + Math.min(0.05, this.combo * 0.005)) {
         const types = ["shield", "repair", "super", "rocket"];
         const max = this.level >= 2 ? 4 : 3;
         const type = types[(Math.random() * max) | 0];
         this.powerups.push(spawnPowerup(type, e.x, e.y));
       }
-      if (Math.random() < 0.08) {
+      if (Math.random() < 0.04) {
         this.powerups.push(
           spawnPickupAmmo(e.x, e.y, {
             ion: 8 + ((Math.random() * 8) | 0),
             plasma: 4 + ((Math.random() * 6) | 0),
-            rocket: 2 + ((Math.random() * 3) | 0),
+            rocket: 1 + ((Math.random() * 2) | 0),
             gun: 0,
           })
         );
-      } else if (Math.random() < 0.06) {
+      } else if (Math.random() < 0.03) {
         this.powerups.push(spawnPowerup("rocket", e.x, e.y));
       }
     }
-    if (e.type === "boss" && !fromSuicide) this.defeatBoss();
+    if (e.type === "boss" && !fromSuicide) {
+      const remaining = this.enemies.some((x) => x.type === "boss" && x !== e && !x._dead && x.hp > 0);
+      if (remaining) {
+        this.boss = this.enemies.find((x) => x.type === "boss" && x !== e && !x._dead && x.hp > 0) || null;
+        this.flashMessage("WINGMAN DOWN", 1.1);
+      } else {
+        this.defeatBoss();
+      }
+    }
   }
 
   defeatBoss() {
-    if (this.levelPhase === "clear" || this.levelPhase === "victory") return;
+    if (
+      this.levelPhase === "clear" ||
+      this.levelPhase === "victory" ||
+      this.levelPhase === "victoryBanner" ||
+      this.state === STATES.UPGRADE
+    ) {
+      return;
+    }
     this.score += 1000 * this.level;
     this.burst(W / 2, 160, this.level >= MAX_LEVEL ? "#ffb020" : "#3ef0d0", 60, 360);
     this.audio.explosion(true);
@@ -1289,24 +1717,58 @@ export class Game {
     this.enemies = this.enemies.filter((e) => e.type !== "boss");
 
     if (this.level >= MAX_LEVEL) {
-      this.levelPhase = "victory";
-      this.clearTimer = 1.2;
-      this.state = STATES.LEVEL_CLEAR;
-      this.ui.levelClearTitle.textContent = "Final Boss Destroyed";
-      this.ui.levelClearSub.textContent = "Freighter path is clear…";
-      this.showScreen("levelclear");
+      this.levelPhase = "victoryBanner";
+      this.clearTimer = 3.2;
+      this.victoryBannerT = 0;
+      this.state = STATES.VICTORY_BANNER;
+      this.showScreen("victorybanner");
+      this.flashMessage("VICTORY", 2.8);
+      addTrauma(this.juice, 0.4);
+      impactFlash(this.juice, "rgba(255,200,80,0.28)", 0.28, 0.55);
       return;
     }
 
     this.levelPhase = "clear";
-    this.clearTimer = 2.4;
+    this.clearTimer = 1.6;
     this.state = STATES.LEVEL_CLEAR;
     this.ui.levelClearTitle.textContent = `Sector ${this.level} Cleared`;
-    this.ui.levelClearSub.textContent =
-      this.level === MAX_LEVEL - 1
-        ? "Final sector inbound"
-        : "Ammo restocked · Next sector inbound";
+    this.ui.levelClearSub.textContent = "Ship level-up inbound…";
     this.showScreen("levelclear");
+  }
+
+  openUpgradeSelect() {
+    if (this.state === STATES.UPGRADE) return;
+    const taken = this.player?.upgrades?.taken || [];
+    this.upgradeOptions = pickUpgradeChoices(taken, 3);
+    this.state = STATES.UPGRADE;
+    this.levelPhase = "upgrade";
+    if (this.ui.upgradeLevel) {
+      this.ui.upgradeLevel.textContent = String((this.player.shipLevel || 1) + 1);
+    }
+    if (this.ui.upgradeChoices) {
+      this.ui.upgradeChoices.innerHTML = this.upgradeOptions
+        .map(
+          (u) => `
+        <button type="button" class="upgrade-card" data-upgrade="${u.id}">
+          <span class="upgrade-card-title">${u.title}</span>
+          <span class="upgrade-card-desc">${u.desc}</span>
+        </button>`
+        )
+        .join("");
+    }
+    this.showScreen("upgrade");
+    this.audio.alert();
+  }
+
+  chooseUpgrade(id) {
+    if (this.state !== STATES.UPGRADE) return;
+    const valid = (this.upgradeOptions || []).some((u) => u.id === id) || UPGRADE_POOL.some((u) => u.id === id);
+    if (!valid) return;
+    applyUpgrade(this.player, id);
+    const label = UPGRADE_POOL.find((u) => u.id === id)?.title || "UPGRADE";
+    this.flashMessage(`SHIP LV ${this.player.shipLevel} — ${label}`, 1.6);
+    this.audio.pickup("super");
+    this.nextLevel();
   }
 
   collectPowerup(up) {
@@ -1441,12 +1903,13 @@ export class Game {
     if ((this.laserCharge || 0) < 100) return;
     if (this.superLaser) return;
     this.laserCharge = 0;
+    const up = this.player.upgrades || {};
     this.superLaser = {
       t: 0.65,
       tick: 0,
       x: this.player.x,
-      halfW: 28,
-      damage: 55,
+      halfW: 28 * (up.laserWidthMul || 1),
+      damage: 55 * (up.laserDamageMul || 1),
     };
     hitStop(this.juice, 0.08);
     impactFlash(this.juice, "rgba(255,79,216,0.24)", 0.24, 0.4);
@@ -1505,13 +1968,28 @@ export class Game {
     if (beam.t <= 0) this.superLaser = null;
   }
 
+  renderLivesHud() {
+    const el = this.ui.lives;
+    if (!el) return;
+    const n = Math.max(0, this.lives | 0);
+    // Always show at least 3 heart slots so starting lives are obvious.
+    const slots = Math.max(3, n);
+    let html = "";
+    for (let i = 0; i < slots; i++) {
+      html += `<i class="heart${i < n ? " on" : ""}" aria-hidden="true"></i>`;
+    }
+    el.innerHTML = html;
+    el.setAttribute("aria-label", `Lives: ${n}`);
+  }
+
   syncHud() {
     const p = this.player;
     this.ui.score.textContent = String(this.score);
     this.ui.level.textContent = `${this.level} / ${MAX_LEVEL}`;
-    this.ui.lives.textContent = String(Math.max(0, this.lives));
+    this.ui.lives && this.renderLivesHud();
     this.ui.shield.style.transform = `scaleX(${clamp(p.shield / 100, 0, 1)})`;
     this.ui.hull.style.transform = `scaleX(${clamp(p.hull / 100, 0, 1)})`;
+    if (this.ui.shipLevel) this.ui.shipLevel.textContent = String(p.shipLevel || 1);
     if (this.ui.laser) {
       this.ui.laser.style.transform = `scaleX(${clamp((this.laserCharge || 0) / 100, 0, 1)})`;
     }
@@ -1573,6 +2051,7 @@ export class Game {
     if (this.state !== STATES.TITLE) {
       this.drawPowerups(ctx);
       this.drawEnemies(ctx);
+      this.drawBossLaser(ctx);
       this.drawSuperLaser(ctx);
       this.drawBullets(ctx);
       if (this.player.alive || this.state === STATES.GAME_OVER) this.drawPlayer(ctx);
@@ -1589,14 +2068,21 @@ export class Game {
       }
     }
 
-    if (this.boss && this.levelPhase === "boss") {
-      const ratio = clamp(this.boss.hp / this.boss.maxHp, 0, 1);
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(80, 24, W - 160, 14);
-      ctx.fillStyle = this.boss.final ? "#e8a24a" : "#dce6ff";
-      ctx.fillRect(80, 24, (W - 160) * ratio, 14);
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
-      ctx.strokeRect(80, 24, W - 160, 14);
+    if (this.levelPhase === "boss") {
+      const bosses = this.enemies.filter((e) => e.type === "boss" && e.hp > 0);
+      const live = bosses.length ? bosses : this.boss ? [this.boss] : [];
+      if (live.length) {
+        const hp = live.reduce((s, b) => s + Math.max(0, b.hp), 0);
+        const maxHp = live.reduce((s, b) => s + b.maxHp, 0) || 1;
+        const ratio = clamp(hp / maxHp, 0, 1);
+        const isFinal = live.some((b) => b.final);
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(80, 24, W - 160, 14);
+        ctx.fillStyle = isFinal ? "#e8a24a" : "#dce6ff";
+        ctx.fillRect(80, 24, (W - 160) * ratio, 14);
+        ctx.strokeStyle = "rgba(255,255,255,0.4)";
+        ctx.strokeRect(80, 24, W - 160, 14);
+      }
     }
 
     if (this.message) {
@@ -1608,6 +2094,29 @@ export class Game {
       ctx.font = "700 18px Orbitron";
       ctx.textAlign = "center";
       ctx.fillText(this.message.text, W / 2, H * 0.38 + 28);
+      ctx.restore();
+    }
+
+    if (this.state === STATES.VICTORY_BANNER) {
+      const t = this.victoryBannerT || 0;
+      const pulse = 0.85 + Math.sin(t * 6) * 0.08;
+      const fade = clamp(this.clearTimer / 0.45, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = 0.55 * fade;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = fade;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(232, 162, 74, 0.95)";
+      ctx.font = `800 ${Math.floor(72 * pulse)}px Orbitron, sans-serif`;
+      ctx.fillText("VICTORY", W / 2, H * 0.42);
+      ctx.fillStyle = "rgba(238, 244, 255, 0.92)";
+      ctx.font = "700 22px Rajdhani, sans-serif";
+      ctx.fillText("BLOCKADE COMMANDER DESTROYED", W / 2, H * 0.42 + 64);
+      ctx.fillStyle = "rgba(158, 179, 209, 0.9)";
+      ctx.font = "600 16px Rajdhani, sans-serif";
+      ctx.fillText("Freighter path clear — standing by…", W / 2, H * 0.42 + 96);
       ctx.restore();
     }
 
@@ -1756,6 +2265,78 @@ export class Game {
         ctx.fillRect(e.x - 16, e.y - e.h / 2 - 10, 32 * (e.hp / e.maxHp), 3);
       }
     }
+  }
+
+  drawBossLaser(ctx) {
+    // Prefer live final-boss laser state from enemies (authoritative), then mirror.
+    const live =
+      this.enemies.find((x) => x.type === "boss" && x.final && x.laserState) ||
+      (this.bossLaser?.owner?.laserState ? this.bossLaser.owner : null) ||
+      (this.boss?.final && this.boss?.laserState ? this.boss : null);
+    if (!live) return;
+    const x = live.laserAimX;
+    const top = live.y + live.h * 0.2;
+    const bottom = H;
+    const halfW = live.laserHalfW || 22;
+    const t = this.juice?.time || performance.now() * 0.001;
+    const firing = live.laserState === "fire";
+
+    ctx.save();
+    if (!firing) {
+      const pulse = 0.4 + Math.sin(t * 22) * 0.2;
+      ctx.globalAlpha = pulse;
+      ctx.strokeStyle = "rgba(255, 140, 40, 0.95)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([10, 8]);
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(255, 120, 40, 0.14)";
+      ctx.fillRect(x - halfW, top, halfW * 2, bottom - top);
+      ctx.strokeStyle = "rgba(255, 200, 80, 0.6)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - halfW, top, halfW * 2, bottom - top);
+      // Charge meter at boss
+      const charge = clamp(1 - (live.laserT || 0) / 10, 0, 1);
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(x - 40, top - 18, 80, 6);
+      ctx.fillStyle = "#ffb040";
+      ctx.fillRect(x - 40, top - 18, 80 * charge, 6);
+      ctx.globalAlpha = 1;
+      drawGlow(ctx, x, top + 20, 40, "rgba(255,140,40,0.45)", 0.4);
+    } else {
+      const pulse = 0.85 + Math.sin(t * 48) * 0.15;
+      ctx.globalCompositeOperation = "lighter";
+      // Outer glow slab
+      ctx.globalAlpha = pulse * 0.45;
+      ctx.fillStyle = "rgba(255, 80, 20, 0.85)";
+      ctx.fillRect(x - halfW * 1.55, top, halfW * 3.1, bottom - top);
+      // Core beam
+      const g = ctx.createLinearGradient(x, top, x, bottom);
+      g.addColorStop(0, "rgba(255,255,255,1)");
+      g.addColorStop(0.1, "rgba(255,220,120,0.98)");
+      g.addColorStop(0.45, "rgba(255,90,20,0.95)");
+      g.addColorStop(1, "rgba(255,40,10,0.35)");
+      ctx.fillStyle = g;
+      ctx.globalAlpha = pulse;
+      ctx.fillRect(x - halfW, top, halfW * 2, bottom - top);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.fillRect(x - halfW * 0.28, top, halfW * 0.56, bottom - top);
+      ctx.strokeStyle = "rgba(255,255,220,1)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
+      drawGlow(ctx, x, top + 10, 90, "rgba(255,180,60,0.75)", 0.7);
+      drawGlow(ctx, x, (top + bottom) / 2, 70, "rgba(255,80,20,0.55)", 0.55);
+      drawGlow(ctx, x, bottom - 40, 60, "rgba(255,120,40,0.4)", 0.45);
+    }
+    ctx.restore();
   }
 
   drawSuperLaser(ctx) {
